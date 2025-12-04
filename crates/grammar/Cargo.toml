@@ -1,0 +1,15 @@
+[package]
+name = "grammar"
+version = "0.1.0"
+edition = "2024"
+build = "bindings/rust/build.rs"
+
+[lib]
+path = "bindings/rust/lib.rs"
+
+[build-dependencies]
+cc="*"
+
+[dependencies]
+tree-sitter = "0.25.10"
+tree-sitter-language = "0.1.5"

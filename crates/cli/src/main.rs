@@ -1,6 +1,7 @@
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
-use anyhow::Result;
+use anyhow::{Context, Result};
+use std::fs::read_to_string;
 
 #[derive(Parser)]
 #[command(name = "cdm")]
@@ -26,7 +27,14 @@ fn main() -> Result<()> {
 
     match cli.command {
         Commands::Validate { path } => {
-            println!("validate! {}", path.display());
+
+            let source = read_to_string(&path)
+                .with_context(|| format!("Failed to read file: {}", path.display()))?;
+
+            let mut parser = tree_sitter::Parser::new();
+            parser.set_language(&grammar::LANGUAGE.into())?;
+
+            println!("validate! {} {}", path.display(), source);
         }
     }
 
