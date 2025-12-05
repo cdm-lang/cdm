@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tree-sitter-cdm"
-description = "Contextual Data Models"
+description = "Cdm grammar for tree-sitter"
 version = "0.1.0"
 keywords = ["incremental", "parsing", "tree-sitter", "cdm"]
 classifiers = [

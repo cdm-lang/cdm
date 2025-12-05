@@ -1,0 +1,768 @@
+// example.cdm
+// Complete example of the Common Data Model language
+
+// ============================================================================
+// PART 1: SIMPLE TYPE ALIASES
+// ============================================================================
+
+// Simplest form - just type aliases
+Email: string
+PhoneNumber: string  
+Age: number
+Active: boolean
+
+// Type aliases with plugin configuration (JSON format)
+UUID: string {
+  @validation { 
+    format: "uuid",
+    version: 4 
+  }
+  @sql { 
+    type: "UUID",
+    default: "gen_random_uuid()" 
+  }
+}
+
+ValidatedEmail: string {
+  @validation { 
+    format: "email",
+    max_length: 320 
+  }
+  @sql { 
+    type: "VARCHAR(320)",
+    collation: "case_insensitive" 
+  }
+}
+
+// ============================================================================
+// PART 2: UNION TYPES
+// ============================================================================
+
+// Simple union types
+Status: "active" | "pending" | "suspended" | "deleted"
+Priority: "low" | "medium" | "high" | "critical"
+HttpMethod: "GET" | "POST" | "PUT" | "DELETE" | "PATCH"
+
+// Union with plugin config
+AccountType: "free" | "premium" | "enterprise" {
+  @sql { 
+    type: "ENUM",
+    name: "account_type_enum"
+  }
+  @validation { 
+    transition_rules: {
+      free: ["premium"],
+      premium: ["enterprise", "free"],
+      enterprise: ["premium"]
+    }
+  }
+}
+
+// ============================================================================
+// PART 3: COMPOSITE TYPES (VALUE OBJECTS)
+// ============================================================================
+
+// Simple composite type
+Address {
+  street: string
+  city: string
+  state: string
+  postal_code: string
+  country: string
+}
+
+// Composite with optional fields and defaults
+Money {
+  amount: decimal
+  currency: string = "USD"
+  
+  @validation {
+    amount: { min: 0, precision: [19, 4] },
+    currency: { in: ["USD", "EUR", "GBP", "JPY"] }
+  }
+  @sql {
+    amount: { type: "DECIMAL(19,4)" },
+    currency: { type: "CHAR(3)" }
+  }
+}
+
+// Nested composite with arrays
+ContactInfo {
+  primary_email: ValidatedEmail
+  secondary_emails: ValidatedEmail[]
+  phones: PhoneNumber[]
+  address: Address?
+  preferred_contact: "email" | "phone" | "mail" = "email"
+}
+
+// ============================================================================
+// PART 4: BASIC MODELS
+// ============================================================================
+
+// Simplest model - just field names (everything defaults to string)
+BasicUser {
+  name
+  email
+  bio
+}
+
+// Model with explicit types
+TypedUser {
+  id: UUID
+  name: string
+  email: ValidatedEmail
+  age: Age?
+  active: boolean = true
+}
+
+// ============================================================================
+// PART 5: MODELS WITH RELATIONSHIPS
+// ============================================================================
+
+// Models with references to other models
+User {
+  id: UUID
+  username: string
+  email: ValidatedEmail
+  password_hash: string
+  profile: UserProfile?
+  posts: Post[]
+  created_at: DateTime = now()
+  updated_at: DateTime = now()
+  
+  @sql {
+    table: "users",
+    indexes: [
+      { fields: ["email"], unique: true },
+      { fields: ["username"], unique: true }
+    ]
+  }
+}
+
+UserProfile {
+  id: UUID
+  user: User
+  display_name: string?
+  bio: string?
+  avatar_url: string?
+  website: string?
+  location: string?
+  
+  @validation {
+    bio: { max_length: 500 },
+    website: { format: "url" }
+  }
+}
+
+Post {
+  id: UUID
+  author: User
+  title: string
+  content: string
+  status: "draft" | "published" | "archived" = "draft"
+  tags: Tag[]
+  comments: Comment[]
+  published_at: DateTime?
+  view_count: number = 0
+  
+  // Field-specific overrides
+  content {
+    @sql { type: "TEXT" }
+    @validation { min_length: 10, max_length: 50000 }
+  }
+  
+  title {
+    @sql { type: "VARCHAR(200)", index: "fulltext" }
+    @validation { min_length: 5, max_length: 200 }
+  }
+  
+  @sql {
+    table: "posts",
+    indexes: [
+      { fields: ["author", "status"] },
+      { fields: ["published_at"], where: "status = 'published'" }
+    ]
+  }
+}
+
+Comment {
+  id: UUID
+  post: Post
+  author: User
+  parent: Comment?
+  content: string
+  likes: number = 0
+  created_at: DateTime = now()
+  edited_at: DateTime?
+  
+  @sql { 
+    table: "comments",
+    foreign_keys: {
+      parent: { on_delete: "CASCADE" },
+      post: { on_delete: "CASCADE" },
+      author: { on_delete: "SET NULL" }
+    }
+  }
+}
+
+Tag {
+  id: UUID
+  name: string
+  slug: string
+  posts: Post[]
+  
+  @sql {
+    table: "tags",
+    indexes: [
+      { fields: ["slug"], unique: true }
+    ]
+  }
+}
+
+// ============================================================================
+// PART 6: MODEL INHERITANCE
+// ============================================================================
+
+// Base model with common fields
+Timestamped {
+  created_at: DateTime = now()
+  updated_at: DateTime = now()
+  
+  @sql {
+    triggers: {
+      before_update: "SET NEW.updated_at = NOW()"
+    }
+  }
+}
+
+// Base user with lots of fields
+BaseUser {
+  id: UUID
+  username: string
+  email: ValidatedEmail
+  password_hash: string
+  salt: string
+  phone: PhoneNumber?
+  address: Address?
+  created_at: DateTime = now()
+  updated_at: DateTime = now()
+  deleted_at: DateTime?
+  
+  @sql {
+    table: "base_users",
+    indexes: [
+      { fields: ["email"], unique: true },
+      { fields: ["username"], unique: true }
+    ]
+  }
+}
+
+// Extending single model - simple addition
+Article extends Timestamped {
+  id: UUID
+  title: string
+  content: string
+  author: User
+  category: Category
+  read_time: number
+  
+  @sql { table: "articles" }
+}
+
+// Extending with removal - public user profile
+PublicUser extends BaseUser {
+  -password_hash
+  -salt
+  -deleted_at
+  
+  display_name: string
+  bio: string?
+  avatar_url: string?
+  follower_count: number = 0
+  following_count: number = 0
+  is_verified: boolean = false
+  
+  @sql { table: "public_profiles" }
+  @api { expose: ["id", "username", "display_name", "bio", "avatar_url"] }
+}
+
+// Multiple inheritance with removals
+AdminUser extends BaseUser, Timestamped {
+  -phone
+  -address
+  
+  admin_level: number = 1
+  permissions: Permission[]
+  sudo_mode: boolean = false
+  last_admin_action: DateTime?
+  two_factor_enabled: boolean = true
+  admin_notes: string?
+  
+  @sql { table: "admin_users" }
+  @api { exclude: ["password_hash", "salt", "sudo_mode", "admin_notes"] }
+}
+
+// External API user - minimal fields
+ExternalUser extends BaseUser {
+  -password_hash
+  -salt
+  -phone
+  -address
+  -deleted_at
+  
+  api_key: string
+  api_secret: string
+  webhook_url: string?
+  rate_limit: number = 1000
+  allowed_origins: string[]
+  
+  @sql { table: "external_users" }
+  @validation {
+    api_key: { length: 32 },
+    api_secret: { length: 64 },
+    webhook_url: { format: "url" }
+  }
+}
+
+// Guest user - removing almost everything
+GuestUser extends BaseUser {
+  -username
+  -password_hash
+  -salt
+  -phone
+  -address
+  -email
+  -deleted_at
+  
+  session_id: string
+  ip_address: string
+  expires_at: DateTime
+  
+  @sql { 
+    table: "guest_sessions",
+    ttl: 86400
+  }
+}
+
+// Complex inheritance chain with selective removal
+BaseContent {
+  id: UUID
+  title: string
+  content: string
+  author: User
+  tags: Tag[]
+  status: "draft" | "published" | "archived"
+  metadata: JSON?
+  seo_description: string?
+  seo_keywords: string[]
+  created_at: DateTime = now()
+  updated_at: DateTime = now()
+  published_at: DateTime?
+}
+
+BlogPost extends BaseContent {
+  -metadata
+  
+  excerpt: string
+  featured_image: string?
+  comments_enabled: boolean = true
+  comments: Comment[]
+  
+  @sql { table: "blog_posts" }
+}
+
+NewsArticle extends BaseContent {
+  -tags
+  -seo_keywords
+  
+  headline: string
+  subheadline: string?
+  location: string?
+  breaking: boolean = false
+  source: string?
+  fact_checked: boolean = false
+  editor: User
+  
+  @sql { table: "news_articles" }
+}
+
+// Product listing - very different from base content
+ProductListing extends BaseContent {
+  -content
+  -author
+  -tags
+  -seo_keywords
+  -seo_description
+  -status
+  
+  description: string
+  seller: User
+  categories: Category[]
+  status: "available" | "out_of_stock" | "discontinued"
+  price: Money
+  sku: string
+  inventory_count: number = 0
+  
+  @sql { table: "product_listings" }
+  @validation {
+    sku: { pattern: "^PROD-[0-9]{8}$" },
+    price: { amount: { min: 0 } }
+  }
+}
+
+// Service account - removing human-specific fields
+ServiceAccount extends BaseUser {
+  -username
+  -phone
+  -address
+  
+  service_name: string
+  service_type: "internal" | "webhook" | "integration" | "bot"
+  owner_team: string
+  expires_at: DateTime?
+  auto_rotate_credentials: boolean = true
+  last_rotated: DateTime = now()
+  allowed_operations: string[]
+  
+  @sql { 
+    table: "service_accounts",
+    indexes: [
+      { fields: ["service_name", "service_type"], unique: true }
+    ]
+  }
+}
+
+// Example with deep inheritance and selective removal
+BaseEntity {
+  id: UUID
+  created_at: DateTime = now()
+  updated_at: DateTime = now()
+  created_by: User?
+  updated_by: User?
+  version: number = 1
+  is_deleted: boolean = false
+  metadata: JSON?
+}
+
+AuditableEntity extends BaseEntity {
+  audit_log: AuditLog[]
+  last_audit: DateTime?
+  compliance_status: "compliant" | "pending" | "non_compliant"
+}
+
+// Financial record - needs audit but not all base fields
+FinancialRecord extends AuditableEntity {
+  -created_by
+  -updated_by
+  -is_deleted
+  -metadata
+  
+  entered_by: User
+  approved_by: User?
+  amount: Money
+  type: "income" | "expense" | "transfer"
+  account_from: string?
+  account_to: string?
+  reference_number: string
+  is_voided: boolean = false
+  void_reason: string?
+  fiscal_year: number
+  fiscal_quarter: number
+  
+  @sql { 
+    table: "financial_records",
+    indexes: [
+      { fields: ["reference_number"], unique: true },
+      { fields: ["fiscal_year", "fiscal_quarter", "type"] }
+    ]
+  }
+  
+  @validation {
+    void_reason: { required_if: "is_voided = true" },
+    approved_by: { required_if: "amount.amount > 10000" }
+  }
+}
+
+// ============================================================================
+// PART 7: COMPLEX NESTED STRUCTURES
+// ============================================================================
+
+// E-commerce example with complex relationships
+Product {
+  id: UUID
+  sku: string
+  name: string
+  description: string?
+  price: Money
+  discount_price: Money?
+  inventory: Inventory
+  categories: Category[]
+  variants: ProductVariant[]
+  reviews: Review[]
+  
+  // Computed field
+  average_rating: decimal {
+    @computed { from: "AVG(reviews.rating)" }
+  }
+  
+  @validation {
+    price: { amount: { min: 0.01 } },
+    discount_price: { amount: { less_than: "price.amount" } },
+    sku: { pattern: "^[A-Z]{3}-[0-9]{6}$" }
+  }
+  
+  @sql {
+    table: "products",
+    indexes: [
+      { fields: ["sku"], unique: true },
+      { fields: ["name"], type: "fulltext" },
+      { fields: ["price.amount", "discount_price.amount"] }
+    ]
+  }
+}
+
+ProductVariant {
+  id: UUID
+  product: Product
+  name: string
+  value: string
+  price_adjustment: Money?
+  inventory_adjustment: number = 0
+  
+  @sql {
+    table: "product_variants",
+    unique: [["product", "name", "value"]]
+  }
+}
+
+Inventory {
+  quantity: number = 0
+  reserved: number = 0
+  warehouse_location: string?
+  reorder_point: number = 10
+  reorder_quantity: number = 100
+  
+  @validation {
+    quantity: { min: 0 },
+    reserved: { min: 0, max: "quantity" }
+  }
+  
+  @sql { embed: true }
+}
+
+Order {
+  id: UUID
+  customer: User
+  items: OrderItem[]
+  shipping_address: Address
+  billing_address: Address
+  status: OrderStatus = "pending"
+  payment_method: PaymentMethod
+  total: Money
+  tax: Money
+  shipping: Money
+  notes: string?
+  
+  @sql {
+    table: "orders",
+    indexes: [
+      { fields: ["customer", "status"] },
+      { fields: ["created_at"], order: "DESC" }
+    ]
+  }
+  
+  @api {
+    expose: ["id", "status", "total", "items"],
+    rate_limit: 100
+  }
+}
+
+OrderItem {
+  id: UUID
+  order: Order
+  product: Product
+  variant: ProductVariant?
+  quantity: number
+  unit_price: Money
+  total_price: Money
+  discount: Money?
+  
+  @validation {
+    quantity: { min: 1 },
+    total_price: { equals: "quantity * unit_price - (discount || 0)" }
+  }
+}
+
+OrderStatus: "pending" | "processing" | "shipped" | "delivered" | "cancelled" | "refunded" {
+  @sql { type: "order_status_enum" }
+  @validation {
+    transitions: {
+      pending: ["processing", "cancelled"],
+      processing: ["shipped", "cancelled"],
+      shipped: ["delivered", "refunded"],
+      delivered: ["refunded"],
+      cancelled: [],
+      refunded: []
+    }
+  }
+}
+
+// ============================================================================
+// PART 8: PERMISSIONS AND COMPLEX TYPES
+// ============================================================================
+
+Permission {
+  id: UUID
+  resource: string
+  action: "create" | "read" | "update" | "delete" | "admin"
+  conditions: JSON?
+  
+  @sql {
+    table: "permissions",
+    unique: [["resource", "action"]]
+  }
+}
+
+Category {
+  id: UUID
+  name: string
+  slug: string
+  parent: Category?
+  children: Category[]
+  products: Product[]
+  metadata: JSON?
+  
+  @sql {
+    table: "categories",
+    indexes: [
+      { fields: ["slug"], unique: true },
+      { fields: ["parent"] }
+    ]
+  }
+  
+  @validation {
+    slug: { pattern: "^[a-z0-9-]+$" },
+    parent: { not_equals: "id" }
+  }
+}
+
+Review {
+  id: UUID
+  product: Product
+  author: User
+  rating: number
+  title: string?
+  content: string?
+  helpful_count: number = 0
+  verified_purchase: boolean = false
+  images: string[]
+  
+  @validation {
+    rating: { min: 1, max: 5 },
+    title: { max_length: 100 },
+    content: { max_length: 5000 },
+    images: { max_length: 10 }
+  }
+  
+  @sql {
+    table: "reviews",
+    indexes: [
+      { fields: ["product", "rating"] },
+      { fields: ["author", "product"], unique: true }
+    ]
+  }
+}
+
+PaymentMethod {
+  id: UUID
+  user: User
+  type: "credit_card" | "debit_card" | "paypal" | "bank_transfer"
+  
+  card_last_four: string?
+  card_brand: "visa" | "mastercard" | "amex" | "discover"?
+  paypal_email: string?
+  bank_account_last_four: string?
+  
+  is_default: boolean = false
+  expires_at: DateTime?
+  
+  @sql {
+    table: "payment_methods",
+    indexes: [
+      { fields: ["user", "is_default"], where: "is_default = true" }
+    ]
+  }
+  
+  @api {
+    expose: ["type", "card_last_four", "card_brand", "is_default"],
+    exclude: ["bank_account_last_four"]
+  }
+  
+  @validation {
+    card_last_four: { pattern: "^[0-9]{4}$", required_if: "type in ['credit_card', 'debit_card']" },
+    paypal_email: { required_if: "type = 'paypal'", format: "email" }
+  }
+}
+
+// ============================================================================
+// PART 9: AUDIT AND SYSTEM TYPES
+// ============================================================================
+
+AuditLog {
+  id: UUID
+  entity_type: string
+  entity_id: UUID
+  action: "create" | "update" | "delete"
+  changes: JSON
+  user: User?
+  ip_address: string?
+  user_agent: string?
+  timestamp: DateTime = now()
+  
+  @sql {
+    table: "audit_logs",
+    indexes: [
+      { fields: ["entity_type", "entity_id", "timestamp"] },
+      { fields: ["user", "timestamp"] }
+    ],
+    partition: {
+      by: "RANGE",
+      column: "timestamp",
+      interval: "monthly"
+    }
+  }
+}
+
+SystemConfig {
+  key: string
+  value: JSON
+  description: string?
+  updated_by: AdminUser?
+  updated_at: DateTime = now()
+  
+  @sql {
+    table: "system_config",
+    primary_key: "key"
+  }
+  
+  @api { expose: false }
+}
+
+// ============================================================================
+// PART 10: CONTEXT MODIFICATIONS (in separate files)
+// ============================================================================
+
+// This would typically be in a separate file: client.cdm
+// @extends ./example.cdm
+
+// Remove sensitive fields for client context
+// User {
+//   -password_hash
+//   -salt
+//   avatar_url: string?  // Add client-specific field
+//   is_online: boolean = false
+// }
+
+// Remove entire model from client
+// -SystemConfig
+// -AuditLog

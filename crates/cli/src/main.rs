@@ -27,19 +27,43 @@ fn main() -> Result<()> {
 
     match cli.command {
         Commands::Validate { path } => {
-
-            let source = read_to_string(&path)
+            // Load CDM code to parse from specified path
+            let source: String = read_to_string(&path)
                 .with_context(|| format!("Failed to read file: {}", path.display()))?;
 
+            // Create the parser using the built language from the grammar crate
             let mut parser = tree_sitter::Parser::new();
             parser.set_language(&grammar::LANGUAGE.into())?;
 
-            println!("validate! {} {}", path.display(), source);
+            // Parse the CDM code
+            let tree = parser.parse(&source, None)
+                .context("Failed to parse file")?;
+
+            print_errors(tree.root_node(), &source);
+            println!("{}", tree.root_node().to_sexp());
         }
     }
 
     Ok(())
 }
+
+fn print_errors(node: tree_sitter::Node, source: &str) {
+    if node.is_error() || node.is_missing() {
+        let start = node.start_position();
+        let text = node.utf8_text(source.as_bytes()).unwrap_or("<invalid>");
+        println!(
+            "Error at line {}, column {}: {:?}",
+            start.row + 1,
+            start.column,
+            text
+        );
+    }
+
+    for child in node.children(&mut node.walk()) {
+        print_errors(child, source);
+    }
+}
+
 
 #[cfg(test)]
 mod tests {

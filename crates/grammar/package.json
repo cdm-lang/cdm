@@ -1,7 +1,7 @@
 {
   "name": "tree-sitter-cdm",
   "version": "0.1.0",
-  "description": "Contextual Data Models",
+  "description": "Cdm grammar for tree-sitter",
   "repository": "https://github.com/larner-dev/cdm",
   "license": "MIT",
   "author": {

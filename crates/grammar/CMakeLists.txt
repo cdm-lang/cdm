@@ -2,7 +2,7 @@ cmake_minimum_required(VERSION 3.13)
 
 project(tree-sitter-cdm
         VERSION "0.1.0"
-        DESCRIPTION "Contextual Data Models"
+        DESCRIPTION "Cdm grammar for tree-sitter"
         HOMEPAGE_URL "https://github.com/larner-dev/cdm"
         LANGUAGES C)
 

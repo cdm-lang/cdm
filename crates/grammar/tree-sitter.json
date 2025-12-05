@@ -4,7 +4,7 @@
     {
       "name": "cdm",
       "camelcase": "cdm",
-      "title": "Contextual Data Models (CDM)",
+      "title": "Contextual Data Models",
       "scope": "source.cdm",
       "file-types": [
         "cdm"
@@ -16,7 +16,7 @@
   "metadata": {
     "version": "0.1.0",
     "license": "MIT",
-    "description": "Contextual Data Models",
+    "description": "Cdm grammar for tree-sitter",
     "authors": [
       {
         "name": "Aaron Larner",
