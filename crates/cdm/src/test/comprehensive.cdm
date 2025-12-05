@@ -674,7 +674,7 @@ Review {
 }
 
 PaymentMethod {
-  id: UUID
+  id: UUIDASD
   user: User
   type: "credit_card" | "debit_card" | "paypal" | "bank_transfer"
   
