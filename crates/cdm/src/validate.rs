@@ -1,6 +1,7 @@
-
-
 use crate::{Definition, DefinitionKind, Diagnostic, Position, Severity, Span, SymbolTable};
+
+#[cfg(test)]
+mod tests;
 
 #[derive(Debug)]
 pub struct ValidationResult {
@@ -216,17 +217,161 @@ fn collect_semantic_errors(
 ) {
     // Pass 1: Build symbol table
     let symbol_table = collect_definitions(root, source, diagnostics);
-    println!("{}", symbol_table);
 
     // Pass 2: Validate references (TODO)
     validate_references(root, source, &symbol_table, diagnostics);
 }
 
 fn validate_references(
-    _root: tree_sitter::Node,
-    _source: &str,
-    _symbol_table: &SymbolTable,
-    _diagnostics: &mut Vec<Diagnostic>,
+    root: tree_sitter::Node,
+    source: &str,
+    symbol_table: &SymbolTable,
+    diagnostics: &mut Vec<Diagnostic>,
 ) {
-    // TODO: implement in next step
+    let mut cursor = root.walk();
+
+    for node in root.children(&mut cursor) {
+        match node.kind() {
+            "type_alias" => {
+                validate_type_alias(node, source, symbol_table, diagnostics);
+            }
+            "model_definition" => {
+                validate_model(node, source, symbol_table, diagnostics);
+            }
+            _ => {}
+        }
+    }
+}
+
+fn validate_type_alias(
+    node: tree_sitter::Node,
+    source: &str,
+    symbol_table: &SymbolTable,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    // Check the type expression on the right side of the alias
+    let Some(type_node) = node.child_by_field_name("type") else {
+        return;
+    };
+
+    validate_type_expression(type_node, source, symbol_table, diagnostics);
+}
+
+fn validate_model(
+    node: tree_sitter::Node,
+    source: &str,
+    symbol_table: &SymbolTable,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    // Validate extends clause
+    if let Some(extends_node) = node.child_by_field_name("extends") {
+        validate_extends(extends_node, source, symbol_table, diagnostics);
+    }
+
+    // Check field types in the model body
+    let Some(body_node) = node.child_by_field_name("body") else {
+        return;
+    };
+
+    let mut cursor = body_node.walk();
+
+    for child in body_node.children(&mut cursor) {
+        if child.kind() == "field_definition" {
+            validate_field(child, source, symbol_table, diagnostics);
+        }
+    }
+}
+
+fn validate_extends(
+    extends_node: tree_sitter::Node,
+    source: &str,
+    symbol_table: &SymbolTable,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut cursor = extends_node.walk();
+
+    for parent_node in extends_node.children_by_field_name("parent", &mut cursor) {
+        let parent_name = get_node_text(parent_node, source);
+
+        match symbol_table.get(parent_name) {
+            None => {
+                diagnostics.push(Diagnostic {
+                    message: format!("Undefined type '{}' in extends clause", parent_name),
+                    severity: Severity::Error,
+                    span: node_span(parent_node),
+                });
+            }
+            Some(def) => {
+                if matches!(def.kind, DefinitionKind::TypeAlias) {
+                    diagnostics.push(Diagnostic {
+                        message: format!(
+                            "Cannot extend '{}': it is a type alias, not a model",
+                            parent_name
+                        ),
+                        severity: Severity::Error,
+                        span: node_span(parent_node),
+                    });
+                }
+            }
+        }
+    }
+}
+
+fn validate_field(
+    node: tree_sitter::Node,
+    source: &str,
+    symbol_table: &SymbolTable,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    // Field might not have a type (untyped fields default to string)
+    let Some(type_node) = node.child_by_field_name("type") else {
+        return;
+    };
+
+    validate_type_expression(type_node, source, symbol_table, diagnostics);
+}
+
+fn validate_type_expression(
+    node: tree_sitter::Node,
+    source: &str,
+    symbol_table: &SymbolTable,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    match node.kind() {
+        "type_identifier" => {
+            let type_name = get_node_text(node, source);
+            if !symbol_table.is_defined(type_name) {
+                diagnostics.push(Diagnostic {
+                    message: format!("Undefined type '{}'", type_name),
+                    severity: Severity::Error,
+                    span: node_span(node),
+                });
+            }
+        }
+        "array_type" => {
+            // Array type has a type_identifier child
+            let mut cursor = node.walk();
+            for child in node.children(&mut cursor) {
+                if child.kind() == "type_identifier" {
+                    validate_type_expression(child, source, symbol_table, diagnostics);
+                }
+            }
+        }
+        "union_type" => {
+            // Union can have type_identifiers, string_literals, and array_types
+            let mut cursor = node.walk();
+            for child in node.children(&mut cursor) {
+                match child.kind() {
+                    "type_identifier" | "array_type" => {
+                        validate_type_expression(child, source, symbol_table, diagnostics);
+                    }
+                    "string_literal" => {
+                        // String literals in unions are valid (e.g., "active" | "pending")
+                    }
+                    _ => {}
+                }
+            }
+        }
+        _ => {}
+    }
 }

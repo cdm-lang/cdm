@@ -20,3 +20,9 @@ run *args: generate
 clean:
   rm -rf crates/grammar/src
   cargo clean
+
+test *args:
+  cargo llvm-cov -- {{args}}
+
+testcoverage:
+  cargo llvm-cov --html --open

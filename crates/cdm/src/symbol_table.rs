@@ -46,8 +46,12 @@ impl fmt::Display for SymbolTable {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         writeln!(f, "Symbol Table ({} definitions):", self.definitions.len())?;
         writeln!(f, "{}", "-".repeat(40))?;
-        
-        for (name, def) in &self.definitions {
+
+        // Sort by name for consistent output
+        let mut entries: Vec<_> = self.definitions.iter().collect();
+        entries.sort_by_key(|(name, _)| *name);
+
+        for (name, def) in entries {
             match &def.kind {
                 DefinitionKind::TypeAlias => {
                     writeln!(f, "  {} (type alias) - line {}", name, def.span.start.line + 1)?;
@@ -67,7 +71,7 @@ impl fmt::Display for SymbolTable {
                 }
             }
         }
-        
+
         Ok(())
     }
 }
