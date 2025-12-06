@@ -1,3 +1,4 @@
+// diagnostics.rs
 use std::fmt;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

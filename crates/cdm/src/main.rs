@@ -31,7 +31,8 @@ fn main() -> Result<()> {
             let source = read_to_string(&path)
                 .with_context(|| format!("Failed to read file: {}", path.display()))?;
 
-            let result = cdm::validate(&source);
+            // @todo: get appropriate ancestors
+            let result = cdm::validate(&source, &[]);
 
             for diagnostic in &result.diagnostics {
                 println!("{}", diagnostic);

@@ -14,7 +14,7 @@ use super::*;
         let tree = parse(source);
         let mut diagnostics = Vec::new();
 
-        let symbol_table = collect_definitions(tree.root_node(), source, &mut diagnostics);
+        let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
         assert!(diagnostics.is_empty());
         assert!(symbol_table.definitions.is_empty());
@@ -26,13 +26,13 @@ use super::*;
         let tree = parse(source);
         let mut diagnostics = Vec::new();
 
-        let symbol_table = collect_definitions(tree.root_node(), source, &mut diagnostics);
+        let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
         assert!(diagnostics.is_empty());
         assert_eq!(symbol_table.definitions.len(), 1);
         
         let def = symbol_table.get("Email").expect("Email should be defined");
-        assert!(matches!(def.kind, DefinitionKind::TypeAlias));
+        assert!(matches!(def.kind, DefinitionKind::TypeAlias { .. }));
     }
 
     #[test]
@@ -46,7 +46,7 @@ use super::*;
         let tree = parse(source);
         let mut diagnostics = Vec::new();
 
-        let symbol_table = collect_definitions(tree.root_node(), source, &mut diagnostics);
+        let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
         assert!(diagnostics.is_empty());
         assert_eq!(symbol_table.definitions.len(), 1);
@@ -59,7 +59,7 @@ use super::*;
     fn test_model_with_single_extends() {
         let source = r#"
             Timestamped {
-                created_at: DateTime
+                created_at: string
             }
 
             Article extends Timestamped {
@@ -69,7 +69,7 @@ use super::*;
         let tree = parse(source);
         let mut diagnostics = Vec::new();
 
-        let symbol_table = collect_definitions(tree.root_node(), source, &mut diagnostics);
+        let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
         assert!(diagnostics.is_empty());
         assert_eq!(symbol_table.definitions.len(), 2);
@@ -87,11 +87,11 @@ use super::*;
     fn test_model_with_multiple_extends() {
         let source = r#"
             BaseUser {
-                id: UUID
+                id: number
             }
 
             Timestamped {
-                created_at: DateTime
+                created_at: string
             }
 
             AdminUser extends BaseUser, Timestamped {
@@ -101,7 +101,7 @@ use super::*;
         let tree = parse(source);
         let mut diagnostics = Vec::new();
 
-        let symbol_table = collect_definitions(tree.root_node(), source, &mut diagnostics);
+        let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
         assert!(diagnostics.is_empty());
         assert_eq!(symbol_table.definitions.len(), 3);
@@ -128,7 +128,7 @@ use super::*;
         let tree = parse(source);
         let mut diagnostics = Vec::new();
 
-        let symbol_table = collect_definitions(tree.root_node(), source, &mut diagnostics);
+        let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
         assert!(diagnostics.is_empty());
         assert_eq!(symbol_table.definitions.len(), 3);
@@ -143,13 +143,13 @@ use super::*;
         let tree = parse(source);
         let mut diagnostics = Vec::new();
 
-        let symbol_table = collect_definitions(tree.root_node(), source, &mut diagnostics);
+        let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
         assert!(diagnostics.is_empty());
         assert_eq!(symbol_table.definitions.len(), 1);
         
         let def = symbol_table.get("Status").expect("Status should be defined");
-        assert!(matches!(def.kind, DefinitionKind::TypeAlias));
+        assert!(matches!(def.kind, DefinitionKind::TypeAlias { .. }));
     }
 
     #[test]
@@ -161,7 +161,7 @@ use super::*;
         let tree = parse(source);
         let mut diagnostics = Vec::new();
 
-        let symbol_table = collect_definitions(tree.root_node(), source, &mut diagnostics);
+        let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
         assert_eq!(diagnostics.len(), 1);
         assert_eq!(diagnostics[0].severity, Severity::Error);
@@ -187,7 +187,7 @@ use super::*;
         let tree = parse(source);
         let mut diagnostics = Vec::new();
 
-        collect_definitions(tree.root_node(), source, &mut diagnostics);
+        collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
         assert_eq!(diagnostics.len(), 1);
         assert_eq!(diagnostics[0].severity, Severity::Error);
@@ -207,7 +207,7 @@ use super::*;
         let tree = parse(source);
         let mut diagnostics = Vec::new();
 
-        collect_definitions(tree.root_node(), source, &mut diagnostics);
+        collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
         assert_eq!(diagnostics.len(), 1);
         assert_eq!(diagnostics[0].severity, Severity::Error);
@@ -237,18 +237,18 @@ use super::*;
         let tree = parse(source);
         let mut diagnostics = Vec::new();
 
-        let symbol_table = collect_definitions(tree.root_node(), source, &mut diagnostics);
+        let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
         assert!(diagnostics.is_empty());
         assert_eq!(symbol_table.definitions.len(), 5);
 
         assert!(matches!(
             symbol_table.get("Email").unwrap().kind,
-            DefinitionKind::TypeAlias
+            DefinitionKind::TypeAlias { .. }
         ));
         assert!(matches!(
             symbol_table.get("Status").unwrap().kind,
-            DefinitionKind::TypeAlias
+            DefinitionKind::TypeAlias { .. }
         ));
         assert!(matches!(
             symbol_table.get("Address").unwrap().kind,
@@ -278,7 +278,7 @@ use super::*;
         let tree = parse(source);
         let mut diagnostics = Vec::new();
 
-        let symbol_table = collect_definitions(tree.root_node(), source, &mut diagnostics);
+        let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
         // Built-ins should not be in definitions
         assert!(symbol_table.definitions.get("string").is_none());
@@ -288,7 +288,7 @@ use super::*;
         assert!(symbol_table.is_defined("string"));
         assert!(symbol_table.is_defined("number"));
         assert!(symbol_table.is_defined("boolean"));
-        assert!(symbol_table.is_defined("DateTime"));
+        assert!(symbol_table.is_defined("string"));
     }
 
     #[test]
@@ -297,7 +297,7 @@ use super::*;
         let tree = parse(source);
         let mut diagnostics = Vec::new();
 
-        let symbol_table = collect_definitions(tree.root_node(), source, &mut diagnostics);
+        let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
         let def = symbol_table.get("Email").expect("Email should be defined");
         assert_eq!(def.span.start.line, 0);
@@ -307,26 +307,27 @@ use super::*;
     #[test]
     fn test_type_alias_with_plugin_block() {
         let source = r#"
-            UUID: string {
+            Foo: string {
                 @validation { format: "uuid" }
-                @sql { type: "UUID" }
+                @sql { type: "number" }
             }
         "#;
         let tree = parse(source);
         let mut diagnostics = Vec::new();
 
-        let symbol_table = collect_definitions(tree.root_node(), source, &mut diagnostics);
+        let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
+        println!("{:?}", diagnostics);
         assert!(diagnostics.is_empty());
         assert_eq!(symbol_table.definitions.len(), 1);
-        assert!(symbol_table.get("UUID").is_some());
+        assert!(symbol_table.get("Foo").is_some());
     }
 
     #[test]
     fn test_model_with_complex_fields() {
         let source = r#"
             User {
-                id: UUID
+                id: number
                 tags: Tag[]
                 status?: Status
                 active: boolean = true
@@ -335,11 +336,83 @@ use super::*;
         let tree = parse(source);
         let mut diagnostics = Vec::new();
 
-        let symbol_table = collect_definitions(tree.root_node(), source, &mut diagnostics);
+        let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
         assert!(diagnostics.is_empty());
         assert_eq!(symbol_table.definitions.len(), 1);
         assert!(symbol_table.get("User").is_some());
+    }
+
+    #[test]
+    fn test_type_alias_references_collected() {
+        let source = r#"
+            Email: string
+            UserEmail: Email
+            Result: Email | string | number
+            Items: Email[]
+        "#;
+        let tree = parse(source);
+        let mut diagnostics = Vec::new();
+
+        let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+        assert!(diagnostics.is_empty());
+
+        // Email references string
+        let email_def = symbol_table.get("Email").unwrap();
+        match &email_def.kind {
+            DefinitionKind::TypeAlias { references } => {
+                assert_eq!(references, &vec!["string".to_string()]);
+            }
+            _ => panic!("Expected TypeAlias"),
+        }
+
+        // UserEmail references Email
+        let user_email_def = symbol_table.get("UserEmail").unwrap();
+        match &user_email_def.kind {
+            DefinitionKind::TypeAlias { references } => {
+                assert_eq!(references, &vec!["Email".to_string()]);
+            }
+            _ => panic!("Expected TypeAlias"),
+        }
+
+        // Result references Email, string, number (from union)
+        let result_def = symbol_table.get("Result").unwrap();
+        match &result_def.kind {
+            DefinitionKind::TypeAlias { references } => {
+                assert!(references.contains(&"Email".to_string()));
+                assert!(references.contains(&"string".to_string()));
+                assert!(references.contains(&"number".to_string()));
+            }
+            _ => panic!("Expected TypeAlias"),
+        }
+
+        // Items references Email (from array)
+        let items_def = symbol_table.get("Items").unwrap();
+        match &items_def.kind {
+            DefinitionKind::TypeAlias { references } => {
+                assert_eq!(references, &vec!["Email".to_string()]);
+            }
+            _ => panic!("Expected TypeAlias"),
+        }
+    }
+
+    #[test]
+    fn test_string_literal_union_no_references() {
+        let source = r#"Status: "active" | "pending" | "deleted""#;
+        let tree = parse(source);
+        let mut diagnostics = Vec::new();
+
+        let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+        let def = symbol_table.get("Status").unwrap();
+        match &def.kind {
+            DefinitionKind::TypeAlias { references } => {
+                // String literals don't create type references
+                assert!(references.is_empty());
+            }
+            _ => panic!("Expected TypeAlias"),
+        }
     }
 
     #[cfg(test)]
@@ -352,7 +425,7 @@ mod validate_tests {
 
     #[test]
     fn test_empty_file() {
-        let result = validate("");
+        let result = validate("", &[]);
         assert!(!result.has_errors());
         assert!(result.diagnostics.is_empty());
     }
@@ -363,14 +436,14 @@ mod validate_tests {
             // This is a comment
             // Another comment
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(!result.has_errors());
     }
 
     #[test]
     fn test_simple_type_alias() {
         let source = "Email: string";
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(!result.has_errors());
     }
 
@@ -380,19 +453,19 @@ mod validate_tests {
             Name: string
             Age: number
             Active: boolean
-            Price: decimal
-            CreatedAt: DateTime
-            Metadata: JSON
-            Id: UUID
+            Price: number
+            CreatedAt: string
+            Metadata: string
+            Id: number
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(!result.has_errors());
     }
 
     #[test]
     fn test_union_type_alias_string_literals() {
         let source = r#"Status: "active" | "pending" | "deleted""#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(!result.has_errors());
     }
 
@@ -402,7 +475,7 @@ mod validate_tests {
             Email: string
             Result: Email | "not_found" | "error"
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(!result.has_errors());
     }
 
@@ -414,7 +487,7 @@ mod validate_tests {
                 email: string
             }
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(!result.has_errors());
     }
 
@@ -429,7 +502,7 @@ mod validate_tests {
                 age: Age
             }
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(!result.has_errors());
     }
 
@@ -445,7 +518,7 @@ mod validate_tests {
                 tags: Tag[]
             }
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(!result.has_errors());
     }
 
@@ -458,7 +531,7 @@ mod validate_tests {
                 age?: number
             }
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(!result.has_errors());
     }
 
@@ -472,7 +545,7 @@ mod validate_tests {
                 score: number = 0
             }
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(!result.has_errors());
     }
 
@@ -480,8 +553,8 @@ mod validate_tests {
     fn test_model_with_single_extends() {
         let source = r#"
             Timestamped {
-                created_at: DateTime
-                updated_at: DateTime
+                created_at: string
+                updated_at: string
             }
 
             Article extends Timestamped {
@@ -489,7 +562,7 @@ mod validate_tests {
                 content: string
             }
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(!result.has_errors());
     }
 
@@ -497,18 +570,18 @@ mod validate_tests {
     fn test_model_with_multiple_extends() {
         let source = r#"
             Timestamped {
-                created_at: DateTime
+                created_at: string
             }
 
             Identifiable {
-                id: UUID
+                id: number
             }
 
             User extends Identifiable, Timestamped {
                 name: string
             }
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(!result.has_errors());
     }
 
@@ -516,7 +589,7 @@ mod validate_tests {
     fn test_model_with_field_removal() {
         let source = r#"
             BaseUser {
-                id: UUID
+                id: number
                 name: string
                 password_hash: string
             }
@@ -525,7 +598,7 @@ mod validate_tests {
                 -password_hash
             }
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(!result.has_errors());
     }
 
@@ -533,25 +606,25 @@ mod validate_tests {
     fn test_model_with_plugin_config() {
         let source = r#"
             User {
-                id: UUID
+                id: number
                 email: string
 
                 @sql { table: "users" }
             }
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(!result.has_errors());
     }
 
     #[test]
     fn test_type_alias_with_plugin_config() {
         let source = r#"
-            UUID: string {
+            number: string {
                 @validation { format: "uuid" }
-                @sql { type: "UUID" }
+                @sql { type: "number" }
             }
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(!result.has_errors());
     }
 
@@ -566,7 +639,7 @@ mod validate_tests {
                 author: User
             }
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(!result.has_errors());
     }
 
@@ -578,10 +651,10 @@ mod validate_tests {
             }
 
             Timestamped {
-                created_at: DateTime
+                created_at: string
             }
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(!result.has_errors());
     }
 
@@ -594,7 +667,7 @@ mod validate_tests {
                 children: Category[]
             }
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(!result.has_errors());
     }
 
@@ -616,12 +689,12 @@ mod validate_tests {
             }
 
             User {
-                id: UUID
+                id: number
                 status: Status
                 contact: ContactInfo
             }
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(!result.has_errors());
     }
 
@@ -634,7 +707,7 @@ mod validate_tests {
                 bio
             }
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(!result.has_errors());
     }
 
@@ -648,7 +721,7 @@ mod validate_tests {
             User {
                 name: string
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(result.has_errors());
         assert!(result.diagnostics.iter().any(|d| d.severity == Severity::Error));
     }
@@ -661,7 +734,7 @@ mod validate_tests {
                 @@invalid
             }
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(result.has_errors());
     }
 
@@ -672,7 +745,7 @@ mod validate_tests {
                 name string
             }
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         // This might parse as untyped field "name" and model "string"
         // depending on grammar - check the actual behavior
         let _ = result;
@@ -689,7 +762,7 @@ mod validate_tests {
                 email: Emaill
             }
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(result.has_errors());
         assert!(result.diagnostics.iter().any(|d| 
             d.message.contains("Undefined type") && d.message.contains("Emaill")
@@ -703,7 +776,7 @@ mod validate_tests {
                 posts: Postt[]
             }
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(result.has_errors());
         assert!(result.diagnostics.iter().any(|d| 
             d.message.contains("Undefined type") && d.message.contains("Postt")
@@ -715,7 +788,7 @@ mod validate_tests {
         let source = r#"
             MyEmail: Emaill
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(result.has_errors());
         assert!(result.diagnostics.iter().any(|d| 
             d.message.contains("Undefined type") && d.message.contains("Emaill")
@@ -728,7 +801,7 @@ mod validate_tests {
             Email: string
             Result: Email | NotFound | "error"
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(result.has_errors());
         assert!(result.diagnostics.iter().any(|d| 
             d.message.contains("Undefined type") && d.message.contains("NotFound")
@@ -744,7 +817,7 @@ mod validate_tests {
                 status: Statuss
             }
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(result.has_errors());
         assert_eq!(
             result.diagnostics.iter().filter(|d| d.message.contains("Undefined type")).count(),
@@ -761,7 +834,7 @@ mod validate_tests {
                 email: email
             }
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(result.has_errors());
         assert!(result.diagnostics.iter().any(|d| 
             d.message.contains("Undefined type") && d.message.contains("email")
@@ -778,7 +851,7 @@ mod validate_tests {
             Email: string
             Email: number
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(result.has_errors());
         assert!(result.diagnostics.iter().any(|d| 
             d.message.contains("already defined") && d.message.contains("Email")
@@ -796,7 +869,7 @@ mod validate_tests {
                 email: string
             }
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(result.has_errors());
         assert!(result.diagnostics.iter().any(|d| 
             d.message.contains("already defined") && d.message.contains("User")
@@ -812,7 +885,7 @@ mod validate_tests {
                 name: string
             }
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(result.has_errors());
         assert!(result.diagnostics.iter().any(|d| 
             d.message.contains("already defined") && d.message.contains("User")
@@ -824,7 +897,7 @@ mod validate_tests {
         let source = r#"
             string: number
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         // Depending on design decision - this could be an error or warning
         // For now, just verify it doesn't crash
         let _ = result;
@@ -841,7 +914,7 @@ mod validate_tests {
                 title: string
             }
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(result.has_errors());
         assert!(result.diagnostics.iter().any(|d| 
             d.message.contains("Timestampedd")
@@ -855,7 +928,7 @@ mod validate_tests {
                 title: string
             }
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(result.has_errors());
         // Should report all three as undefined
         assert!(result.diagnostics.len() >= 3);
@@ -870,7 +943,7 @@ mod validate_tests {
                 name: string
             }
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(result.has_errors());
         println!("{:?}", result.diagnostics);
         assert!(result.diagnostics.iter().any(|d| 
@@ -886,7 +959,7 @@ mod validate_tests {
     #[test]
     fn test_error_span_is_accurate() {
         let source = "User { email: Emaill }";
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(result.has_errors());
 
         let error = result.diagnostics.iter()
@@ -902,7 +975,7 @@ mod validate_tests {
     fn test_duplicate_error_references_original_line() {
         let source = r#"Email: string
 Email: number"#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         
         let error = result.diagnostics.iter()
             .find(|d| d.message.contains("already defined"))
@@ -921,14 +994,14 @@ Email: number"#;
     #[test]
     fn test_tree_returned_on_success() {
         let source = "Email: string";
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(result.tree.is_some());
     }
 
     #[test]
     fn test_tree_returned_even_with_semantic_errors() {
         let source = "User { email: Emaill }";
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(result.has_errors());
         assert!(result.tree.is_some());
     }
@@ -940,7 +1013,7 @@ Email: number"#;
     #[test]
     fn test_whitespace_variations() {
         let source = "Email:string";
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(!result.has_errors());
     }
 
@@ -956,7 +1029,7 @@ Email: number"#;
                 email: Email
             }
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(!result.has_errors());
     }
 
@@ -969,7 +1042,7 @@ Email: number"#;
             D extends C { d: string }
             E extends D { e: string }
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(!result.has_errors());
     }
 
@@ -982,7 +1055,7 @@ Email: number"#;
                 children: Node[]
             }
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(!result.has_errors());
     }
 
@@ -995,7 +1068,7 @@ Email: number"#;
                 tags?: Tag[]
             }
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(!result.has_errors());
     }
 
@@ -1006,7 +1079,7 @@ Email: number"#;
                 status: "active" | "pending" | "deleted"
             }
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(!result.has_errors());
     }
 
@@ -1017,7 +1090,7 @@ Email: number"#;
                 status: "active" | "pending" | "deleted" = "active"
             }
         "#;
-        let result = validate(source);
+        let result = validate(source, &[]);
         assert!(!result.has_errors());
     }
 }
@@ -1028,7 +1101,7 @@ fn test_parse_returns_tree_even_for_garbage() {
     // The "Failed to parse file" branch is defensive, for cases like
     // allocation failure or parser cancellation
     let source = "!@#$%^&*()_+{}|:<>?~`";
-    let result = validate(source);
+    let result = validate(source, &[]);
     
     // Parser still returns a tree, just with syntax errors
     assert!(result.tree.is_some());
@@ -1052,7 +1125,7 @@ AdminUser extends User {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let symbol_table = collect_definitions(tree.root_node(), source, &mut diagnostics);
+    let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     let display = format!("{}", symbol_table);
 
@@ -1060,9 +1133,10 @@ AdminUser extends User {
     assert!(display.contains("Symbol Table"));
     assert!(display.contains("4 definitions"));
 
-    // Check type aliases
-    assert!(display.contains("Email (type alias)"));
-    assert!(display.contains("Status (type alias)"));
+    // Check type aliases (now shows references)
+    assert!(display.contains("Email"));
+    assert!(display.contains("type alias"));
+    assert!(display.contains("Status"));
 
     // Check models
     assert!(display.contains("User (model)"));
@@ -1087,9 +1161,1918 @@ Child extends Base1, Base2 { c: string }
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let symbol_table = collect_definitions(tree.root_node(), source, &mut diagnostics);
+    let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     let display = format!("{}", symbol_table);
 
     assert!(display.contains("Child (model extends Base1, Base2)"));
+}
+
+#[test]
+fn test_symbol_table_display_type_alias_with_references() {
+    let source = r#"
+Email: string
+ValidatedEmail: Email
+"#;
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    let display = format!("{}", symbol_table);
+
+    // Should show references
+    assert!(display.contains("Email (type alias -> string)"));
+    assert!(display.contains("ValidatedEmail (type alias -> Email)"));
+}
+
+#[test]
+fn test_get_inherited_fields_local_parent() {
+    // This tests the code path where a model extends another model
+    // defined in the same file (local_symbol_table), not in ancestors.
+    // The field removal validation triggers get_inherited_fields.
+    
+    let source = r#"
+        Parent {
+            id: number
+            secret: string
+        }
+        
+        Child extends Parent {
+            -secret
+            name: string
+        }
+    "#;
+    
+    let result = validate(source, &[]);
+    
+    // Should be valid - secret exists in Parent (same file)
+    let removal_errors: Vec<_> = result.diagnostics.iter()
+        .filter(|d| d.message.contains("Cannot remove field"))
+        .collect();
+    
+    assert!(removal_errors.is_empty(), "Errors: {:?}", removal_errors);
+}
+
+#[test]
+fn test_get_inherited_fields_local_grandparent() {
+    // Tests recursive inheritance within the same file:
+    // Grandparent -> Parent -> Child
+    
+    let source = r#"
+        Grandparent {
+            id: number
+            internal: string
+        }
+        
+        Parent extends Grandparent {
+            name: string
+        }
+        
+        Child extends Parent {
+            -internal
+            email: string
+        }
+    "#;
+    
+    let result = validate(source, &[]);
+    
+    // Should be valid - internal exists in Grandparent (same file)
+    let removal_errors: Vec<_> = result.diagnostics.iter()
+        .filter(|d| d.message.contains("Cannot remove field"))
+        .collect();
+    
+    assert!(removal_errors.is_empty(), "Errors: {:?}", removal_errors);
+}
+
+#[test]
+fn test_get_inherited_fields_local_multiple_inheritance() {
+    // Tests multiple inheritance within the same file
+    
+    let source = r#"
+        Timestamped {
+            created_at: string
+            updated_at: string
+        }
+        
+        Auditable {
+            created_by: string
+            updated_by: string
+        }
+        
+        Document extends Timestamped, Auditable {
+            -updated_by
+            -updated_at
+            title: string
+        }
+    "#;
+    
+    let result = validate(source, &[]);
+    
+    // Should be valid - fields exist in local parents
+    let removal_errors: Vec<_> = result.diagnostics.iter()
+        .filter(|d| d.message.contains("Cannot remove field"))
+        .collect();
+    
+    assert!(removal_errors.is_empty(), "Errors: {:?}", removal_errors);
+}
+
+// =========================================================================
+// CIRCULAR INHERITANCE TESTS
+// =========================================================================
+
+#[cfg(test)]
+mod circular_inheritance_tests {
+    use super::*;
+
+    #[test]
+    fn test_self_reference() {
+        // Model extends itself
+        let source = r#"
+            A extends A {
+                field: string
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let cycle_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Circular inheritance"))
+            .collect();
+        
+        assert_eq!(cycle_errors.len(), 1);
+        assert!(cycle_errors[0].message.contains("A -> A"));
+    }
+
+    #[test]
+    fn test_direct_cycle() {
+        // A extends B, B extends A
+        let source = r#"
+            A extends B {
+                field_a: string
+            }
+            
+            B extends A {
+                field_b: string
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let cycle_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Circular inheritance"))
+            .collect();
+        
+        // Should detect the cycle (may report from either A or B depending on iteration order)
+        assert!(!cycle_errors.is_empty());
+    }
+
+    #[test]
+    fn test_indirect_cycle() {
+        // A -> B -> C -> A
+        let source = r#"
+            A extends B {
+                field_a: string
+            }
+            
+            B extends C {
+                field_b: string
+            }
+            
+            C extends A {
+                field_c: string
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let cycle_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Circular inheritance"))
+            .collect();
+        
+        assert!(!cycle_errors.is_empty());
+    }
+
+    #[test]
+    fn test_multiple_inheritance_cycle() {
+        // A extends B, C where C extends A
+        let source = r#"
+            A extends B, C {
+                field_a: string
+            }
+            
+            B {
+                field_b: string
+            }
+            
+            C extends A {
+                field_c: string
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let cycle_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Circular inheritance"))
+            .collect();
+        
+        assert!(!cycle_errors.is_empty());
+    }
+
+    #[test]
+    fn test_no_cycle_linear_chain() {
+        // A -> B -> C (no cycle)
+        let source = r#"
+            Base {
+                id: string
+            }
+            
+            Middle extends Base {
+                name: string
+            }
+            
+            Derived extends Middle {
+                value: number
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        
+        let cycle_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Circular inheritance"))
+            .collect();
+        
+        assert!(cycle_errors.is_empty());
+    }
+
+    #[test]
+    fn test_no_cycle_diamond() {
+        // Diamond inheritance (not a cycle)
+        //      Base
+        //     /    \
+        //    A      B
+        //     \    /
+        //      Child
+        let source = r#"
+            Base {
+                id: string
+            }
+            
+            A extends Base {
+                a: string
+            }
+            
+            B extends Base {
+                b: string
+            }
+            
+            Child extends A, B {
+                c: string
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        
+        let cycle_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Circular inheritance"))
+            .collect();
+        
+        assert!(cycle_errors.is_empty());
+    }
+
+    #[test]
+    fn test_cycle_in_diamond() {
+        // Diamond with cycle
+        //      Base
+        //     /    \
+        //    A      B
+        //     \    /
+        //      Child -> Base creates cycle
+        let source = r#"
+            Base extends Child {
+                id: string
+            }
+            
+            A extends Base {
+                a: string
+            }
+            
+            B extends Base {
+                b: string
+            }
+            
+            Child extends A, B {
+                c: string
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let cycle_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Circular inheritance"))
+            .collect();
+        
+        assert!(!cycle_errors.is_empty());
+    }
+
+    #[test]
+    fn test_multiple_separate_cycles() {
+        // Two independent cycles
+        let source = r#"
+            A extends B {
+                a: string
+            }
+            
+            B extends A {
+                b: string
+            }
+            
+            X extends Y {
+                x: string
+            }
+            
+            Y extends X {
+                y: string
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let cycle_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Circular inheritance"))
+            .collect();
+        
+        // Should detect both cycles
+        assert!(cycle_errors.len() >= 2);
+    }
+
+    #[test]
+    fn test_cycle_with_undefined_in_chain() {
+        // A extends B, B extends Undefined
+        // Should report undefined error, not crash on cycle detection
+        let source = r#"
+            A extends B {
+                a: string
+            }
+            
+            B extends Undefined {
+                b: string
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        
+        // Should have undefined error but not crash
+        let undefined_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Undefined"))
+            .collect();
+        
+        assert!(!undefined_errors.is_empty());
+        
+        // No cycle errors since chain is broken
+        let cycle_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Circular inheritance"))
+            .collect();
+        
+        assert!(cycle_errors.is_empty());
+    }
+}
+
+// =========================================================================
+// CIRCULAR TYPE ALIAS TESTS
+// =========================================================================
+
+#[cfg(test)]
+mod circular_type_alias_tests {
+    use super::*;
+
+    #[test]
+    fn test_self_referencing_alias() {
+        // Type alias references itself
+        let source = r#"
+            A: A
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let cycle_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Circular type reference"))
+            .collect();
+        
+        assert_eq!(cycle_errors.len(), 1);
+        assert!(cycle_errors[0].message.contains("A -> A"));
+    }
+
+    #[test]
+    fn test_direct_alias_cycle() {
+        // A: B and B: A
+        let source = r#"
+            A: B
+            B: A
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let cycle_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Circular type reference"))
+            .collect();
+        
+        assert!(!cycle_errors.is_empty());
+    }
+
+    #[test]
+    fn test_indirect_alias_cycle() {
+        // A -> B -> C -> A
+        let source = r#"
+            A: B
+            B: C
+            C: A
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let cycle_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Circular type reference"))
+            .collect();
+        
+        assert!(!cycle_errors.is_empty());
+    }
+
+    #[test]
+    fn test_cycle_through_array() {
+        // A: B[] and B: A
+        let source = r#"
+            A: B[]
+            B: A
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let cycle_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Circular type reference"))
+            .collect();
+        
+        assert!(!cycle_errors.is_empty());
+    }
+
+    #[test]
+    fn test_cycle_through_union() {
+        // A: B | string and B: A | number
+        let source = r#"
+            A: B | string
+            B: A | number
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let cycle_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Circular type reference"))
+            .collect();
+        
+        assert!(!cycle_errors.is_empty());
+    }
+
+    #[test]
+    fn test_cycle_in_complex_union() {
+        // Cycle hidden in a larger union
+        let source = r#"
+            Result: Success | Failure | Pending
+            Success: string
+            Failure: ErrorCode
+            ErrorCode: Result
+            Pending: "pending"
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let cycle_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Circular type reference"))
+            .collect();
+        
+        // Cycle: Result -> Failure -> ErrorCode -> Result
+        assert!(!cycle_errors.is_empty());
+    }
+
+    #[test]
+    fn test_no_cycle_to_builtin() {
+        // Aliases to built-in types are not cycles
+        let source = r#"
+            Email: string
+            Age: number
+            Active: boolean
+            Amount: number
+            CreatedAt: string
+            Metadata: string
+        "#;
+        
+        let result = validate(source, &[]);
+        
+        let cycle_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Circular type reference"))
+            .collect();
+        
+        assert!(cycle_errors.is_empty());
+    }
+
+    #[test]
+    fn test_no_cycle_linear_chain() {
+        // A -> B -> C -> string (no cycle)
+        let source = r#"
+            A: B
+            B: C
+            C: string
+        "#;
+        
+        let result = validate(source, &[]);
+        
+        let cycle_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Circular type reference"))
+            .collect();
+        
+        assert!(cycle_errors.is_empty());
+    }
+
+    #[test]
+    fn test_no_cycle_alias_to_model() {
+        // Type alias referencing a model is not a cycle
+        let source = r#"
+            UserRef: User
+            
+            User {
+                name: string
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        
+        let cycle_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Circular type reference"))
+            .collect();
+        
+        assert!(cycle_errors.is_empty());
+    }
+
+    #[test]
+    fn test_no_cycle_string_literal_union() {
+        // Union of string literals has no type references
+        let source = r#"
+            Status: "active" | "pending" | "deleted"
+            Priority: "low" | "medium" | "high"
+        "#;
+        
+        let result = validate(source, &[]);
+        
+        let cycle_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Circular type reference"))
+            .collect();
+        
+        assert!(cycle_errors.is_empty());
+    }
+
+    #[test]
+    fn test_multiple_separate_alias_cycles() {
+        // Two independent cycles
+        let source = r#"
+            A: B
+            B: A
+            
+            X: Y
+            Y: X
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let cycle_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Circular type reference"))
+            .collect();
+        
+        // Should detect both cycles
+        assert!(cycle_errors.len() >= 2);
+    }
+
+    #[test]
+    fn test_alias_cycle_with_undefined_in_chain() {
+        // A: B, B: Undefined - should report undefined, not crash
+        let source = r#"
+            A: B
+            B: Undefined
+        "#;
+        
+        let result = validate(source, &[]);
+        
+        // Should have undefined error
+        let undefined_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Undefined"))
+            .collect();
+        
+        assert!(!undefined_errors.is_empty());
+        
+        // No cycle since chain is broken
+        let cycle_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Circular type reference"))
+            .collect();
+        
+        assert!(cycle_errors.is_empty());
+    }
+
+    #[test]
+    fn test_diamond_alias_no_cycle() {
+        // Diamond pattern (not a cycle)
+        //      Base
+        //     /    \
+        //    A      B
+        //     \    /
+        //      Child (union)
+        let source = r#"
+            Base: string
+            A: Base
+            B: Base
+            Child: A | B
+        "#;
+        
+        let result = validate(source, &[]);
+        
+        let cycle_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Circular type reference"))
+            .collect();
+        
+        assert!(cycle_errors.is_empty());
+    }
+
+    #[test]
+    fn test_mixed_union_with_literals_and_types() {
+        // Union mixing string literals and type references, one creates cycle
+        let source = r#"
+            Status: "pending" | Active | "deleted"
+            Active: Status
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let cycle_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Circular type reference"))
+            .collect();
+        
+        assert!(!cycle_errors.is_empty());
+    }
+
+    #[test]
+    fn test_self_referencing_array_alias() {
+        // A: A[] - array of self
+        let source = r#"
+            A: A[]
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let cycle_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Circular type reference"))
+            .collect();
+        
+        assert_eq!(cycle_errors.len(), 1);
+        assert!(cycle_errors[0].message.contains("A -> A"));
+    }
+}
+
+// Tests for duplicate field name and field override validation
+// Add this section to your existing tests.rs file
+
+// =============================================================================
+// DUPLICATE FIELD NAME TESTS
+// =============================================================================
+
+#[cfg(test)]
+mod duplicate_field_tests {
+    use super::*;
+
+    #[test]
+    fn test_no_duplicate_fields_valid() {
+        let source = r#"
+            User {
+                id: number
+                name: string
+                email: string
+                age: number
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        
+        let dup_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Duplicate field"))
+            .collect();
+        
+        assert!(dup_errors.is_empty());
+    }
+
+    #[test]
+    fn test_duplicate_field_simple() {
+        let source = r#"
+            User {
+                email: string
+                email: string
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let dup_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Duplicate field"))
+            .collect();
+        
+        assert_eq!(dup_errors.len(), 1);
+        assert!(dup_errors[0].message.contains("email"));
+        assert!(dup_errors[0].message.contains("first defined at line"));
+    }
+
+    #[test]
+    fn test_duplicate_field_different_types() {
+        // Same name, different types - still a duplicate
+        let source = r#"
+            User {
+                email: string
+                email: number
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let dup_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Duplicate field"))
+            .collect();
+        
+        assert_eq!(dup_errors.len(), 1);
+        assert!(dup_errors[0].message.contains("email"));
+    }
+
+    #[test]
+    fn test_duplicate_field_with_optional() {
+        // email and email? are the same field name
+        let source = r#"
+            User {
+                email: string
+                email?: string
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let dup_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Duplicate field"))
+            .collect();
+        
+        assert_eq!(dup_errors.len(), 1);
+        assert!(dup_errors[0].message.contains("email"));
+    }
+
+    #[test]
+    fn test_triple_duplicate_field() {
+        // Three fields with same name - should report 2 errors
+        let source = r#"
+            User {
+                name: string
+                name: number
+                name: boolean
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let dup_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Duplicate field"))
+            .collect();
+        
+        // Second and third definitions are duplicates
+        assert_eq!(dup_errors.len(), 2);
+        for err in &dup_errors {
+            assert!(err.message.contains("name"));
+        }
+    }
+
+    #[test]
+    fn test_multiple_different_duplicates() {
+        // Two different fields duplicated
+        let source = r#"
+            User {
+                email: string
+                name: string
+                email: number
+                name: number
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let dup_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Duplicate field"))
+            .collect();
+        
+        assert_eq!(dup_errors.len(), 2);
+        
+        let messages: Vec<&str> = dup_errors.iter()
+            .map(|d| d.message.as_str())
+            .collect();
+        
+        assert!(messages.iter().any(|m| m.contains("email")));
+        assert!(messages.iter().any(|m| m.contains("name")));
+    }
+
+    #[test]
+    fn test_duplicate_field_with_defaults() {
+        let source = r#"
+            User {
+                active: boolean = true
+                active: boolean = false
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let dup_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Duplicate field"))
+            .collect();
+        
+        assert_eq!(dup_errors.len(), 1);
+        assert!(dup_errors[0].message.contains("active"));
+    }
+
+    #[test]
+    fn test_duplicate_field_untyped() {
+        // Untyped fields (default to string)
+        let source = r#"
+            BasicUser {
+                name
+                email
+                name
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let dup_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Duplicate field"))
+            .collect();
+        
+        assert_eq!(dup_errors.len(), 1);
+        assert!(dup_errors[0].message.contains("name"));
+    }
+
+    #[test]
+    fn test_duplicate_field_mixed_typed_untyped() {
+        // One typed, one untyped - still duplicate
+        let source = r#"
+            User {
+                name: string
+                name
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let dup_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Duplicate field"))
+            .collect();
+        
+        assert_eq!(dup_errors.len(), 1);
+    }
+
+    #[test]
+    fn test_duplicate_field_array_types() {
+        let source = r#"
+            User {
+                tags: Tag[]
+                tags: string[]
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let dup_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Duplicate field"))
+            .collect();
+        
+        assert_eq!(dup_errors.len(), 1);
+        assert!(dup_errors[0].message.contains("tags"));
+    }
+
+    #[test]
+    fn test_duplicate_field_in_model_with_extends() {
+        // Duplicates within the child model itself (not with parent)
+        let source = r#"
+            BaseUser {
+                id: number
+            }
+
+            AdminUser extends BaseUser {
+                level: number
+                level: string
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let dup_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Duplicate field"))
+            .collect();
+        
+        assert_eq!(dup_errors.len(), 1);
+        assert!(dup_errors[0].message.contains("level"));
+    }
+
+    #[test]
+    fn test_no_duplicate_with_same_name_in_different_models() {
+        // Same field name in different models is fine
+        let source = r#"
+            User {
+                email: string
+            }
+
+            Company {
+                email: string
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        
+        let dup_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Duplicate field"))
+            .collect();
+        
+        assert!(dup_errors.is_empty());
+    }
+
+    #[test]
+    fn test_field_removal_not_counted_as_definition() {
+        // -fieldname is removal, not definition
+        let source = r#"
+            BaseUser {
+                password_hash: string
+            }
+
+            PublicUser extends BaseUser {
+                -password_hash
+                display_name: string
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        
+        let dup_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Duplicate field"))
+            .collect();
+        
+        assert!(dup_errors.is_empty());
+    }
+
+    #[test]
+    fn test_duplicate_field_reports_correct_line() {
+        let source = "User {\n    email: string\n    name: string\n    email: number\n}";
+        
+        let result = validate(source, &[]);
+        
+        let dup_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Duplicate field"))
+            .collect();
+        
+        assert_eq!(dup_errors.len(), 1);
+        // First definition is at line 2 (0-indexed: 1)
+        assert!(dup_errors[0].message.contains("first defined at line 2"));
+        // Error should point to line 4 (0-indexed: 3)
+        assert_eq!(dup_errors[0].span.start.line, 3);
+    }
+
+    #[test]
+    fn test_duplicate_field_with_inline_plugin_block() {
+        // This is the CORRECT way to add plugins to a field
+        // Two definitions with inline plugins is still a duplicate
+        let source = r#"
+            User {
+                email: string {
+                    @validation { format: "email" }
+                }
+                email: string
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let dup_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Duplicate field"))
+            .collect();
+        
+        assert_eq!(dup_errors.len(), 1);
+        assert!(dup_errors[0].message.contains("email"));
+    }
+
+    #[test]
+    fn test_duplicate_field_inline_union() {
+        let source = r#"
+            User {
+                status: "active" | "pending"
+                status: "active" | "deleted"
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let dup_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Duplicate field"))
+            .collect();
+        
+        assert_eq!(dup_errors.len(), 1);
+        assert!(dup_errors[0].message.contains("status"));
+    }
+
+    #[test]
+    fn test_composite_type_duplicate_fields() {
+        // Composite types (value objects) should also check for duplicates
+        let source = r#"
+            Address {
+                street: string
+                city: string
+                street: string
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let dup_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Duplicate field"))
+            .collect();
+        
+        assert_eq!(dup_errors.len(), 1);
+        assert!(dup_errors[0].message.contains("street"));
+    }
+
+    #[test]
+    fn test_complex_model_with_duplicates() {
+        // Real-world-ish example with various field types
+        let source = r#"
+            Order {
+                id: UUID
+                customer: User
+                items: OrderItem[]
+                total: Money
+                status: "pending" | "shipped" | "delivered"
+                created_at: DateTime = now()
+                items: Product[]
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let dup_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Duplicate field"))
+            .collect();
+        
+        assert_eq!(dup_errors.len(), 1);
+        assert!(dup_errors[0].message.contains("items"));
+    }
+
+    #[test]
+    fn test_empty_model_no_duplicates() {
+        let source = r#"
+            Empty {
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        
+        let dup_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Duplicate field"))
+            .collect();
+        
+        assert!(dup_errors.is_empty());
+    }
+
+    #[test]
+    fn test_single_field_model_no_duplicates() {
+        let source = r#"
+            Single {
+                only_field: string
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        
+        let dup_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Duplicate field"))
+            .collect();
+        
+        assert!(dup_errors.is_empty());
+    }
+
+    #[test]
+    fn test_multiple_models_each_with_duplicates() {
+        let source = r#"
+            User {
+                email: string
+                email: number
+            }
+
+            Product {
+                sku: string
+                sku: number
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let dup_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Duplicate field"))
+            .collect();
+        
+        assert_eq!(dup_errors.len(), 2);
+        
+        let messages: Vec<&str> = dup_errors.iter()
+            .map(|d| d.message.as_str())
+            .collect();
+        
+        assert!(messages.iter().any(|m| m.contains("email")));
+        assert!(messages.iter().any(|m| m.contains("sku")));
+    }
+}
+
+// =============================================================================
+// FIELD OVERRIDE VALIDATION TESTS
+// =============================================================================
+
+#[cfg(test)]
+mod field_override_tests {
+    use super::*;
+
+    #[test]
+    fn test_field_override_on_same_model_is_error() {
+        // This is INVALID - can't use field_override syntax for same-model fields
+        let source = r#"
+            Post {
+                content: string
+                
+                content {
+                    @sql { type: "TEXT" }
+                }
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let override_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Cannot override field"))
+            .collect();
+        
+        assert_eq!(override_errors.len(), 1);
+        assert!(override_errors[0].message.contains("content"));
+        assert!(override_errors[0].message.contains("same model"));
+        assert!(override_errors[0].message.contains("inline plugin syntax"));
+    }
+
+    #[test]
+    fn test_inline_plugin_syntax_is_valid() {
+        // This is the CORRECT way - inline plugin block
+        let source = r#"
+            Post {
+                content: string {
+                    @sql { type: "TEXT" }
+                }
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        
+        let override_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Cannot override field"))
+            .collect();
+        
+        assert!(override_errors.is_empty());
+    }
+
+    #[test]
+    fn test_field_override_on_inherited_field_is_valid() {
+        // This IS valid - overriding inherited field
+        let source = r#"
+            BaseContent {
+                status: string
+            }
+
+            Article extends BaseContent {
+                title: string
+                
+                status {
+                    @sql { type: "ENUM", name: "article_status" }
+                }
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        
+        let override_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Cannot override field"))
+            .collect();
+        
+        assert!(override_errors.is_empty());
+    }
+
+    #[test]
+    fn test_multiple_field_overrides_on_same_model() {
+        let source = r#"
+            Post {
+                title: string
+                content: string
+                
+                title {
+                    @sql { type: "VARCHAR(200)" }
+                }
+                
+                content {
+                    @sql { type: "TEXT" }
+                }
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let override_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Cannot override field"))
+            .collect();
+        
+        assert_eq!(override_errors.len(), 2);
+        
+        let messages: Vec<&str> = override_errors.iter()
+            .map(|d| d.message.as_str())
+            .collect();
+        
+        assert!(messages.iter().any(|m| m.contains("title")));
+        assert!(messages.iter().any(|m| m.contains("content")));
+    }
+
+    #[test]
+    fn test_field_override_reports_definition_line() {
+        let source = "Post {\n    content: string\n    \n    content {\n        @sql { type: \"TEXT\" }\n    }\n}";
+        
+        let result = validate(source, &[]);
+        
+        let override_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Cannot override field"))
+            .collect();
+        
+        assert_eq!(override_errors.len(), 1);
+        // Field is defined at line 2
+        assert!(override_errors[0].message.contains("line 2"));
+    }
+
+    #[test]
+    fn test_field_override_for_undefined_field_is_allowed() {
+        // If the field isn't defined in this model, it's presumably inherited
+        // (actual inheritance validation would catch if parent doesn't have it)
+        let source = r#"
+            BaseModel {
+                created_at: string
+            }
+
+            ChildModel extends BaseModel {
+                name: string
+                
+                created_at {
+                    @sql { type: "TIMESTAMP" }
+                }
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        
+        let override_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Cannot override field"))
+            .collect();
+        
+        assert!(override_errors.is_empty());
+    }
+
+    #[test]
+    fn test_field_override_order_definition_after_override() {
+        // Even if field_override comes before field_definition, should still error
+        let source = r#"
+            Post {
+                content {
+                    @sql { type: "TEXT" }
+                }
+                
+                content: string
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let override_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Cannot override field"))
+            .collect();
+        
+        assert_eq!(override_errors.len(), 1);
+        assert!(override_errors[0].message.contains("content"));
+    }
+
+    #[test]
+    fn test_mixed_valid_and_invalid_overrides() {
+        let source = r#"
+            Base {
+                inherited_field: string
+            }
+
+            Child extends Base {
+                local_field: string
+                
+                // This is valid - inherited field
+                inherited_field {
+                    @sql { index: true }
+                }
+                
+                // This is invalid - local field
+                local_field {
+                    @sql { index: true }
+                }
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let override_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Cannot override field"))
+            .collect();
+        
+        assert_eq!(override_errors.len(), 1);
+        assert!(override_errors[0].message.contains("local_field"));
+    }
+
+    #[test]
+    fn test_field_override_with_multiple_plugins() {
+        let source = r#"
+            Post {
+                content: string
+                
+                content {
+                    @sql { type: "TEXT" }
+                    @validation { max_length: 50000 }
+                }
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let override_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Cannot override field"))
+            .collect();
+        
+        assert_eq!(override_errors.len(), 1);
+    }
+
+    #[test]
+    fn test_no_error_for_model_level_plugin_config() {
+        // Model-level @sql is not a field override
+        let source = r#"
+            User {
+                id: number
+                name: string
+                
+                @sql { table: "users" }
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        
+        let override_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Cannot override field"))
+            .collect();
+        
+        assert!(override_errors.is_empty());
+    }
+
+    #[test]
+    fn test_combined_duplicate_and_override_errors() {
+        // Both duplicate field AND invalid override
+        let source = r#"
+            Post {
+                content: string
+                content: string
+                
+                content {
+                    @sql { type: "TEXT" }
+                }
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(result.has_errors());
+        
+        let dup_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Duplicate field"))
+            .collect();
+        
+        let override_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Cannot override field"))
+            .collect();
+        
+        assert_eq!(dup_errors.len(), 1);
+        assert_eq!(override_errors.len(), 1);
+    }
+}
+
+// =============================================================================
+// ANCESTOR & EXTENDS TESTS
+// Add this module to your existing tests.rs
+// =============================================================================
+
+mod extends_tests {
+    use super::*;
+
+    fn make_ancestor(path: &str, source: &str) -> Ancestor {
+        let result = validate(source, &[]);
+        result.into_ancestor(path.to_string())
+    }
+
+    // -------------------------------------------------------------------------
+    // extract_extends_paths tests
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_extract_no_extends() {
+        let source = r#"
+            User { name: string }
+        "#;
+        
+        let paths = extract_extends_paths(source);
+        assert!(paths.is_empty());
+    }
+
+    #[test]
+    fn test_extract_single_extends() {
+        let source = r#"
+            @extends ./base.cdm
+            
+            User { name: string }
+        "#;
+        
+        let paths = extract_extends_paths(source);
+        assert_eq!(paths, vec!["./base.cdm"]);
+    }
+
+    #[test]
+    fn test_extract_multiple_extends() {
+        let source = r#"
+            @extends ./types.cdm
+            @extends ./mixins.cdm
+            @extends ../shared/base.cdm
+            
+            User { name: string }
+        "#;
+        
+        let paths = extract_extends_paths(source);
+        assert_eq!(paths, vec![
+            "./types.cdm",
+            "./mixins.cdm",
+            "../shared/base.cdm"
+        ]);
+    }
+
+    #[test]
+    fn test_extract_extends_with_plugins() {
+        let source = r#"
+            @sql { dialect: "postgres" }
+            @extends ./types/base.cdm
+            @validation { strict: true }
+            
+            User { name: string }
+        "#;
+        
+        let paths = extract_extends_paths(source);
+        assert_eq!(paths, vec!["./types/base.cdm"]);
+    }
+
+    #[test]
+    fn test_extract_extends_preserves_order() {
+        let source = r#"
+            @extends ./third.cdm
+            @extends ./first.cdm
+            @extends ./second.cdm
+            
+            User { name: string }
+        "#;
+        
+        let paths = extract_extends_paths(source);
+        assert_eq!(paths, vec!["./third.cdm", "./first.cdm", "./second.cdm"]);
+    }
+
+    // -------------------------------------------------------------------------
+    // ValidationResult.into_ancestor tests
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_validation_result_into_ancestor() {
+        let source = r#"
+            Email: string
+            User {
+                name: string
+                email: Email
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        assert!(!result.has_errors());
+        
+        assert!(result.symbol_table.is_defined("Email"));
+        assert!(result.symbol_table.is_defined("User"));
+        assert!(result.model_fields.contains_key("User"));
+        
+        let ancestor = result.into_ancestor("test.cdm".to_string());
+        assert_eq!(ancestor.path, "test.cdm");
+        assert!(ancestor.symbol_table.is_defined("Email"));
+        assert!(ancestor.model_fields.contains_key("User"));
+    }
+
+    #[test]
+    fn test_field_info_collection() {
+        let source = r#"
+            User {
+                name: string
+                age?: number
+                active: boolean = true
+                bio
+            }
+        "#;
+        
+        let result = validate(source, &[]);
+        let fields = result.model_fields.get("User").unwrap();
+        
+        assert_eq!(fields.len(), 4);
+        
+        let name_field = fields.iter().find(|f| f.name == "name").unwrap();
+        assert_eq!(name_field.type_expr, Some("string".to_string()));
+        assert!(!name_field.optional);
+        
+        let age_field = fields.iter().find(|f| f.name == "age").unwrap();
+        assert_eq!(age_field.type_expr, Some("number".to_string()));
+        assert!(age_field.optional);
+        
+        let bio_field = fields.iter().find(|f| f.name == "bio").unwrap();
+        assert_eq!(bio_field.type_expr, None);
+        assert!(!bio_field.optional);
+    }
+
+    // -------------------------------------------------------------------------
+    // Shadowing ancestor definitions
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_shadow_ancestor_definition_warning() {
+        let base_source = r#"
+            Email: string
+            User { name: string }
+        "#;
+        let base_ancestor = make_ancestor("base.cdm", base_source);
+        
+        let child_source = "Email: number";
+        let result = validate(child_source, &[base_ancestor]);
+        
+        let warnings: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.severity == Severity::Warning && d.message.contains("shadows definition"))
+            .collect();
+        
+        assert_eq!(warnings.len(), 1);
+        assert!(warnings[0].message.contains("Email"));
+        assert!(warnings[0].message.contains("base.cdm"));
+    }
+
+    // -------------------------------------------------------------------------
+    // Cross-file type resolution
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_type_from_ancestor() {
+        let base_source = r#"
+            Email: string
+            Address { street: string }
+        "#;
+        let base_ancestor = make_ancestor("base.cdm", base_source);
+        
+        let child_source = r#"
+            User {
+                email: Email
+                address: Address
+            }
+        "#;
+        let result = validate(child_source, &[base_ancestor]);
+        
+        let undefined_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Undefined type"))
+            .collect();
+        
+        assert!(undefined_errors.is_empty());
+    }
+
+    #[test]
+    fn test_extend_model_from_ancestor() {
+        let base_source = r#"
+            BaseUser {
+                id: number
+                email: string
+            }
+        "#;
+        let base_ancestor = make_ancestor("base.cdm", base_source);
+        
+        let child_source = r#"
+            AdminUser extends BaseUser {
+                admin_level: number
+            }
+        "#;
+        let result = validate(child_source, &[base_ancestor]);
+        
+        assert!(!result.has_errors());
+    }
+
+    #[test]
+    fn test_multiple_ancestors() {
+        let types_source = r#"
+            Email: string
+            UUID: string
+        "#;
+        let types_ancestor = make_ancestor("types.cdm", types_source);
+        
+        let base_source = r#"
+            BaseEntity {
+                id: UUID
+                created_at: string
+            }
+        "#;
+        let base_ancestor = {
+            let result = validate(base_source, &[types_ancestor.clone()]);
+            result.into_ancestor("base.cdm".to_string())
+        };
+        
+        let child_source = r#"
+            User extends BaseEntity {
+                email: Email
+            }
+        "#;
+        let result = validate(child_source, &[base_ancestor, types_ancestor]);
+        
+        assert!(!result.has_errors());
+    }
+
+    // -------------------------------------------------------------------------
+    // Field removal with ancestors
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_valid_field_removal() {
+        let base_source = r#"
+            BaseUser {
+                id: number
+                password_hash: string
+                email: string
+            }
+        "#;
+        let base_ancestor = make_ancestor("base.cdm", base_source);
+        
+        let child_source = r#"
+            PublicUser extends BaseUser {
+                -password_hash
+                display_name: string
+            }
+        "#;
+        let result = validate(child_source, &[base_ancestor]);
+        
+        let removal_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Cannot remove field"))
+            .collect();
+        
+        assert!(removal_errors.is_empty());
+    }
+
+    #[test]
+    fn test_invalid_field_removal_not_in_parent() {
+        let base_source = r#"
+            BaseUser {
+                id: number
+                email: string
+            }
+        "#;
+        let base_ancestor = make_ancestor("base.cdm", base_source);
+        
+        let child_source = r#"
+            PublicUser extends BaseUser {
+                -password_hash
+            }
+        "#;
+        let result = validate(child_source, &[base_ancestor]);
+        
+        assert!(result.has_errors());
+        assert!(result.diagnostics.iter().any(|d| 
+            d.message.contains("Cannot remove field 'password_hash'")
+        ));
+    }
+
+    #[test]
+    fn test_field_removal_from_grandparent() {
+        let grandparent_source = r#"
+            Entity {
+                id: number
+                internal_flags: string
+            }
+        "#;
+        let grandparent_ancestor = make_ancestor("entity.cdm", grandparent_source);
+        
+        let parent_source = r#"
+            BaseUser extends Entity {
+                email: string
+            }
+        "#;
+        let parent_ancestor = {
+            let result = validate(parent_source, &[grandparent_ancestor.clone()]);
+            result.into_ancestor("base.cdm".to_string())
+        };
+        
+        let child_source = r#"
+            PublicUser extends BaseUser {
+                -internal_flags
+            }
+        "#;
+        let result = validate(child_source, &[parent_ancestor, grandparent_ancestor]);
+        
+        let removal_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Cannot remove field"))
+            .collect();
+        
+        assert!(removal_errors.is_empty());
+    }
+
+    // -------------------------------------------------------------------------
+    // Field override with ancestors
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_valid_field_override_from_parent() {
+        let base_source = r#"
+            BaseContent {
+                status: string
+            }
+        "#;
+        let base_ancestor = make_ancestor("base.cdm", base_source);
+        
+        let child_source = r#"
+            Article extends BaseContent {
+                title: string
+                
+                status {
+                    @sql { type: "article_status_enum" }
+                }
+            }
+        "#;
+        let result = validate(child_source, &[base_ancestor]);
+        
+        let override_errors: Vec<_> = result.diagnostics.iter()
+            .filter(|d| d.message.contains("Cannot override field"))
+            .collect();
+        
+        assert!(override_errors.is_empty());
+    }
+
+    #[test]
+    fn test_invalid_field_override_not_in_parent() {
+        let base_source = r#"
+            BaseContent {
+                title: string
+            }
+        "#;
+        let base_ancestor = make_ancestor("base.cdm", base_source);
+        
+        let child_source = r#"
+            Article extends BaseContent {
+                body: string
+                
+                nonexistent {
+                    @sql { type: "TEXT" }
+                }
+            }
+        "#;
+        let result = validate(child_source, &[base_ancestor]);
+        
+        assert!(result.has_errors());
+        assert!(result.diagnostics.iter().any(|d| 
+            d.message.contains("Cannot override field 'nonexistent'") &&
+            d.message.contains("not found in any parent")
+        ));
+    }
+
+    // -------------------------------------------------------------------------
+    // Complex multi-file scenarios
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn test_real_world_extends_chain() {
+        let types_source = r#"
+            UUID: string
+            Email: string
+            DateTime: string
+        "#;
+        let types_ancestor = make_ancestor("types.cdm", types_source);
+        
+        let base_source = r#"
+            Timestamped {
+                created_at: DateTime
+                updated_at: DateTime
+            }
+            
+            BaseEntity extends Timestamped {
+                id: UUID
+            }
+        "#;
+        let base_ancestor = {
+            let result = validate(base_source, &[types_ancestor.clone()]);
+            assert!(!result.has_errors(), "base.cdm should be valid");
+            result.into_ancestor("base.cdm".to_string())
+        };
+        
+        let user_source = r#"
+            User extends BaseEntity {
+                -updated_at
+                
+                email: Email
+                username: string
+                
+                created_at {
+                    @sql { default: "NOW()" }
+                }
+            }
+        "#;
+        let result = validate(user_source, &[base_ancestor, types_ancestor]);
+        
+        assert!(!result.has_errors(), "Errors: {:?}", result.diagnostics);
+    }
+
+    #[test]
+    fn test_multiple_extends_directives() {
+        let types_source = r#"
+            UUID: string
+            Email: string
+        "#;
+        let types_ancestor = make_ancestor("types.cdm", types_source);
+        
+        let mixins_source = r#"
+            Timestamped {
+                created_at: string
+                updated_at: string
+            }
+        "#;
+        let mixins_ancestor = make_ancestor("mixins.cdm", mixins_source);
+        
+        let user_source = r#"
+            @extends ./types.cdm
+            @extends ./mixins.cdm
+            
+            User extends Timestamped {
+                id: UUID
+                email: Email
+            }
+        "#;
+        
+        let result = validate(user_source, &[types_ancestor, mixins_ancestor]);
+        
+        assert!(!result.has_errors(), "Errors: {:?}", result.diagnostics);
+        
+        let paths = extract_extends_paths(user_source);
+        assert_eq!(paths, vec!["./types.cdm", "./mixins.cdm"]);
+    }
 }

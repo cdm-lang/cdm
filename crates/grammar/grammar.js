@@ -138,9 +138,24 @@ module.exports = grammar({
     field_removal: ($) => seq("-", field("name", $.identifier)),
 
     // Field-specific override: field_name { @plugins }
-    // Used to add plugins to an already-defined field
-    // Example:
-    //   content { @sql { type: "TEXT" } }
+    // Used to add/override plugins on a field INHERITED from a parent model.
+    // NOT for fields defined in the same model - use inline plugin blocks instead.
+    //
+    // VALID (overriding inherited field):
+    //   AdminUser extends User {
+    //     status { @sql { type: "admin_status_enum" } }
+    //   }
+    //
+    // INVALID (use inline syntax instead):
+    //   Post {
+    //     content: string
+    //     content { @sql { type: "TEXT" } }  // ERROR!
+    //   }
+    //
+    // CORRECT inline syntax:
+    //   Post {
+    //     content: string { @sql { type: "TEXT" } }
+    //   }
     field_override: ($) =>
       prec(
         2,
