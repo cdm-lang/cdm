@@ -1,49 +1,6 @@
-use std::fmt;
 
-/// A position in source code
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Position {
-    pub line: usize,   // 0-indexed (LSP standard)
-    pub column: usize, // 0-indexed
-}
 
-/// A span in source code (start inclusive, end exclusive)
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Span {
-    pub start: Position,
-    pub end: Position,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum Severity {
-    Error,
-    Warning,
-}
-
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct Diagnostic {
-    pub message: String,
-    pub severity: Severity,
-    pub span: Span,
-}
-
-impl fmt::Display for Diagnostic {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let severity = match self.severity {
-            Severity::Error => "error",
-            Severity::Warning => "warning",
-        };
-        // Display as 1-indexed for human readability
-        write!(
-            f,
-            "{}[{}:{}]: {}",
-            severity,
-            self.span.start.line + 1,
-            self.span.start.column + 1,
-            self.message
-        )
-    }
-}
+use crate::{Definition, DefinitionKind, Diagnostic, Position, Severity, Span, SymbolTable};
 
 #[derive(Debug)]
 pub struct ValidationResult {
@@ -123,11 +80,153 @@ fn collect_syntax_errors(
     }
 }
 
+fn get_node_text<'a>(node: tree_sitter::Node, source: &'a str) -> &'a str {
+    node.utf8_text(source.as_bytes()).unwrap_or("")
+}
+
+fn node_span(node: tree_sitter::Node) -> Span {
+    let start = node.start_position();
+    let end = node.end_position();
+    Span {
+        start: Position { line: start.row, column: start.column },
+        end: Position { line: end.row, column: end.column },
+    }
+}
+
+/// Pass 1: Collect all definitions into a symbol table
+fn collect_definitions(
+    root: tree_sitter::Node,
+    source: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> SymbolTable {
+    let mut symbol_table = SymbolTable::new();
+    let mut cursor = root.walk();
+
+    for node in root.children(&mut cursor) {
+        match node.kind() {
+            "type_alias" => {
+                collect_type_alias(node, source, &mut symbol_table, diagnostics);
+            }
+            "model_definition" => {
+                collect_model(node, source, &mut symbol_table, diagnostics);
+            }
+            _ => {}
+        }
+    }
+
+    symbol_table
+}
+
+fn collect_type_alias(
+    node: tree_sitter::Node,
+    source: &str,
+    symbol_table: &mut SymbolTable,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(name_node) = node.child_by_field_name("name") else {
+        return;
+    };
+
+    let name = get_node_text(name_node, source);
+    let span = node_span(name_node);
+
+    // Check for duplicate definition
+    if let Some(existing) = symbol_table.definitions.get(name) {
+        diagnostics.push(Diagnostic {
+            message: format!(
+                "'{}' is already defined at line {}",
+                name,
+                existing.span.start.line + 1
+            ),
+            severity: Severity::Error,
+            span,
+        });
+        return;
+    }
+
+    symbol_table.definitions.insert(
+        name.to_string(),
+        Definition {
+            kind: DefinitionKind::TypeAlias,
+            span,
+        },
+    );
+}
+
+fn collect_model(
+    node: tree_sitter::Node,
+    source: &str,
+    symbol_table: &mut SymbolTable,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let Some(name_node) = node.child_by_field_name("name") else {
+        return;
+    };
+
+    let name = get_node_text(name_node, source);
+    let span = node_span(name_node);
+
+    // Check for duplicate definition
+    if let Some(existing) = symbol_table.definitions.get(name) {
+        diagnostics.push(Diagnostic {
+            message: format!(
+                "'{}' is already defined at line {}",
+                name,
+                existing.span.start.line + 1
+            ),
+            severity: Severity::Error,
+            span,
+        });
+        return;
+    }
+
+    // Collect extends parents
+    let extends = collect_extends_parents(node, source);
+
+    symbol_table.definitions.insert(
+        name.to_string(),
+        Definition {
+            kind: DefinitionKind::Model { extends },
+            span,
+        },
+    );
+}
+
+fn collect_extends_parents(node: tree_sitter::Node, source: &str) -> Vec<String> {
+    let mut parents = Vec::new();
+
+    let Some(extends_node) = node.child_by_field_name("extends") else {
+        return parents;
+    };
+
+    // extends_clause can have multiple "parent" fields
+    let mut cursor = extends_node.walk();
+    for child in extends_node.children_by_field_name("parent", &mut cursor) {
+        let parent_name = get_node_text(child, source);
+        parents.push(parent_name.to_string());
+    }
+
+    parents
+}
+
 fn collect_semantic_errors(
+    root: tree_sitter::Node,
+    source: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    // Pass 1: Build symbol table
+    let symbol_table = collect_definitions(root, source, diagnostics);
+    println!("{}", symbol_table);
+
+    // Pass 2: Validate references (TODO)
+    validate_references(root, source, &symbol_table, diagnostics);
+}
+
+fn validate_references(
     _root: tree_sitter::Node,
     _source: &str,
+    _symbol_table: &SymbolTable,
     _diagnostics: &mut Vec<Diagnostic>,
 ) {
-    // TODO: implement type checking, undefined references, etc.
-    // Two-pass: collect definitions, then check references
+    // TODO: implement in next step
 }
