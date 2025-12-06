@@ -197,7 +197,6 @@ module.exports = grammar({
         $.string_literal,
         $.number_literal,
         $.boolean_literal,
-        $.function_call,
         $.array_literal,
         $.object_literal
       ),

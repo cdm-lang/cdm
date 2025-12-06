@@ -1,421 +1,439 @@
 use super::*;
+fn validate_source(source: &str) -> ValidationResult {
+    validate(source, &[])
+}
 
-    fn parse(source: &str) -> tree_sitter::Tree {
-        let mut parser = tree_sitter::Parser::new();
-        parser
-            .set_language(&grammar::LANGUAGE.into())
-            .expect("Failed to load grammar");
-        parser.parse(source, None).expect("Failed to parse")
-    }
+fn get_errors(result: &ValidationResult) -> Vec<&Diagnostic> {
+    result
+        .diagnostics
+        .iter()
+        .filter(|d| d.severity == Severity::Error)
+        .collect()
+}
 
-    #[test]
-    fn test_empty_file() {
-        let source = "";
-        let tree = parse(source);
-        let mut diagnostics = Vec::new();
+fn has_error_containing(result: &ValidationResult, text: &str) -> bool {
+    result
+        .diagnostics
+        .iter()
+        .any(|d| d.severity == Severity::Error && d.message.contains(text))
+}
 
-        let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+fn parse(source: &str) -> tree_sitter::Tree {
+    let mut parser = tree_sitter::Parser::new();
+    parser
+        .set_language(&grammar::LANGUAGE.into())
+        .expect("Failed to load grammar");
+    parser.parse(source, None).expect("Failed to parse")
+}
 
-        assert!(diagnostics.is_empty());
-        assert!(symbol_table.definitions.is_empty());
-    }
+#[test]
+fn test_empty_file() {
+    let source = "";
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
 
-    #[test]
-    fn test_single_type_alias() {
-        let source = "Email: string";
-        let tree = parse(source);
-        let mut diagnostics = Vec::new();
+    let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
-        let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    assert!(diagnostics.is_empty());
+    assert!(symbol_table.definitions.is_empty());
+}
 
-        assert!(diagnostics.is_empty());
-        assert_eq!(symbol_table.definitions.len(), 1);
-        
-        let def = symbol_table.get("Email").expect("Email should be defined");
-        assert!(matches!(def.kind, DefinitionKind::TypeAlias { .. }));
-    }
+#[test]
+fn test_single_type_alias() {
+    let source = "Email: string";
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
 
-    #[test]
-    fn test_single_model() {
-        let source = r#"
-            User {
-                name: string
-                email: string
-            }
-        "#;
-        let tree = parse(source);
-        let mut diagnostics = Vec::new();
+    let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
-        let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    assert!(diagnostics.is_empty());
+    assert_eq!(symbol_table.definitions.len(), 1);
+    
+    let def = symbol_table.get("Email").expect("Email should be defined");
+    assert!(matches!(def.kind, DefinitionKind::TypeAlias { .. }));
+}
 
-        assert!(diagnostics.is_empty());
-        assert_eq!(symbol_table.definitions.len(), 1);
-
-        let def = symbol_table.get("User").expect("User should be defined");
-        assert!(matches!(&def.kind, DefinitionKind::Model { extends } if extends.is_empty()));
-    }
-
-    #[test]
-    fn test_model_with_single_extends() {
-        let source = r#"
-            Timestamped {
-                created_at: string
-            }
-
-            Article extends Timestamped {
-                title: string
-            }
-        "#;
-        let tree = parse(source);
-        let mut diagnostics = Vec::new();
-
-        let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
-
-        assert!(diagnostics.is_empty());
-        assert_eq!(symbol_table.definitions.len(), 2);
-
-        let def = symbol_table.get("Article").expect("Article should be defined");
-        match &def.kind {
-            DefinitionKind::Model { extends } => {
-                assert_eq!(extends, &vec!["Timestamped".to_string()]);
-            }
-            _ => panic!("Expected Model"),
+#[test]
+fn test_single_model() {
+    let source = r#"
+        User {
+            name: string
+            email: string
         }
-    }
+    "#;
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
 
-    #[test]
-    fn test_model_with_multiple_extends() {
-        let source = r#"
-            BaseUser {
-                id: number
-            }
+    let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
-            Timestamped {
-                created_at: string
-            }
+    assert!(diagnostics.is_empty());
+    assert_eq!(symbol_table.definitions.len(), 1);
 
-            AdminUser extends BaseUser, Timestamped {
-                admin_level: number
-            }
-        "#;
-        let tree = parse(source);
-        let mut diagnostics = Vec::new();
+    let def = symbol_table.get("User").expect("User should be defined");
+    assert!(matches!(&def.kind, DefinitionKind::Model { extends } if extends.is_empty()));
+}
 
-        let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
-
-        assert!(diagnostics.is_empty());
-        assert_eq!(symbol_table.definitions.len(), 3);
-
-        let def = symbol_table.get("AdminUser").expect("AdminUser should be defined");
-        match &def.kind {
-            DefinitionKind::Model { extends } => {
-                assert_eq!(extends, &vec![
-                    "BaseUser".to_string(),
-                    "Timestamped".to_string()
-                ]);
-            }
-            _ => panic!("Expected Model"),
-        }
-    }
-
-    #[test]
-    fn test_multiple_type_aliases() {
-        let source = r#"
-            Email: string
-            Age: number
-            Active: boolean
-        "#;
-        let tree = parse(source);
-        let mut diagnostics = Vec::new();
-
-        let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
-
-        assert!(diagnostics.is_empty());
-        assert_eq!(symbol_table.definitions.len(), 3);
-        assert!(symbol_table.get("Email").is_some());
-        assert!(symbol_table.get("Age").is_some());
-        assert!(symbol_table.get("Active").is_some());
-    }
-
-    #[test]
-    fn test_union_type_alias() {
-        let source = r#"Status: "active" | "pending" | "deleted""#;
-        let tree = parse(source);
-        let mut diagnostics = Vec::new();
-
-        let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
-
-        assert!(diagnostics.is_empty());
-        assert_eq!(symbol_table.definitions.len(), 1);
-        
-        let def = symbol_table.get("Status").expect("Status should be defined");
-        assert!(matches!(def.kind, DefinitionKind::TypeAlias { .. }));
-    }
-
-    #[test]
-    fn test_duplicate_type_alias_error() {
-        let source = r#"
-            Email: string
-            Email: number
-        "#;
-        let tree = parse(source);
-        let mut diagnostics = Vec::new();
-
-        let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
-
-        assert_eq!(diagnostics.len(), 1);
-        assert_eq!(diagnostics[0].severity, Severity::Error);
-        assert!(diagnostics[0].message.contains("Email"));
-        assert!(diagnostics[0].message.contains("already defined"));
-
-        // First definition should still be in the table
-        assert_eq!(symbol_table.definitions.len(), 1);
-        assert!(symbol_table.get("Email").is_some());
-    }
-
-    #[test]
-    fn test_duplicate_model_error() {
-        let source = r#"
-            User {
-                name: string
-            }
-
-            User {
-                email: string
-            }
-        "#;
-        let tree = parse(source);
-        let mut diagnostics = Vec::new();
-
-        collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
-
-        assert_eq!(diagnostics.len(), 1);
-        assert_eq!(diagnostics[0].severity, Severity::Error);
-        assert!(diagnostics[0].message.contains("User"));
-        assert!(diagnostics[0].message.contains("already defined"));
-    }
-
-    #[test]
-    fn test_duplicate_type_alias_and_model_error() {
-        let source = r#"
-            User: string
-
-            User {
-                name: string
-            }
-        "#;
-        let tree = parse(source);
-        let mut diagnostics = Vec::new();
-
-        collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
-
-        assert_eq!(diagnostics.len(), 1);
-        assert_eq!(diagnostics[0].severity, Severity::Error);
-        assert!(diagnostics[0].message.contains("User"));
-    }
-
-    #[test]
-    fn test_mixed_definitions() {
-        let source = r#"
-            Email: string
-            Status: "active" | "pending"
-
-            Address {
-                street: string
-                city: string
-            }
-
-            User {
-                email: Email
-                address: Address
-            }
-
-            AdminUser extends User {
-                role: string
-            }
-        "#;
-        let tree = parse(source);
-        let mut diagnostics = Vec::new();
-
-        let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
-
-        assert!(diagnostics.is_empty());
-        assert_eq!(symbol_table.definitions.len(), 5);
-
-        assert!(matches!(
-            symbol_table.get("Email").unwrap().kind,
-            DefinitionKind::TypeAlias { .. }
-        ));
-        assert!(matches!(
-            symbol_table.get("Status").unwrap().kind,
-            DefinitionKind::TypeAlias { .. }
-        ));
-        assert!(matches!(
-            symbol_table.get("Address").unwrap().kind,
-            DefinitionKind::Model { ref extends } if extends.is_empty()
-        ));
-        assert!(matches!(
-            symbol_table.get("User").unwrap().kind,
-            DefinitionKind::Model { ref extends } if extends.is_empty()
-        ));
-        let def = symbol_table.get("AdminUser").expect("AdminUser should be defined");
-        match &def.kind {
-            DefinitionKind::Model { extends } => {
-                assert_eq!(extends, &vec!["User".to_string()]);
-            }
-            _ => panic!("Expected Model"),
-        }
-    }
-
-    #[test]
-    fn test_builtin_types_not_in_definitions() {
-        let source = r#"
-            User {
-                name: string
-                age: number
-            }
-        "#;
-        let tree = parse(source);
-        let mut diagnostics = Vec::new();
-
-        let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
-
-        // Built-ins should not be in definitions
-        assert!(symbol_table.definitions.get("string").is_none());
-        assert!(symbol_table.definitions.get("number").is_none());
-
-        // But is_defined should return true for them
-        assert!(symbol_table.is_defined("string"));
-        assert!(symbol_table.is_defined("number"));
-        assert!(symbol_table.is_defined("boolean"));
-        assert!(symbol_table.is_defined("string"));
-    }
-
-    #[test]
-    fn test_span_tracking() {
-        let source = "Email: string";
-        let tree = parse(source);
-        let mut diagnostics = Vec::new();
-
-        let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
-
-        let def = symbol_table.get("Email").expect("Email should be defined");
-        assert_eq!(def.span.start.line, 0);
-        assert_eq!(def.span.start.column, 0);
-    }
-
-    #[test]
-    fn test_type_alias_with_plugin_block() {
-        let source = r#"
-            Foo: string {
-                @validation { format: "uuid" }
-                @sql { type: "number" }
-            }
-        "#;
-        let tree = parse(source);
-        let mut diagnostics = Vec::new();
-
-        let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
-
-        println!("{:?}", diagnostics);
-        assert!(diagnostics.is_empty());
-        assert_eq!(symbol_table.definitions.len(), 1);
-        assert!(symbol_table.get("Foo").is_some());
-    }
-
-    #[test]
-    fn test_model_with_complex_fields() {
-        let source = r#"
-            User {
-                id: number
-                tags: Tag[]
-                status?: Status
-                active: boolean = true
-            }
-        "#;
-        let tree = parse(source);
-        let mut diagnostics = Vec::new();
-
-        let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
-
-        assert!(diagnostics.is_empty());
-        assert_eq!(symbol_table.definitions.len(), 1);
-        assert!(symbol_table.get("User").is_some());
-    }
-
-    #[test]
-    fn test_type_alias_references_collected() {
-        let source = r#"
-            Email: string
-            UserEmail: Email
-            Result: Email | string | number
-            Items: Email[]
-        "#;
-        let tree = parse(source);
-        let mut diagnostics = Vec::new();
-
-        let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
-
-        assert!(diagnostics.is_empty());
-
-        // Email references string
-        let email_def = symbol_table.get("Email").unwrap();
-        match &email_def.kind {
-            DefinitionKind::TypeAlias { references } => {
-                assert_eq!(references, &vec!["string".to_string()]);
-            }
-            _ => panic!("Expected TypeAlias"),
+#[test]
+fn test_model_with_single_extends() {
+    let source = r#"
+        Timestamped {
+            created_at: string
         }
 
-        // UserEmail references Email
-        let user_email_def = symbol_table.get("UserEmail").unwrap();
-        match &user_email_def.kind {
-            DefinitionKind::TypeAlias { references } => {
-                assert_eq!(references, &vec!["Email".to_string()]);
-            }
-            _ => panic!("Expected TypeAlias"),
+        Article extends Timestamped {
+            title: string
+        }
+    "#;
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    assert!(diagnostics.is_empty());
+    assert_eq!(symbol_table.definitions.len(), 2);
+
+    let def = symbol_table.get("Article").expect("Article should be defined");
+    match &def.kind {
+        DefinitionKind::Model { extends } => {
+            assert_eq!(extends, &vec!["Timestamped".to_string()]);
+        }
+        _ => panic!("Expected Model"),
+    }
+}
+
+#[test]
+fn test_model_with_multiple_extends() {
+    let source = r#"
+        BaseUser {
+            id: number
         }
 
-        // Result references Email, string, number (from union)
-        let result_def = symbol_table.get("Result").unwrap();
-        match &result_def.kind {
-            DefinitionKind::TypeAlias { references } => {
-                assert!(references.contains(&"Email".to_string()));
-                assert!(references.contains(&"string".to_string()));
-                assert!(references.contains(&"number".to_string()));
-            }
-            _ => panic!("Expected TypeAlias"),
+        Timestamped {
+            created_at: string
         }
 
-        // Items references Email (from array)
-        let items_def = symbol_table.get("Items").unwrap();
-        match &items_def.kind {
-            DefinitionKind::TypeAlias { references } => {
-                assert_eq!(references, &vec!["Email".to_string()]);
-            }
-            _ => panic!("Expected TypeAlias"),
+        AdminUser extends BaseUser, Timestamped {
+            admin_level: number
         }
+    "#;
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    assert!(diagnostics.is_empty());
+    assert_eq!(symbol_table.definitions.len(), 3);
+
+    let def = symbol_table.get("AdminUser").expect("AdminUser should be defined");
+    match &def.kind {
+        DefinitionKind::Model { extends } => {
+            assert_eq!(extends, &vec![
+                "BaseUser".to_string(),
+                "Timestamped".to_string()
+            ]);
+        }
+        _ => panic!("Expected Model"),
+    }
+}
+
+#[test]
+fn test_multiple_type_aliases() {
+    let source = r#"
+        Email: string
+        Age: number
+        Active: boolean
+    "#;
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    assert!(diagnostics.is_empty());
+    assert_eq!(symbol_table.definitions.len(), 3);
+    assert!(symbol_table.get("Email").is_some());
+    assert!(symbol_table.get("Age").is_some());
+    assert!(symbol_table.get("Active").is_some());
+}
+
+#[test]
+fn test_union_type_alias() {
+    let source = r#"Status: "active" | "pending" | "deleted""#;
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    assert!(diagnostics.is_empty());
+    assert_eq!(symbol_table.definitions.len(), 1);
+    
+    let def = symbol_table.get("Status").expect("Status should be defined");
+    assert!(matches!(def.kind, DefinitionKind::TypeAlias { .. }));
+}
+
+#[test]
+fn test_duplicate_type_alias_error() {
+    let source = r#"
+        Email: string
+        Email: number
+    "#;
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].severity, Severity::Error);
+    assert!(diagnostics[0].message.contains("Email"));
+    assert!(diagnostics[0].message.contains("already defined"));
+
+    // First definition should still be in the table
+    assert_eq!(symbol_table.definitions.len(), 1);
+    assert!(symbol_table.get("Email").is_some());
+}
+
+#[test]
+fn test_duplicate_model_error() {
+    let source = r#"
+        User {
+            name: string
+        }
+
+        User {
+            email: string
+        }
+    "#;
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].severity, Severity::Error);
+    assert!(diagnostics[0].message.contains("User"));
+    assert!(diagnostics[0].message.contains("already defined"));
+}
+
+#[test]
+fn test_duplicate_type_alias_and_model_error() {
+    let source = r#"
+        User: string
+
+        User {
+            name: string
+        }
+    "#;
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].severity, Severity::Error);
+    assert!(diagnostics[0].message.contains("User"));
+}
+
+#[test]
+fn test_mixed_definitions() {
+    let source = r#"
+        Email: string
+        Status: "active" | "pending"
+
+        Address {
+            street: string
+            city: string
+        }
+
+        User {
+            email: Email
+            address: Address
+        }
+
+        AdminUser extends User {
+            role: string
+        }
+    "#;
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    assert!(diagnostics.is_empty());
+    assert_eq!(symbol_table.definitions.len(), 5);
+
+    assert!(matches!(
+        symbol_table.get("Email").unwrap().kind,
+        DefinitionKind::TypeAlias { .. }
+    ));
+    assert!(matches!(
+        symbol_table.get("Status").unwrap().kind,
+        DefinitionKind::TypeAlias { .. }
+    ));
+    assert!(matches!(
+        symbol_table.get("Address").unwrap().kind,
+        DefinitionKind::Model { ref extends } if extends.is_empty()
+    ));
+    assert!(matches!(
+        symbol_table.get("User").unwrap().kind,
+        DefinitionKind::Model { ref extends } if extends.is_empty()
+    ));
+    let def = symbol_table.get("AdminUser").expect("AdminUser should be defined");
+    match &def.kind {
+        DefinitionKind::Model { extends } => {
+            assert_eq!(extends, &vec!["User".to_string()]);
+        }
+        _ => panic!("Expected Model"),
+    }
+}
+
+#[test]
+fn test_builtin_types_not_in_definitions() {
+    let source = r#"
+        User {
+            name: string
+            age: number
+        }
+    "#;
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    // Built-ins should not be in definitions
+    assert!(symbol_table.definitions.get("string").is_none());
+    assert!(symbol_table.definitions.get("number").is_none());
+
+    // But is_defined should return true for them
+    assert!(symbol_table.is_defined("string"));
+    assert!(symbol_table.is_defined("number"));
+    assert!(symbol_table.is_defined("boolean"));
+    assert!(symbol_table.is_defined("string"));
+}
+
+#[test]
+fn test_span_tracking() {
+    let source = "Email: string";
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    let def = symbol_table.get("Email").expect("Email should be defined");
+    assert_eq!(def.span.start.line, 0);
+    assert_eq!(def.span.start.column, 0);
+}
+
+#[test]
+fn test_type_alias_with_plugin_block() {
+    let source = r#"
+        Foo: string {
+            @validation { format: "uuid" }
+            @sql { type: "number" }
+        }
+    "#;
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    println!("{:?}", diagnostics);
+    assert!(diagnostics.is_empty());
+    assert_eq!(symbol_table.definitions.len(), 1);
+    assert!(symbol_table.get("Foo").is_some());
+}
+
+#[test]
+fn test_model_with_complex_fields() {
+    let source = r#"
+        User {
+            id: number
+            tags: Tag[]
+            status?: Status
+            active: boolean = true
+        }
+    "#;
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    assert!(diagnostics.is_empty());
+    assert_eq!(symbol_table.definitions.len(), 1);
+    assert!(symbol_table.get("User").is_some());
+}
+
+#[test]
+fn test_type_alias_references_collected() {
+    let source = r#"
+        Email: string
+        UserEmail: Email
+        Result: Email | string | number
+        Items: Email[]
+    "#;
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    assert!(diagnostics.is_empty());
+
+    // Email references string
+    let email_def = symbol_table.get("Email").unwrap();
+    match &email_def.kind {
+        DefinitionKind::TypeAlias { references, type_expr: _type_expr } => {
+            assert_eq!(references, &vec!["string".to_string()]);
+        }
+        _ => panic!("Expected TypeAlias"),
     }
 
-    #[test]
-    fn test_string_literal_union_no_references() {
-        let source = r#"Status: "active" | "pending" | "deleted""#;
-        let tree = parse(source);
-        let mut diagnostics = Vec::new();
-
-        let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
-
-        let def = symbol_table.get("Status").unwrap();
-        match &def.kind {
-            DefinitionKind::TypeAlias { references } => {
-                // String literals don't create type references
-                assert!(references.is_empty());
-            }
-            _ => panic!("Expected TypeAlias"),
+    // UserEmail references Email
+    let user_email_def = symbol_table.get("UserEmail").unwrap();
+    match &user_email_def.kind {
+        DefinitionKind::TypeAlias { references, type_expr: _type_expr } => {
+            assert_eq!(references, &vec!["Email".to_string()]);
         }
+        _ => panic!("Expected TypeAlias"),
     }
 
-    #[cfg(test)]
+    // Result references Email, string, number (from union)
+    let result_def = symbol_table.get("Result").unwrap();
+    match &result_def.kind {
+        DefinitionKind::TypeAlias { references, type_expr: _type_expr } => {
+            assert!(references.contains(&"Email".to_string()));
+            assert!(references.contains(&"string".to_string()));
+            assert!(references.contains(&"number".to_string()));
+        }
+        _ => panic!("Expected TypeAlias"),
+    }
+
+    // Items references Email (from array)
+    let items_def = symbol_table.get("Items").unwrap();
+    match &items_def.kind {
+        DefinitionKind::TypeAlias { references, type_expr: _type_expr } => {
+            assert_eq!(references, &vec!["Email".to_string()]);
+        }
+        _ => panic!("Expected TypeAlias"),
+    }
+}
+
+#[test]
+fn test_string_literal_union_no_references() {
+    let source = r#"Status: "active" | "pending" | "deleted""#;
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    let def = symbol_table.get("Status").unwrap();
+    match &def.kind {
+        DefinitionKind::TypeAlias { references, type_expr: _type_expr } => {
+            // String literals don't create type references
+            assert!(references.is_empty());
+        }
+        _ => panic!("Expected TypeAlias"),
+    }
+}
+
+#[cfg(test)]
 mod validate_tests {
     use super::*;
 
@@ -709,6 +727,108 @@ mod validate_tests {
         "#;
         let result = validate(source, &[]);
         assert!(!result.has_errors());
+    }
+
+    // -------------------------------------------------------------------------
+    // Untyped Fields with Defaults (Syntax Errors)
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn untyped_field_with_string_default_is_syntax_error() {
+        let source = r#"
+            User {
+                name = "John"
+            }
+        "#;
+        let result = validate_source(source);
+        assert!(has_error_containing(&result, "Syntax error"));
+    }
+
+    #[test]
+    fn untyped_field_with_number_default_is_syntax_error() {
+        let source = r#"
+            User {
+                count = 42
+            }
+        "#;
+        let result = validate_source(source);
+        assert!(has_error_containing(&result, "Syntax error"));
+    }
+
+    #[test]
+    fn untyped_field_with_boolean_default_is_syntax_error() {
+        let source = r#"
+            User {
+                active = true
+            }
+        "#;
+        let result = validate_source(source);
+        assert!(has_error_containing(&result, "Syntax error"));
+    }
+
+    #[test]
+    fn untyped_field_with_array_default_is_syntax_error() {
+        let source = r#"
+            User {
+                tags = ["a", "b"]
+            }
+        "#;
+        let result = validate_source(source);
+        assert!(has_error_containing(&result, "Syntax error"));
+    }
+
+    #[test]
+    fn untyped_field_with_object_default_is_syntax_error() {
+        let source = r#"
+            User {
+                config = { key: "value" }
+            }
+        "#;
+        let result = validate_source(source);
+        assert!(has_error_containing(&result, "Syntax error"));
+    }
+
+    #[test]
+    fn untyped_optional_field_with_default_is_syntax_error() {
+        let source = r#"
+            User {
+                nickname? = "none"
+            }
+        "#;
+        let result = validate_source(source);
+        assert!(has_error_containing(&result, "Syntax error"));
+    }
+
+    // -------------------------------------------------------------------------
+    // Typed Fields with Defaults (Valid Syntax)
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn typed_field_with_default_is_valid_syntax() {
+        let source = r#"
+            User {
+                name: string = "John"
+                count: number = 0
+                active: boolean = true
+            }
+        "#;
+        let result = validate_source(source);
+        let errors = get_errors(&result);
+        assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+    }
+
+    #[test]
+    fn untyped_field_without_default_is_valid() {
+        let source = r#"
+            User {
+                name
+                email
+                bio
+            }
+        "#;
+        let result = validate_source(source);
+        let errors = get_errors(&result);
+        assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
     }
 
     // =========================================================================
@@ -3074,5 +3194,441 @@ mod extends_tests {
         
         let paths = extract_extends_paths(user_source);
         assert_eq!(paths, vec!["./types.cdm", "./mixins.cdm"]);
+    }
+}
+
+mod default_value_type_checking {
+    use super::*;
+
+    // -------------------------------------------------------------------------
+    // Primitive Type Defaults
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn boolean_field_with_string_default_is_error() {
+        let source = r#"
+            User {
+                active: boolean = "yes"
+            }
+        "#;
+        let result = validate_source(source);
+        assert!(has_error_containing(&result, "Type mismatch"));
+        assert!(has_error_containing(&result, "boolean"));
+        assert!(has_error_containing(&result, "string"));
+    }
+
+    #[test]
+    fn boolean_field_with_number_default_is_error() {
+        let source = r#"
+            User {
+                active: boolean = 1
+            }
+        "#;
+        let result = validate_source(source);
+        assert!(has_error_containing(&result, "Type mismatch"));
+        assert!(has_error_containing(&result, "boolean"));
+        assert!(has_error_containing(&result, "number"));
+    }
+
+    #[test]
+    fn boolean_field_with_boolean_default_is_valid() {
+        let source = r#"
+            User {
+                active: boolean = true
+                inactive: boolean = false
+            }
+        "#;
+        let result = validate_source(source);
+        let errors = get_errors(&result);
+        assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+    }
+
+    #[test]
+    fn number_field_with_string_default_is_error() {
+        let source = r#"
+            User {
+                age: number = "twenty"
+            }
+        "#;
+        let result = validate_source(source);
+        assert!(has_error_containing(&result, "Type mismatch"));
+        assert!(has_error_containing(&result, "number"));
+        assert!(has_error_containing(&result, "string"));
+    }
+
+    #[test]
+    fn number_field_with_boolean_default_is_error() {
+        let source = r#"
+            User {
+                count: number = true
+            }
+        "#;
+        let result = validate_source(source);
+        assert!(has_error_containing(&result, "Type mismatch"));
+        assert!(has_error_containing(&result, "number"));
+        assert!(has_error_containing(&result, "boolean"));
+    }
+
+    #[test]
+    fn number_field_with_number_default_is_valid() {
+        let source = r#"
+            User {
+                age: number = 25
+                score: number = 99.5
+                balance: number = -100
+                small: number = 0
+            }
+        "#;
+        let result = validate_source(source);
+        let errors = get_errors(&result);
+        assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+    }
+
+    #[test]
+    fn string_field_with_number_default_is_error() {
+        let source = r#"
+            User {
+                name: string = 42
+            }
+        "#;
+        let result = validate_source(source);
+        assert!(has_error_containing(&result, "Type mismatch"));
+        assert!(has_error_containing(&result, "string"));
+        assert!(has_error_containing(&result, "number"));
+    }
+
+    #[test]
+    fn string_field_with_boolean_default_is_error() {
+        let source = r#"
+            User {
+                name: string = false
+            }
+        "#;
+        let result = validate_source(source);
+        assert!(has_error_containing(&result, "Type mismatch"));
+        assert!(has_error_containing(&result, "string"));
+        assert!(has_error_containing(&result, "boolean"));
+    }
+
+    #[test]
+    fn string_field_with_string_default_is_valid() {
+        let source = r#"
+            User {
+                name: string = "John"
+                empty: string = ""
+            }
+        "#;
+        let result = validate_source(source);
+        let errors = get_errors(&result);
+        assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+    }
+
+    // -------------------------------------------------------------------------
+    // Type Alias Resolution
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn type_alias_to_string_with_number_default_is_error() {
+        let source = r#"
+            Email: string
+
+            User {
+                email: Email = 42
+            }
+        "#;
+        let result = validate_source(source);
+        assert!(has_error_containing(&result, "Type mismatch"));
+        assert!(has_error_containing(&result, "string"));
+    }
+
+    #[test]
+    fn type_alias_to_boolean_with_string_default_is_error() {
+        let source = r#"
+            Active: boolean
+
+            User {
+                active: Active = "yes"
+            }
+        "#;
+        let result = validate_source(source);
+        assert!(has_error_containing(&result, "Type mismatch"));
+        assert!(has_error_containing(&result, "boolean"));
+    }
+
+    #[test]
+    fn type_alias_chain_resolved_correctly() {
+        let source = r#"
+            BaseCount: number
+            Count: BaseCount
+
+            Stats {
+                total: Count = "wrong"
+            }
+        "#;
+        let result = validate_source(source);
+        assert!(has_error_containing(&result, "Type mismatch"));
+        assert!(has_error_containing(&result, "number"));
+    }
+
+    #[test]
+    fn type_alias_to_primitive_with_correct_default_is_valid() {
+        let source = r#"
+            Email: string
+            Age: number
+            Active: boolean
+
+            User {
+                email: Email = "test@example.com"
+                age: Age = 25
+                active: Active = true
+            }
+        "#;
+        let result = validate_source(source);
+        let errors = get_errors(&result);
+        assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+    }
+
+    // -------------------------------------------------------------------------
+    // String Union Types
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn string_union_with_number_default_is_error() {
+        let source = r#"
+            User {
+                status: "active" | "pending" | "deleted" = 1
+            }
+        "#;
+        let result = validate_source(source);
+        assert!(has_error_containing(&result, "Type mismatch"));
+        assert!(has_error_containing(&result, "number"));
+    }
+
+    #[test]
+    fn string_union_with_invalid_string_default_is_error() {
+        let source = r#"
+            User {
+                status: "active" | "pending" | "deleted" = "unknown"
+            }
+        "#;
+        let result = validate_source(source);
+        assert!(has_error_containing(&result, "Invalid default value"));
+        assert!(has_error_containing(&result, "unknown"));
+    }
+
+    #[test]
+    fn string_union_with_valid_string_default_is_valid() {
+        let source = r#"
+            User {
+                status: "active" | "pending" | "deleted" = "active"
+            }
+        "#;
+        let result = validate_source(source);
+        let errors = get_errors(&result);
+        assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+    }
+
+    #[test]
+    fn string_union_type_alias_with_invalid_default_is_error() {
+        let source = r#"
+            Status: "active" | "pending" | "deleted"
+
+            User {
+                status: Status = "unknown"
+            }
+        "#;
+        let result = validate_source(source);
+        assert!(has_error_containing(&result, "Invalid default value"));
+    }
+
+    #[test]
+    fn string_union_type_alias_with_valid_default_is_valid() {
+        let source = r#"
+            Status: "active" | "pending" | "deleted"
+
+            User {
+                status: Status = "pending"
+            }
+        "#;
+        let result = validate_source(source);
+        let errors = get_errors(&result);
+        assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+    }
+
+    // -------------------------------------------------------------------------
+    // Array Types
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn string_array_with_number_array_default_is_error() {
+        let source = r#"
+            User {
+                tags: string[] = [1, 2, 3]
+            }
+        "#;
+        let result = validate_source(source);
+        assert!(has_error_containing(&result, "Type mismatch in array"));
+    }
+
+    #[test]
+    fn number_array_with_string_elements_is_error() {
+        let source = r#"
+            User {
+                scores: number[] = ["a", "b"]
+            }
+        "#;
+        let result = validate_source(source);
+        assert!(has_error_containing(&result, "Type mismatch in array"));
+    }
+
+    #[test]
+    fn array_field_with_non_array_default_is_error() {
+        let source = r#"
+            User {
+                tags: string[] = "not-an-array"
+            }
+        "#;
+        let result = validate_source(source);
+        assert!(has_error_containing(&result, "Type mismatch"));
+        assert!(has_error_containing(&result, "expected array"));
+    }
+
+    #[test]
+    fn string_array_with_empty_array_default_is_valid() {
+        let source = r#"
+            User {
+                tags: string[] = []
+            }
+        "#;
+        let result = validate_source(source);
+        let errors = get_errors(&result);
+        assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+    }
+
+    #[test]
+    fn string_array_with_string_elements_is_valid() {
+        let source = r#"
+            User {
+                tags: string[] = ["tag1", "tag2", "tag3"]
+            }
+        "#;
+        let result = validate_source(source);
+        let errors = get_errors(&result);
+        assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+    }
+
+    #[test]
+    fn number_array_with_number_elements_is_valid() {
+        let source = r#"
+            User {
+                scores: number[] = [100, 95.5, 87]
+            }
+        "#;
+        let result = validate_source(source);
+        let errors = get_errors(&result);
+        assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+    }
+
+    // -------------------------------------------------------------------------
+    // Model/Composite Type Defaults
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn model_type_with_primitive_default_is_error() {
+        let source = r#"
+            Address {
+                street: string
+                city: string
+            }
+
+            User {
+                address: Address = "123 Main St"
+            }
+        "#;
+        let result = validate_source(source);
+        assert!(has_error_containing(&result, "Type mismatch"));
+        assert!(has_error_containing(&result, "object"));
+    }
+
+    #[test]
+    fn model_type_with_object_default_is_valid() {
+        let source = r#"
+            Address {
+                street: string
+                city: string
+            }
+
+            User {
+                address: Address = { street: "123 Main St", city: "Springfield" }
+            }
+        "#;
+        let result = validate_source(source);
+        let errors = get_errors(&result);
+        assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+    }
+
+    // -------------------------------------------------------------------------
+    // Optional Fields with Defaults
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn optional_field_with_wrong_default_type_is_error() {
+        let source = r#"
+            User {
+                age?: number = "twenty"
+            }
+        "#;
+        let result = validate_source(source);
+        assert!(has_error_containing(&result, "Type mismatch"));
+    }
+
+    #[test]
+    fn optional_field_with_correct_default_type_is_valid() {
+        let source = r#"
+            User {
+                age?: number = 0
+                name?: string = "Anonymous"
+                active?: boolean = false
+            }
+        "#;
+        let result = validate_source(source);
+        let errors = get_errors(&result);
+        assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+    }
+
+    // -------------------------------------------------------------------------
+    // Special Types (DateTime, JSON, etc.)
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn json_type_allows_object_default() {
+        let source = r#"
+            User {
+                metadata: JSON = { key: "value" }
+            }
+        "#;
+        let result = validate_source(source);
+        let errors = get_errors(&result);
+        // JSON should accept any default
+        assert!(errors.is_empty(), "Unexpected errors: {:?}", errors);
+    }
+
+
+    // -------------------------------------------------------------------------
+    // Multiple Errors in Same Model
+    // -------------------------------------------------------------------------
+
+    #[test]
+    fn multiple_type_mismatches_all_reported() {
+        let source = r#"
+            User {
+                active: boolean = "yes"
+                count: number = "five"
+                name: string = 42
+            }
+        "#;
+        let result = validate_source(source);
+        let errors = get_errors(&result);
+        assert_eq!(errors.len(), 3, "Expected 3 errors, got {:?}", errors);
     }
 }

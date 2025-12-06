@@ -12,8 +12,11 @@ pub enum DefinitionKind {
     /// For `ValidatedEmail: string`, references = ["string"]
     /// For `Result: Ok | Err`, references = ["Ok", "Err"]  
     /// For `Items: Item[]`, references = ["Item"]
+    /// 
+    /// `type_expr` contains the original type expression text (for union validation)
     TypeAlias {
         references: Vec<String>,
+        type_expr: String,
     },
     
     /// A model definition like `User { name: string }`
@@ -223,7 +226,7 @@ pub fn field_exists_in_parents(
 pub fn is_builtin_type(name: &str) -> bool {
     matches!(
         name,
-        "string" | "number" | "boolean"
+        "string" | "number" | "boolean" | "JSON"
     )
 }
 
@@ -238,9 +241,15 @@ impl fmt::Display for SymbolTable {
 
         for (name, def) in entries {
             match &def.kind {
-                DefinitionKind::TypeAlias { references } => {
+                DefinitionKind::TypeAlias { references, type_expr } => {
                     if references.is_empty() {
-                        writeln!(f, "  {} (type alias) - line {}", name, def.span.start.line + 1)?;
+                        writeln!(
+                            f,
+                            "  {} (type alias: {}) - line {}",
+                            name,
+                            type_expr,
+                            def.span.start.line + 1
+                        )?;
                     } else {
                         writeln!(
                             f,

@@ -1,5 +1,6 @@
 // validate.rs
 use std::collections::{HashMap, HashSet};
+use std::fmt;
 
 use crate::{
     Ancestor, Definition, DefinitionKind, Diagnostic, FieldInfo, Position, Severity, Span,
@@ -32,6 +33,43 @@ impl ValidationResult {
             symbol_table: self.symbol_table,
             model_fields: self.model_fields,
         }
+    }
+}
+
+impl fmt::Display for ValidationResult {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        if self.diagnostics.is_empty() {
+            writeln!(f, "✓ No errors or warnings")?;
+        } else {
+            let errors: Vec<_> = self.diagnostics.iter()
+                .filter(|d| d.severity == Severity::Error)
+                .collect();
+            let warnings: Vec<_> = self.diagnostics.iter()
+                .filter(|d| d.severity == Severity::Warning)
+                .collect();
+
+            if !errors.is_empty() {
+                writeln!(f, "Errors ({}):", errors.len())?;
+                for diagnostic in &errors {
+                    writeln!(f, "  {}", diagnostic)?;
+                }
+            }
+
+            if !warnings.is_empty() {
+                if !errors.is_empty() {
+                    writeln!(f)?;
+                }
+                writeln!(f, "Warnings ({}):", warnings.len())?;
+                for diagnostic in &warnings {
+                    writeln!(f, "  {}", diagnostic)?;
+                }
+            }
+        }
+
+        writeln!(f)?;
+        write!(f, "{}", self.symbol_table)?;
+
+        Ok(())
     }
 }
 
@@ -297,17 +335,20 @@ fn collect_type_alias(
         });
     }
 
-    // Extract type references from the type expression
-    let references = if let Some(type_node) = node.child_by_field_name("type") {
-        extract_type_references(type_node, source)
+    // Extract type expression text and references
+    let (references, type_expr) = if let Some(type_node) = node.child_by_field_name("type") {
+        (
+            extract_type_references(type_node, source),
+            get_node_text(type_node, source).to_string(),
+        )
     } else {
-        Vec::new()
+        (Vec::new(), String::new())
     };
 
     symbol_table.definitions.insert(
         name.to_string(),
         Definition {
-            kind: DefinitionKind::TypeAlias { references },
+            kind: DefinitionKind::TypeAlias { references, type_expr },
             span,
         },
     );
@@ -693,7 +734,7 @@ fn check_type_alias_cycle<'a>(
         return false;
     };
 
-    let DefinitionKind::TypeAlias { references } = &def.kind else {
+    let DefinitionKind::TypeAlias { references, .. } = &def.kind else {
         // Hit a model or built-in type - not a cycle in the alias chain
         return false;
     };
@@ -958,11 +999,339 @@ fn validate_field(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     // Field might not have a type (untyped fields default to string)
-    let Some(type_node) = node.child_by_field_name("type") else {
-        return;
-    };
+    let type_node = node.child_by_field_name("type");
+    
+    if let Some(type_node) = type_node {
+        validate_type_expression(type_node, source, symbol_table, ancestors, diagnostics);
+    }
 
-    validate_type_expression(type_node, source, symbol_table, ancestors, diagnostics);
+    // Check default value type compatibility
+    if let Some(default_node) = node.child_by_field_name("default") {
+        // Determine the expected type - use the type expression if present, otherwise "string"
+        let expected_type = type_node
+            .map(|t| get_node_text(t, source))
+            .unwrap_or("string");
+        
+        validate_default_value(
+            default_node,
+            expected_type,
+            source,
+            symbol_table,
+            ancestors,
+            diagnostics,
+        );
+    }
+}
+
+// =============================================================================
+// Default Value Type Checking
+// =============================================================================
+
+/// The resolved base type of a CDM type expression.
+#[derive(Debug, Clone, PartialEq)]
+enum ResolvedType {
+    /// A primitive type: string, number, boolean
+    Primitive(String),
+    /// A string literal union: "a" | "b" | "c"
+    StringUnion(Vec<String>),
+    /// An array type with element type
+    Array(Box<ResolvedType>),
+    /// A model or composite type (cannot have primitive default values)
+    Model(String),
+    /// Unknown type (undefined or circular reference)
+    Unknown,
+}
+
+/// Resolve a type expression to its base type.
+/// 
+/// For type aliases, follows the chain until a primitive, union, or model is found.
+/// Handles arrays, unions, and direct type references.
+fn resolve_type(
+    type_expr: &str,
+    symbol_table: &SymbolTable,
+    ancestors: &[Ancestor],
+    visited: &mut HashSet<String>,
+) -> ResolvedType {
+    // Check for array type: TypeName[]
+    if type_expr.ends_with("[]") {
+        let element_type = &type_expr[..type_expr.len() - 2];
+        let resolved_element = resolve_type(element_type, symbol_table, ancestors, visited);
+        return ResolvedType::Array(Box::new(resolved_element));
+    }
+    
+    // Check for union type (contains |)
+    if type_expr.contains(" | ") || type_expr.contains('|') {
+        // Parse the union - extract string literals
+        let parts: Vec<&str> = type_expr.split('|').map(|s| s.trim()).collect();
+        let mut string_literals = Vec::new();
+        let mut has_non_string = false;
+        
+        for part in parts {
+            if part.starts_with('"') && part.ends_with('"') && part.len() >= 2 {
+                // Extract the string content (remove quotes)
+                string_literals.push(part[1..part.len()-1].to_string());
+            } else {
+                // Non-string member in union
+                has_non_string = true;
+            }
+        }
+        
+        // If it's a pure string literal union, return that
+        if !has_non_string && !string_literals.is_empty() {
+            return ResolvedType::StringUnion(string_literals);
+        }
+        
+        // Mixed union - for now, treat as unknown (we can't easily type-check)
+        return ResolvedType::Unknown;
+    }
+    
+    // Check for primitive types
+    match type_expr {
+        "string" => return ResolvedType::Primitive("string".to_string()),
+        "number" => return ResolvedType::Primitive("number".to_string()),
+        "boolean" => return ResolvedType::Primitive("boolean".to_string()),
+        "decimal" => return ResolvedType::Primitive("number".to_string()), // decimal is numeric
+        "JSON" => return ResolvedType::Unknown, // JSON accepts any value
+        _ => {}
+    }
+    
+    // Prevent infinite recursion in circular type aliases
+    if visited.contains(type_expr) {
+        return ResolvedType::Unknown;
+    }
+    visited.insert(type_expr.to_string());
+    
+    // Look up in symbol table
+    if let Some((def, _)) = resolve_definition(type_expr, symbol_table, ancestors) {
+        match &def.kind {
+            DefinitionKind::TypeAlias { references, type_expr: alias_type_expr } => {
+                // For type aliases with a single reference, resolve transitively
+                if references.len() == 1 {
+                    return resolve_type(&references[0], symbol_table, ancestors, visited);
+                }
+                // For aliases with no identifier references (like string unions),
+                // try to parse the original type expression
+                if references.is_empty() && !alias_type_expr.is_empty() {
+                    return resolve_type(alias_type_expr, symbol_table, ancestors, visited);
+                }
+                // Multiple references means a mixed union
+                ResolvedType::Unknown
+            }
+            DefinitionKind::Model { .. } => {
+                ResolvedType::Model(type_expr.to_string())
+            }
+        }
+    } else {
+        // Unknown/undefined type - skip validation
+        ResolvedType::Unknown
+    }
+}
+
+/// Validate that a default value is compatible with its declared type.
+fn validate_default_value(
+    default_node: tree_sitter::Node,
+    type_expr: &str,
+    source: &str,
+    symbol_table: &SymbolTable,
+    ancestors: &[Ancestor],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let mut visited = HashSet::new();
+    let resolved_type = resolve_type(type_expr, symbol_table, ancestors, &mut visited);
+    
+    let default_kind = default_node.kind();
+    let default_span = node_span(default_node);
+    
+    match resolved_type {
+        ResolvedType::Primitive(ref prim) => {
+            let expected_literal = match prim.as_str() {
+                "string" => "string_literal",
+                "number" => "number_literal",
+                "boolean" => "boolean_literal",
+                _ => return, // Unknown primitive, skip validation
+            };
+            
+            if default_kind != expected_literal {
+                let actual_type = literal_kind_to_type_name(default_kind);
+                diagnostics.push(Diagnostic {
+                    message: format!(
+                        "Type mismatch: expected {} value for type '{}', found {}",
+                        prim, type_expr, actual_type
+                    ),
+                    severity: Severity::Error,
+                    span: default_span,
+                });
+            }
+        }
+        ResolvedType::StringUnion(ref variants) => {
+            // Default must be a string literal that's one of the variants
+            if default_kind != "string_literal" {
+                let actual_type = literal_kind_to_type_name(default_kind);
+                diagnostics.push(Diagnostic {
+                    message: format!(
+                        "Type mismatch: expected one of {:?}, found {}",
+                        variants, actual_type
+                    ),
+                    severity: Severity::Error,
+                    span: default_span,
+                });
+                return;
+            }
+            
+            // Extract the string value (without quotes)
+            let value = extract_string_literal_value(default_node, source);
+            if !variants.contains(&value) {
+                diagnostics.push(Diagnostic {
+                    message: format!(
+                        "Invalid default value \"{}\": expected one of {:?}",
+                        value, variants
+                    ),
+                    severity: Severity::Error,
+                    span: default_span,
+                });
+            }
+        }
+        ResolvedType::Array(ref element_type) => {
+            // Default must be an array literal
+            if default_kind != "array_literal" {
+                let actual_type = literal_kind_to_type_name(default_kind);
+                diagnostics.push(Diagnostic {
+                    message: format!(
+                        "Type mismatch: expected array value for type '{}', found {}",
+                        type_expr, actual_type
+                    ),
+                    severity: Severity::Error,
+                    span: default_span,
+                });
+                return;
+            }
+            
+            // Validate each element in the array
+            validate_array_elements(
+                default_node,
+                element_type,
+                type_expr,
+                source,
+                diagnostics,
+            );
+        }
+        ResolvedType::Model(_) => {
+            // Models expect object literals
+            if default_kind != "object_literal" {
+                let actual_type = literal_kind_to_type_name(default_kind);
+                diagnostics.push(Diagnostic {
+                    message: format!(
+                        "Type mismatch: expected object value for type '{}', found {}",
+                        type_expr, actual_type
+                    ),
+                    severity: Severity::Error,
+                    span: default_span,
+                });
+            }
+        }
+        ResolvedType::Unknown => {
+            // Unknown type - skip validation (might be special types like DateTime, JSON)
+        }
+    }
+}
+
+/// Validate elements of an array literal against the expected element type.
+fn validate_array_elements(
+    array_node: tree_sitter::Node,
+    element_type: &ResolvedType,
+    full_type_expr: &str,
+    source: &str,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let expected_literal = match element_type {
+        ResolvedType::Primitive(prim) => match prim.as_str() {
+            "string" => Some("string_literal"),
+            "number" => Some("number_literal"),
+            "boolean" => Some("boolean_literal"),
+            _ => None,
+        },
+        ResolvedType::StringUnion(_) => Some("string_literal"),
+        ResolvedType::Model(_) => Some("object_literal"),
+        _ => None,
+    };
+    
+    let Some(expected) = expected_literal else {
+        return; // Can't validate unknown element types
+    };
+    
+    let mut cursor = array_node.walk();
+    for child in array_node.children(&mut cursor) {
+        // Skip brackets and commas
+        let kind = child.kind();
+        if kind == "[" || kind == "]" || kind == "," {
+            continue;
+        }
+        
+        if kind != expected {
+            let actual_type = literal_kind_to_type_name(kind);
+            diagnostics.push(Diagnostic {
+                message: format!(
+                    "Type mismatch in array: expected {} element for type '{}', found {}",
+                    element_type_name(element_type), full_type_expr, actual_type
+                ),
+                severity: Severity::Error,
+                span: node_span(child),
+            });
+        } else if let ResolvedType::StringUnion(variants) = element_type {
+            // For string union arrays, check that each string is a valid variant
+            if kind == "string_literal" {
+                let value = extract_string_literal_value(child, source);
+                if !variants.contains(&value) {
+                    diagnostics.push(Diagnostic {
+                        message: format!(
+                            "Invalid array element \"{}\": expected one of {:?}",
+                            value, variants
+                        ),
+                        severity: Severity::Error,
+                        span: node_span(child),
+                    });
+                }
+            }
+        }
+    }
+}
+
+/// Convert a literal node kind to a human-readable type name.
+fn literal_kind_to_type_name(kind: &str) -> &str {
+    match kind {
+        "string_literal" => "string",
+        "number_literal" => "number",
+        "boolean_literal" => "boolean",
+        "array_literal" => "array",
+        "object_literal" => "object",
+        "function_call" => "function call",
+        _ => kind,
+    }
+}
+
+/// Get a human-readable name for a resolved element type.
+fn element_type_name(resolved: &ResolvedType) -> &str {
+    match resolved {
+        ResolvedType::Primitive(p) => p.as_str(),
+        ResolvedType::StringUnion(_) => "string",
+        ResolvedType::Array(_) => "array",
+        ResolvedType::Model(_) => "object",
+        ResolvedType::Unknown => "unknown",
+    }
+}
+
+/// Extract the string content from a string_literal node (without quotes).
+fn extract_string_literal_value(node: tree_sitter::Node, source: &str) -> String {
+    // The string_literal contains: "content" with possible escape sequences
+    // For simplicity, we'll just extract the text between quotes
+    let text = get_node_text(node, source);
+    if text.starts_with('"') && text.ends_with('"') && text.len() >= 2 {
+        // Handle escape sequences - for now, just strip the quotes
+        // TODO: properly handle escape sequences like \n, \", etc.
+        text[1..text.len()-1].to_string()
+    } else {
+        text.to_string()
+    }
 }
 
 fn validate_type_expression(
