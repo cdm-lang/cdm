@@ -126,6 +126,16 @@
           }
         ]
       },
+      "optional": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "?",
+            "named": false
+          }
+        ]
+      },
       "plugins": {
         "multiple": false,
         "required": false,
@@ -142,10 +152,6 @@
         "types": [
           {
             "type": "array_type",
-            "named": true
-          },
-          {
-            "type": "optional_type",
             "named": true
           },
           {
@@ -359,29 +365,6 @@
     }
   },
   {
-    "type": "optional_type",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": false,
-      "required": true,
-      "types": [
-        {
-          "type": "array_type",
-          "named": true
-        },
-        {
-          "type": "type_identifier",
-          "named": true
-        },
-        {
-          "type": "union_type",
-          "named": true
-        }
-      ]
-    }
-  },
-  {
     "type": "plugin_block",
     "named": true,
     "fields": {},
@@ -423,6 +406,61 @@
     }
   },
   {
+    "type": "plugin_import",
+    "named": true,
+    "fields": {
+      "config": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "object_literal",
+            "named": true
+          }
+        ]
+      },
+      "name": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "identifier",
+            "named": true
+          }
+        ]
+      },
+      "source": {
+        "multiple": false,
+        "required": false,
+        "types": [
+          {
+            "type": "plugin_source",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "plugin_source",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "github_reference",
+          "named": true
+        },
+        {
+          "type": "plugin_path",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "source_file",
     "named": true,
     "root": true,
@@ -441,6 +479,10 @@
         },
         {
           "type": "model_removal",
+          "named": true
+        },
+        {
+          "type": "plugin_import",
           "named": true
         },
         {
@@ -499,10 +541,6 @@
         "types": [
           {
             "type": "array_type",
-            "named": true
-          },
-          {
-            "type": "optional_type",
             "named": true
           },
           {
@@ -621,6 +659,14 @@
     "named": false
   },
   {
+    "type": "from",
+    "named": false
+  },
+  {
+    "type": "github_reference",
+    "named": true
+  },
+  {
     "type": "identifier",
     "named": true
   },
@@ -630,6 +676,10 @@
   },
   {
     "type": "path",
+    "named": true
+  },
+  {
+    "type": "plugin_path",
     "named": true
   },
   {

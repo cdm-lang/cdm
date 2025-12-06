@@ -1,0 +1,7 @@
+User {
+  id, email, password_hash, salt, name, bio?, role, created_at, last_login?
+}
+Post {
+  id, author, title, content, status, internal_notes?, view_count, created_at, published_at?
+}
+Session { id }

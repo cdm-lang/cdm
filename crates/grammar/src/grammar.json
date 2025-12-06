@@ -4,11 +4,23 @@
   "word": "identifier",
   "rules": {
     "source_file": {
-      "type": "REPEAT",
-      "content": {
-        "type": "SYMBOL",
-        "name": "_definition"
-      }
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "REPEAT",
+          "content": {
+            "type": "SYMBOL",
+            "name": "plugin_import"
+          }
+        },
+        {
+          "type": "REPEAT",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_definition"
+          }
+        }
+      ]
     },
     "_definition": {
       "type": "CHOICE",
@@ -34,6 +46,85 @@
     "comment": {
       "type": "PATTERN",
       "value": "\\/\\/[^\\n]*"
+    },
+    "plugin_import": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "@"
+        },
+        {
+          "type": "FIELD",
+          "name": "name",
+          "content": {
+            "type": "SYMBOL",
+            "name": "identifier"
+          }
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "SEQ",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": "from"
+                },
+                {
+                  "type": "FIELD",
+                  "name": "source",
+                  "content": {
+                    "type": "SYMBOL",
+                    "name": "plugin_source"
+                  }
+                }
+              ]
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "FIELD",
+              "name": "config",
+              "content": {
+                "type": "SYMBOL",
+                "name": "object_literal"
+              }
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        }
+      ]
+    },
+    "plugin_source": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "github_reference"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "plugin_path"
+        }
+      ]
+    },
+    "github_reference": {
+      "type": "PATTERN",
+      "value": "github:[a-zA-Z0-9_-]+\\/[a-zA-Z0-9_.-]+"
+    },
+    "plugin_path": {
+      "type": "PATTERN",
+      "value": "\\.\\.?\\/[^\\s\\n{}]+"
     },
     "extends_directive": {
       "type": "SEQ",
@@ -291,6 +382,22 @@
             }
           },
           {
+            "type": "FIELD",
+            "name": "optional",
+            "content": {
+              "type": "CHOICE",
+              "members": [
+                {
+                  "type": "STRING",
+                  "value": "?"
+                },
+                {
+                  "type": "BLANK"
+                }
+              ]
+            }
+          },
+          {
             "type": "CHOICE",
             "members": [
               {
@@ -414,19 +521,6 @@
       "members": [
         {
           "type": "SYMBOL",
-          "name": "optional_type"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "_non_optional_type"
-        }
-      ]
-    },
-    "_non_optional_type": {
-      "type": "CHOICE",
-      "members": [
-        {
-          "type": "SYMBOL",
           "name": "union_type"
         },
         {
@@ -436,19 +530,6 @@
         {
           "type": "SYMBOL",
           "name": "type_identifier"
-        }
-      ]
-    },
-    "optional_type": {
-      "type": "SEQ",
-      "members": [
-        {
-          "type": "SYMBOL",
-          "name": "_non_optional_type"
-        },
-        {
-          "type": "STRING",
-          "value": "?"
         }
       ]
     },

@@ -1,6 +1,67 @@
 // example.cdm
 // Complete example of the Common Data Model language
 
+// example-plugins.cdm
+// Demonstrates all plugin import styles and configuration patterns
+
+// =============================================================================
+// PART 0: PLUGIN IMPORTS (must appear before any type definitions)
+// =============================================================================
+
+// Registry plugin - no config (uses defaults)
+@validation
+
+// Registry plugin - with config
+@sql {
+  dialect: "postgres",
+  schema: "public",
+  naming_convention: "snake_case"
+}
+
+// Registry plugin - with version pinning
+@typescript {
+  version: "2.1.0",
+  output: "./generated/types",
+  strict: true,
+  export_style: "named"
+}
+
+// GitHub plugin - no config
+@protobuf from github:cdm-community/cdm-protobuf
+
+// GitHub plugin - with config
+@analytics from github:myorg/cdm-analytics {
+  version: "1.0.0",
+  endpoint: "https://analytics.example.com/v2",
+  batch_size: 100,
+  flush_interval: 5000
+}
+
+// GitHub plugin - organization internal
+@api from github:myorg/cdm-api-generator {
+  base_url: "/api/v1",
+  auth: "bearer",
+  rate_limit: {
+    requests: 1000,
+    window: "1m"
+  }
+}
+
+// Local plugin - simple path
+@custom from ./plugins/my-custom-plugin {
+  debug: true
+}
+
+// Local plugin - nested path
+@legacy from ./plugins/adapters/legacy-system {
+  connection_string: "legacy://host:port",
+  timeout: 30000,
+  retry_count: 3
+}
+
+// Local plugin - parent directory
+@shared from ../shared-plugins/common-transforms
+
 // ============================================================================
 // PART 1: SIMPLE TYPE ALIASES
 // ============================================================================
@@ -91,7 +152,7 @@ ContactInfo {
   primary_email: ValidatedEmail
   secondary_emails: ValidatedEmail[]
   phones: PhoneNumber[]
-  address: Address?
+  address?: Address
   preferred_contact: "email" | "phone" | "mail" = "email"
 }
 
@@ -111,7 +172,7 @@ TypedUser {
   id: UUID
   name: string
   email: ValidatedEmail
-  age: Age?
+  age?: Age
   active: boolean = true
 }
 
@@ -125,7 +186,7 @@ User {
   username: string
   email: ValidatedEmail
   password_hash: string
-  profile: UserProfile?
+  profile?: UserProfile
   posts: Post[]
   created_at: DateTime = now()
   updated_at: DateTime = now()
@@ -142,11 +203,11 @@ User {
 UserProfile {
   id: UUID
   user: User
-  display_name: string?
-  bio: string?
-  avatar_url: string?
-  website: string?
-  location: string?
+  display_name?: string
+  bio?: string
+  avatar_url?: string
+  website?: string
+  location?: string
   
   @validation {
     bio: { max_length: 500 },
@@ -162,7 +223,7 @@ Post {
   status: "draft" | "published" | "archived" = "draft"
   tags: Tag[]
   comments: Comment[]
-  published_at: DateTime?
+  published_at?: DateTime
   view_count: number = 0
   
   // Field-specific overrides
@@ -189,11 +250,11 @@ Comment {
   id: UUID
   post: Post
   author: User
-  parent: Comment?
+  parent?: Comment
   content: string
   likes: number = 0
   created_at: DateTime = now()
-  edited_at: DateTime?
+  edited_at?: DateTime
   
   @sql { 
     table: "comments",
@@ -242,11 +303,11 @@ BaseUser {
   email: ValidatedEmail
   password_hash: string
   salt: string
-  phone: PhoneNumber?
-  address: Address?
+  phone?: PhoneNumber
+  address?: Address
   created_at: DateTime = now()
   updated_at: DateTime = now()
-  deleted_at: DateTime?
+  deleted_at?: DateTime
   
   @sql {
     table: "base_users",
@@ -276,8 +337,8 @@ PublicUser extends BaseUser {
   -deleted_at
   
   display_name: string
-  bio: string?
-  avatar_url: string?
+  bio?: string
+  avatar_url?: string
   follower_count: number = 0
   following_count: number = 0
   is_verified: boolean = false
@@ -294,9 +355,9 @@ AdminUser extends BaseUser, Timestamped {
   admin_level: number = 1
   permissions: Permission[]
   sudo_mode: boolean = false
-  last_admin_action: DateTime?
+  last_admin_action?: DateTime
   two_factor_enabled: boolean = true
-  admin_notes: string?
+  admin_notes?: string
   
   @sql { table: "admin_users" }
   @api { exclude: ["password_hash", "salt", "sudo_mode", "admin_notes"] }
@@ -312,7 +373,7 @@ ExternalUser extends BaseUser {
   
   api_key: string
   api_secret: string
-  webhook_url: string?
+  webhook_url?: string
   rate_limit: number = 1000
   allowed_origins: string[]
   
@@ -352,19 +413,19 @@ BaseContent {
   author: User
   tags: Tag[]
   status: "draft" | "published" | "archived"
-  metadata: JSON?
-  seo_description: string?
+  metadata?: JSON
+  seo_description?: string
   seo_keywords: string[]
   created_at: DateTime = now()
   updated_at: DateTime = now()
-  published_at: DateTime?
+  published_at?: DateTime
 }
 
 BlogPost extends BaseContent {
   -metadata
   
   excerpt: string
-  featured_image: string?
+  featured_image?: string
   comments_enabled: boolean = true
   comments: Comment[]
   
@@ -376,10 +437,10 @@ NewsArticle extends BaseContent {
   -seo_keywords
   
   headline: string
-  subheadline: string?
-  location: string?
+  subheadline?: string
+  location?: string
   breaking: boolean = false
-  source: string?
+  source?: string
   fact_checked: boolean = false
   editor: User
   
@@ -419,7 +480,7 @@ ServiceAccount extends BaseUser {
   service_name: string
   service_type: "internal" | "webhook" | "integration" | "bot"
   owner_team: string
-  expires_at: DateTime?
+  expires_at?: DateTime
   auto_rotate_credentials: boolean = true
   last_rotated: DateTime = now()
   allowed_operations: string[]
@@ -437,16 +498,16 @@ BaseEntity {
   id: UUID
   created_at: DateTime = now()
   updated_at: DateTime = now()
-  created_by: User?
-  updated_by: User?
+  created_by?: User
+  updated_by?: User
   version: number = 1
   is_deleted: boolean = false
-  metadata: JSON?
+  metadata?: JSON
 }
 
 AuditableEntity extends BaseEntity {
   audit_log: AuditLog[]
-  last_audit: DateTime?
+  last_audit?: DateTime
   compliance_status: "compliant" | "pending" | "non_compliant"
 }
 
@@ -458,14 +519,14 @@ FinancialRecord extends AuditableEntity {
   -metadata
   
   entered_by: User
-  approved_by: User?
+  approved_by?: User
   amount: Money
   type: "income" | "expense" | "transfer"
-  account_from: string?
-  account_to: string?
+  account_from?: string
+  account_to?: string
   reference_number: string
   is_voided: boolean = false
-  void_reason: string?
+  void_reason?: string
   fiscal_year: number
   fiscal_quarter: number
   
@@ -492,9 +553,9 @@ Product {
   id: UUID
   sku: string
   name: string
-  description: string?
+  description?: string
   price: Money
-  discount_price: Money?
+  discount_price?: Money
   inventory: Inventory
   categories: Category[]
   variants: ProductVariant[]
@@ -526,7 +587,7 @@ ProductVariant {
   product: Product
   name: string
   value: string
-  price_adjustment: Money?
+  price_adjustment?: Money
   inventory_adjustment: number = 0
   
   @sql {
@@ -538,7 +599,7 @@ ProductVariant {
 Inventory {
   quantity: number = 0
   reserved: number = 0
-  warehouse_location: string?
+  warehouse_location?: string
   reorder_point: number = 10
   reorder_quantity: number = 100
   
@@ -561,7 +622,7 @@ Order {
   total: Money
   tax: Money
   shipping: Money
-  notes: string?
+  notes?: string
   
   @sql {
     table: "orders",
@@ -581,11 +642,11 @@ OrderItem {
   id: UUID
   order: Order
   product: Product
-  variant: ProductVariant?
+  variant?: ProductVariant
   quantity: number
   unit_price: Money
   total_price: Money
-  discount: Money?
+  discount?: Money
   
   @validation {
     quantity: { min: 1 },
@@ -615,7 +676,7 @@ Permission {
   id: UUID
   resource: string
   action: "create" | "read" | "update" | "delete" | "admin"
-  conditions: JSON?
+  conditions?: JSON
   
   @sql {
     table: "permissions",
@@ -627,10 +688,10 @@ Category {
   id: UUID
   name: string
   slug: string
-  parent: Category?
+  parent?: Category
   children: Category[]
   products: Product[]
-  metadata: JSON?
+  metadata?: JSON
   
   @sql {
     table: "categories",
@@ -651,8 +712,8 @@ Review {
   product: Product
   author: User
   rating: number
-  title: string?
-  content: string?
+  title?: string
+  content?: string
   helpful_count: number = 0
   verified_purchase: boolean = false
   images: string[]
@@ -674,17 +735,17 @@ Review {
 }
 
 PaymentMethod {
-  id: UUIDASD
+  id: UUID
   user: User
   type: "credit_card" | "debit_card" | "paypal" | "bank_transfer"
   
-  card_last_four: string?
-  card_brand: "visa" | "mastercard" | "amex" | "discover"?
-  paypal_email: string?
-  bank_account_last_four: string?
+  card_last_four?: string
+  card_brand?: "visa" | "mastercard" | "amex" | "discover"
+  paypal_email?: string
+  bank_account_last_four?: string
   
   is_default: boolean = false
-  expires_at: DateTime?
+  expires_at?: DateTime
   
   @sql {
     table: "payment_methods",
@@ -714,9 +775,9 @@ AuditLog {
   entity_id: UUID
   action: "create" | "update" | "delete"
   changes: JSON
-  user: User?
-  ip_address: string?
-  user_agent: string?
+  user?: User
+  ip_address?: string
+  user_agent?: string
   timestamp: DateTime = now()
   
   @sql {
@@ -736,8 +797,8 @@ AuditLog {
 SystemConfig {
   key: string
   value: JSON
-  description: string?
-  updated_by: AdminUser?
+  description?: string
+  updated_by?: AdminUser
   updated_at: DateTime = now()
   
   @sql {
@@ -759,7 +820,7 @@ SystemConfig {
 // User {
 //   -password_hash
 //   -salt
-//   avatar_url: string?  // Add client-specific field
+//   avatar_url?: string  // Add client-specific field
 //   is_online: boolean = false
 // }
 

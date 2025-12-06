@@ -1,0 +1,12 @@
+@extends ./base.cdm
+
+User {
+  -password_hash    // Remove sensitive fields
+  -salt
+  -last_login
+  
+  avatar_url?: string   // Add client-specific fields
+  is_online: boolean = false
+}
+
+-Session   // Remove entire model from client context

@@ -2,15 +2,17 @@
  * Tree-sitter grammar for CDM (Common Data Model) language
  *
  * Supports:
+ * - Plugin imports: @sql { dialect: "postgres" }
+ * - External plugins: @analytics from github:myorg/analytics { }
+ * - Local plugins: @custom from ./plugins/my-plugin { }
  * - Simple type aliases: Email: string
  * - Union types: Status: "active" | "pending" | "deleted"
  * - Composite types / models: User { name: string }
  * - Model inheritance: Article extends Timestamped { }
  * - Multiple inheritance: AdminUser extends BaseUser, Timestamped { }
  * - Field removal: -password_hash
- * - Optional types: Address?
+ * - Optional fields: name?: string
  * - Array types: Post[]
- * - Optional arrays: Post[]?
  * - Plugin configurations: @sql { table: "users" }
  * - Field-level plugin overrides
  * - Context extensions: @extends ./base.cdm
@@ -27,7 +29,8 @@ module.exports = grammar({
   conflicts: ($) => [],
 
   rules: {
-    source_file: ($) => repeat($._definition),
+    // Enforce ordering: plugin imports must come before definitions
+    source_file: ($) => seq(repeat($.plugin_import), repeat($._definition)),
 
     _definition: ($) =>
       choice(
@@ -39,6 +42,33 @@ module.exports = grammar({
 
     // Comments: // single line
     comment: ($) => /\/\/[^\n]*/,
+
+    // =========================================================================
+    // PLUGIN IMPORTS (must appear before definitions)
+    // =========================================================================
+
+    // Plugin import: @name [from source] [{ config }]
+    // Examples:
+    //   @sql
+    //   @sql { dialect: "postgres", schema: "public" }
+    //   @analytics from github:myorg/analytics { endpoint: "https://..." }
+    //   @custom from ./plugins/my-plugin { debug: true }
+    plugin_import: ($) =>
+      seq(
+        "@",
+        field("name", $.identifier),
+        optional(seq("from", field("source", $.plugin_source))),
+        optional(field("config", $.object_literal))
+      ),
+
+    // Plugin source: GitHub reference or local path
+    plugin_source: ($) => choice($.github_reference, $.plugin_path),
+
+    // GitHub reference: github:username/repo
+    github_reference: ($) => /github:[a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]+/,
+
+    // Local plugin path: ./path or ../path
+    plugin_path: ($) => /\.\.?\/[^\s\n{}]+/,
 
     // =========================================================================
     // TOP-LEVEL DIRECTIVES
@@ -117,14 +147,15 @@ module.exports = grammar({
         seq(field("name", $.identifier), field("plugins", $.plugin_block))
       ),
 
-    // Field definition: name [: type [= default] [{ plugins }]]
+    // Field definition: name[?] [: type [= default] [{ plugins }]]
     // Examples:
     //   name                                    (untyped, defaults to string)
     //   email: string                           (typed)
     //   active: boolean = true                  (with default)
-    //   age: Age?                               (optional)
+    //   age?: Age                               (optional)
+    //   bio?                                    (optional, untyped)
     //   posts: Post[]                           (array)
-    //   tags: Tag[]?                            (optional array)
+    //   tags?: Tag[]                            (optional array)
     //   status: "draft" | "published" = "draft" (inline union with default)
     //   content: string { @sql { type: "TEXT" } }  (with plugins)
     //   average_rating: decimal { @computed { from: "AVG(reviews.rating)" } }
@@ -133,6 +164,7 @@ module.exports = grammar({
         1,
         seq(
           field("name", $.identifier),
+          field("optional", optional("?")),
           optional(
             seq(
               ":",
@@ -162,13 +194,8 @@ module.exports = grammar({
     // TYPE EXPRESSIONS
     // =========================================================================
 
-    _type_expression: ($) => choice($.optional_type, $._non_optional_type),
-
-    _non_optional_type: ($) =>
+    _type_expression: ($) =>
       choice($.union_type, $.array_type, $.type_identifier),
-
-    // Optional type: Type?, Type[]?, or ("a" | "b")?
-    optional_type: ($) => seq($._non_optional_type, "?"),
 
     // Union type: "a" | "b" | "c" or Type1 | Type2 | "literal"
     // Supports both string literals and type references
