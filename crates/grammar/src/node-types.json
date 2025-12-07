@@ -99,10 +99,6 @@
             "named": true
           },
           {
-            "type": "function_call",
-            "named": true
-          },
-          {
             "type": "number_literal",
             "named": true
           },
@@ -209,15 +205,15 @@
     }
   },
   {
-    "type": "function_call",
+    "type": "git_reference",
     "named": true,
     "fields": {
-      "name": {
+      "url": {
         "multiple": false,
         "required": true,
         "types": [
           {
-            "type": "identifier",
+            "type": "git_url",
             "named": true
           }
         ]
@@ -450,7 +446,7 @@
       "required": true,
       "types": [
         {
-          "type": "github_reference",
+          "type": "git_reference",
           "named": true
         },
         {
@@ -598,14 +594,6 @@
     "named": false
   },
   {
-    "type": "(",
-    "named": false
-  },
-  {
-    "type": ")",
-    "named": false
-  },
-  {
     "type": ",",
     "named": false
   },
@@ -663,7 +651,11 @@
     "named": false
   },
   {
-    "type": "github_reference",
+    "type": "git:",
+    "named": false
+  },
+  {
+    "type": "git_url",
     "named": true
   },
   {
