@@ -3,7 +3,7 @@
  *
  * Supports:
  * - Plugin imports: @sql { dialect: "postgres" }
- * - External plugins: @analytics from github:myorg/analytics { }
+ * - External plugins: @analytics from git:https://github.com/myorg/cdm-analytics.git { }
  * - Local plugins: @custom from ./plugins/my-plugin { }
  * - Simple type aliases: Email: string
  * - Union types: Status: "active" | "pending" | "deleted"
@@ -51,7 +51,7 @@ module.exports = grammar({
     // Examples:
     //   @sql
     //   @sql { dialect: "postgres", schema: "public" }
-    //   @analytics from github:myorg/analytics { endpoint: "https://..." }
+    //   @analytics from git:https://github.com/myorg/cdm-analytics.git { endpoint: "https://..." }
     //   @custom from ./plugins/my-plugin { debug: true }
     plugin_import: ($) =>
       seq(
@@ -61,11 +61,14 @@ module.exports = grammar({
         optional(field("config", $.object_literal))
       ),
 
-    // Plugin source: GitHub reference or local path
-    plugin_source: ($) => choice($.github_reference, $.plugin_path),
+    // Plugin source: git URL or local path
+    plugin_source: ($) => choice($.git_reference, $.plugin_path),
 
-    // GitHub reference: github:username/repo
-    github_reference: ($) => /github:[a-zA-Z0-9_-]+\/[a-zA-Z0-9_.-]+/,
+    // Git reference: git:<url>
+    git_reference: ($) => seq("git:", field("url", $.git_url)),
+
+    // Flexible git URL pattern
+    git_url: ($) => /[^\s\n{}]+/,
 
     // Local plugin path: ./path or ../path
     plugin_path: ($) => /\.\.?\/[^\s\n{}]+/,

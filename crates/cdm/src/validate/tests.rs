@@ -3632,3 +3632,559 @@ mod default_value_type_checking {
         assert_eq!(errors.len(), 3, "Expected 3 errors, got {:?}", errors);
     }
 }
+
+#[cfg(test)]
+mod plugin_import_tests {
+    use super::*;
+
+    // =========================================================================
+    // Basic Plugin Imports
+    // =========================================================================
+
+    #[test]
+    fn test_simple_plugin_import_no_source_or_config() {
+        let source = "@sql";
+        let tree = parse(source);
+        let mut diagnostics = Vec::new();
+
+        collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn test_plugin_import_with_config_only() {
+        let source = r#"@sql { dialect: "postgres" }"#;
+        let tree = parse(source);
+        let mut diagnostics = Vec::new();
+
+        collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn test_plugin_import_with_complex_config() {
+        let source = r#"
+            @sql {
+                dialect: "postgres",
+                schema: "public",
+                migrations: true
+            }
+        "#;
+        let tree = parse(source);
+        let mut diagnostics = Vec::new();
+
+        collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+        assert!(diagnostics.is_empty());
+    }
+
+    // =========================================================================
+    // Git Source Plugin Imports
+    // =========================================================================
+
+    #[test]
+    fn test_plugin_import_with_git_source_no_config() {
+        let source = "@analytics from git:https://github.com/myorg/cdm-analytics.git";
+        let tree = parse(source);
+        let mut diagnostics = Vec::new();
+
+        collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn test_plugin_import_with_git_source_and_config() {
+        let source = r#"
+            @analytics from git:https://github.com/myorg/cdm-analytics.git {
+                endpoint: "https://analytics.example.com",
+                api_key: "secret123"
+            }
+        "#;
+        let tree = parse(source);
+        let mut diagnostics = Vec::new();
+
+        collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn test_plugin_import_with_git_ssh_url() {
+        let source = "@myPlugin from git:git@github.com:myorg/my-plugin.git";
+        let tree = parse(source);
+        let mut diagnostics = Vec::new();
+
+        collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn test_plugin_import_with_git_tag() {
+        let source = "@sql from git:https://github.com/cdm-lang/cdm-plugin-sql.git#v1.2.3";
+        let tree = parse(source);
+        let mut diagnostics = Vec::new();
+
+        collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn test_plugin_import_with_git_branch() {
+        let source = "@sql from git:https://github.com/cdm-lang/cdm-plugin-sql.git#feature/new-stuff";
+        let tree = parse(source);
+        let mut diagnostics = Vec::new();
+
+        collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+        assert!(diagnostics.is_empty());
+    }
+
+    // =========================================================================
+    // Local Path Plugin Imports
+    // =========================================================================
+
+    #[test]
+    fn test_plugin_import_with_local_path_current_dir() {
+        let source = "@custom from ./plugins/my-plugin";
+        let tree = parse(source);
+        let mut diagnostics = Vec::new();
+
+        collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn test_plugin_import_with_local_path_parent_dir() {
+        let source = "@shared from ../shared-plugins/common";
+        let tree = parse(source);
+        let mut diagnostics = Vec::new();
+
+        collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn test_plugin_import_with_local_path_and_config() {
+        let source = r#"
+            @custom from ./plugins/my-plugin {
+                debug: true,
+                output_dir: "./generated"
+            }
+        "#;
+        let tree = parse(source);
+        let mut diagnostics = Vec::new();
+
+        collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+        assert!(diagnostics.is_empty());
+    }
+
+    // =========================================================================
+    // Multiple Plugin Imports
+    // =========================================================================
+
+    #[test]
+    fn test_multiple_plugin_imports() {
+        let source = r#"
+            @sql { dialect: "postgres" }
+            @typescript { strict: true }
+            @validation
+        "#;
+        let tree = parse(source);
+        let mut diagnostics = Vec::new();
+
+        collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn test_plugin_imports_with_mixed_sources() {
+        let source = r#"
+            @sql { dialect: "postgres" }
+            @analytics from git:https://github.com/myorg/analytics.git
+            @custom from ./plugins/local
+        "#;
+        let tree = parse(source);
+        let mut diagnostics = Vec::new();
+
+        collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+        assert!(diagnostics.is_empty());
+    }
+
+    // =========================================================================
+    // Plugin Imports with Definitions (Ordering)
+    // =========================================================================
+
+    #[test]
+    fn test_plugin_imports_before_type_alias() {
+        let source = r#"
+            @sql { dialect: "postgres" }
+
+            Email: string
+        "#;
+        let tree = parse(source);
+        let mut diagnostics = Vec::new();
+
+        let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+        assert!(diagnostics.is_empty());
+        assert_eq!(symbol_table.definitions.len(), 1);
+
+        let def = symbol_table.get("Email").expect("Email should be defined");
+        assert!(matches!(def.kind, DefinitionKind::TypeAlias { .. }));
+    }
+
+    #[test]
+    fn test_plugin_imports_before_model_definition() {
+        let source = r#"
+            @sql { dialect: "postgres" }
+            @validation
+
+            User {
+                name: string
+                email: string
+            }
+        "#;
+        let tree = parse(source);
+        let mut diagnostics = Vec::new();
+
+        let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+        assert!(diagnostics.is_empty());
+        assert_eq!(symbol_table.definitions.len(), 1);
+
+        let def = symbol_table.get("User").expect("User should be defined");
+        assert!(matches!(&def.kind, DefinitionKind::Model { .. }));
+    }
+
+    // =========================================================================
+    // Config Variations
+    // =========================================================================
+
+    #[test]
+    fn test_plugin_import_with_nested_object_config() {
+        let source = r#"
+            @sql {
+                connection: {
+                    host: "localhost",
+                    port: 5432,
+                    ssl: true
+                },
+                pool_size: 10
+            }
+        "#;
+        let tree = parse(source);
+        let mut diagnostics = Vec::new();
+
+        collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn test_plugin_import_with_array_config() {
+        let source = r#"
+            @api {
+                expose: ["id", "name", "email"],
+                methods: ["GET", "POST"]
+            }
+        "#;
+        let tree = parse(source);
+        let mut diagnostics = Vec::new();
+
+        collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn test_plugin_import_with_empty_config() {
+        let source = "@sql {}";
+        let tree = parse(source);
+        let mut diagnostics = Vec::new();
+
+        collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn test_plugin_import_with_trailing_comma() {
+        let source = r#"
+            @sql {
+                dialect: "postgres",
+                schema: "public",
+            }
+        "#;
+        let tree = parse(source);
+        let mut diagnostics = Vec::new();
+
+        collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn test_plugin_import_with_string_keys() {
+        let source = r#"
+            @sql {
+                "table-name": "users",
+                "primary-key": "id"
+            }
+        "#;
+        let tree = parse(source);
+        let mut diagnostics = Vec::new();
+
+        collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn test_plugin_import_with_numeric_config_values() {
+        let source = r#"
+            @sql {
+                pool_size: 10,
+                timeout: 30.5,
+                retries: -1
+            }
+        "#;
+        let tree = parse(source);
+        let mut diagnostics = Vec::new();
+
+        collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+        assert!(diagnostics.is_empty());
+    }
+
+    // =========================================================================
+    // Edge Cases
+    // =========================================================================
+
+    #[test]
+    fn test_plugin_import_with_comment() {
+        let source = r#"
+            // Database configuration
+            @sql { dialect: "postgres" }
+        "#;
+        let tree = parse(source);
+        let mut diagnostics = Vec::new();
+
+        collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn test_plugin_import_with_underscore_in_name() {
+        let source = "@my_custom_plugin from ./plugins/custom";
+        let tree = parse(source);
+        let mut diagnostics = Vec::new();
+
+        collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn test_plugin_import_with_numbers_in_name() {
+        let source = "@sql2 { version: 2 }";
+        let tree = parse(source);
+        let mut diagnostics = Vec::new();
+
+        collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+        assert!(diagnostics.is_empty());
+    }
+
+    #[test]
+    fn test_plugin_import_deeply_nested_path() {
+        let source = "@custom from ./a/b/c/d/e/plugin";
+        let tree = parse(source);
+        let mut diagnostics = Vec::new();
+
+        collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+        assert!(diagnostics.is_empty());
+    }
+
+    // =========================================================================
+    // Full Integration Test
+    // =========================================================================
+
+    #[test]
+    fn test_full_example_with_imports_and_definitions() {
+        let source = r#"
+            // Plugin imports
+            @sql from git:https://github.com/cdm-lang/cdm-plugin-sql.git {
+                dialect: "postgres",
+                schema: "app"
+            }
+            @typescript { strict: true }
+            @validation from ./plugins/validation
+
+            // Type definitions
+            Email: string {
+                @validation { format: "email" }
+            }
+
+            User {
+                id: UUID
+                email: Email
+            }
+        "#;
+        let tree = parse(source);
+        let mut diagnostics = Vec::new();
+
+        let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+        assert!(diagnostics.is_empty());
+        assert_eq!(symbol_table.definitions.len(), 2);
+
+        let email_def = symbol_table.get("Email").expect("Email should be defined");
+        assert!(matches!(email_def.kind, DefinitionKind::TypeAlias { .. }));
+
+        let user_def = symbol_table.get("User").expect("User should be defined");
+        assert!(matches!(user_def.kind, DefinitionKind::Model { .. }));
+    }
+
+    // =========================================================================
+    // Error Cases
+    // =========================================================================
+
+    #[test]
+    fn test_definition_before_import_produces_error() {
+        let source = r#"
+            Email: string
+            @sql { dialect: "postgres" }
+        "#;
+        let result = validate_source(source);
+
+        assert!(
+            result.has_errors(),
+            "Expected error when import comes after definition"
+        );
+    }
+
+    #[test]
+    fn test_model_before_import_produces_error() {
+        let source = r#"
+            User { name: string }
+            @sql { dialect: "postgres" }
+        "#;
+        let result = validate_source(source);
+
+        assert!(
+            result.has_errors(),
+            "Expected error when import comes after model"
+        );
+    }
+}
+
+#[test]
+fn test_array_with_valid_string_union_elements() {
+    let source = r#"
+        Status: "active" | "pending" | "deleted"
+
+        User {
+            statuses: Status[] = ["active", "pending"]
+        }
+    "#;
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    assert!(diagnostics.is_empty());
+}
+
+#[test]
+fn test_array_with_invalid_string_union_element() {
+    let source = r#"
+        Status: "active" | "pending" | "deleted"
+
+        User {
+            statuses: Status[] = ["active", "invalid", "pending"]
+        }
+    "#;
+    let result = validate_source(source);
+
+    assert!(result.has_errors());
+    assert!(has_error_containing(&result, "Invalid array element \"invalid\""));
+    assert!(has_error_containing(&result, "expected one of"));
+}
+
+#[test]
+fn test_array_with_multiple_invalid_string_union_elements() {
+    let source = r#"
+        Priority: "low" | "medium" | "high"
+
+        Task {
+            priorities: Priority[] = ["low", "unknown", "high", "critical"]
+        }
+    "#;
+    let result = validate_source(source);
+
+    let errors = get_errors(&result);
+    assert_eq!(errors.len(), 2);
+    assert!(has_error_containing(&result, "\"unknown\""));
+    assert!(has_error_containing(&result, "\"critical\""));
+}
+
+#[test]
+fn test_array_with_all_invalid_string_union_elements() {
+    let source = r#"
+        Color: "red" | "green" | "blue"
+
+        Palette {
+            colors: Color[] = ["yellow", "purple"]
+        }
+    "#;
+    let result = validate_source(source);
+
+    let errors = get_errors(&result);
+    assert_eq!(errors.len(), 2);
+    assert!(has_error_containing(&result, "\"yellow\""));
+    assert!(has_error_containing(&result, "\"purple\""));
+}
+
+#[test]
+fn test_string_union_array_with_invalid_element_via_alias() {
+    let source = r#"
+        Mode: "debug" | "release"
+
+        Config {
+            modes: Mode[] = ["debug", "profile"]
+        }
+    "#;
+    let result = validate_source(source);
+
+    assert!(result.has_errors());
+    assert!(has_error_containing(&result, "Invalid array element \"profile\""));
+}
+
+#[test]
+fn test_empty_array_for_string_union_type() {
+    let source = r#"
+        Status: "active" | "pending"
+
+        User {
+            statuses: Status[] = []
+        }
+    "#;
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    assert!(diagnostics.is_empty());
+}

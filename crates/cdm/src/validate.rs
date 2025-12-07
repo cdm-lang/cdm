@@ -1304,7 +1304,6 @@ fn literal_kind_to_type_name(kind: &str) -> &str {
         "boolean_literal" => "boolean",
         "array_literal" => "array",
         "object_literal" => "object",
-        "function_call" => "function call",
         _ => kind,
     }
 }
