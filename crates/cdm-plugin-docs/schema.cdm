@@ -1,0 +1,20 @@
+// Settings schema for the docs plugin
+
+GlobalSettings {
+    format: "markdown" | "html" | "json" = "markdown"
+    include_examples?: boolean
+    include_inheritance?: boolean
+    title?: string
+}
+
+ModelSettings {
+    description?: string
+    example?: string
+    hidden?: boolean
+}
+
+FieldSettings {
+    description?: string
+    example?: string
+    deprecated?: boolean
+}

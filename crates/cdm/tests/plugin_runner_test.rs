@@ -1,0 +1,218 @@
+use cdm::PluginRunner;
+use cdm_plugin_api::{ConfigLevel, FieldDefinition, ModelDefinition, Schema, TypeExpression};
+use serde_json::json;
+use std::collections::HashMap;
+
+const WASM_PATH: &str = "../../target/wasm32-wasip1/release/cdm_plugin_docs.wasm";
+
+#[test]
+fn test_load_docs_plugin() {
+    let wasm_path = "../../target/wasm32-wasip1/release/cdm_plugin_docs.wasm";
+    let result = PluginRunner::new(wasm_path);
+    assert!(
+        result.is_ok(),
+        "Failed to load plugin: {:?}",
+        result.err()
+    );
+}
+
+#[test]
+fn test_validate_global_config_valid() {
+    let wasm_path = WASM_PATH;
+    let mut runner = PluginRunner::new(wasm_path).expect("Failed to load plugin");
+
+    let config = json!({
+        "format": "markdown",
+        "include_examples": true,
+        "title": "Test Documentation"
+    });
+
+    let errors = runner
+        .validate(ConfigLevel::Global, config)
+        .expect("Failed to validate config");
+
+    assert_eq!(
+        errors.len(),
+        0,
+        "Expected no validation errors, got: {:?}",
+        errors
+    );
+}
+
+#[test]
+fn test_validate_global_config_invalid_format() {
+    let wasm_path = WASM_PATH;
+    let mut runner = PluginRunner::new(wasm_path).expect("Failed to load plugin");
+
+    let config = json!({
+        "format": "invalid_format"
+    });
+
+    let errors = runner
+        .validate(ConfigLevel::Global, config)
+        .expect("Failed to validate config");
+
+    assert!(
+        errors.len() > 0,
+        "Expected validation errors for invalid format"
+    );
+    assert!(
+        errors[0].message.contains("Invalid format"),
+        "Error message should mention invalid format, got: {}",
+        errors[0].message
+    );
+}
+
+#[test]
+fn test_generate_markdown() {
+    let wasm_path = WASM_PATH;
+    let mut runner = PluginRunner::new(wasm_path).expect("Failed to load plugin");
+
+    let schema = Schema {
+        models: HashMap::from([(
+            "User".to_string(),
+            ModelDefinition {
+                name: "User".to_string(),
+                parents: vec![],
+                fields: vec![FieldDefinition {
+                    name: "id".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                }],
+                config: json!({}),
+            },
+        )]),
+        type_aliases: HashMap::new(),
+    };
+
+    let config = json!({
+        "format": "markdown"
+    });
+
+    let files = runner
+        .generate(schema, config)
+        .expect("Failed to generate files");
+
+    assert_eq!(files.len(), 1, "Expected 1 output file");
+    assert_eq!(files[0].path, "schema.md");
+    assert!(
+        files[0].content.contains("User"),
+        "Output should contain 'User' model"
+    );
+    assert!(
+        files[0].content.contains("id"),
+        "Output should contain 'id' field"
+    );
+}
+
+#[test]
+fn test_generate_html() {
+    let wasm_path = WASM_PATH;
+    let mut runner = PluginRunner::new(wasm_path).expect("Failed to load plugin");
+
+    let schema = Schema {
+        models: HashMap::from([(
+            "Product".to_string(),
+            ModelDefinition {
+                name: "Product".to_string(),
+                parents: vec![],
+                fields: vec![
+                    FieldDefinition {
+                        name: "name".to_string(),
+                        field_type: TypeExpression::Identifier {
+                            name: "string".to_string(),
+                        },
+                        optional: false,
+                        default: None,
+                        config: json!({ "description": "Product name" }),
+                    },
+                    FieldDefinition {
+                        name: "price".to_string(),
+                        field_type: TypeExpression::Identifier {
+                            name: "number".to_string(),
+                        },
+                        optional: false,
+                        default: None,
+                        config: json!({}),
+                    },
+                ],
+                config: json!({ "description": "Represents a product" }),
+            },
+        )]),
+        type_aliases: HashMap::new(),
+    };
+
+    let config = json!({
+        "format": "html"
+    });
+
+    let files = runner
+        .generate(schema, config)
+        .expect("Failed to generate files");
+
+    assert_eq!(files.len(), 1, "Expected 1 output file");
+    assert_eq!(files[0].path, "schema.html");
+    assert!(
+        files[0].content.contains("Product"),
+        "Output should contain 'Product' model"
+    );
+}
+
+#[test]
+fn test_validate_model_config() {
+    let wasm_path = WASM_PATH;
+    let mut runner = PluginRunner::new(wasm_path).expect("Failed to load plugin");
+
+    let config = json!({
+        "description": "A user model",
+        "hidden": false
+    });
+
+    let errors = runner
+        .validate(
+            ConfigLevel::Model {
+                name: "User".to_string(),
+            },
+            config,
+        )
+        .expect("Failed to validate config");
+
+    assert_eq!(
+        errors.len(),
+        0,
+        "Expected no validation errors, got: {:?}",
+        errors
+    );
+}
+
+#[test]
+fn test_validate_field_config() {
+    let wasm_path = WASM_PATH;
+    let mut runner = PluginRunner::new(wasm_path).expect("Failed to load plugin");
+
+    let config = json!({
+        "description": "User ID field",
+        "deprecated": true
+    });
+
+    let errors = runner
+        .validate(
+            ConfigLevel::Field {
+                model: "User".to_string(),
+                field: "id".to_string(),
+            },
+            config,
+        )
+        .expect("Failed to validate config");
+
+    assert_eq!(
+        errors.len(),
+        0,
+        "Expected no validation errors, got: {:?}",
+        errors
+    );
+}
