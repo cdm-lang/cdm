@@ -17,6 +17,36 @@ fn test_load_docs_plugin() {
 }
 
 #[test]
+fn test_get_schema() {
+    let wasm_path = WASM_PATH;
+    let mut runner = PluginRunner::new(wasm_path).expect("Failed to load plugin");
+
+    let schema = runner.schema().expect("Failed to get schema");
+
+    // Verify that the schema contains expected sections
+    assert!(
+        schema.contains("GlobalSettings"),
+        "Schema should contain GlobalSettings section"
+    );
+    assert!(
+        schema.contains("ModelSettings"),
+        "Schema should contain ModelSettings section"
+    );
+    assert!(
+        schema.contains("FieldSettings"),
+        "Schema should contain FieldSettings section"
+    );
+    assert!(
+        schema.contains("format:"),
+        "Schema should define format field"
+    );
+    assert!(
+        schema.contains("description?:"),
+        "Schema should define optional description field"
+    );
+}
+
+#[test]
 fn test_validate_global_config_valid() {
     let wasm_path = WASM_PATH;
     let mut runner = PluginRunner::new(wasm_path).expect("Failed to load plugin");

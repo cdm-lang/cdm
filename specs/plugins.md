@@ -145,7 +145,7 @@ File system paths for development.
 
 ## 3. Plugin Interface
 
-Plugins are WebAssembly modules that export three functions and a settings schema.
+Plugins are WebAssembly modules that export four functions: one required function to expose the settings schema, one required validation function, and two optional functions for generation and migration.
 
 ### Plugin Repository Structure
 
@@ -181,7 +181,7 @@ cdm-plugin-example/
 | `generate` | Plugin implements the `generate` function |
 | `migrate` | Plugin implements the `migrate` function |
 
-**Note:** The `validate_config` function is **required** for all plugins and is not listed in capabilities. It is always called to validate user-provided configuration regardless of other capabilities.
+**Note:** The `schema` and `validate_config` functions are **required** for all plugins and are not listed in capabilities. The `schema` function exposes the plugin's settings schema for pre-validation, and `validate_config` is always called to validate user-provided configuration regardless of other capabilities.
 
 ---
 
@@ -232,6 +232,29 @@ Index {
 ---
 
 ## 5. Plugin Functions
+
+### schema
+
+Returns the plugin's settings schema as a CDM file string. This function is **required** for all plugins and enables pre-validation of configuration before calling the plugin.
+
+```rust
+fn schema() -> String
+```
+
+**Output:**
+
+The function returns the contents of the `schema.cdm` file as a string. This allows the CDM runtime to:
+- Parse and validate the schema definition
+- Perform pre-validation of user configuration
+- Provide better error messages and autocomplete support
+
+**Example:**
+
+```rust
+fn schema() -> String {
+    include_str!("../schema.cdm").to_string()
+}
+```
 
 ### validate_config
 
@@ -690,6 +713,13 @@ use cdm_plugin_api::{
     Schema, Delta, OutputFile,
     Utils, CaseFormat,
 };
+
+#[export_plugin]
+pub fn schema() -> String {
+    // Required for all plugins
+    // Return the contents of schema.cdm
+    include_str!("../schema.cdm").to_string()
+}
 
 #[export_plugin]
 pub fn validate_config(level: ConfigLevel, config: JSON, utils: &Utils) -> Vec<ValidationError> {

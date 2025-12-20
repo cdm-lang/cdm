@@ -38,6 +38,20 @@ fn write_result(data: &[u8]) -> *mut u8 {
     ptr
 }
 
+/// Helper for implementing _schema WASM export
+///
+/// This function is safe because it doesn't work with raw pointers (other than the return value).
+pub fn ffi_schema<F>(schema_fn: F) -> *mut u8
+where
+    F: Fn() -> String,
+{
+    // Call the actual schema function
+    let schema_content = schema_fn();
+
+    // Write result to WASM memory and return pointer
+    write_result(schema_content.as_bytes())
+}
+
 /// Helper for implementing _validate_config WASM export
 ///
 /// # Safety
@@ -227,6 +241,17 @@ pub unsafe extern "C" fn _dealloc(ptr: *mut u8, size: usize) {
     if !ptr.is_null() && size > 0 {
         let _ = Vec::from_raw_parts(ptr, 0, size);
     }
+}
+
+/// Macro to export schema function with proper FFI wrapper
+#[macro_export]
+macro_rules! export_schema {
+    ($func:expr) => {
+        #[no_mangle]
+        pub extern "C" fn _schema() -> *mut u8 {
+            $crate::ffi::ffi_schema($func)
+        }
+    };
 }
 
 /// Macro to export validate_config function with proper FFI wrapper

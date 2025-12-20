@@ -30,6 +30,18 @@ impl PluginRunner {
         })
     }
 
+    /// Get the plugin's schema definition
+    pub fn schema(&mut self) -> Result<String> {
+        // Call the WASM function (no arguments)
+        let result_bytes = self.call_wasm_function("_schema", &[])?;
+
+        // Convert bytes to string
+        let schema = String::from_utf8(result_bytes)
+            .context("Failed to decode schema as UTF-8")?;
+
+        Ok(schema)
+    }
+
     /// Validate configuration at a specific level
     pub fn validate(
         &mut self,
@@ -157,6 +169,15 @@ impl PluginRunner {
         // Build the parameters for the function call
         // The function signature varies based on the number of arguments
         let result_ptr = match function_name {
+            "_schema" => {
+                // This takes no arguments and returns a pointer
+                let func = instance
+                    .get_typed_func::<(), u32>(&mut store, function_name)
+                    .with_context(|| format!("Failed to find '{}' function", function_name))?;
+
+                func.call(&mut store, ())
+                    .with_context(|| format!("Failed to call '{}' function", function_name))?
+            }
             "_validate_config" | "_generate" => {
                 // These take 2 arguments (4 parameters: ptr1, len1, ptr2, len2)
                 let func = instance
