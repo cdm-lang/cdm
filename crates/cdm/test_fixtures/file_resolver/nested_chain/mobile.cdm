@@ -1,0 +1,5 @@
+@extends ./client.cdm
+
+MobileUser extends ClientUser {
+  device_token: string
+}

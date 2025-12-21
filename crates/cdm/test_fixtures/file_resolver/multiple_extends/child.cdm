@@ -1,0 +1,7 @@
+@extends ./types.cdm
+@extends ./mixins.cdm
+
+User extends Timestamped {
+  id: number
+  email: string
+}

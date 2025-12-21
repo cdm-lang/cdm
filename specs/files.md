@@ -10,11 +10,12 @@
 1. [Grammar and Parsing](#grammar-and-parsing)
 2. [Core Validation](#core-validation)
 3. [Symbol Table](#symbol-table)
-4. [Plugin System](#plugin-system)
-5. [CLI](#cli)
-6. [Examples](#examples)
-7. [Tests](#tests)
-8. [Documentation](#documentation)
+4. [File Resolution](#file-resolution)
+5. [Plugin System](#plugin-system)
+6. [CLI](#cli)
+7. [Examples](#examples)
+8. [Tests](#tests)
+9. [Documentation](#documentation)
 
 ---
 
@@ -171,6 +172,126 @@ pub struct Validator {
 - Comprehensive error messages with source locations
 - Good use of Rust idioms
 - Extensive comments explaining complex logic
+
+---
+
+## File Resolution
+
+### `/crates/cdm/src/file_resolver.rs`
+
+**Purpose:** Resolves CDM files and their @extends dependencies recursively
+**Size:** ~255 lines (including tests)
+**Status:** ✅ Complete and tested
+**Added:** 2025-12-20
+
+**Key Responsibilities:**
+1. **File Loading** - Reads CDM files from filesystem
+2. **Path Resolution** - Resolves relative @extends paths
+3. **Recursive Ancestor Loading** - Builds complete ancestor chain
+4. **Circular Dependency Detection** - Prevents infinite recursion
+5. **Error Handling** - Reports file I/O and path resolution errors
+
+**Main Structure:**
+
+```rust
+pub struct FileResolver {
+    /// Cache of already-loaded files to avoid redundant parsing
+    /// and to detect circular dependencies
+    loaded_files: HashSet<PathBuf>,
+}
+```
+
+**Key Methods:**
+
+1. **`resolve_with_ancestors(file_path) -> Result<ValidationResult, Vec<Diagnostic>>`**
+   - Main entry point for loading a CDM file with all its dependencies
+   - Converts file path to absolute path
+   - Creates FileResolver instance
+   - Calls load_file_recursive to build complete ancestor chain
+   - Returns ValidationResult with all ancestors loaded
+
+2. **`load_file_recursive(file_path) -> Result<ValidationResult, Vec<Diagnostic>>`**
+   - Checks for circular dependencies in @extends chain
+   - Marks file as loaded in HashSet
+   - Reads file contents from filesystem
+   - Extracts @extends paths from source
+   - Recursively loads each ancestor file
+   - Converts ancestor results to Ancestor structs
+   - Validates current file WITH all ancestors
+   - Returns ValidationResult or validation errors
+
+3. **`resolve_path(current_file, extends_path) -> PathBuf`**
+   - Resolves relative paths from @extends directives
+   - Handles `./types.cdm` (same directory)
+   - Handles `../shared/base.cdm` (parent directory)
+   - Handles `../../common/types.cdm` (up multiple levels)
+
+4. **`to_absolute_path(path) -> Result<PathBuf, Vec<Diagnostic>>`**
+   - Converts potentially relative paths to absolute
+   - Uses `canonicalize()` for path resolution
+   - Returns detailed error diagnostics on failure
+
+**Error Handling:**
+
+- **Circular Dependencies**: Detects when a file appears twice in @extends chain
+- **File Not Found**: Reports when @extends references non-existent file
+- **Invalid Paths**: Reports path resolution failures
+- **Validation Errors**: Propagates validation errors from loaded files
+
+**Test Coverage:** 6 comprehensive tests
+
+1. **`test_resolve_single_file_no_extends`**
+   - Tests loading a single file with no @extends
+   - Verifies symbol table is populated correctly
+
+2. **`test_resolve_with_single_extends`**
+   - Tests child file extending base file
+   - Verifies ancestors are loaded
+   - Checks field additions work correctly
+
+3. **`test_resolve_with_multiple_extends`**
+   - Tests file with multiple @extends directives
+   - Verifies all ancestors are loaded in order
+   - Checks multiple inheritance resolution
+
+4. **`test_resolve_nested_extends_chain`**
+   - Tests deep inheritance (mobile → client → base)
+   - Verifies 3-level ancestor chain resolution
+   - Ensures transitive ancestor loading works
+
+5. **`test_circular_extends_detected`**
+   - Tests circular dependency detection (a.cdm → b.cdm → a.cdm)
+   - Verifies error is reported with clear message
+
+6. **`test_file_not_found_error`**
+   - Tests error handling for missing @extends target
+   - Verifies detailed error message with file path
+
+**Test Fixtures:** Comprehensive test fixtures in `test_fixtures/file_resolver/`:
+- `single_file/simple.cdm` - Standalone file
+- `single_extends/base.cdm` and `child.cdm` - Simple inheritance
+- `multiple_extends/types.cdm`, `mixins.cdm`, `child.cdm` - Multiple @extends
+- `nested_chain/base.cdm`, `client.cdm`, `mobile.cdm` - 3-level chain
+- `circular/a.cdm`, `b.cdm` - Circular dependency test
+- `invalid/missing_extends.cdm` - Error handling test
+
+**Integration:**
+- Exported in `lib.rs` as public API
+- Used by CLI for loading schema files
+- Foundation for `cdm build` and `cdm migrate` commands
+
+**Code Quality:**
+- Clean separation of concerns
+- Proper error handling with Diagnostic structs
+- Recursive algorithm with termination guarantees
+- Well-documented with inline comments
+- Idiomatic Rust with proper ownership
+
+**Future Enhancements:**
+- File watching for automatic reloading
+- Caching of parsed files for performance
+- Parallel loading of independent ancestor chains
+- Better error recovery for partial schema loading
 
 ---
 

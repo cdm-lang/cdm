@@ -1,0 +1,7 @@
+@extends ./base.cdm
+
+ClientUser extends User {
+  -email
+  -password_hash
+  username: string
+}

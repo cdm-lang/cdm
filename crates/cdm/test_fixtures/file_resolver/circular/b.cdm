@@ -1,0 +1,5 @@
+@extends ./a.cdm
+
+B {
+  id: number
+}

@@ -1,0 +1,5 @@
+@extends ./nonexistent.cdm
+
+Test {
+  id: number
+}

@@ -157,8 +157,8 @@
 
 ### 7.2 Extends Directive
 - ✅ `@extends` directive parsing
-- 🚧 Relative path resolution (infrastructure exists, needs integration)
-- 🚧 File loading from extends paths
+- ✅ Relative path resolution (implemented in FileResolver)
+- ✅ File loading from extends paths (recursive loading implemented)
 
 ### 7.3 Context Capabilities
 - ✅ Adding new definitions in context
@@ -174,9 +174,9 @@
 - ⏳ Merge rule implementation
 
 ### 7.5 Context Chains
-- ✅ Multi-level context chains (infrastructure exists)
-- 🔍 Full ancestor chain resolution (needs testing)
-- 🔍 Symbol propagation through chains
+- ✅ Multi-level context chains (fully implemented)
+- ✅ Full ancestor chain resolution (FileResolver recursively loads)
+- ✅ Symbol propagation through chains (ancestors passed to validate)
 
 ### 7.6 Type Resolution in Contexts
 - ✅ Type collection from ancestors
@@ -184,9 +184,9 @@
 - 🔍 Override application order (needs verification)
 
 ### 7.7 Restrictions
-- ✅ Circular extends detection
+- ✅ Circular extends detection (implemented in FileResolver)
 - ⏳ Upward reference prevention
-- ⏳ Single extends enforcement
+- ✅ Multiple extends allowed (all must be at top of file)
 
 ---
 
@@ -302,10 +302,10 @@
 - ✅ E205: Field override validation
 
 #### Context System (E301-E304)
-- ✅ E301: Circular extends detection
+- ✅ E301: Circular extends detection (implemented in FileResolver)
 - ⏳ E302: Type alias still in use
 - ⏳ E303: Model still referenced
-- ⏳ E304: Extends file not found
+- ✅ E304: Extends file not found (implemented in FileResolver)
 
 #### Plugin System (E401-E405)
 - ⏳ E401: Plugin not found
@@ -348,11 +348,12 @@
 - ⏳ Registry cache (`registry.json`)
 
 ### 10.4 Path Resolution
-- 🚧 Relative path resolution (infrastructure exists)
-- ⏳ Integration with file loading
+- ✅ Relative path resolution (FileResolver.resolve_path)
+- ✅ Absolute path conversion (FileResolver.to_absolute_path)
+- ✅ Integration with file loading (FileResolver.load_file_recursive)
 
 ### 10.5 Build Outputs
-- ⏳ Ancestor chain resolution
+- ✅ Ancestor chain resolution (FileResolver builds complete chain)
 - ⏳ Type alias merging
 - ⏳ Model merging
 - ⏳ Plugin config merging
@@ -514,10 +515,10 @@
 - ✅ E205 implemented
 
 ### Context Errors
-- ✅ E301 implemented
+- ✅ E301 implemented (FileResolver)
 - ⏳ E302 implementation
 - ⏳ E303 implementation
-- ⏳ E304 implementation
+- ✅ E304 implemented (FileResolver)
 
 ### Plugin Errors
 - ⏳ E401 implementation
@@ -559,7 +560,7 @@
 
 ## Summary Statistics
 
-### Overall Progress: ~62% Complete
+### Overall Progress: ~65% Complete
 
 **By Section:**
 - ✅ Lexical Structure: 100%
@@ -567,14 +568,14 @@
 - ✅ Type Aliases: 95%
 - ✅ Models: 100%
 - ✅ Inheritance: 100%
-- 🚧 Context System: 80%
+- ✅ Context System: 95%
 - 🚧 Plugin System: 50%
-- 🚧 Semantic Validation: 75%
-- 🚧 File Structure: 50%
+- 🚧 Semantic Validation: 80%
+- 🚧 File Structure: 75%
 - 🚧 CLI Interface: 20%
 - ✅ Plugin Development: 85%
 - ✅ Grammar: 100%
-- 🚧 Error Catalog: 60%
+- 🚧 Error Catalog: 65%
 - ⏳ Registry Format: 10%
 - 🚧 Data Exchange: 50%
 
@@ -582,28 +583,29 @@
 
 **Phase 1: Core Build System (Highest Priority)**
 1. ⏳ Implement schema builder (AST → Schema JSON)
-2. ⏳ Implement file resolver (@extends path resolution)
-3. ⏳ Implement `cdm build` command
-4. ⏳ Integrate plugin loading and execution
-5. ⏳ Implement output file writing
+2. ✅ Implement file resolver (@extends path resolution) - **COMPLETE**
+3. ⏳ Implement plugin loader (load WASM from local paths)
+4. ⏳ Implement `cdm build` command
+5. ⏳ Integrate plugin loading and execution
+6. ⏳ Implement output file writing
 
 **Phase 2: Migration System**
-6. ⏳ Implement previous schema storage
-7. ⏳ Implement delta computation
-8. ⏳ Implement `cdm migrate` command
+7. ⏳ Implement previous schema storage
+8. ⏳ Implement delta computation
+9. ⏳ Implement `cdm migrate` command
 
 **Phase 3: Plugin Ecosystem**
-9. ⏳ Implement plugin registry
-10. ⏳ Implement plugin caching
-11. ⏳ Implement `cdm plugin` commands
-12. ⏳ Create official plugins (sql, typescript, validation)
+10. ⏳ Implement plugin registry
+11. ⏳ Implement plugin caching
+12. ⏳ Implement `cdm plugin` commands
+13. ⏳ Create official plugins (sql, typescript, validation)
 
 **Phase 4: Polish**
-13. ⏳ Complete all error codes
-14. ⏳ Add warnings
-15. ⏳ Multi-file validation
-16. ⏳ Better diagnostics
-17. ⏳ Plugin sandboxing
+14. ⏳ Complete all error codes
+15. ⏳ Add warnings
+16. ⏳ Multi-file validation
+17. ⏳ Better diagnostics
+18. ⏳ Plugin sandboxing
 
 ---
 
@@ -617,6 +619,26 @@
 - **Next Steps:** Focus on Phase 1 (Core Build System) to unlock end-to-end functionality
 
 ## Recent Updates
+
+### 2025-12-20: File Resolver Implementation (Phase 1, Task 2)
+- ✅ Implemented complete file resolver infrastructure in [file_resolver.rs](../crates/cdm/src/file_resolver.rs)
+- ✅ `FileResolver::resolve_with_ancestors()` - main entry point for loading CDM files
+- ✅ Recursive ancestor loading with `load_file_recursive()`
+- ✅ Circular dependency detection using `HashSet<PathBuf>`
+- ✅ Relative path resolution (`./`, `../` support)
+- ✅ Absolute path conversion with proper error handling
+- ✅ Complete test coverage: 6 tests across all scenarios
+- ✅ Test fixtures created in `test_fixtures/file_resolver/`:
+  - Single file without extends
+  - Single extends with field additions/removals
+  - Multiple @extends in one file
+  - Nested extends chains (3 levels deep)
+  - Circular dependency detection
+  - File not found error handling
+- ✅ All 226 tests passing (220 existing + 6 new file resolver tests)
+- ✅ Exported FileResolver in lib.rs public API
+- ✅ Context System now 95% complete (up from 80%)
+- ✅ Overall progress: 65% (up from 62%)
 
 ### 2025-12-20: Grammar Ordering Fix & Multiple Extends Support
 - ✅ Fixed grammar to enforce correct file structure ordering

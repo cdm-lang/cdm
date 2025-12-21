@@ -1,0 +1,6 @@
+@extends ./base.cdm
+
+PublicUser extends User {
+  -email
+  avatar_url: string
+}
