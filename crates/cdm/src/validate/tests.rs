@@ -2744,78 +2744,6 @@ mod extends_tests {
     }
 
     // -------------------------------------------------------------------------
-    // extract_extends_paths tests
-    // -------------------------------------------------------------------------
-
-    #[test]
-    fn test_extract_no_extends() {
-        let source = r#"
-            User { name: string }
-        "#;
-        
-        let paths = extract_extends_paths(source);
-        assert!(paths.is_empty());
-    }
-
-    #[test]
-    fn test_extract_single_extends() {
-        let source = r#"
-            @extends ./base.cdm
-            
-            User { name: string }
-        "#;
-        
-        let paths = extract_extends_paths(source);
-        assert_eq!(paths, vec!["./base.cdm"]);
-    }
-
-    #[test]
-    fn test_extract_multiple_extends() {
-        let source = r#"
-            @extends ./types.cdm
-            @extends ./mixins.cdm
-            @extends ../shared/base.cdm
-            
-            User { name: string }
-        "#;
-        
-        let paths = extract_extends_paths(source);
-        assert_eq!(paths, vec![
-            "./types.cdm",
-            "./mixins.cdm",
-            "../shared/base.cdm"
-        ]);
-    }
-
-    #[test]
-    fn test_extract_extends_with_plugins() {
-        let source = r#"
-            @extends ./types/base.cdm
-            @sql { dialect: "postgres" }
-            @validation { strict: true }
-
-            User { name: string }
-        "#;
-
-        let paths = extract_extends_paths(source);
-        assert_eq!(paths, vec!["./types/base.cdm"]);
-    }
-
-    #[test]
-    fn test_extract_extends_preserves_order() {
-        let source = r#"
-            @extends ./third.cdm
-            @extends ./first.cdm
-            @extends ./second.cdm
-            
-            User { name: string }
-        "#;
-        
-        let paths = extract_extends_paths(source);
-        assert_eq!(paths, vec!["./third.cdm", "./first.cdm", "./second.cdm"]);
-    }
-
-    // -------------------------------------------------------------------------
     // ValidationResult.into_ancestor tests
     // -------------------------------------------------------------------------
 
@@ -3189,11 +3117,8 @@ mod extends_tests {
         "#;
         
         let result = validate(user_source, &[types_ancestor, mixins_ancestor]);
-        
+
         assert!(!result.has_errors(), "Errors: {:?}", result.diagnostics);
-        
-        let paths = extract_extends_paths(user_source);
-        assert_eq!(paths, vec!["./types.cdm", "./mixins.cdm"]);
     }
 }
 
@@ -4102,7 +4027,7 @@ fn test_array_with_valid_string_union_elements() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (_symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     assert!(diagnostics.is_empty());
 }
@@ -4184,7 +4109,88 @@ fn test_empty_array_for_string_union_type() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (_symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     assert!(diagnostics.is_empty());
+}
+
+// Integration tests for validate_tree
+
+#[test]
+fn test_validate_tree_single_file() {
+    use crate::file_resolver::FileResolver;
+    use std::path::PathBuf;
+
+    let fixtures_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("test_fixtures")
+        .join("file_resolver")
+        .join("single_file/simple.cdm");
+
+    let tree = FileResolver::load(&fixtures_path).expect("Failed to load file");
+    let result = validate_tree(tree).expect("Validation failed");
+
+    assert!(!result.has_errors());
+    assert!(result.symbol_table.definitions.contains_key("User"));
+}
+
+#[test]
+fn test_validate_tree_with_extends() {
+    use crate::file_resolver::FileResolver;
+    use std::path::PathBuf;
+
+    let fixtures_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("test_fixtures")
+        .join("file_resolver")
+        .join("single_extends/child.cdm");
+
+    let tree = FileResolver::load(&fixtures_path).expect("Failed to load file");
+    let result = validate_tree(tree).expect("Validation failed");
+
+    assert!(!result.has_errors());
+    assert!(result.symbol_table.definitions.contains_key("PublicUser"));
+
+    // PublicUser should have its own fields
+    let public_user_fields = &result.model_fields["PublicUser"];
+    assert!(public_user_fields.iter().any(|f| f.name == "avatar_url"));
+}
+
+#[test]
+fn test_validate_tree_multiple_extends() {
+    use crate::file_resolver::FileResolver;
+    use std::path::PathBuf;
+
+    let fixtures_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("test_fixtures")
+        .join("file_resolver")
+        .join("multiple_extends/child.cdm");
+
+    let tree = FileResolver::load(&fixtures_path).expect("Failed to load file");
+    let result = validate_tree(tree).expect("Validation failed");
+
+    assert!(!result.has_errors());
+
+    // User should have its own fields
+    let user_fields = &result.model_fields["User"];
+    assert!(user_fields.iter().any(|f| f.name == "id"));
+    assert!(user_fields.iter().any(|f| f.name == "email"));
+}
+
+#[test]
+fn test_validate_tree_nested_chain() {
+    use crate::file_resolver::FileResolver;
+    use std::path::PathBuf;
+
+    let fixtures_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("test_fixtures")
+        .join("file_resolver")
+        .join("nested_chain/mobile.cdm");
+
+    let tree = FileResolver::load(&fixtures_path).expect("Failed to load file");
+    let result = validate_tree(tree).expect("Validation failed");
+
+    assert!(!result.has_errors());
+
+    // MobileUser should have its own field
+    let mobile_user_fields = &result.model_fields["MobileUser"];
+    assert!(mobile_user_fields.iter().any(|f| f.name == "device_token"));
 }

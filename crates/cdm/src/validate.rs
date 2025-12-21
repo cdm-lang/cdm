@@ -6,6 +6,7 @@ use crate::{
     Ancestor, Definition, DefinitionKind, Diagnostic, FieldInfo, Position, Severity, Span,
     SymbolTable, field_exists_in_parents, is_builtin_type, is_type_defined, resolve_definition,
 };
+use crate::file_resolver::LoadedFileTree;
 
 #[cfg(test)]
 mod tests;
@@ -172,33 +173,73 @@ pub fn validate(source: &str, ancestors: &[Ancestor]) -> ValidationResult {
     }
 }
 
-/// Extract all @extends paths from a source file.
-/// 
-/// Returns paths in the order they appear in the file.
-/// This is a helper for callers who need to resolve the extends chain.
-pub fn extract_extends_paths(source: &str) -> Vec<String> {
-    let mut parser = tree_sitter::Parser::new();
-    parser
-        .set_language(&grammar::LANGUAGE.into())
-        .expect("Failed to load grammar");
+/// Validate a LoadedFileTree with all its ancestors.
+///
+/// This is the high-level API for validating CDM files that have been loaded
+/// via FileResolver. It validates ancestors first (in streaming fashion) and
+/// then validates the main file.
+///
+/// # Arguments
+/// * `tree` - The loaded file tree from FileResolver
+///
+/// # Returns
+/// * `Ok(ValidationResult)` - Successfully validated schema
+/// * `Err(Vec<Diagnostic>)` - Validation errors or file reading errors
+///
+/// # Memory efficiency
+/// This function validates in streaming fashion - each ancestor is validated
+/// and converted to an Ancestor struct before the next is processed, minimizing
+/// peak memory usage.
+pub fn validate_tree(tree: LoadedFileTree) -> Result<ValidationResult, Vec<Diagnostic>> {
+    // Validate all ancestors in streaming fashion
+    let mut ancestors = Vec::new();
 
-    let Some(tree) = parser.parse(source, None) else {
-        return Vec::new();
-    };
-    
-    let root = tree.root_node();
-    let mut cursor = root.walk();
-    let mut paths = Vec::new();
+    for loaded_ancestor in tree.ancestors {
+        let source = loaded_ancestor.source().map_err(|err| {
+            vec![Diagnostic {
+                message: format!("Failed to read file {}: {}", loaded_ancestor.path.display(), err),
+                severity: Severity::Error,
+                span: Span {
+                    start: Position { line: 0, column: 0 },
+                    end: Position { line: 0, column: 0 },
+                },
+            }]
+        })?;
 
-    for node in root.children(&mut cursor) {
-        if node.kind() == "extends_directive" {
-            if let Some(path_node) = node.child_by_field_name("path") {
-                paths.push(get_node_text(path_node, source).to_string());
-            }
+        // Validate ancestor
+        let ancestor_result = validate(&source, &ancestors);
+
+        // Check for validation errors
+        if ancestor_result.has_errors() {
+            return Err(ancestor_result.diagnostics);
         }
+
+        // Convert to Ancestor and add to list
+        // This frees the ValidationResult memory (tree, diagnostics, etc.)
+        let ancestor = ancestor_result.into_ancestor(loaded_ancestor.path.display().to_string());
+        ancestors.push(ancestor);
     }
 
-    paths
+    // Validate main file with all ancestors
+    let main_source = tree.main.source().map_err(|err| {
+        vec![Diagnostic {
+            message: format!("Failed to read file {}: {}", tree.main.path.display(), err),
+            severity: Severity::Error,
+            span: Span {
+                start: Position { line: 0, column: 0 },
+                end: Position { line: 0, column: 0 },
+            },
+        }]
+    })?;
+
+    let result = validate(&main_source, &ancestors);
+
+    // Check for validation errors
+    if result.has_errors() {
+        return Err(result.diagnostics);
+    }
+
+    Ok(result)
 }
 
 fn collect_syntax_errors(node: tree_sitter::Node, source: &str, diagnostics: &mut Vec<Diagnostic>) {
