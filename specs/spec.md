@@ -810,7 +810,7 @@ When building `api.cdm`, `User.status` has type `"active" | "inactive" | "pendin
 
 1. **No circular extends**: A file cannot extend itself or create a cycle
 2. **No upward references**: A parent context cannot reference types defined only in a child
-3. **Single extends**: A file can only have one `@extends` directive
+3. **Extends at top**: All `@extends` directives must appear at the top of the file, before plugin imports
 
 ---
 
@@ -967,8 +967,8 @@ CDM validation occurs in multiple phases:
 | Rule | Error |
 |------|-------|
 | Plugin imports must come before definitions | E001 |
-| Single `@extends` directive allowed | E002 |
-| `@extends` must come before plugin imports | E003 |
+| `@extends` must come before plugin imports | E002 |
+| (Reserved for future use) | E003 |
 
 #### Type Definitions
 
@@ -1644,8 +1644,8 @@ See `grammar.js` in the CDM repository for the complete tree-sitter grammar impl
 | Code | Message | Description |
 |------|---------|-------------|
 | E001 | Plugin import after definition | Plugin imports must come before type/model definitions |
-| E002 | Multiple extends directives | Only one @extends directive is allowed per file |
-| E003 | Extends after plugin import | @extends must come before plugin imports |
+| E002 | Extends after plugin import | @extends directives must come before plugin imports |
+| E003 | (Reserved) | Reserved for future use |
 
 ### B.2 Type Errors
 

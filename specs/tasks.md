@@ -286,8 +286,8 @@
 
 #### File Structure (E001-E003)
 - ✅ E001: Plugin imports before definitions (enforced by grammar)
-- ✅ E002: Single @extends directive (enforced by grammar - optional() allows 0 or 1)
-- ✅ E003: @extends before plugin imports (enforced by grammar)
+- ✅ E002: @extends before plugin imports (enforced by grammar - repeat() allows multiple extends)
+- ⏳ E003: Reserved for future use
 
 #### Type Definitions (E101-E103)
 - ✅ E101: Duplicate type alias detection
@@ -618,11 +618,14 @@
 
 ## Recent Updates
 
-### 2025-12-20: Grammar Ordering Fix
+### 2025-12-20: Grammar Ordering Fix & Multiple Extends Support
 - ✅ Fixed grammar to enforce correct file structure ordering
-- ✅ `@extends` directive must now appear at the top (before plugin imports)
+- ✅ `@extends` directives must now appear at the top (before plugin imports)
+- ✅ **Multiple `@extends` directives are now allowed** (all at the top)
 - ✅ Plugin imports must come before definitions
-- ✅ Enforces error codes E001, E002, E003 at parse time
-- ✅ Updated `source_file` rule to: `optional(@extends) → repeat(plugin_import) → repeat(definition)`
+- ✅ Enforces error codes E001, E002 at parse time
+- ✅ Updated `source_file` rule to: `repeat(@extends) → repeat(plugin_import) → repeat(definition)`
 - ✅ Removed `extends_directive` from `_definition` choice
-- ✅ Tested and verified with valid/invalid test cases
+- ✅ Updated test cases to match new ordering requirements
+- ✅ Updated spec to reflect multiple extends capability
+- ✅ All 220 tests passing

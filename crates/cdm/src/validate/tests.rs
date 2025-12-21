@@ -2790,13 +2790,13 @@ mod extends_tests {
     #[test]
     fn test_extract_extends_with_plugins() {
         let source = r#"
-            @sql { dialect: "postgres" }
             @extends ./types/base.cdm
+            @sql { dialect: "postgres" }
             @validation { strict: true }
-            
+
             User { name: string }
         "#;
-        
+
         let paths = extract_extends_paths(source);
         assert_eq!(paths, vec!["./types/base.cdm"]);
     }

@@ -29,10 +29,10 @@ module.exports = grammar({
   conflicts: ($) => [],
 
   rules: {
-    // Enforce ordering: @extends (optional) → plugin imports → definitions
+    // Enforce ordering: @extends directives → plugin imports → definitions
     source_file: ($) =>
       seq(
-        optional($.extends_directive),
+        repeat($.extends_directive),
         repeat($.plugin_import),
         repeat($._definition)
       ),
