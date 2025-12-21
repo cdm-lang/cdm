@@ -1,0 +1,110 @@
+// Example CDM schema demonstrating the docs plugin
+// This file shows how to use the plugin with different configuration levels
+
+// Import the docs plugin with global configuration
+@docs from ../ {
+    format: "markdown"
+    include_examples: true
+    include_inheritance: true
+    title: "My Project API Documentation"
+}
+
+// Type alias with documentation
+EmailAddress: string {
+    @docs {
+        description: "A valid email address in RFC 5322 format"
+        example: "user@example.com"
+    }
+}
+
+// Status enum
+UserStatus: "active" | "inactive" | "pending" {
+    @docs {
+        description: "Possible states for a user account"
+    }
+}
+
+// Base model with inheritance
+BaseEntity {
+    id: UUID
+    createdAt: DateTime
+    updatedAt: DateTime
+
+    @docs {
+        description: "Base model with common timestamp fields"
+        hidden: true  // Don't include this in the generated docs
+    }
+}
+
+// User model extending base
+User extends BaseEntity {
+    email: EmailAddress
+    username: string
+    displayName?: string
+    status: UserStatus = "pending"
+    bio: string
+
+    @docs {
+        description: "Represents a user account in the system"
+        example: "{\"id\": \"550e8400-e29b-41d4-a716-446655440000\", \"email\": \"alice@example.com\", \"username\": \"alice\", \"status\": \"active\"}"
+    }
+}
+
+// Post model with field-level configuration
+Post extends BaseEntity {
+    title: string {
+        @docs {
+            description: "The post title (max 200 characters)"
+            example: "My First Blog Post"
+        }
+    }
+
+    content: string {
+        @docs {
+            description: "The post content in Markdown format"
+        }
+    }
+
+    authorId: UUID {
+        @docs {
+            description: "Reference to the User who created this post"
+        }
+    }
+
+    published: boolean = false {
+        @docs {
+            description: "Whether the post is publicly visible"
+        }
+    }
+
+    tags: string[] {
+        @docs {
+            description: "List of tags for categorizing the post"
+            example: "[\"typescript\", \"web-development\"]"
+        }
+    }
+
+    legacyField?: string {
+        @docs {
+            description: "Old field, will be removed in v2"
+            deprecated: true
+        }
+    }
+
+    @docs {
+        description: "Represents a blog post or article"
+    }
+}
+
+// Comment model
+Comment extends BaseEntity {
+    postId: UUID
+    authorId: UUID
+    content: string
+    parentId?: UUID
+
+    @docs {
+        description: "User comment on a post, supports nested replies via parentId"
+        example: "{\"postId\": \"...\", \"authorId\": \"...\", \"content\": \"Great article!\"}"
+    }
+}

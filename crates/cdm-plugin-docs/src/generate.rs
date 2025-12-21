@@ -30,7 +30,11 @@ fn generate_markdown(schema: Schema, config: JSON, _utils: &Utils) -> Vec<Output
 
     if !schema.type_aliases.is_empty() {
         content.push_str("### Type Aliases\n\n");
-        for (name, _) in schema.type_aliases.iter() {
+        for (name, alias) in schema.type_aliases.iter() {
+            // Skip hidden type aliases in TOC
+            if alias.config.get("hidden").and_then(|v| v.as_bool()).unwrap_or(false) {
+                continue;
+            }
             content.push_str(&format!("- [{}](#type-{})\n", name, name.to_lowercase()));
         }
         content.push('\n');
@@ -38,7 +42,11 @@ fn generate_markdown(schema: Schema, config: JSON, _utils: &Utils) -> Vec<Output
 
     if !schema.models.is_empty() {
         content.push_str("### Models\n\n");
-        for (name, _) in schema.models.iter() {
+        for (name, model) in schema.models.iter() {
+            // Skip hidden models in TOC
+            if model.config.get("hidden").and_then(|v| v.as_bool()).unwrap_or(false) {
+                continue;
+            }
             content.push_str(&format!("- [{}](#model-{})\n", name, name.to_lowercase()));
         }
         content.push('\n');

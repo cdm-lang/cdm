@@ -67,18 +67,75 @@ User {
 }
 ```
 
-## Building
+## Development
+
+### Quick Start
 
 ```bash
-# Install WASM target
-rustup target add wasm32-wasip1
+# Setup (install dependencies and verify environment)
+./setup.sh
 
-# Build the plugin
-cargo build --release --target wasm32-wasip1
+# Or manually
+make setup
+```
+
+### Building
+
+```bash
+# Build for production (optimized WASM)
+make build
+
+# Build for development (faster compilation)
+make build-debug
+
+# View all available commands
+make help
 ```
 
 The compiled WASM file will be at:
 `target/wasm32-wasip1/release/cdm_plugin_docs.wasm`
+
+### Testing
+
+```bash
+# Run all tests
+make test
+
+# Run unit tests only
+make test-unit
+
+# Build and verify WASM
+make test-wasm
+```
+
+### Using as a Template
+
+This plugin serves as a complete template for creating your own CDM plugins. See [TEMPLATE_README.md](TEMPLATE_README.md) for detailed instructions on:
+
+- Plugin structure and architecture
+- Implementing validation and generation
+- Testing strategies
+- Publishing your plugin
+
+## Files and Structure
+
+```
+cdm-plugin-docs/
+├── cdm-plugin.json          # Plugin manifest
+├── schema.cdm               # Configuration schema
+├── Makefile                 # Development tasks
+├── setup.sh                 # Dependency setup script
+├── README.md                # This file (user documentation)
+├── TEMPLATE_README.md       # Plugin development guide
+├── src/
+│   ├── lib.rs              # Plugin entry point
+│   ├── validate.rs         # Configuration validation
+│   └── generate.rs         # Documentation generation
+├── tests/
+│   └── integration_test.rs # Integration tests
+└── example/
+    └── schema.cdm          # Example usage
+```
 
 ## License
 

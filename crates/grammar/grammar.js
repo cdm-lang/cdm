@@ -29,12 +29,16 @@ module.exports = grammar({
   conflicts: ($) => [],
 
   rules: {
-    // Enforce ordering: plugin imports must come before definitions
-    source_file: ($) => seq(repeat($.plugin_import), repeat($._definition)),
+    // Enforce ordering: @extends (optional) → plugin imports → definitions
+    source_file: ($) =>
+      seq(
+        optional($.extends_directive),
+        repeat($.plugin_import),
+        repeat($._definition)
+      ),
 
     _definition: ($) =>
       choice(
-        $.extends_directive,
         $.model_removal,
         $.type_alias,
         $.model_definition
