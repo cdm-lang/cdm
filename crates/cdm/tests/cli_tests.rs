@@ -36,9 +36,9 @@ fn test_validate_file_with_errors() {
         .expect("Failed to execute command");
 
     assert!(!output.status.success());
-    
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    assert!(stdout.contains("Undefined type"));
+
+    let stderr = String::from_utf8_lossy(&output.stderr);
+    assert!(stderr.contains("Undefined type"));
 
     fs::remove_file(test_file).ok();
 }
@@ -51,9 +51,9 @@ fn test_validate_missing_file() {
         .expect("Failed to execute command");
 
     assert!(!output.status.success());
-    
+
     let stderr = String::from_utf8_lossy(&output.stderr);
-    assert!(stderr.contains("Failed to read file"));
+    assert!(stderr.contains("Failed to resolve path") || stderr.contains("No such file"));
 }
 
 #[test]

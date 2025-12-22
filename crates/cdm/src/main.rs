@@ -2,8 +2,7 @@
 
 use clap::{Parser, Subcommand};
 use std::path::PathBuf;
-use anyhow::{Context, Result};
-use std::fs::read_to_string;
+use anyhow::Result;
 
 #[derive(Parser)]
 #[command(name = "cdm")]
@@ -28,18 +27,32 @@ fn main() -> Result<()> {
 
     match cli.command {
         Commands::Validate { path } => {
-            let source = read_to_string(&path)
-                .with_context(|| format!("Failed to read file: {}", path.display()))?;
+            let tree = match cdm::FileResolver::load(&path) {
+                Ok(tree) => tree,
+                Err(diagnostics) => {
+                    for diagnostic in &diagnostics {
+                        eprintln!("{}", diagnostic);
+                    }
+                    std::process::exit(1);
+                }
+            };
 
-            // @todo: get appropriate ancestors
-            let result = cdm::validate(&source, &[]);
-
-            for diagnostic in &result.diagnostics {
-                println!("{}", diagnostic);
-            }
-
-            if result.has_errors() {
-                std::process::exit(1);
+            match cdm::validate_tree(tree) {
+                Ok(result) => {
+                    for diagnostic in &result.diagnostics {
+                        if diagnostic.severity == cdm::Severity::Error {
+                            eprintln!("{}", diagnostic);
+                        } else {
+                            println!("{}", diagnostic);
+                        }
+                    }
+                }
+                Err(diagnostics) => {
+                    for diagnostic in &diagnostics {
+                        eprintln!("{}", diagnostic);
+                    }
+                    std::process::exit(1);
+                }
             }
         }
     }
