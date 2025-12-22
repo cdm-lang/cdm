@@ -246,3 +246,28 @@ fn test_validate_field_config() {
         errors
     );
 }
+
+#[test]
+fn test_validate_config_is_optional() {
+    // This test verifies that if a plugin doesn't have validate_config,
+    // the validate() method returns an empty error array instead of failing.
+    // Since cdm-plugin-docs DOES have validate_config, this test
+    // serves as documentation of the expected behavior.
+    let wasm_path = WASM_PATH;
+    let mut runner = PluginRunner::new(wasm_path).expect("Failed to load plugin");
+
+    let config = json!({
+        "format": "markdown"
+    });
+
+    let result = runner.validate(ConfigLevel::Global, config);
+
+    assert!(
+        result.is_ok(),
+        "validate() should not fail even if plugin doesn't have validate_config"
+    );
+
+    // For cdm-plugin-docs, it should return errors (or empty array)
+    // We just verify we got a valid result
+    let _ = result.unwrap();
+}

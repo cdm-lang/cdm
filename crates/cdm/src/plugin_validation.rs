@@ -383,7 +383,7 @@ fn parse_plugin_config_node(
     Some((name, value))
 }
 
-/// Validate config using plugin's WASM validate function
+/// Validate config using plugin's WASM validate function (if available)
 fn validate_config_with_plugin(
     config: &PluginConfig,
     cached_plugin: &mut CachedPlugin,
@@ -404,6 +404,7 @@ fn validate_config_with_plugin(
     };
 
     // Call plugin's validate function
+    // Returns empty array if plugin doesn't have validate_config
     match cached_plugin.runner.validate(api_level, config.config.clone()) {
         Ok(errors) => {
             for error in errors {

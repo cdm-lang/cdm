@@ -1320,7 +1320,7 @@ CDM validates user-provided plugin configurations against this schema before cal
 
 ### 12.4 Plugin API
 
-Plugins must implement `schema()` and `validate_config()`. The `generate()` and `migrate()` functions are optional.
+Plugins must implement `schema()`. The `validate_config()`, `generate()`, and `migrate()` functions are optional.
 
 #### schema (Required)
 
@@ -1334,7 +1334,7 @@ This function should return a CDM schema defining the structure of valid configu
 
 CDM uses this schema to validate user-provided plugin configurations before calling `validate_config()`.
 
-#### validate_config (Required)
+#### validate_config (Optional)
 
 Validates user configuration at each level.
 
@@ -1692,7 +1692,7 @@ See `grammar.js` in the CDM repository for the complete tree-sitter grammar impl
 |------|---------|-------------|
 | E401 | Plugin not found: '{name}' | Could not resolve plugin |
 | E402 | Invalid plugin configuration: {details} | Plugin config validation failed |
-| E403 | Plugin missing required export: '{function}' | WASM module doesn't export required function (_schema, _validate_config) |
+| E403 | Plugin missing required export: '{function}' | WASM module doesn't export required function (_schema) |
 | E404 | Plugin execution failed: {details} | Plugin function threw error or timed out |
 | E405 | Plugin output too large: {size} exceeds {limit} | Output size limit exceeded |
 

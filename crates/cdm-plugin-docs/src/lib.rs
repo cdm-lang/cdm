@@ -6,10 +6,12 @@ use cdm_plugin_api::schema_from_file;
 pub use validate::validate_config;
 pub use generate::generate;
 
-// Embed schema.cdm and export via WASM
+// Embed schema.cdm and export via WASM (required)
 schema_from_file!("../schema.cdm");
 
 // Export WASM functions using the FFI helpers from cdm-plugin-api
+// Note: validate_config and generate are both optional.
+// This plugin implements both to demonstrate their usage.
 cdm_plugin_api::export_validate_config!(validate_config);
 cdm_plugin_api::export_generate!(generate);
 

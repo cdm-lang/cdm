@@ -755,7 +755,7 @@ pub enum CaseFormat {
 // Required: Returns plugin's settings schema
 pub fn schema() -> String;
 
-// Required: Validates configuration at each level
+// Optional: Validates configuration at each level
 pub fn validate_config(
     level: ConfigLevel,
     config: serde_json::Value,

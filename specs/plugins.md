@@ -228,9 +228,11 @@ FieldSettings {
 
 This function is called once when the plugin is loaded. CDM uses the returned schema to validate user configurations before calling `validate_config()`.
 
-### validate_config (Required)
+### validate_config (Optional)
 
 Validates user configuration. Called for every config block after schema validation passes.
+
+This function is optional. If not provided, only the schema-based validation will be performed.
 
 ```rust
 use cdm_plugin_api::*;

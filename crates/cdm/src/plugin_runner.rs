@@ -43,11 +43,20 @@ impl PluginRunner {
     }
 
     /// Validate configuration at a specific level
+    ///
+    /// Returns an empty error array if the plugin doesn't export _validate_config (optional function)
+    /// Returns the validation errors if the plugin has _validate_config
+    /// Returns Err if there was an error calling the function
     pub fn validate(
         &mut self,
         level: ConfigLevel,
         config: JSON,
     ) -> Result<Vec<ValidationError>> {
+        // Check if the function exists first
+        if !self.has_function("_validate_config")? {
+            return Ok(Vec::new());
+        }
+
         // Serialize inputs to JSON
         let level_json = serde_json::to_string(&level)?;
         let config_json = serde_json::to_string(&config)?;
@@ -63,6 +72,21 @@ impl PluginRunner {
             .context("Failed to deserialize validation errors")?;
 
         Ok(errors)
+    }
+
+    /// Check if the plugin exports a specific function
+    fn has_function(&self, function_name: &str) -> Result<bool> {
+        // Create a minimal store just to check exports
+        let wasi = wasmtime_wasi::WasiCtxBuilder::new()
+            .build_p1();
+        let state = PluginState { wasi };
+        let mut store = Store::new(&self.engine, state);
+        let mut linker = Linker::new(&self.engine);
+        wasmtime_wasi::preview1::add_to_linker_sync(&mut linker, |s: &mut PluginState| &mut s.wasi)?;
+
+        let instance = linker.instantiate(&mut store, &self.module)?;
+
+        Ok(instance.get_func(&mut store, function_name).is_some())
     }
 
     /// Generate output files from a schema
