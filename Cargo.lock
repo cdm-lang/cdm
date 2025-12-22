@@ -276,6 +276,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cdm-json-validator"
+version = "0.1.0"
+dependencies = [
+ "cdm",
+ "cdm-plugin-api",
+ "serde_json",
+]
+
+[[package]]
 name = "cdm-plugin-api"
 version = "0.1.0"
 dependencies = [
