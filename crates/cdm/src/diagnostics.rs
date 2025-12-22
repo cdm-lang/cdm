@@ -42,3 +42,10 @@ impl fmt::Display for Diagnostic {
         )
     }
 }
+
+// Plugin error codes
+pub const E401_PLUGIN_NOT_FOUND: &str = "E401";
+pub const E402_INVALID_PLUGIN_CONFIG: &str = "E402";
+pub const E403_MISSING_PLUGIN_EXPORT: &str = "E403";
+pub const E404_PLUGIN_EXECUTION_FAILED: &str = "E404";
+pub const E405_PLUGIN_OUTPUT_TOO_LARGE: &str = "E405";

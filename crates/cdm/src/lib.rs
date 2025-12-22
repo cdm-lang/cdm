@@ -5,6 +5,7 @@ mod plugin_runner;
 mod file_resolver;
 mod grammar_parser;
 mod resolved_schema;
+mod plugin_validation;
 
 pub use diagnostics::{Diagnostic, Position, Span, Severity};
 pub use symbol_table::{Ancestor,SymbolTable, Definition, DefinitionKind, FieldInfo, field_exists_in_parents, is_builtin_type, is_type_defined, resolve_definition};

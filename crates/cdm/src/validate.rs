@@ -8,6 +8,7 @@ use crate::{
 };
 use crate::file_resolver::LoadedFileTree;
 use crate::resolved_schema::{build_resolved_schema, find_references_in_resolved};
+use crate::plugin_validation::validate_plugins;
 
 #[cfg(test)]
 mod tests;
@@ -233,9 +234,19 @@ pub fn validate_tree(tree: LoadedFileTree) -> Result<ValidationResult, Vec<Diagn
         }]
     })?;
 
-    let result = validate(&main_source, &ancestors);
+    let mut result = validate(&main_source, &ancestors);
 
-    // Check for validation errors
+    // Check for semantic errors before plugin validation
+    if result.has_errors() {
+        return Err(result.diagnostics);
+    }
+
+    // Plugin validation (only if semantic validation passed)
+    if let Some(ref tree) = result.tree {
+        validate_plugins(tree, &main_source, &mut result.diagnostics);
+    }
+
+    // Check for plugin validation errors
     if result.has_errors() {
         return Err(result.diagnostics);
     }
