@@ -1,0 +1,8 @@
+@extends ./base.cdm
+
+// Invalid: trying to remove User model but Post.author still references it
+-User
+
+AdminPost extends Post {
+  admin_notes: string
+}

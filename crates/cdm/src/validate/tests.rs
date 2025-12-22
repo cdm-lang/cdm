@@ -4194,3 +4194,133 @@ fn test_validate_tree_nested_chain() {
     let mobile_user_fields = &result.model_fields["MobileUser"];
     assert!(mobile_user_fields.iter().any(|f| f.name == "device_token"));
 }
+
+// =============================================================================
+// Removal Validation Tests (E302, E303)
+// =============================================================================
+
+#[test]
+fn test_valid_model_removal() {
+    use crate::file_resolver::FileResolver;
+    use std::path::PathBuf;
+
+    let fixtures_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("test_fixtures")
+        .join("removals/valid_model_removal.cdm");
+
+    let tree = FileResolver::load(&fixtures_path).expect("Failed to load file");
+    let result = validate_tree(tree).expect("Validation failed");
+
+    assert!(!result.has_errors(), "Should have no errors for valid model removal");
+
+    // PublicUser should exist
+    assert!(result.symbol_table.definitions.contains_key("PublicUser"));
+
+    // Internal model should NOT exist (removed)
+    assert!(!result.symbol_table.definitions.contains_key("Internal"));
+}
+
+#[test]
+fn test_invalid_model_removal_still_used() {
+    use crate::file_resolver::FileResolver;
+    use std::path::PathBuf;
+
+    let fixtures_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("test_fixtures")
+        .join("removals/invalid_model_removal_still_used.cdm");
+
+    let tree = FileResolver::load(&fixtures_path).expect("Failed to load file");
+    let result = validate_tree(tree);
+
+    assert!(result.is_err(), "Should fail validation");
+
+    let errors = result.unwrap_err();
+    assert!(errors.iter().any(|e|
+        e.message.contains("Cannot remove model 'User'") &&
+        e.message.contains("still referenced")
+    ), "Should have error about User still being referenced");
+}
+
+#[test]
+fn test_invalid_model_removal_not_found() {
+    use crate::file_resolver::FileResolver;
+    use std::path::PathBuf;
+
+    let fixtures_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("test_fixtures")
+        .join("removals/invalid_model_removal_not_found.cdm");
+
+    let tree = FileResolver::load(&fixtures_path).expect("Failed to load file");
+    let result = validate_tree(tree);
+
+    assert!(result.is_err(), "Should fail validation");
+
+    let errors = result.unwrap_err();
+    assert!(errors.iter().any(|e|
+        e.message.contains("Cannot remove 'NonExistent'") &&
+        e.message.contains("not found in any ancestor")
+    ), "Should have error about NonExistent not found in ancestor");
+}
+
+#[test]
+fn test_invalid_type_alias_removal_still_used() {
+    use crate::file_resolver::FileResolver;
+    use std::path::PathBuf;
+
+    let fixtures_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("test_fixtures")
+        .join("removals/invalid_type_removal_still_used.cdm");
+
+    let tree = FileResolver::load(&fixtures_path).expect("Failed to load file");
+    let result = validate_tree(tree);
+
+    assert!(result.is_err(), "Should fail validation");
+
+    let errors = result.unwrap_err();
+    assert!(errors.iter().any(|e|
+        e.message.contains("Cannot remove type alias 'Email'") &&
+        e.message.contains("still referenced")
+    ), "Should have error about Email still being referenced");
+}
+
+#[test]
+fn test_invalid_type_alias_removal_not_found() {
+    use crate::file_resolver::FileResolver;
+    use std::path::PathBuf;
+
+    let fixtures_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("test_fixtures")
+        .join("removals/invalid_type_removal_not_found.cdm");
+
+    let tree = FileResolver::load(&fixtures_path).expect("Failed to load file");
+    let result = validate_tree(tree);
+
+    assert!(result.is_err(), "Should fail validation");
+
+    let errors = result.unwrap_err();
+    assert!(errors.iter().any(|e|
+        e.message.contains("Cannot remove 'NonExistentType'") &&
+        e.message.contains("not found in any ancestor")
+    ), "Should have error about NonExistentType not found in ancestor");
+}
+
+#[test]
+fn test_valid_type_alias_removal() {
+    use crate::file_resolver::FileResolver;
+    use std::path::PathBuf;
+
+    let fixtures_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("test_fixtures")
+        .join("removals/valid_type_removal.cdm");
+
+    let tree = FileResolver::load(&fixtures_path).expect("Failed to load file");
+    let result = validate_tree(tree).expect("Validation failed");
+
+    assert!(!result.has_errors(), "Should have no errors for valid type alias removal");
+
+    // PublicUser should exist
+    assert!(result.symbol_table.definitions.contains_key("PublicUser"));
+
+    // Status type should NOT exist (removed)
+    assert!(!result.symbol_table.definitions.contains_key("Status"));
+}

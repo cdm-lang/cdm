@@ -303,8 +303,8 @@
 
 #### Context System (E301-E304)
 - ✅ E301: Circular extends detection (implemented in FileResolver)
-- ⏳ E302: Type alias still in use
-- ⏳ E303: Model still referenced
+- ✅ E302: Type alias still in use (implemented with ResolvedSchema)
+- ✅ E303: Model still referenced (implemented with ResolvedSchema)
 - ✅ E304: Extends file not found (implemented in FileResolver)
 
 #### Plugin System (E401-E405)
@@ -560,7 +560,7 @@
 
 ## Summary Statistics
 
-### Overall Progress: ~65% Complete
+### Overall Progress: ~68% Complete
 
 **By Section:**
 - ✅ Lexical Structure: 100%
@@ -568,14 +568,14 @@
 - ✅ Type Aliases: 95%
 - ✅ Models: 100%
 - ✅ Inheritance: 100%
-- ✅ Context System: 95%
+- ✅ Context System: 100% ⭐ (E301-E304 all complete)
 - 🚧 Plugin System: 50%
-- 🚧 Semantic Validation: 80%
+- ✅ Semantic Validation: 85% ⭐ (E302, E303 added)
 - 🚧 File Structure: 75%
 - 🚧 CLI Interface: 20%
 - ✅ Plugin Development: 85%
 - ✅ Grammar: 100%
-- 🚧 Error Catalog: 65%
+- 🚧 Error Catalog: 70% ⭐ (E302, E303 added)
 - ⏳ Registry Format: 10%
 - 🚧 Data Exchange: 50%
 
@@ -619,6 +619,25 @@
 - **Next Steps:** Focus on Phase 1 (Core Build System) to unlock end-to-end functionality
 
 ## Recent Updates
+
+### 2025-12-21: Removal Validation & ResolvedSchema (E302, E303)
+- ✅ **New resolved_schema module** - Merged view of schema after inheritance
+- ✅ **ResolvedSchema struct** - Represents final schema (current + inherited definitions)
+- ✅ **build_resolved_schema()** - Merges symbols from ancestors, applies removals
+- ✅ **find_references_in_resolved()** - Finds all references to a definition
+- ✅ **E302 validation** - Prevents removing type aliases still in use
+- ✅ **E303 validation** - Prevents removing models still referenced
+- ✅ **Comprehensive tests**:
+  - Valid model removal (when nothing references it)
+  - Invalid model removal (still referenced by inherited fields)
+  - Invalid model removal (doesn't exist in ancestor)
+  - Invalid type alias removal (still referenced by inherited fields)
+  - Invalid type alias removal (doesn't exist in ancestor)
+- ✅ **Architectural improvement**: Per-file symbol tables + on-demand resolved view
+- ✅ **Source tracking**: Resolved items track which file they came from
+- ✅ All 240 tests passing (235 original + 5 new removal tests)
+- ✅ Context System now 100% complete (E301-E304 all implemented)
+- ✅ Overall progress: 68% (up from 65%)
 
 ### 2025-12-21: GrammarParser Module - Parsing Logic Separation
 - ✅ **New grammar_parser module** - Separate parsing logic from file I/O and validation

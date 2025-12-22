@@ -1,0 +1,9 @@
+@extends ./base.cdm
+
+// Valid: Post can be removed (nothing references it)
+-Post
+
+// Define new models
+PublicUser extends User {
+  avatar_url: string
+}

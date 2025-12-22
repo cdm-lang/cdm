@@ -196,6 +196,100 @@ pub struct ValidationResult {
 
 ---
 
+### `/crates/cdm/src/resolved_schema.rs`
+
+**Purpose:** Merged schema view after inheritance and removals
+**Size:** ~250 lines
+**Status:** ✅ Complete
+**Added:** 2025-12-21
+
+**Design Philosophy:**
+ResolvedSchema provides a "final view" of a CDM schema after applying inheritance and removals. It keeps per-file symbol tables file-scoped (with file-relative spans) while providing an on-demand merged view for validation and code generation.
+
+**Key Features:**
+- ✅ **Merged view** - Combines current file + all inherited definitions
+- ✅ **Source tracking** - Each resolved item tracks which file it came from
+- ✅ **Removal application** - Respects `-TypeName` and `-ModelName` removals
+- ✅ **Reference finding** - Locates all references to a specific definition
+- ✅ **Reusable** - Used for removal validation, will be used for schema builder
+
+**Exported Types:**
+
+```rust
+/// The fully resolved schema
+pub struct ResolvedSchema {
+    pub type_aliases: HashMap<String, ResolvedTypeAlias>,
+    pub models: HashMap<String, ResolvedModel>,
+}
+
+pub struct ResolvedTypeAlias {
+    pub name: String,
+    pub type_expr: String,
+    pub references: Vec<String>,
+    pub source_file: String,  // For error reporting
+    pub source_span: Span,
+}
+
+pub struct ResolvedModel {
+    pub name: String,
+    pub fields: Vec<ResolvedField>,
+    pub source_file: String,
+    pub source_span: Span,
+}
+
+pub struct ResolvedField {
+    pub name: String,
+    pub type_expr: Option<String>,
+    pub optional: bool,
+    pub source_file: String,
+    pub source_span: Span,
+}
+```
+
+**Public API:**
+
+1. **`build_resolved_schema(...) -> ResolvedSchema`**
+   - Merges symbol tables from ancestors (oldest first)
+   - Applies current file's definitions (override ancestors)
+   - Applies removals
+   - Returns final merged view
+
+2. **`find_references_in_resolved(...) -> Vec<String>`**
+   - Finds all references to a specific definition name
+   - Returns formatted list with source file info
+   - Used for removal validation (E302, E303)
+
+**Usage:**
+
+```rust
+use cdm::{build_resolved_schema, find_references_in_resolved};
+
+// Build merged view
+let resolved = build_resolved_schema(
+    &symbol_table,
+    &model_fields,
+    &ancestors,
+    &removals
+);
+
+// Check if Email is referenced anywhere
+let refs = find_references_in_resolved(&resolved, "Email");
+// refs = ["User.email", "Admin.contact (inherited from base.cdm)"]
+```
+
+**Integration:**
+- Used by `validate_removals()` for E302 and E303 validation
+- Will be used by schema builder for generating plugin input
+- Provides foundation for type checking and code generation
+
+**Architectural Benefits:**
+- ✅ **Separation of concerns** - File-scoped storage vs. runtime view
+- ✅ **Error reporting** - Can point to original source file and span
+- ✅ **Cache friendly** - Per-file symbol tables can be cached
+- ✅ **Standard pattern** - Mirrors how TypeScript, Rust, Java compilers work
+
+---
+
 ## File Resolution
 
 ### `/crates/cdm/src/file_resolver.rs`

@@ -1,0 +1,13 @@
+@extends ./base.cdm
+
+// Remove the status field from User
+User {
+  -status
+}
+
+// Valid: Status can now be removed (nothing references it anymore)
+-Status
+
+PublicUser extends User {
+  avatar_url: string
+}

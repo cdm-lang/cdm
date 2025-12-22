@@ -1,0 +1,23 @@
+// Base schema with types and models that will be removed in child contexts
+
+Email: string
+
+Status: "active" | "pending" | "deleted"
+
+Internal {
+  id: number
+  secret: string
+}
+
+User {
+  id: number
+  email: Email
+  status: Status
+  internal_data: Internal
+}
+
+Post {
+  id: number
+  author: User
+  title: string
+}

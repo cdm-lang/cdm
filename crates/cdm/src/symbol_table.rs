@@ -204,21 +204,36 @@ pub fn field_exists_in_parents(
         // Model might be in ancestors (shouldn't happen for the model being validated)
         return false;
     };
-    
-    // Check each parent and their ancestors
-    for parent_name in &extends {
-        let parent_fields = get_inherited_fields(
-            parent_name,
-            local_fields,
-            local_symbol_table,
-            ancestors,
-        );
-        
-        if parent_fields.iter().any(|f| f.name == field_name) {
-            return true;
+
+    // If there are explicit extends, check those
+    if !extends.is_empty() {
+        for parent_name in &extends {
+            let parent_fields = get_inherited_fields(
+                parent_name,
+                local_fields,
+                local_symbol_table,
+                ancestors,
+            );
+
+            if parent_fields.iter().any(|f| f.name == field_name) {
+                return true;
+            }
+        }
+    } else {
+        // No explicit extends - check if a model with the same name exists in ancestors
+        // (implicit extension/modification pattern from spec section 7.3)
+        for ancestor in ancestors {
+            if let Some(_def) = ancestor.symbol_table.get(model_name) {
+                // Found a model with the same name in an ancestor
+                if let Some(ancestor_fields) = ancestor.model_fields.get(model_name) {
+                    if ancestor_fields.iter().any(|f| f.name == field_name) {
+                        return true;
+                    }
+                }
+            }
         }
     }
-    
+
     false
 }
 

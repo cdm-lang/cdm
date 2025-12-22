@@ -1,0 +1,8 @@
+@extends ./base.cdm
+
+// Invalid: trying to remove NonExistent model that doesn't exist in base
+-NonExistent
+
+PublicUser extends User {
+  avatar_url: string
+}

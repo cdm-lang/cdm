@@ -7,6 +7,7 @@ use crate::{
     SymbolTable, field_exists_in_parents, is_builtin_type, is_type_defined, resolve_definition,
 };
 use crate::file_resolver::LoadedFileTree;
+use crate::resolved_schema::{build_resolved_schema, find_references_in_resolved};
 
 #[cfg(test)]
 mod tests;
@@ -300,8 +301,10 @@ fn collect_definitions(
 ) -> (SymbolTable, HashMap<String, Vec<FieldInfo>>) {
     let mut symbol_table = SymbolTable::new();
     let mut model_fields: HashMap<String, Vec<FieldInfo>> = HashMap::new();
+    let mut removals: Vec<(String, Span, &str)> = Vec::new(); // (name, span, kind)
     let mut cursor = root.walk();
 
+    // First pass: collect definitions and removals
     for node in root.children(&mut cursor) {
         match node.kind() {
             "type_alias" => {
@@ -317,11 +320,84 @@ fn collect_definitions(
                     diagnostics,
                 );
             }
+            "model_removal" => {
+                if let Some(name_node) = node.child_by_field_name("name") {
+                    let name = get_node_text(name_node, source);
+                    let span = node_span(name_node);
+                    // Store as "removal" - we'll determine if it's a model or type alias during validation
+                    removals.push((name.to_string(), span, "removal"));
+                }
+            }
             _ => {}
         }
     }
 
+    // Second pass: validate removals
+    validate_removals(&removals, &symbol_table, &model_fields, ancestors, diagnostics);
+
     (symbol_table, model_fields)
+}
+
+/// Validate model and type alias removals.
+///
+/// Checks for:
+/// 1. E302: Removing type alias that is still referenced by fields
+/// 2. E303: Removing model that is still referenced by fields
+///
+/// Removals (-TypeName, -ModelName) are used in context files to exclude
+/// definitions from ancestor files. They're invalid if the removed definition
+/// is still being used in the final resolved schema (current file + inherited definitions).
+fn validate_removals(
+    removals: &[(String, Span, &str)],
+    symbol_table: &SymbolTable,
+    model_fields: &HashMap<String, Vec<FieldInfo>>,
+    ancestors: &[Ancestor],
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    // Build the resolved schema (what would exist after applying removals)
+    let resolved = build_resolved_schema(symbol_table, model_fields, ancestors, removals);
+
+    for (removal_name, removal_span, _kind) in removals {
+        // Determine if this is a model or type alias by checking ancestors
+        let (is_model, is_type_alias) = ancestors.iter().find_map(|ancestor| {
+            ancestor.symbol_table.definitions.get(removal_name).map(|def| {
+                match &def.kind {
+                    DefinitionKind::Model { .. } => (true, false),
+                    DefinitionKind::TypeAlias { .. } => (false, true),
+                }
+            })
+        }).unwrap_or((false, false));
+
+        if !is_model && !is_type_alias {
+            // Not found in any ancestor
+            diagnostics.push(Diagnostic {
+                message: format!(
+                    "Cannot remove '{}': not found in any ancestor file",
+                    removal_name
+                ),
+                severity: Severity::Error,
+                span: *removal_span,
+            });
+            continue;
+        }
+
+        // Check if the removed item is still referenced in the resolved schema
+        let references = find_references_in_resolved(&resolved, removal_name);
+
+        if !references.is_empty() {
+            let kind_name = if is_model { "model" } else { "type alias" };
+            diagnostics.push(Diagnostic {
+                message: format!(
+                    "Cannot remove {} '{}': still referenced by {}",
+                    kind_name,
+                    removal_name,
+                    references.join(", ")
+                ),
+                severity: Severity::Error,
+                span: *removal_span,
+            });
+        }
+    }
 }
 
 fn collect_type_alias(
