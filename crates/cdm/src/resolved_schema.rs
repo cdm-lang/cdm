@@ -95,6 +95,24 @@ impl Clone for ResolvedTypeAlias {
 }
 
 impl ResolvedTypeAlias {
+    /// Create a new ResolvedTypeAlias (primarily for testing)
+    pub fn new(
+        name: String,
+        type_expr: String,
+        references: Vec<String>,
+        source_file: String,
+        source_span: Span,
+    ) -> Self {
+        Self {
+            name,
+            type_expr,
+            references,
+            source_file,
+            source_span,
+            cached_parsed_type: RefCell::new(None),
+        }
+    }
+
     /// Get the parsed type for this type alias, parsing and caching on first access.
     pub fn parsed_type(&self) -> Result<ParsedType, String> {
         // Check cache first
@@ -154,6 +172,24 @@ impl Clone for ResolvedField {
 }
 
 impl ResolvedField {
+    /// Create a new ResolvedField (primarily for testing)
+    pub fn new(
+        name: String,
+        type_expr: Option<String>,
+        optional: bool,
+        source_file: String,
+        source_span: Span,
+    ) -> Self {
+        Self {
+            name,
+            type_expr,
+            optional,
+            source_file,
+            source_span,
+            cached_parsed_type: RefCell::new(None),
+        }
+    }
+
     /// Get the parsed type for this field, parsing and caching on first access.
     /// Returns the default type (Primitive(String)) for untyped fields.
     pub fn parsed_type(&self) -> Result<ParsedType, String> {
