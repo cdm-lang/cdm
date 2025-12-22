@@ -28,6 +28,7 @@
 **Status:** ✅ Complete and comprehensive
 
 **Key Features:**
+
 - Defines complete syntax for CDM language
 - Plugin imports with `@name` syntax
 - Git and local plugin sources (`git:url`, `./path`)
@@ -41,21 +42,24 @@
 - Comment support
 
 **Structure:**
+
 ```javascript
 module.exports = grammar({
-  name: 'cdm',
+  name: "cdm",
   rules: {
-    source_file: ($) => seq(
-      optional($.extends_directive),
-      repeat($.plugin_import),
-      repeat($._definition)
-    ),
+    source_file: ($) =>
+      seq(
+        optional($.extends_directive),
+        repeat($.plugin_import),
+        repeat($._definition)
+      ),
     // ... extensive rule definitions
-  }
-})
+  },
+});
 ```
 
 **Notable Rules:**
+
 - `plugin_import` - Handles @plugin syntax with optional source and config
 - `extends_directive` - Parses @extends file paths
 - `model_definition` - Models with inheritance and fields
@@ -78,6 +82,7 @@ module.exports = grammar({
 **Last Updated:** 2025-12-21 (Added validate_tree for LoadedFileTree integration)
 
 **Key Responsibilities:**
+
 1. **Symbol Table Building** - Collects all type aliases and models
 2. **Type Resolution** - Resolves all type references
 3. **Inheritance Processing** - Applies extends clauses and field inheritance
@@ -99,12 +104,14 @@ pub struct ValidationResult {
 **Public API:**
 
 1. **`validate(source: &str, ancestors: &[Ancestor]) -> ValidationResult`**
+
    - Low-level validation of a single source string
    - Takes pre-built ancestors for cross-file type resolution
    - Returns ValidationResult with diagnostics, tree, symbols
    - Use when you have raw source and ancestors already built
 
 2. **`validate_tree(tree: LoadedFileTree) -> Result<ValidationResult, Vec<Diagnostic>>`** ⭐ NEW
+
    - High-level validation of a complete file tree from FileResolver
    - Streaming validation: validates ancestors one-by-one, converts to Ancestor, frees memory
    - Minimizes peak memory usage (~60% savings vs keeping all ValidationResults)
@@ -112,6 +119,7 @@ pub struct ValidationResult {
    - **Recommended API** for validating CDM schemas with @extends
 
    **Example:**
+
    ```rust
    use cdm::{FileResolver, validate_tree};
 
@@ -125,28 +133,32 @@ pub struct ValidationResult {
 **Internal Validation Methods:**
 
 3. **`build_symbol_table()`**
+
    - First pass: collect all type aliases and models
    - Handles basic syntax validation
    - Detects duplicate definitions
 
 4. **`resolve_type_aliases()`**
+
    - Resolves all type expressions in aliases
    - Detects circular dependencies
    - Builds type alias dependency graph
 
 5. **`resolve_model_fields()`**
+
    - Resolves field types for all models
    - Applies inheritance (extends clauses)
    - Processes field removals and overrides
    - Validates default value types
 
 6. **`apply_field_inheritance(model_name, parent_chain)`**
+
    - Recursive inheritance processing
    - Multiple parent support with conflict resolution
    - Field removal handling
    - Deep inheritance chain support
 
-6. **`check_default_value_type(field_type, default_value)`**
+7. **`check_default_value_type(field_type, default_value)`**
    - Type-checks default values against field types
    - Supports primitives, arrays, unions, objects
    - Detailed error messages for mismatches
@@ -154,12 +166,14 @@ pub struct ValidationResult {
 **Validation Rules Implemented:**
 
 **Type System:**
+
 - ✅ E101: Duplicate type alias detection
 - ✅ E102: Circular type alias detection
 - ✅ E103: Unknown type reference detection
 - ✅ Type shadowing warnings (ancestors and built-ins)
 
 **Model System:**
+
 - ✅ E201: Duplicate model detection
 - ✅ E202: Duplicate field detection
 - ✅ E203: Unknown parent in extends
@@ -168,6 +182,7 @@ pub struct ValidationResult {
 - ✅ Circular inheritance detection
 
 **Default Values:**
+
 - ✅ String literal type checking
 - ✅ Number literal type checking
 - ✅ Boolean literal type checking
@@ -176,6 +191,7 @@ pub struct ValidationResult {
 - ✅ Nested type resolution
 
 **Test Coverage:** Exceptional - 30+ test functions covering:
+
 - Basic type resolution
 - Union types (string literals, type references, mixed)
 - Array types
@@ -189,6 +205,7 @@ pub struct ValidationResult {
 - Error recovery
 
 **Code Quality:**
+
 - Well-organized with clear separation of concerns
 - Comprehensive error messages with source locations
 - Good use of Rust idioms
@@ -207,6 +224,7 @@ pub struct ValidationResult {
 ResolvedSchema provides a "final view" of a CDM schema after applying inheritance and removals. It keeps per-file symbol tables file-scoped (with file-relative spans) while providing an on-demand merged view for validation and code generation.
 
 **Key Features:**
+
 - ✅ **Merged view** - Combines current file + all inherited definitions
 - ✅ **Source tracking** - Each resolved item tracks which file it came from
 - ✅ **Removal application** - Respects `-TypeName` and `-ModelName` removals
@@ -249,6 +267,7 @@ pub struct ResolvedField {
 **Public API:**
 
 1. **`build_resolved_schema(...) -> ResolvedSchema`**
+
    - Merges symbol tables from ancestors (oldest first)
    - Applies current file's definitions (override ancestors)
    - Applies removals
@@ -278,11 +297,13 @@ let refs = find_references_in_resolved(&resolved, "Email");
 ```
 
 **Integration:**
+
 - Used by `validate_removals()` for E302 and E303 validation
 - Will be used by schema builder for generating plugin input
 - Provides foundation for type checking and code generation
 
 **Architectural Benefits:**
+
 - ✅ **Separation of concerns** - File-scoped storage vs. runtime view
 - ✅ **Error reporting** - Can point to original source file and span
 - ✅ **Cache friendly** - Per-file symbol tables can be cached
@@ -304,6 +325,7 @@ let refs = find_references_in_resolved(&resolved, "Email");
 FileResolver is responsible ONLY for file I/O and dependency resolution. It does NOT perform validation or parsing - that's the responsibility of the `validate` module. Files are loaded lazily and cached on first access, minimizing memory usage.
 
 **Key Features:**
+
 - ✅ **Lazy loading** - Files not read until `.source()` is called
 - ✅ **Cached reading** - First `.source()` call caches result for subsequent calls
 - ✅ **Zero validation coupling** - No imports from validate module
@@ -347,17 +369,20 @@ pub struct FileResolver {
 **Internal Methods:**
 
 2. **`load_file_tree(file_path) -> Result<LoadedFileTree, Vec<Diagnostic>>`**
+
    - Internal: Recursively loads all files in dependency tree
    - Returns raw LoadedFileTree without validation
    - Detects circular dependencies
    - Reads files to extract @extends directives (then caches)
 
 3. **`load_single_file(file_path) -> Result<LoadedFile, Vec<Diagnostic>>`**
+
    - Internal: Creates a LoadedFile without reading the file
    - Checks for circular dependencies
    - File is read lazily on first `.source()` call
 
 4. **`resolve_path(current_file, extends_path) -> PathBuf`**
+
    - Resolves relative paths from @extends directives
    - Handles `./types.cdm`, `../shared/base.cdm`, etc.
 
@@ -382,6 +407,7 @@ pub struct FileResolver {
 6. **`test_load_file_not_found`** - File not found error
 
 **Test Fixtures:** Comprehensive test fixtures in `test_fixtures/file_resolver/`:
+
 - `single_file/simple.cdm` - Standalone file
 - `single_extends/base.cdm` and `child.cdm` - Simple inheritance
 - `multiple_extends/types.cdm`, `mixins.cdm`, `child.cdm` - Multiple @extends
@@ -390,12 +416,14 @@ pub struct FileResolver {
 - `invalid/missing_extends.cdm` - Error handling test
 
 **Integration:**
+
 - Exported types: `FileResolver`, `LoadedFile`, `LoadedFileTree`
 - Used with `validate_tree()` from validate module for validation
 - Foundation for `cdm build` and `cdm migrate` commands
 - Lazy loading reduces memory for large schemas
 
 **Code Quality:**
+
 - ✅ **Perfect separation of concerns** - Zero coupling to validation
 - ✅ **Lazy loading** - Files read only when needed
 - ✅ **Cached reading** - `RefCell<Option<String>>` pattern for caching
@@ -405,6 +433,7 @@ pub struct FileResolver {
 - ✅ Idiomatic Rust with interior mutability for caching
 
 **Architecture Benefits:**
+
 - Zero coupling: FileResolver has NO dependency on validate module
 - Testability: File loading tested completely independently
 - Reusability: Can be used by formatters, linters, LSP servers, etc.
@@ -412,6 +441,7 @@ pub struct FileResolver {
 - Performance: Only reads files that are actually needed
 
 **Memory Profile:**
+
 - **Before reading**: ~100 bytes per file (PathBuf + RefCell overhead)
 - **After reading**: ~5-20KB per file (path + source string cached)
 - **Lazy benefit**: If you only need some files, others stay at ~100 bytes
@@ -430,6 +460,7 @@ pub struct FileResolver {
 GrammarParser provides a caching layer on top of tree-sitter parsing. It wraps a LoadedFile and lazily parses the source code, caching the result. This eliminates duplicate parsing when multiple operations need the syntax tree.
 
 **Key Features:**
+
 - ✅ **Lazy parsing** - Tree parsed only on first use
 - ✅ **Cached tree** - Uses `RefCell<Option<tree_sitter::Tree>>` for caching
 - ✅ **@extends extraction** - Extracts @extends paths from parsed tree
@@ -448,14 +479,17 @@ pub struct GrammarParser<'a> {
 **Public API:**
 
 1. **`GrammarParser::new(&LoadedFile) -> GrammarParser`**
+
    - Creates parser for a loaded file
    - Does not parse immediately (lazy)
 
 2. **`parse(&self) -> Result<Ref<'_, tree_sitter::Tree>, String>`**
+
    - Parses the file using tree-sitter (once)
    - Returns reference to cached tree
    - Subsequent calls return cached tree
    - Example:
+
    ```rust
    let parser = GrammarParser::new(&loaded_file);
    let tree = parser.parse()?;
@@ -474,6 +508,7 @@ pub struct GrammarParser<'a> {
    ```
 
 **Integration:**
+
 - Used by FileResolver to extract @extends directives
 - Can be used by LSP server for syntax highlighting
 - Can be used by formatter/linter tools
@@ -488,6 +523,7 @@ pub struct GrammarParser<'a> {
 5. **`test_parse_caching`** - Verify caching works (multiple calls)
 
 **Code Quality:**
+
 - ✅ **Caching with RefCell** - Interior mutability for lazy init
 - ✅ **Lifetime annotations** - Explicit lifetime `'_` for Ref return
 - ✅ **Error handling** - Returns Result with clear error messages
@@ -496,12 +532,14 @@ pub struct GrammarParser<'a> {
 - ✅ **Idiomatic Rust** - Uses `Ref::map` for returning cached reference
 
 **Architecture Benefits:**
+
 - Eliminates duplicate parsing (FileResolver and Validate used to parse separately)
 - Single source of truth for tree-sitter parsing logic
 - Can be reused by other tools (LSP, linters, formatters)
 - Clean layering: FileResolver → GrammarParser → Validate
 
 **Memory Profile:**
+
 - Unparsed: ~16 bytes (reference + RefCell overhead)
 - Parsed: ~5-15KB (tree structure, depends on file size)
 - Tree cached indefinitely while GrammarParser exists
@@ -572,6 +610,7 @@ pub enum Value {
 ```
 
 **Purpose of Each:**
+
 - **TypeAliasInfo**: Stores type alias definitions with resolved types
 - **ModelInfo**: Stores model definitions with inheritance and fields
 - **FieldInfo**: Stores field details including inheritance tracking
@@ -580,6 +619,7 @@ pub enum Value {
 - **Value**: Represents all possible default value forms
 
 **Notable Features:**
+
 - `is_inherited` flag tracks whether field came from parent
 - `inherited_from` tracks which parent provided the field
 - `source_file` enables cross-file error reporting
@@ -739,6 +779,7 @@ pub fn migrate(
 ```
 
 **Key Features:**
+
 - All types are serializable (derive Serialize, Deserialize)
 - Comprehensive delta types for all possible schema changes
 - Structured error paths for precise error reporting
@@ -795,11 +836,13 @@ pub struct LoadedPlugin {
 **Implementation Details:**
 
 1. **Memory Management:**
+
    - Calls `_alloc(size: u32) -> u32` in WASM to allocate memory
    - Calls `_dealloc(ptr: u32, size: u32)` to free memory
    - Handles memory growth automatically
 
 2. **Data Passing:**
+
    - Serializes Rust structs to JSON
    - Writes JSON bytes to WASM memory
    - Passes pointer and length to WASM function
@@ -807,6 +850,7 @@ pub struct LoadedPlugin {
    - Deserializes JSON response
 
 3. **Function Calling:**
+
    - `schema()` - No args, returns string
    - `validate_config(level_ptr, level_len, config_ptr, config_len)` - Returns ValidationError array
    - `generate(schema_ptr, schema_len, config_ptr, config_len)` - Returns OutputFile array
@@ -819,6 +863,7 @@ pub struct LoadedPlugin {
    - Missing function exports
 
 **Features:**
+
 - ✅ WASM module loading
 - ✅ Memory allocation/deallocation
 - ✅ JSON serialization for data exchange
@@ -835,6 +880,7 @@ pub struct LoadedPlugin {
 **Status:** ✅ Fully functional example plugin
 
 **Capabilities:**
+
 - Generates markdown documentation
 - Generates HTML documentation
 - Generates JSON schema export
@@ -900,11 +946,13 @@ pub extern "C" fn _dealloc(ptr: *mut u8, size: u32) {
 ```
 
 **Generated Output:**
+
 - Markdown with model and field tables
 - HTML with styled documentation
 - JSON with full schema export
 
 **Key Learnings:**
+
 - Shows complete plugin implementation pattern
 - Demonstrates memory management
 - Good example of configuration validation
@@ -912,13 +960,18 @@ pub extern "C" fn _dealloc(ptr: *mut u8, size: u32) {
 
 ---
 
-### `/crates/cdm-plugin-docs/schema.cdm`
+### `/crates/cdm-plugin-docs/src/schema.rs`
 
 **Purpose:** Settings schema for the docs plugin
-**Size:** ~30 lines
+**Size:** ~40 lines
 **Status:** ✅ Example of plugin schema
 
-```cdm
+Plugins expose their schema via the `schema()` WASM function:
+
+```rust
+#[no_mangle]
+pub extern "C" fn schema() -> *const u8 {
+    let schema = r#"
 GlobalSettings {
     format: "markdown" | "html" | "json" = "markdown"
     output_file?: string
@@ -935,13 +988,18 @@ FieldSettings {
     skip: boolean = false
     description?: string
 }
+"#;
+    write_string_to_wasm_memory(schema)
+}
 ```
 
 **Purpose:**
+
 - Defines valid configuration for the plugin
 - Shows three configuration levels
 - Demonstrates default values
 - Example of union types in config
+- Returned as a string from WASM function
 
 ---
 
@@ -999,12 +1057,14 @@ fn main() -> Result<()> {
 ```
 
 **Implemented:**
+
 - ✅ Basic CLI structure with clap
 - ✅ `validate` subcommand for single file
 - ✅ Error reporting
 - ✅ Exit codes
 
 **Missing:**
+
 - ⏳ `build` command
 - ⏳ `migrate` command
 - ⏳ `plugin` commands
@@ -1023,6 +1083,7 @@ fn main() -> Result<()> {
 **Status:** ✅ Comprehensive example
 
 **Contents:**
+
 ```cdm
 @sql {
     dialect: "postgres",
@@ -1066,6 +1127,7 @@ Post extends Timestamped {
 ```
 
 **Demonstrates:**
+
 - Plugin imports with configuration
 - Type aliases (simple and with config)
 - Union types
@@ -1083,6 +1145,7 @@ Post extends Timestamped {
 **Status:** ✅ Shows context capabilities
 
 **Contents:**
+
 ```cdm
 @extends ./base.cdm
 
@@ -1102,6 +1165,7 @@ Post {
 ```
 
 **Demonstrates:**
+
 - @extends directive
 - Model modification in context
 - Field removal
@@ -1121,6 +1185,7 @@ Post {
 **Test Categories:**
 
 1. **Type Resolution (10+ tests)**
+
    - `test_basic_type_resolution()`
    - `test_union_type_resolution()`
    - `test_array_type_resolution()`
@@ -1128,6 +1193,7 @@ Post {
    - `test_circular_type_alias()`
 
 2. **Default Values (10+ tests)**
+
    - `test_default_value_type_checking_string()`
    - `test_default_value_type_checking_number()`
    - `test_default_value_type_checking_boolean()`
@@ -1136,6 +1202,7 @@ Post {
    - `test_default_value_type_mismatch()`
 
 3. **Inheritance (15+ tests)**
+
    - `test_single_inheritance()`
    - `test_multiple_inheritance()`
    - `test_field_removal()`
@@ -1145,6 +1212,7 @@ Post {
    - `test_field_conflict_resolution()`
 
 4. **Cross-file Resolution (5+ tests)**
+
    - `test_type_resolution_with_ancestors()`
    - `test_model_inheritance_with_ancestors()`
    - `test_field_type_from_ancestor()`
@@ -1157,6 +1225,7 @@ Post {
    - `test_invalid_field_override()`
 
 **Test Quality:**
+
 - Comprehensive coverage of all features
 - Clear test names describing scenario
 - Both positive (should work) and negative (should error) tests
@@ -1174,6 +1243,7 @@ Post {
 **Status:** ✅ Comprehensive and well-structured
 
 **Sections:**
+
 1. Introduction (purpose, design goals, core concepts)
 2. Lexical Structure (whitespace, comments, identifiers, literals)
 3. Type System (built-in types, type expressions, compatibility)
@@ -1192,6 +1262,7 @@ Post {
 16. Appendix D: Data Exchange Format (JSON schemas)
 
 **Quality:**
+
 - Extremely detailed and well-organized
 - Clear examples for all features
 - Complete grammar specification
@@ -1207,6 +1278,7 @@ Post {
 **Status:** ✅ Comprehensive hybrid documentation
 
 **Structure:**
+
 1. Quick Start (using and creating plugins)
 2. Importing Plugins (syntax, sources)
 3. Plugin Sources (registry, git, local)
@@ -1222,6 +1294,7 @@ Post {
 13. Appendix: Grammar Changes
 
 **Quality:**
+
 - Hybrid approach: user-friendly + technical reference
 - Extensive code examples
 - Architecture diagrams
@@ -1237,6 +1310,7 @@ Post {
 **Status:** ✅ Comprehensive roadmap
 
 **Contents:**
+
 - Task breakdown by spec section
 - Status indicators (✅ ✓ 🚧 ⏳ 🔍)
 - ~250+ individual tasks tracked
@@ -1253,6 +1327,7 @@ Post {
 **Status:** ✅ User-friendly getting started guide
 
 **Contents:**
+
 - Quick start example
 - Plugin structure
 - Configuration levels
@@ -1274,12 +1349,14 @@ Post {
 **Status:** ✅ Well-organized workspace
 
 **Members:**
+
 - `crates/cdm` - Main CLI and validator
 - `crates/grammar` - Tree-sitter grammar
 - `crates/cdm-plugin-api` - Plugin API types
 - `crates/cdm-plugin-docs` - Example plugin
 
 **Workspace Dependencies:**
+
 ```toml
 tree-sitter = "0.20"
 serde = { version = "1.0", features = ["derive"] }
@@ -1295,6 +1372,7 @@ clap = { version = "4.0", features = ["derive"] }
 **Purpose:** Main crate configuration
 
 **Dependencies:**
+
 - `tree-sitter` - Parser
 - `serde`, `serde_json` - Serialization
 - `wasmtime` - WASM runtime
@@ -1308,9 +1386,11 @@ clap = { version = "4.0", features = ["derive"] }
 **Purpose:** Grammar crate configuration
 
 **Dependencies:**
+
 - `tree-sitter` - Parser generation
 
 **Build:**
+
 - Custom build script compiles grammar.js
 
 ---
@@ -1320,10 +1400,12 @@ clap = { version = "4.0", features = ["derive"] }
 **Purpose:** Plugin API crate configuration
 
 **Dependencies:**
+
 - `serde`, `serde_json` - Serialization
 - `convert_case` - String case conversion
 
 **Features:**
+
 - `#![no_std]` compatible for WASM
 
 ---
@@ -1333,10 +1415,12 @@ clap = { version = "4.0", features = ["derive"] }
 **Purpose:** Docs plugin configuration
 
 **Dependencies:**
+
 - `cdm-plugin-api` - Plugin types
 - `serde`, `serde_json` - Serialization
 
 **Build:**
+
 - Target: `wasm32-wasip1`
 
 ---
@@ -1344,6 +1428,7 @@ clap = { version = "4.0", features = ["derive"] }
 ## Summary of Key Findings
 
 ### Strongest Areas:
+
 1. **Validation** (`validate.rs`) - 4,189 lines of tests, comprehensive coverage
 2. **Grammar** (`grammar.js`) - Complete language support
 3. **Plugin API** (`cdm-plugin-api`) - Well-designed, complete
@@ -1351,6 +1436,7 @@ clap = { version = "4.0", features = ["derive"] }
 5. **Type System** - Fully implemented with all features
 
 ### Areas Needing Work:
+
 1. **CLI** (`main.rs`) - Only validate command exists
 2. **Plugin Integration** - Runner exists but not integrated
 3. **File Resolution** - @extends path resolution not implemented
@@ -1358,17 +1444,20 @@ clap = { version = "4.0", features = ["derive"] }
 5. **Schema Builder** - AST → Schema conversion missing
 
 ### Code Quality:
+
 - **Excellent:** Validation, grammar, plugin API
 - **Good:** Symbol table, plugin runner
 - **Needs work:** CLI integration, file I/O
 
 ### Test Coverage:
+
 - **Validation:** Exceptional (4,189 lines)
 - **CLI:** Minimal (5 basic tests)
 - **Plugin System:** Example plugin only
 - **Integration:** None
 
 ### Documentation Quality:
+
 - **Specification:** World-class
 - **Plugin Docs:** Excellent
 - **API Docs:** Good (could use more rustdoc)
@@ -1379,12 +1468,14 @@ clap = { version = "4.0", features = ["derive"] }
 ## File Organization Assessment
 
 **Strengths:**
+
 - Clear separation of concerns (grammar, validation, plugins)
 - Good use of workspace for modularity
 - Examples directory with real use cases
 - Comprehensive specs directory
 
 **Suggestions:**
+
 - Add integration tests directory
 - Add benchmarks for validation performance
 - Consider splitting validate.rs (it's quite large)

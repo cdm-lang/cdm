@@ -1260,7 +1260,6 @@ cdm-plugin-example/
   "name": "example",
   "version": "1.0.0",
   "description": "An example CDM plugin",
-  "schema": "schema.cdm",
   "wasm": {
     "file": "target/wasm32-wasip1/release/cdm_plugin_example.wasm",
     "release_url": "https://github.com/.../releases/download/v{version}/plugin.wasm"
@@ -1276,17 +1275,16 @@ cdm-plugin-example/
 | `name` | Yes | Plugin identifier |
 | `version` | Yes | Semantic version |
 | `description` | Yes | Human-readable description |
-| `schema` | Yes | Path to settings schema file |
 | `wasm.file` | Yes | Path to WASM file (relative to manifest) |
 | `wasm.release_url` | No | URL template for downloading releases |
 | `capabilities` | Yes | Array of: `"generate"`, `"migrate"` |
 
 ### 12.3 Settings Schema
 
-The settings schema defines valid configuration using CDM syntax:
+Plugins expose their settings schema via the `_schema()` WASM export (see Section 12.4). The schema defines valid configuration using CDM syntax:
 
 ```cdm
-// schema.cdm for sql plugin
+// Example schema returned by _schema() for sql plugin
 
 GlobalSettings {
   dialect: "postgres" | "mysql" | "sqlite" = "postgres"
@@ -1318,9 +1316,23 @@ Index {
 
 The schema must define at least `GlobalSettings`. `ModelSettings` and `FieldSettings` are optional.
 
+CDM validates user-provided plugin configurations against this schema before calling `validate_config`.
+
 ### 12.4 Plugin API
 
-Plugins implement up to three functions:
+Plugins must implement `schema()` and `validate_config()`. The `generate()` and `migrate()` functions are optional.
+
+#### schema (Required)
+
+Returns the plugin's configuration schema as a CDM string.
+
+```rust
+fn schema() -> String
+```
+
+This function should return a CDM schema defining the structure of valid configurations at global, model, and field levels (see Section 12.3).
+
+CDM uses this schema to validate user-provided plugin configurations before calling `validate_config()`.
 
 #### validate_config (Required)
 
@@ -1680,7 +1692,7 @@ See `grammar.js` in the CDM repository for the complete tree-sitter grammar impl
 |------|---------|-------------|
 | E401 | Plugin not found: '{name}' | Could not resolve plugin |
 | E402 | Invalid plugin configuration: {details} | Plugin config validation failed |
-| E403 | Plugin missing required export: '{function}' | WASM module doesn't export required function |
+| E403 | Plugin missing required export: '{function}' | WASM module doesn't export required function (_schema, _validate_config) |
 | E404 | Plugin execution failed: {details} | Plugin function threw error or timed out |
 | E405 | Plugin output too large: {size} exceeds {limit} | Output size limit exceeded |
 

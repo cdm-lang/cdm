@@ -313,3 +313,39 @@ pub fn export_plugin_impl(_attr: &str, _item: &str) -> String {
     // This is a placeholder - actual implementation would generate WASM exports
     String::new()
 }
+
+/// Helper macro to embed a schema.cdm file and export it via the WASM `_schema()` function.
+///
+/// This is a Rust-specific convenience for plugin development. It uses `include_str!()`
+/// to embed the schema file at compile time, making the WASM binary self-contained.
+///
+/// # Example
+///
+/// ```rust,ignore
+/// use cdm_plugin_api::schema_from_file;
+///
+/// // Embeds ../schema.cdm and creates the _schema() export
+/// schema_from_file!("../schema.cdm");
+/// ```
+///
+/// # How it works
+///
+/// The macro expands to:
+/// - Load the file contents at compile time using `include_str!()`
+/// - Create a function that returns the embedded schema string
+/// - Use the `export_schema!` macro to wrap it with proper FFI handling
+///
+/// # Note
+///
+/// This is optional - plugins can implement `_schema()` however they want.
+/// This macro is just a convenience for Rust plugins that want to keep
+/// their schema in a separate `.cdm` file.
+#[macro_export]
+macro_rules! schema_from_file {
+    ($path:expr) => {
+        pub fn __cdm_schema_content() -> String {
+            include_str!($path).to_string()
+        }
+        $crate::export_schema!(__cdm_schema_content);
+    };
+}

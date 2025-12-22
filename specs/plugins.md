@@ -128,10 +128,10 @@ cd cdm-plugin-my-plugin
 ```
 cdm-plugin-my-plugin/
 ├── cdm-plugin.json       # Manifest (required)
-├── schema.cdm            # Settings schema (required)
+├── schema.cdm            # Plugin configuration schema
 ├── Cargo.toml
 ├── src/
-│   ├── lib.rs
+│   ├── lib.rs            # Plugin entry point
 │   ├── validate.rs
 │   ├── generate.rs
 │   └── migrate.rs
@@ -145,7 +145,6 @@ cdm-plugin-my-plugin/
   "name": "my-plugin",
   "version": "1.0.0",
   "description": "My custom CDM plugin",
-  "schema": "schema.cdm",
   "wasm": {
     "file": "target/wasm32-wasip1/release/cdm_plugin_my_plugin.wasm"
   },
@@ -153,11 +152,14 @@ cdm-plugin-my-plugin/
 }
 ```
 
-### Settings Schema (`schema.cdm`)
+### Settings Schema
 
-Define what configuration your plugin accepts:
+Plugins expose their configuration schema via the `schema()` function.
+
+**Recommended approach for Rust plugins** - keep schema in a separate `schema.cdm` file and use the helper macro:
 
 ```cdm
+// schema.cdm
 GlobalSettings {
     output_format: "json" | "yaml" = "json"
     include_comments: boolean = true
@@ -174,11 +176,61 @@ FieldSettings {
 }
 ```
 
+```rust
+// src/lib.rs
+use cdm_plugin_api::schema_from_file;
+
+// Embeds schema.cdm at compile time and creates the schema() export
+schema_from_file!("../schema.cdm");
+```
+
+**Alternative** - define schema inline:
+
+```rust
+#[no_mangle]
+pub extern "C" fn schema() -> *const u8 {
+    let schema = r#"GlobalSettings { ... }"#;
+    cdm_plugin_api::ffi::write_string_to_wasm_memory(schema)
+}
+```
+
+The macro approach keeps your schema in a separate `.cdm` file for better IDE support and reusability, while using Rust's `include_str!()` to embed it at compile time with zero runtime overhead.
+
+CDM validates user-provided plugin configurations against this schema before calling `validate_config`.
+
 ## Plugin Functions
+
+### schema (Required)
+
+Returns the plugin's configuration schema as a CDM string.
+
+```rust
+use cdm_plugin_api::*;
+
+#[no_mangle]
+pub extern "C" fn schema() -> *const u8 {
+    let schema_content = r#"
+GlobalSettings {
+    output_format: "json" | "yaml" = "json"
+}
+
+ModelSettings {
+    skip: boolean = false
+}
+
+FieldSettings {
+    exclude: boolean = false
+}
+"#;
+    write_string_to_wasm_memory(schema_content)
+}
+```
+
+This function is called once when the plugin is loaded. CDM uses the returned schema to validate user configurations before calling `validate_config()`.
 
 ### validate_config (Required)
 
-Validates user configuration. Called for every config block.
+Validates user configuration. Called for every config block after schema validation passes.
 
 ```rust
 use cdm_plugin_api::*;
