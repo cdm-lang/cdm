@@ -3,7 +3,7 @@
 //! This crate provides validation of JSON values against CDM ResolvedSchema types.
 //! It validates structure, types, and optionality according to the parsed type definitions.
 
-use cdm::{ParsedType, PrimitiveType, ResolvedSchema};
+use cdm_utils::{ParsedType, PrimitiveType, ResolvedSchema};
 use cdm_plugin_api::{PathSegment, Severity, ValidationError};
 use serde_json::Value as JSON;
 use std::collections::HashSet;
@@ -426,7 +426,7 @@ fn format_type(typ: &ParsedType) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cdm::{ResolvedField, ResolvedModel, Position, Span};
+    use cdm_utils::{ResolvedField, ResolvedModel, Position, Span};
     use std::collections::HashMap;
 
     /// Helper to create a test schema with models and type aliases

@@ -3,8 +3,9 @@ use std::collections::HashSet;
 use std::fs;
 use std::path::{Path, PathBuf};
 
-use crate::diagnostics::{Diagnostic, Position, Severity, Span};
+use crate::diagnostics::{Diagnostic, Severity};
 use crate::grammar_parser::GrammarParser;
+use cdm_utils::{Position, Span};
 
 /// A loaded CDM file with lazy source reading and caching
 #[derive(Debug)]

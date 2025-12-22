@@ -7,7 +7,8 @@ mod grammar_parser;
 mod resolved_schema;
 mod plugin_validation;
 
-pub use diagnostics::{Diagnostic, Position, Span, Severity};
+pub use diagnostics::{Diagnostic, Severity};
+pub use cdm_utils::{Position, Span};
 pub use symbol_table::{Ancestor,SymbolTable, Definition, DefinitionKind, FieldInfo, field_exists_in_parents, is_builtin_type, is_type_defined, resolve_definition};
 pub use validate::{validate, validate_tree, ValidationResult};
 pub use plugin_runner::PluginRunner;

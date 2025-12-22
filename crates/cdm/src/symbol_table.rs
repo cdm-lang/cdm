@@ -1,7 +1,7 @@
 // symbol_table.rs
 use std::collections::HashMap;
 use std::fmt;
-use crate::diagnostics::Span;
+use cdm_utils::Span;
 
 /// The kind of definition, with data needed for validation
 #[derive(Debug, Clone)]

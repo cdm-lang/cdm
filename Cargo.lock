@@ -264,7 +264,9 @@ version = "0.1.0"
 dependencies = [
  "anyhow",
  "cc",
+ "cdm-json-validator",
  "cdm-plugin-api",
+ "cdm-utils",
  "clap",
  "colored",
  "grammar",
@@ -281,6 +283,7 @@ version = "0.1.0"
 dependencies = [
  "cdm",
  "cdm-plugin-api",
+ "cdm-utils",
  "serde_json",
 ]
 
@@ -300,6 +303,10 @@ dependencies = [
  "serde",
  "serde_json",
 ]
+
+[[package]]
+name = "cdm-utils"
+version = "0.1.0"
 
 [[package]]
 name = "cfg-if"

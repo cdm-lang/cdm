@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::path::PathBuf;
-use crate::{Diagnostic, Severity, Span, Position, PluginRunner};
+use crate::{Diagnostic, Severity, PluginRunner, ResolvedSchema, validate};
+use cdm_utils::{Span, Position};
 use serde_json::Value as JSON;
 
 /// Information about a plugin import (@plugin directive)
@@ -43,7 +44,8 @@ pub struct PluginCache {
 
 struct CachedPlugin {
     runner: PluginRunner,
-    _schema_cdm: String,  // For future use
+    schema_cdm: String,
+    resolved_schema: Option<ResolvedSchema>,  // Parsed schema for Level 1 validation
 }
 
 impl PluginCache {
@@ -107,10 +109,28 @@ impl PluginCache {
             }
         };
 
+        // Parse plugin schema for Level 1 validation
+        let validation_result = validate(&schema_cdm, &[]);
+        let resolved_schema = if validation_result.has_errors() || validation_result.tree.is_none() {
+            // Schema parse/validation failed - store None and continue
+            // We'll skip Level 1 validation for this plugin
+            None
+        } else {
+            // Build ResolvedSchema from the parsed tree
+            use crate::resolved_schema::build_resolved_schema;
+            Some(build_resolved_schema(
+                &validation_result.symbol_table,
+                &validation_result.model_fields,
+                &[],
+                &[],
+            ))
+        };
+
         // Cache and return
         let cached = CachedPlugin {
             runner,
-            _schema_cdm: schema_cdm,
+            schema_cdm,
+            resolved_schema,
         };
         self.plugins.insert(import.name.clone(), cached);
         self.plugins.get_mut(&import.name)
@@ -383,13 +403,55 @@ fn parse_plugin_config_node(
     Some((name, value))
 }
 
-/// Validate config using plugin's WASM validate function (if available)
+/// Validate config using two-level validation:
+/// Level 1: Validate against plugin's schema (structural)
+/// Level 2: Call plugin's WASM validate function (semantic)
 fn validate_config_with_plugin(
     config: &PluginConfig,
     cached_plugin: &mut CachedPlugin,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    // Convert to plugin API level
+    // LEVEL 1: Schema validation (structural)
+    if let Some(ref resolved_schema) = cached_plugin.resolved_schema {
+        let model_name = match &config.level {
+            ConfigLevel::Global => "GlobalSettings",
+            ConfigLevel::Model { .. } => "ModelSettings",
+            ConfigLevel::Field { .. } => "FieldSettings",
+        };
+
+        let schema_errors = cdm_json_validator::validate_json(
+            resolved_schema,
+            &config.config,
+            model_name,
+        );
+
+        // Convert validation errors to diagnostics
+        for error in &schema_errors {
+            let path_str = error.path.iter()
+                .map(|seg| seg.name.as_str())
+                .collect::<Vec<_>>()
+                .join(".");
+
+            let message = if path_str.is_empty() {
+                format!("E402: {}", error.message)
+            } else {
+                format!("E402: {}: {}", path_str, error.message)
+            };
+
+            diagnostics.push(Diagnostic {
+                message,
+                severity: Severity::Error,
+                span: config.span,
+            });
+        }
+
+        // Fail fast: If Level 1 fails, don't run Level 2
+        if !schema_errors.is_empty() {
+            return;
+        }
+    }
+
+    // LEVEL 2: Plugin semantic validation (if plugin has _validate_config)
     let api_level = match &config.level {
         ConfigLevel::Global => cdm_plugin_api::ConfigLevel::Global,
         ConfigLevel::Model { name } => {

@@ -3,12 +3,13 @@ use std::collections::{HashMap, HashSet};
 use std::fmt;
 
 use crate::{
-    Ancestor, Definition, DefinitionKind, Diagnostic, FieldInfo, Position, Severity, Span,
+    Ancestor, Definition, DefinitionKind, Diagnostic, FieldInfo, Severity,
     SymbolTable, field_exists_in_parents, is_builtin_type, is_type_defined, resolve_definition,
 };
 use crate::file_resolver::LoadedFileTree;
 use crate::resolved_schema::{build_resolved_schema, find_references_in_resolved};
 use crate::plugin_validation::validate_plugins;
+use cdm_utils::{Position, Span};
 
 #[cfg(test)]
 mod tests;

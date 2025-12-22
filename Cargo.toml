@@ -4,5 +4,7 @@ members = [
     "crates/cdm",
     "crates/grammar",
     "crates/cdm-plugin-api",
-    "crates/cdm-plugin-docs", "crates/cdm-json-validator",
+    "crates/cdm-plugin-docs",
+    "crates/cdm-json-validator",
+    "crates/cdm-utils",
 ]

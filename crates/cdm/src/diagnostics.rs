@@ -1,17 +1,6 @@
 // diagnostics.rs
 use std::fmt;
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Position {
-    pub line: usize,
-    pub column: usize,
-}
-
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub struct Span {
-    pub start: Position,
-    pub end: Position,
-}
+use cdm_utils::{Position, Span};
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Severity {
