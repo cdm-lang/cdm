@@ -9,7 +9,33 @@
 //! with file-relative spans for error reporting.
 
 use std::collections::{HashMap, HashSet};
+use std::cell::RefCell;
 use crate::{Ancestor, DefinitionKind, FieldInfo, Span, SymbolTable};
+
+/// Parsed representation of a CDM type expression
+#[derive(Debug, Clone, PartialEq)]
+pub enum ParsedType {
+    /// Primitive type: string, number, boolean
+    Primitive(PrimitiveType),
+    /// String literal: "active", "pending"
+    Literal(String),
+    /// Reference to a model or type alias: User, Email
+    Reference(String),
+    /// Array type: User[], string[]
+    Array(Box<ParsedType>),
+    /// Union type: string | number, User | null
+    Union(Vec<ParsedType>),
+    /// Null type
+    Null,
+}
+
+/// CDM primitive types
+#[derive(Debug, Clone, PartialEq)]
+pub enum PrimitiveType {
+    String,
+    Number,
+    Boolean,
+}
 
 /// A fully resolved schema after applying inheritance and removals.
 ///
@@ -38,7 +64,7 @@ impl ResolvedSchema {
 }
 
 /// A resolved type alias with source tracking
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ResolvedTypeAlias {
     pub name: String,
     /// The type expression as a string
@@ -49,6 +75,40 @@ pub struct ResolvedTypeAlias {
     pub source_file: String,
     /// Span in the source file
     pub source_span: Span,
+    /// Cached parsed type (lazy-initialized on first access)
+    #[allow(clippy::type_complexity)]
+    cached_parsed_type: RefCell<Option<Result<ParsedType, String>>>,
+}
+
+impl Clone for ResolvedTypeAlias {
+    fn clone(&self) -> Self {
+        Self {
+            name: self.name.clone(),
+            type_expr: self.type_expr.clone(),
+            references: self.references.clone(),
+            source_file: self.source_file.clone(),
+            source_span: self.source_span,
+            // Don't clone the cache - let each clone re-parse if needed
+            cached_parsed_type: RefCell::new(None),
+        }
+    }
+}
+
+impl ResolvedTypeAlias {
+    /// Get the parsed type for this type alias, parsing and caching on first access.
+    pub fn parsed_type(&self) -> Result<ParsedType, String> {
+        // Check cache first
+        if let Some(cached) = self.cached_parsed_type.borrow().as_ref() {
+            return cached.clone();
+        }
+
+        // Parse the type
+        let result = parse_type_string(&self.type_expr);
+
+        // Cache and return
+        *self.cached_parsed_type.borrow_mut() = Some(result.clone());
+        result
+    }
 }
 
 /// A resolved model with source tracking
@@ -64,7 +124,7 @@ pub struct ResolvedModel {
 }
 
 /// A resolved field with source tracking
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct ResolvedField {
     pub name: String,
     /// The type expression as a string (None for untyped fields defaulting to string)
@@ -74,6 +134,44 @@ pub struct ResolvedField {
     pub source_file: String,
     /// Span in the source file
     pub source_span: Span,
+    /// Cached parsed type (lazy-initialized on first access)
+    #[allow(clippy::type_complexity)]
+    cached_parsed_type: RefCell<Option<Result<ParsedType, String>>>,
+}
+
+impl Clone for ResolvedField {
+    fn clone(&self) -> Self {
+        Self {
+            name: self.name.clone(),
+            type_expr: self.type_expr.clone(),
+            optional: self.optional,
+            source_file: self.source_file.clone(),
+            source_span: self.source_span,
+            // Don't clone the cache - let each clone re-parse if needed
+            cached_parsed_type: RefCell::new(None),
+        }
+    }
+}
+
+impl ResolvedField {
+    /// Get the parsed type for this field, parsing and caching on first access.
+    /// Returns the default type (Primitive(String)) for untyped fields.
+    pub fn parsed_type(&self) -> Result<ParsedType, String> {
+        // Check cache first
+        if let Some(cached) = self.cached_parsed_type.borrow().as_ref() {
+            return cached.clone();
+        }
+
+        // Parse the type
+        let result = match &self.type_expr {
+            Some(type_str) => parse_type_string(type_str),
+            None => Ok(ParsedType::Primitive(PrimitiveType::String)), // Default to string
+        };
+
+        // Cache and return
+        *self.cached_parsed_type.borrow_mut() = Some(result.clone());
+        result
+    }
 }
 
 /// Build a resolved schema from current file symbols and ancestors.
@@ -120,6 +218,7 @@ pub fn build_resolved_schema(
                             references: references.clone(),
                             source_file: ancestor.path.clone(),
                             source_span: def.span,
+                            cached_parsed_type: RefCell::new(None),
                         },
                     );
                 }
@@ -138,6 +237,7 @@ pub fn build_resolved_schema(
                                         optional: f.optional,
                                         source_file: ancestor.path.clone(),
                                         source_span: f.span,
+                                        cached_parsed_type: RefCell::new(None),
                                     })
                                     .collect(),
                                 source_file: ancestor.path.clone(),
@@ -167,6 +267,7 @@ pub fn build_resolved_schema(
                         references: references.clone(),
                         source_file: "current file".to_string(),
                         source_span: def.span,
+                        cached_parsed_type: RefCell::new(None),
                     },
                 );
             }
@@ -185,6 +286,7 @@ pub fn build_resolved_schema(
                                     optional: f.optional,
                                     source_file: "current file".to_string(),
                                     source_span: f.span,
+                                    cached_parsed_type: RefCell::new(None),
                                 })
                                 .collect(),
                             source_file: "current file".to_string(),
@@ -254,4 +356,370 @@ fn field_type_references_definition(type_expr: &str, definition_name: &str) -> b
     type_expr
         .split(|c: char| !c.is_alphanumeric() && c != '_')
         .any(|word| word == definition_name)
+}
+
+/// Parse a CDM type string into a ParsedType
+fn parse_type_string(type_str: &str) -> Result<ParsedType, String> {
+    let trimmed = type_str.trim();
+
+    // Check for union (contains | outside of quotes)
+    if let Some(union_parts) = parse_union(trimmed) {
+        if union_parts.len() > 1 {
+            let mut parsed_parts = Vec::new();
+            for part in union_parts {
+                parsed_parts.push(parse_type_string(part.trim())?);
+            }
+            return Ok(ParsedType::Union(parsed_parts));
+        }
+    }
+
+    // Check for array (ends with [])
+    if trimmed.ends_with("[]") {
+        let inner = &trimmed[..trimmed.len() - 2];
+        let inner_type = parse_type_string(inner)?;
+        return Ok(ParsedType::Array(Box::new(inner_type)));
+    }
+
+    // Check for string literal (wrapped in quotes)
+    if (trimmed.starts_with('"') && trimmed.ends_with('"'))
+        || (trimmed.starts_with('\'') && trimmed.ends_with('\'')) {
+        let literal = &trimmed[1..trimmed.len() - 1];
+        return Ok(ParsedType::Literal(literal.to_string()));
+    }
+
+    // Check for primitives and special types
+    match trimmed {
+        "string" => Ok(ParsedType::Primitive(PrimitiveType::String)),
+        "number" => Ok(ParsedType::Primitive(PrimitiveType::Number)),
+        "boolean" => Ok(ParsedType::Primitive(PrimitiveType::Boolean)),
+        "null" => Ok(ParsedType::Null),
+        "" => Err("Empty type string".to_string()),
+        _ => {
+            // Must be a reference to a model or type alias
+            if is_valid_identifier(trimmed) {
+                Ok(ParsedType::Reference(trimmed.to_string()))
+            } else {
+                Err(format!("Invalid type identifier: '{}'", trimmed))
+            }
+        }
+    }
+}
+
+/// Parse a union type, splitting on | outside of quotes
+/// Returns None if no union, Some(vec) with parts if union found
+fn parse_union(s: &str) -> Option<Vec<&str>> {
+    let mut parts = Vec::new();
+    let mut current_start = 0;
+    let mut in_quotes = false;
+    let mut quote_char = '"';
+
+    for (i, ch) in s.char_indices() {
+        match ch {
+            '"' | '\'' => {
+                if !in_quotes {
+                    in_quotes = true;
+                    quote_char = ch;
+                } else if ch == quote_char {
+                    in_quotes = false;
+                }
+            }
+            '|' if !in_quotes => {
+                parts.push(&s[current_start..i]);
+                current_start = i + 1;
+            }
+            _ => {}
+        }
+    }
+
+    // Add the last part
+    parts.push(&s[current_start..]);
+
+    if parts.len() > 1 {
+        Some(parts)
+    } else {
+        None
+    }
+}
+
+/// Check if a string is a valid CDM identifier
+fn is_valid_identifier(s: &str) -> bool {
+    if s.is_empty() {
+        return false;
+    }
+
+    // Must start with letter or underscore
+    let mut chars = s.chars();
+    let first = chars.next().unwrap();
+    if !first.is_alphabetic() && first != '_' {
+        return false;
+    }
+
+    // Rest must be alphanumeric or underscore
+    chars.all(|c| c.is_alphanumeric() || c == '_')
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::Position;
+
+    #[test]
+    fn test_parse_primitives() {
+        assert_eq!(
+            parse_type_string("string"),
+            Ok(ParsedType::Primitive(PrimitiveType::String))
+        );
+        assert_eq!(
+            parse_type_string("number"),
+            Ok(ParsedType::Primitive(PrimitiveType::Number))
+        );
+        assert_eq!(
+            parse_type_string("boolean"),
+            Ok(ParsedType::Primitive(PrimitiveType::Boolean))
+        );
+        assert_eq!(
+            parse_type_string("null"),
+            Ok(ParsedType::Null)
+        );
+    }
+
+    #[test]
+    fn test_parse_primitives_with_whitespace() {
+        assert_eq!(
+            parse_type_string("  string  "),
+            Ok(ParsedType::Primitive(PrimitiveType::String))
+        );
+        assert_eq!(
+            parse_type_string(" number\t"),
+            Ok(ParsedType::Primitive(PrimitiveType::Number))
+        );
+    }
+
+    #[test]
+    fn test_parse_references() {
+        assert_eq!(
+            parse_type_string("User"),
+            Ok(ParsedType::Reference("User".to_string()))
+        );
+        assert_eq!(
+            parse_type_string("EmailAddress"),
+            Ok(ParsedType::Reference("EmailAddress".to_string()))
+        );
+        assert_eq!(
+            parse_type_string("_internal"),
+            Ok(ParsedType::Reference("_internal".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_parse_string_literals() {
+        assert_eq!(
+            parse_type_string(r#""active""#),
+            Ok(ParsedType::Literal("active".to_string()))
+        );
+        assert_eq!(
+            parse_type_string(r#""pending""#),
+            Ok(ParsedType::Literal("pending".to_string()))
+        );
+        assert_eq!(
+            parse_type_string(r#"'completed'"#),
+            Ok(ParsedType::Literal("completed".to_string()))
+        );
+    }
+
+    #[test]
+    fn test_parse_arrays() {
+        assert_eq!(
+            parse_type_string("string[]"),
+            Ok(ParsedType::Array(Box::new(ParsedType::Primitive(PrimitiveType::String))))
+        );
+        assert_eq!(
+            parse_type_string("User[]"),
+            Ok(ParsedType::Array(Box::new(ParsedType::Reference("User".to_string()))))
+        );
+        // Nested arrays
+        assert_eq!(
+            parse_type_string("string[][]"),
+            Ok(ParsedType::Array(Box::new(
+                ParsedType::Array(Box::new(ParsedType::Primitive(PrimitiveType::String)))
+            )))
+        );
+    }
+
+    #[test]
+    fn test_parse_unions() {
+        // Simple union
+        let result = parse_type_string("string | number").unwrap();
+        match result {
+            ParsedType::Union(parts) => {
+                assert_eq!(parts.len(), 2);
+                assert_eq!(parts[0], ParsedType::Primitive(PrimitiveType::String));
+                assert_eq!(parts[1], ParsedType::Primitive(PrimitiveType::Number));
+            }
+            _ => panic!("Expected Union type"),
+        }
+
+        // Union with null
+        let result = parse_type_string("User | null").unwrap();
+        match result {
+            ParsedType::Union(parts) => {
+                assert_eq!(parts.len(), 2);
+                assert_eq!(parts[0], ParsedType::Reference("User".to_string()));
+                assert_eq!(parts[1], ParsedType::Null);
+            }
+            _ => panic!("Expected Union type"),
+        }
+
+        // Three-way union
+        let result = parse_type_string("string | number | boolean").unwrap();
+        match result {
+            ParsedType::Union(parts) => {
+                assert_eq!(parts.len(), 3);
+                assert_eq!(parts[0], ParsedType::Primitive(PrimitiveType::String));
+                assert_eq!(parts[1], ParsedType::Primitive(PrimitiveType::Number));
+                assert_eq!(parts[2], ParsedType::Primitive(PrimitiveType::Boolean));
+            }
+            _ => panic!("Expected Union type"),
+        }
+    }
+
+    #[test]
+    fn test_parse_union_with_literals() {
+        let result = parse_type_string(r#""active" | "pending" | "completed""#).unwrap();
+        match result {
+            ParsedType::Union(parts) => {
+                assert_eq!(parts.len(), 3);
+                assert_eq!(parts[0], ParsedType::Literal("active".to_string()));
+                assert_eq!(parts[1], ParsedType::Literal("pending".to_string()));
+                assert_eq!(parts[2], ParsedType::Literal("completed".to_string()));
+            }
+            _ => panic!("Expected Union type"),
+        }
+    }
+
+    #[test]
+    fn test_parse_complex_types() {
+        // Array union
+        let result = parse_type_string("string[] | number[]").unwrap();
+        match result {
+            ParsedType::Union(parts) => {
+                assert_eq!(parts.len(), 2);
+                assert!(matches!(parts[0], ParsedType::Array(_)));
+                assert!(matches!(parts[1], ParsedType::Array(_)));
+            }
+            _ => panic!("Expected Union type"),
+        }
+
+        // Union of references
+        let result = parse_type_string("User | Admin | Guest").unwrap();
+        match result {
+            ParsedType::Union(parts) => {
+                assert_eq!(parts.len(), 3);
+                assert_eq!(parts[0], ParsedType::Reference("User".to_string()));
+                assert_eq!(parts[1], ParsedType::Reference("Admin".to_string()));
+                assert_eq!(parts[2], ParsedType::Reference("Guest".to_string()));
+            }
+            _ => panic!("Expected Union type"),
+        }
+    }
+
+    #[test]
+    fn test_parse_errors() {
+        // Empty string
+        assert!(parse_type_string("").is_err());
+
+        // Invalid identifier (starts with number)
+        assert!(parse_type_string("9User").is_err());
+
+        // Invalid identifier (special characters)
+        assert!(parse_type_string("User-Name").is_err());
+    }
+
+    #[test]
+    fn test_is_valid_identifier() {
+        // Valid identifiers
+        assert!(is_valid_identifier("User"));
+        assert!(is_valid_identifier("_private"));
+        assert!(is_valid_identifier("User123"));
+        assert!(is_valid_identifier("snake_case"));
+        assert!(is_valid_identifier("PascalCase"));
+        assert!(is_valid_identifier("camelCase"));
+
+        // Invalid identifiers
+        assert!(!is_valid_identifier(""));
+        assert!(!is_valid_identifier("123abc"));
+        assert!(!is_valid_identifier("user-name"));
+        assert!(!is_valid_identifier("user.name"));
+        assert!(!is_valid_identifier("user name"));
+    }
+
+    #[test]
+    fn test_resolved_field_parsed_type_caching() {
+        let field = ResolvedField {
+            name: "test".to_string(),
+            type_expr: Some("string | number".to_string()),
+            optional: false,
+            source_file: "test.cdm".to_string(),
+            source_span: Span {
+                start: Position { line: 0, column: 0 },
+                end: Position { line: 0, column: 10 },
+            },
+            cached_parsed_type: RefCell::new(None),
+        };
+
+        // First call should parse
+        let result1 = field.parsed_type().unwrap();
+        assert!(matches!(result1, ParsedType::Union(_)));
+
+        // Second call should return cached result
+        let result2 = field.parsed_type().unwrap();
+        assert_eq!(result1, result2);
+
+        // Verify cache is populated
+        assert!(field.cached_parsed_type.borrow().is_some());
+    }
+
+    #[test]
+    fn test_resolved_field_default_type() {
+        let field = ResolvedField {
+            name: "test".to_string(),
+            type_expr: None, // No type specified
+            optional: false,
+            source_file: "test.cdm".to_string(),
+            source_span: Span {
+                start: Position { line: 0, column: 0 },
+                end: Position { line: 0, column: 10 },
+            },
+            cached_parsed_type: RefCell::new(None),
+        };
+
+        // Should default to string
+        let result = field.parsed_type().unwrap();
+        assert_eq!(result, ParsedType::Primitive(PrimitiveType::String));
+    }
+
+    #[test]
+    fn test_resolved_type_alias_parsed_type() {
+        let alias = ResolvedTypeAlias {
+            name: "Status".to_string(),
+            type_expr: r#""active" | "pending""#.to_string(),
+            references: vec![],
+            source_file: "test.cdm".to_string(),
+            source_span: Span {
+                start: Position { line: 0, column: 0 },
+                end: Position { line: 0, column: 10 },
+            },
+            cached_parsed_type: RefCell::new(None),
+        };
+
+        let result = alias.parsed_type().unwrap();
+        match result {
+            ParsedType::Union(parts) => {
+                assert_eq!(parts.len(), 2);
+                assert_eq!(parts[0], ParsedType::Literal("active".to_string()));
+                assert_eq!(parts[1], ParsedType::Literal("pending".to_string()));
+            }
+            _ => panic!("Expected Union type"),
+        }
+    }
 }

@@ -13,4 +13,4 @@ pub use validate::{validate, validate_tree, ValidationResult};
 pub use plugin_runner::PluginRunner;
 pub use file_resolver::{FileResolver, LoadedFile, LoadedFileTree};
 pub use grammar_parser::GrammarParser;
-pub use resolved_schema::{ResolvedSchema, ResolvedTypeAlias, ResolvedModel, ResolvedField, build_resolved_schema, find_references_in_resolved};
+pub use resolved_schema::{ResolvedSchema, ResolvedTypeAlias, ResolvedModel, ResolvedField, build_resolved_schema, find_references_in_resolved, ParsedType, PrimitiveType};
