@@ -1,0 +1,7 @@
+User {
+  @docs {
+    description: "This will fail - plugin not imported"
+  }
+
+  id: number
+}

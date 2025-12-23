@@ -1,0 +1,8 @@
+@docs from ../../../../target/wasm32-wasip1/release/cdm_plugin_docs.wasm {
+  format: "markdown",
+  unknown_field: "value"
+}
+
+User {
+  id: number
+}

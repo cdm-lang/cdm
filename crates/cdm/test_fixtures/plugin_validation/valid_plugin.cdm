@@ -1,0 +1,14 @@
+@docs from ../../../../target/wasm32-wasip1/release/cdm_plugin_docs.wasm {
+  format: "markdown",
+  title: "My Schema"
+}
+
+User {
+  @docs {
+    description: "A user in the system"
+  }
+
+  id: number
+  name: string
+  email?: string
+}

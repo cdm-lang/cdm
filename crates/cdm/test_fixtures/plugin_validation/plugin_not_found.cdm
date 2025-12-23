@@ -1,0 +1,5 @@
+@nonexistent from ./nonexistent.wasm
+
+User {
+  id: number
+}

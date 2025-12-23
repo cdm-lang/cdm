@@ -1,8 +1,11 @@
 use std::collections::HashMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use crate::{Diagnostic, Severity, PluginRunner, ResolvedSchema, validate};
 use cdm_utils::{Span, Position};
 use serde_json::Value as JSON;
+
+#[cfg(test)]
+mod tests;
 
 /// Information about a plugin import (@plugin directive)
 #[derive(Debug, Clone)]
@@ -11,6 +14,8 @@ pub struct PluginImport {
     pub source: Option<PluginSource>,
     pub global_config: Option<JSON>,
     pub span: Span,
+    /// The absolute path of the CDM file this import is from (for resolving relative paths)
+    pub source_file: PathBuf,
 }
 
 /// Source location for a plugin
@@ -139,7 +144,10 @@ impl PluginCache {
     fn resolve_plugin_path(&self, import: &PluginImport) -> Result<PathBuf, String> {
         match &import.source {
             Some(PluginSource::Path { path }) => {
-                let mut wasm_path = PathBuf::from(path);
+                // Resolve relative to the source file's directory
+                let source_dir = import.source_file.parent().unwrap_or_else(|| Path::new("."));
+                let mut wasm_path = source_dir.join(path);
+
                 if !wasm_path.extension().map_or(false, |e| e == "wasm") {
                     wasm_path.set_extension("wasm");
                 }
@@ -174,25 +182,36 @@ impl PluginCache {
 pub fn validate_plugins(
     tree: &tree_sitter::Tree,
     source: &str,
+    main_file_path: &Path,
+    ancestor_sources: &[(String, PathBuf)],  // (source, file_path) pairs
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let root = tree.root_node();
 
-    // Step 1: Extract plugin imports
-    let plugin_imports = extract_plugin_imports(root, source);
-    if plugin_imports.is_empty() {
-        // No plugins, nothing to validate
+    // Step 1: Extract plugin imports from ancestors (furthest ancestor first)
+    let mut all_plugin_imports = Vec::new();
+    for (ancestor_source, ancestor_path) in ancestor_sources.iter().rev() {
+        let ancestor_imports = extract_plugin_imports_from_source(ancestor_source, ancestor_path);
+        all_plugin_imports.extend(ancestor_imports);
+    }
+
+    // Step 2: Extract plugin imports from main file
+    let plugin_imports = extract_plugin_imports(root, source, main_file_path);
+    all_plugin_imports.extend(plugin_imports);
+
+    // Step 3: Extract all plugin configurations
+    let plugin_configs = extract_plugin_configs(root, source);
+
+    // Early return only if both imports AND configs are empty
+    if all_plugin_imports.is_empty() && plugin_configs.is_empty() {
         return;
     }
 
-    // Step 2: Extract all plugin configurations
-    let plugin_configs = extract_plugin_configs(root, source);
-
-    // Step 3: Create plugin cache
+    // Step 4: Create plugin cache
     let mut cache = PluginCache::new();
 
-    // Step 4: Load all plugins (fail fast on E401)
-    for import in &plugin_imports {
+    // Step 5: Load all plugins (fail fast on E401)
+    for import in &all_plugin_imports {
         cache.load_plugin(import, diagnostics);
     }
 
@@ -201,7 +220,22 @@ pub fn validate_plugins(
         return;
     }
 
-    // Step 5: Validate each config
+    // Step 6: Validate global configs from plugin imports
+    for import in &all_plugin_imports {
+        if let Some(global_config) = &import.global_config {
+            if let Some(cached_plugin) = cache.plugins.get_mut(&import.name) {
+                let config = PluginConfig {
+                    plugin_name: import.name.clone(),
+                    level: ConfigLevel::Global,
+                    config: global_config.clone(),
+                    span: import.span,
+                };
+                validate_config_with_plugin(&config, cached_plugin, diagnostics);
+            }
+        }
+    }
+
+    // Step 7: Validate model/field level configs
     for config in &plugin_configs {
         if let Some(cached_plugin) = cache.plugins.get_mut(&config.plugin_name) {
             // Call plugin validate function
@@ -220,10 +254,24 @@ pub fn validate_plugins(
     }
 }
 
+/// Extract plugin imports from a source string (for ancestors)
+fn extract_plugin_imports_from_source(source: &str, source_file_path: &Path) -> Vec<PluginImport> {
+    // Parse the source using tree-sitter
+    let mut parser = tree_sitter::Parser::new();
+    parser.set_language(&grammar::LANGUAGE.into()).expect("Failed to load CDM grammar");
+
+    if let Some(tree) = parser.parse(source, None) {
+        extract_plugin_imports(tree.root_node(), source, source_file_path)
+    } else {
+        Vec::new()
+    }
+}
+
 /// Extract all plugin imports from AST
 fn extract_plugin_imports(
     root: tree_sitter::Node,
     source: &str,
+    source_file_path: &Path,
 ) -> Vec<PluginImport> {
     let mut imports = Vec::new();
     let mut cursor = root.walk();
@@ -245,6 +293,7 @@ fn extract_plugin_imports(
                 source: source_opt,
                 global_config,
                 span: node_span(node),
+                source_file: source_file_path.to_path_buf(),
             });
         }
     }
@@ -275,8 +324,82 @@ fn parse_plugin_source(node: tree_sitter::Node, source: &str) -> PluginSource {
 }
 
 fn parse_json_config(node: tree_sitter::Node, source: &str) -> Option<JSON> {
-    let json_text = node_text(node, source);
-    serde_json::from_str(json_text).ok()
+    // The node is an object_literal, we need to parse it from the AST
+    parse_value(node, source)
+}
+
+/// Parse a CDM value node into a JSON value
+fn parse_value(node: tree_sitter::Node, source: &str) -> Option<JSON> {
+    match node.kind() {
+        "object_literal" => {
+            let mut map = serde_json::Map::new();
+            let mut cursor = node.walk();
+
+            for child in node.children(&mut cursor) {
+                if child.kind() == "object_entry" {
+                    let key = child.child_by_field_name("key")
+                        .map(|k| {
+                            let text = node_text(k, source);
+                            // Remove quotes if present
+                            if text.starts_with('"') && text.ends_with('"') {
+                                text[1..text.len()-1].to_string()
+                            } else {
+                                text.to_string()
+                            }
+                        })?;
+
+                    let value = child.child_by_field_name("value")
+                        .and_then(|v| parse_value(v, source))?;
+
+                    map.insert(key, value);
+                }
+            }
+
+            Some(JSON::Object(map))
+        }
+        "array_literal" => {
+            let mut arr = Vec::new();
+            let mut cursor = node.walk();
+
+            for child in node.children(&mut cursor) {
+                if child.kind() != "[" && child.kind() != "]" && child.kind() != "," {
+                    if let Some(value) = parse_value(child, source) {
+                        arr.push(value);
+                    }
+                }
+            }
+
+            Some(JSON::Array(arr))
+        }
+        "string_literal" => {
+            let text = node_text(node, source);
+            // Remove surrounding quotes and parse escape sequences
+            if text.len() >= 2 && text.starts_with('"') && text.ends_with('"') {
+                Some(JSON::String(text[1..text.len()-1].to_string()))
+            } else {
+                None
+            }
+        }
+        "number_literal" => {
+            let text = node_text(node, source);
+            if let Ok(n) = text.parse::<i64>() {
+                Some(JSON::Number(n.into()))
+            } else if let Ok(f) = text.parse::<f64>() {
+                serde_json::Number::from_f64(f).map(JSON::Number)
+            } else {
+                None
+            }
+        }
+        "boolean_literal" => {
+            let text = node_text(node, source);
+            match text {
+                "true" => Some(JSON::Bool(true)),
+                "false" => Some(JSON::Bool(false)),
+                _ => None,
+            }
+        }
+        _ => None,
+    }
 }
 
 /// Extract all plugin configurations from models and fields

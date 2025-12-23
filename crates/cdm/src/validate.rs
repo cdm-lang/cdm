@@ -196,6 +196,7 @@ pub fn validate(source: &str, ancestors: &[Ancestor]) -> ValidationResult {
 pub fn validate_tree(tree: LoadedFileTree) -> Result<ValidationResult, Vec<Diagnostic>> {
     // Validate all ancestors in streaming fashion
     let mut ancestors = Vec::new();
+    let mut ancestor_sources = Vec::new();
 
     for loaded_ancestor in tree.ancestors {
         let source = loaded_ancestor.source().map_err(|err| {
@@ -219,14 +220,19 @@ pub fn validate_tree(tree: LoadedFileTree) -> Result<ValidationResult, Vec<Diagn
 
         // Convert to Ancestor and add to list
         // This frees the ValidationResult memory (tree, diagnostics, etc.)
+        let ancestor_path = loaded_ancestor.path.clone();
         let ancestor = ancestor_result.into_ancestor(loaded_ancestor.path.display().to_string());
         ancestors.push(ancestor);
+
+        // Keep source and path for plugin validation
+        ancestor_sources.push((source, ancestor_path));
     }
 
     // Validate main file with all ancestors
+    let main_path = tree.main.path.clone();
     let main_source = tree.main.source().map_err(|err| {
         vec![Diagnostic {
-            message: format!("Failed to read file {}: {}", tree.main.path.display(), err),
+            message: format!("Failed to read file {}: {}", main_path.display(), err),
             severity: Severity::Error,
             span: Span {
                 start: Position { line: 0, column: 0 },
@@ -243,8 +249,8 @@ pub fn validate_tree(tree: LoadedFileTree) -> Result<ValidationResult, Vec<Diagn
     }
 
     // Plugin validation (only if semantic validation passed)
-    if let Some(ref tree) = result.tree {
-        validate_plugins(tree, &main_source, &mut result.diagnostics);
+    if let Some(ref parse_tree) = result.tree {
+        validate_plugins(parse_tree, &main_source, &main_path, &ancestor_sources, &mut result.diagnostics);
     }
 
     // Check for plugin validation errors

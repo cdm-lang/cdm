@@ -1,0 +1,10 @@
+@extends ./base.cdm
+
+User extends BaseModel {
+  @docs {
+    description: "A user in the system"
+  }
+
+  name: string
+  email: string
+}

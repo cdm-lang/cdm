@@ -1,0 +1,7 @@
+@docs from ../../../../target/wasm32-wasip1/release/cdm_plugin_docs.wasm {
+  title: "My Schema"
+}
+
+User {
+  id: number
+}
