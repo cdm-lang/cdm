@@ -1,21 +1,21 @@
 use cdm_plugin_api::{OutputFile, Schema, TypeExpression, Utils, JSON};
 
-/// Generates documentation from the schema
-pub fn generate(schema: Schema, config: JSON, utils: &Utils) -> Vec<OutputFile> {
+/// Builds documentation from the schema
+pub fn build(schema: Schema, config: JSON, utils: &Utils) -> Vec<OutputFile> {
     let format = config
         .get("format")
         .and_then(|v| v.as_str())
         .unwrap_or("markdown");
 
     match format {
-        "markdown" => generate_markdown(schema, config, utils),
-        "html" => generate_html(schema, config, utils),
-        "json" => generate_json(schema, config, utils),
+        "markdown" => build_markdown(schema, config, utils),
+        "html" => build_html(schema, config, utils),
+        "json" => build_json(schema, config, utils),
         _ => vec![],
     }
 }
 
-fn generate_markdown(schema: Schema, config: JSON, _utils: &Utils) -> Vec<OutputFile> {
+fn build_markdown(schema: Schema, config: JSON, _utils: &Utils) -> Vec<OutputFile> {
     let mut content = String::new();
 
     // Title
@@ -152,9 +152,9 @@ fn generate_markdown(schema: Schema, config: JSON, _utils: &Utils) -> Vec<Output
     }]
 }
 
-fn generate_html(schema: Schema, config: JSON, utils: &Utils) -> Vec<OutputFile> {
-    // Placeholder - generate markdown and wrap in HTML
-    let markdown_files = generate_markdown(schema, config, utils);
+fn build_html(schema: Schema, config: JSON, utils: &Utils) -> Vec<OutputFile> {
+    // Placeholder - build markdown and wrap in HTML
+    let markdown_files = build_markdown(schema, config, utils);
 
     let mut html_content = String::from(
         "<!DOCTYPE html>\n\
@@ -193,8 +193,8 @@ fn generate_html(schema: Schema, config: JSON, utils: &Utils) -> Vec<OutputFile>
     }]
 }
 
-fn generate_json(schema: Schema, _config: JSON, _utils: &Utils) -> Vec<OutputFile> {
-    // Generate JSON representation of the schema
+fn build_json(schema: Schema, _config: JSON, _utils: &Utils) -> Vec<OutputFile> {
+    // Build JSON representation of the schema
     let json_content = serde_json::to_string_pretty(&schema).unwrap_or_default();
 
     vec![OutputFile {

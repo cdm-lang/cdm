@@ -20,6 +20,11 @@ enum Commands {
         #[arg(value_name = "FILE")]
         path: PathBuf,
     },
+    /// Build output files from a CDM schema using configured plugins
+    Build {
+        #[arg(value_name = "FILE")]
+        path: PathBuf,
+    },
 }
 
 fn main() -> Result<()> {
@@ -53,6 +58,12 @@ fn main() -> Result<()> {
                     }
                     std::process::exit(1);
                 }
+            }
+        }
+        Commands::Build { path } => {
+            if let Err(err) = cdm::build(&path) {
+                eprintln!("Build failed: {}", err);
+                std::process::exit(1);
             }
         }
     }

@@ -5,7 +5,7 @@ use serde_json::json;
 
 // Import the plugin functions directly for testing
 // In real WASM, these would be called via FFI
-use cdm_plugin_docs::{generate, validate_config};
+use cdm_plugin_docs::{build, validate_config};
 
 #[test]
 fn test_validate_global_config_valid() {
@@ -138,7 +138,7 @@ fn test_generate_markdown_basic() {
     });
 
     let utils = Utils {};
-    let outputs = generate(schema, config, &utils);
+    let outputs = build(schema, config, &utils);
 
     assert_eq!(outputs.len(), 1, "Should generate one file");
     assert_eq!(outputs[0].path, "schema.md");
@@ -155,7 +155,7 @@ fn test_generate_markdown_with_title() {
     });
 
     let utils = Utils {};
-    let outputs = generate(schema, config, &utils);
+    let outputs = build(schema, config, &utils);
 
     assert!(outputs[0].content.contains("# My Custom Title"));
 }
@@ -169,7 +169,7 @@ fn test_generate_markdown_with_examples() {
     });
 
     let utils = Utils {};
-    let outputs = generate(schema, config, &utils);
+    let outputs = build(schema, config, &utils);
 
     assert!(outputs[0].content.contains("**Example:**"));
 }
@@ -182,7 +182,7 @@ fn test_generate_markdown_hidden_models() {
     });
 
     let utils = Utils {};
-    let outputs = generate(schema, config, &utils);
+    let outputs = build(schema, config, &utils);
 
     // Hidden models should not appear in output
     assert!(!outputs[0].content.contains("HiddenModel"));
@@ -197,7 +197,7 @@ fn test_generate_html() {
     });
 
     let utils = Utils {};
-    let outputs = generate(schema, config, &utils);
+    let outputs = build(schema, config, &utils);
 
     assert_eq!(outputs.len(), 1);
     assert_eq!(outputs[0].path, "schema.html");
@@ -213,7 +213,7 @@ fn test_generate_json() {
     });
 
     let utils = Utils {};
-    let outputs = generate(schema, config, &utils);
+    let outputs = build(schema, config, &utils);
 
     assert_eq!(outputs.len(), 1);
     assert_eq!(outputs[0].path, "schema.json");
@@ -232,7 +232,7 @@ fn test_generate_with_deprecated_fields() {
     });
 
     let utils = Utils {};
-    let outputs = generate(schema, config, &utils);
+    let outputs = build(schema, config, &utils);
 
     // Deprecated fields should be marked with strikethrough
     assert!(outputs[0].content.contains("~~oldField~~"));

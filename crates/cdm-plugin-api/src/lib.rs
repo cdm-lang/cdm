@@ -37,7 +37,7 @@ pub struct ValidationError {
     pub severity: Severity,
 }
 
-/// Output file from generate or migrate
+/// Output file from build or migrate
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OutputFile {
     pub path: String,

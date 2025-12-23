@@ -124,7 +124,7 @@ fn test_generate_markdown() {
     });
 
     let files = runner
-        .generate(schema, config)
+        .build(schema, config)
         .expect("Failed to generate files");
 
     assert_eq!(files.len(), 1, "Expected 1 output file");
@@ -181,7 +181,7 @@ fn test_generate_html() {
     });
 
     let files = runner
-        .generate(schema, config)
+        .build(schema, config)
         .expect("Failed to generate files");
 
     assert_eq!(files.len(), 1, "Expected 1 output file");

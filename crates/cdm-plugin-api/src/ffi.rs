@@ -104,16 +104,16 @@ where
     write_result(&result_json)
 }
 
-/// Helper for implementing _generate WASM export
+/// Helper for implementing _build WASM export
 ///
 /// # Safety
 /// This function is unsafe because it works with raw pointers from WASM.
-pub unsafe fn ffi_generate<F>(
+pub unsafe fn ffi_build<F>(
     schema_ptr: *const u8,
     schema_len: usize,
     config_ptr: *const u8,
     config_len: usize,
-    generate_fn: F,
+    build_fn: F,
 ) -> *mut u8
 where
     F: Fn(Schema, JSON, &Utils) -> Vec<OutputFile>,
@@ -139,9 +139,9 @@ where
         }
     };
 
-    // Call the actual generate function
+    // Call the actual build function
     let utils = Utils;
-    let files = generate_fn(schema, config, &utils);
+    let files = build_fn(schema, config, &utils);
 
     // Serialize the result
     let result_json = match serde_json::to_vec(&files) {
@@ -278,19 +278,19 @@ macro_rules! export_validate_config {
     };
 }
 
-/// Macro to export generate function with proper FFI wrapper
+/// Macro to export build function with proper FFI wrapper
 #[macro_export]
-macro_rules! export_generate {
+macro_rules! export_build {
     ($func:expr) => {
         #[no_mangle]
-        pub extern "C" fn _generate(
+        pub extern "C" fn _build(
             schema_ptr: *const u8,
             schema_len: usize,
             config_ptr: *const u8,
             config_len: usize,
         ) -> *mut u8 {
             unsafe {
-                $crate::ffi::ffi_generate(
+                $crate::ffi::ffi_build(
                     schema_ptr,
                     schema_len,
                     config_ptr,

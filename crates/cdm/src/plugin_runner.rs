@@ -89,8 +89,8 @@ impl PluginRunner {
         Ok(instance.get_func(&mut store, function_name).is_some())
     }
 
-    /// Generate output files from a schema
-    pub fn generate(
+    /// Build output files from a schema
+    pub fn build(
         &mut self,
         schema: Schema,
         config: JSON,
@@ -101,7 +101,7 @@ impl PluginRunner {
 
         // Call the WASM function
         let result_json = self.call_wasm_function(
-            "_generate",
+            "_build",
             &[schema_json.as_bytes(), config_json.as_bytes()],
         )?;
 
@@ -202,7 +202,7 @@ impl PluginRunner {
                 func.call(&mut store, ())
                     .with_context(|| format!("Failed to call '{}' function", function_name))?
             }
-            "_validate_config" | "_generate" => {
+            "_validate_config" | "_build" => {
                 // These take 2 arguments (4 parameters: ptr1, len1, ptr2, len2)
                 let func = instance
                     .get_typed_func::<(u32, u32, u32, u32), u32>(&mut store, function_name)

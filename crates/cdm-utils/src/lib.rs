@@ -82,6 +82,8 @@ pub struct ResolvedTypeAlias {
     pub type_expr: String,
     /// Type identifiers referenced by this type alias
     pub references: Vec<String>,
+    /// Plugin-specific configurations (plugin_name → config)
+    pub plugin_configs: std::collections::HashMap<String, serde_json::Value>,
     /// Which file this definition came from (for error reporting)
     pub source_file: String,
     /// Span in the source file
@@ -97,6 +99,7 @@ impl Clone for ResolvedTypeAlias {
             name: self.name.clone(),
             type_expr: self.type_expr.clone(),
             references: self.references.clone(),
+            plugin_configs: self.plugin_configs.clone(),
             source_file: self.source_file.clone(),
             source_span: self.source_span,
             // Don't clone the cache - let each clone re-parse if needed
@@ -118,6 +121,7 @@ impl ResolvedTypeAlias {
             name,
             type_expr,
             references,
+            plugin_configs: std::collections::HashMap::new(),
             source_file,
             source_span,
             cached_parsed_type: std::cell::RefCell::new(None),
@@ -146,6 +150,10 @@ pub struct ResolvedModel {
     pub name: String,
     /// All fields in this model (including inherited fields)
     pub fields: Vec<ResolvedField>,
+    /// Parent models this model extends from
+    pub parents: Vec<String>,
+    /// Plugin-specific configurations (plugin_name → config)
+    pub plugin_configs: std::collections::HashMap<String, serde_json::Value>,
     /// Which file this model was defined in
     pub source_file: String,
     /// Span in the source file
@@ -159,6 +167,10 @@ pub struct ResolvedField {
     /// The type expression as a string (None for untyped fields defaulting to string)
     pub type_expr: Option<String>,
     pub optional: bool,
+    /// Default value for this field
+    pub default_value: Option<serde_json::Value>,
+    /// Plugin-specific configurations (plugin_name → config)
+    pub plugin_configs: std::collections::HashMap<String, serde_json::Value>,
     /// Which file this field came from (original definition or inheritance)
     pub source_file: String,
     /// Span in the source file
@@ -174,6 +186,8 @@ impl Clone for ResolvedField {
             name: self.name.clone(),
             type_expr: self.type_expr.clone(),
             optional: self.optional,
+            default_value: self.default_value.clone(),
+            plugin_configs: self.plugin_configs.clone(),
             source_file: self.source_file.clone(),
             source_span: self.source_span,
             // Don't clone the cache - let each clone re-parse if needed
@@ -195,6 +209,8 @@ impl ResolvedField {
             name,
             type_expr,
             optional,
+            default_value: None,
+            plugin_configs: std::collections::HashMap::new(),
             source_file,
             source_span,
             cached_parsed_type: std::cell::RefCell::new(None),
@@ -578,6 +594,8 @@ mod tests {
             name: "test".to_string(),
             type_expr: Some("string | number".to_string()),
             optional: false,
+            default_value: None,
+            plugin_configs: std::collections::HashMap::new(),
             source_file: "test.cdm".to_string(),
             source_span: Span {
                 start: Position { line: 0, column: 0 },
@@ -604,6 +622,8 @@ mod tests {
             name: "test".to_string(),
             type_expr: None, // No type specified
             optional: false,
+            default_value: None,
+            plugin_configs: std::collections::HashMap::new(),
             source_file: "test.cdm".to_string(),
             source_span: Span {
                 start: Position { line: 0, column: 0 },
@@ -623,6 +643,7 @@ mod tests {
             name: "Status".to_string(),
             type_expr: r#""active" | "pending""#.to_string(),
             references: vec![],
+            plugin_configs: std::collections::HashMap::new(),
             source_file: "test.cdm".to_string(),
             source_span: Span {
                 start: Position { line: 0, column: 0 },
@@ -640,5 +661,237 @@ mod tests {
             }
             _ => panic!("Expected Union type"),
         }
+    }
+
+    #[test]
+    fn test_resolved_field_with_default_value() {
+        let mut field = ResolvedField::new(
+            "name".to_string(),
+            Some("string".to_string()),
+            false,
+            "test.cdm".to_string(),
+            Span {
+                start: Position { line: 0, column: 0 },
+                end: Position { line: 0, column: 10 },
+            },
+        );
+
+        // Initially no default value
+        assert!(field.default_value.is_none());
+
+        // Set a default value
+        field.default_value = Some(serde_json::json!("John Doe"));
+        assert!(field.default_value.is_some());
+        assert_eq!(field.default_value.unwrap(), serde_json::json!("John Doe"));
+    }
+
+    #[test]
+    fn test_resolved_field_with_plugin_configs() {
+        let mut field = ResolvedField::new(
+            "email".to_string(),
+            Some("string".to_string()),
+            false,
+            "test.cdm".to_string(),
+            Span {
+                start: Position { line: 0, column: 0 },
+                end: Position { line: 0, column: 10 },
+            },
+        );
+
+        // Initially no plugin configs
+        assert!(field.plugin_configs.is_empty());
+
+        // Add plugin configs
+        field.plugin_configs.insert(
+            "validator".to_string(),
+            serde_json::json!({"format": "email"}),
+        );
+        field.plugin_configs.insert(
+            "docs".to_string(),
+            serde_json::json!({"description": "User email address"}),
+        );
+
+        assert_eq!(field.plugin_configs.len(), 2);
+        assert_eq!(
+            field.plugin_configs.get("validator").unwrap(),
+            &serde_json::json!({"format": "email"})
+        );
+        assert_eq!(
+            field.plugin_configs.get("docs").unwrap(),
+            &serde_json::json!({"description": "User email address"})
+        );
+    }
+
+    #[test]
+    fn test_resolved_model_with_parents() {
+        let span = Span {
+            start: Position { line: 0, column: 0 },
+            end: Position { line: 0, column: 10 },
+        };
+
+        let model = ResolvedModel {
+            name: "AdminUser".to_string(),
+            fields: vec![],
+            parents: vec!["User".to_string(), "Timestamped".to_string()],
+            plugin_configs: std::collections::HashMap::new(),
+            source_file: "test.cdm".to_string(),
+            source_span: span,
+        };
+
+        assert_eq!(model.parents.len(), 2);
+        assert_eq!(model.parents[0], "User");
+        assert_eq!(model.parents[1], "Timestamped");
+    }
+
+    #[test]
+    fn test_resolved_model_with_plugin_configs() {
+        let span = Span {
+            start: Position { line: 0, column: 0 },
+            end: Position { line: 0, column: 10 },
+        };
+
+        let mut plugin_configs = std::collections::HashMap::new();
+        plugin_configs.insert(
+            "prisma".to_string(),
+            serde_json::json!({"tableName": "users"}),
+        );
+        plugin_configs.insert(
+            "docs".to_string(),
+            serde_json::json!({"description": "User model"}),
+        );
+
+        let model = ResolvedModel {
+            name: "User".to_string(),
+            fields: vec![],
+            parents: vec![],
+            plugin_configs,
+            source_file: "test.cdm".to_string(),
+            source_span: span,
+        };
+
+        assert_eq!(model.plugin_configs.len(), 2);
+        assert_eq!(
+            model.plugin_configs.get("prisma").unwrap(),
+            &serde_json::json!({"tableName": "users"})
+        );
+    }
+
+    #[test]
+    fn test_resolved_type_alias_with_plugin_configs() {
+        let mut plugin_configs = std::collections::HashMap::new();
+        plugin_configs.insert(
+            "docs".to_string(),
+            serde_json::json!({"description": "User status type"}),
+        );
+
+        let alias = ResolvedTypeAlias {
+            name: "Status".to_string(),
+            type_expr: r#""active" | "pending""#.to_string(),
+            references: vec![],
+            plugin_configs,
+            source_file: "test.cdm".to_string(),
+            source_span: Span {
+                start: Position { line: 0, column: 0 },
+                end: Position { line: 0, column: 10 },
+            },
+            cached_parsed_type: std::cell::RefCell::new(None),
+        };
+
+        assert_eq!(alias.plugin_configs.len(), 1);
+        assert_eq!(
+            alias.plugin_configs.get("docs").unwrap(),
+            &serde_json::json!({"description": "User status type"})
+        );
+    }
+
+    #[test]
+    fn test_resolved_field_clone_preserves_new_fields() {
+        let mut original = ResolvedField::new(
+            "name".to_string(),
+            Some("string".to_string()),
+            false,
+            "test.cdm".to_string(),
+            Span {
+                start: Position { line: 0, column: 0 },
+                end: Position { line: 0, column: 10 },
+            },
+        );
+
+        original.default_value = Some(serde_json::json!("default"));
+        original.plugin_configs.insert(
+            "test".to_string(),
+            serde_json::json!({"key": "value"}),
+        );
+
+        let cloned = original.clone();
+
+        assert_eq!(cloned.default_value, original.default_value);
+        assert_eq!(cloned.plugin_configs.len(), 1);
+        assert_eq!(
+            cloned.plugin_configs.get("test").unwrap(),
+            &serde_json::json!({"key": "value"})
+        );
+    }
+
+    #[test]
+    fn test_resolved_model_clone_preserves_new_fields() {
+        let span = Span {
+            start: Position { line: 0, column: 0 },
+            end: Position { line: 0, column: 10 },
+        };
+
+        let mut plugin_configs = std::collections::HashMap::new();
+        plugin_configs.insert(
+            "test".to_string(),
+            serde_json::json!({"key": "value"}),
+        );
+
+        let original = ResolvedModel {
+            name: "User".to_string(),
+            fields: vec![],
+            parents: vec!["Base".to_string()],
+            plugin_configs,
+            source_file: "test.cdm".to_string(),
+            source_span: span,
+        };
+
+        let cloned = original.clone();
+
+        assert_eq!(cloned.parents, original.parents);
+        assert_eq!(cloned.plugin_configs.len(), 1);
+        assert_eq!(
+            cloned.plugin_configs.get("test").unwrap(),
+            &serde_json::json!({"key": "value"})
+        );
+    }
+
+    #[test]
+    fn test_resolved_type_alias_clone_preserves_new_fields() {
+        let mut plugin_configs = std::collections::HashMap::new();
+        plugin_configs.insert(
+            "test".to_string(),
+            serde_json::json!({"key": "value"}),
+        );
+
+        let original = ResolvedTypeAlias {
+            name: "Status".to_string(),
+            type_expr: "string".to_string(),
+            references: vec![],
+            plugin_configs,
+            source_file: "test.cdm".to_string(),
+            source_span: Span {
+                start: Position { line: 0, column: 0 },
+                end: Position { line: 0, column: 10 },
+            },
+            cached_parsed_type: std::cell::RefCell::new(None),
+        };
+
+        let cloned = original.clone();
+
+        assert_eq!(cloned.plugin_configs.len(), 1);
+        assert_eq!(
+            cloned.plugin_configs.get("test").unwrap(),
+            &serde_json::json!({"key": "value"})
+        );
     }
 }

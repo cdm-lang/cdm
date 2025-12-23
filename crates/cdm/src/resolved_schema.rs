@@ -61,13 +61,14 @@ pub fn build_resolved_schema(
                             name: name.clone(),
                             type_expr: type_expr.clone(),
                             references: references.clone(),
+                            plugin_configs: HashMap::new(), // TODO: populate from parsed plugin configs
                             source_file: ancestor.path.clone(),
                             source_span: def.span,
                             cached_parsed_type: RefCell::new(None),
                         },
                     );
                 }
-                DefinitionKind::Model { .. } => {
+                DefinitionKind::Model { extends } => {
                     // Add model if it has fields in ancestor.model_fields
                     if let Some(fields) = ancestor.model_fields.get(name) {
                         resolved.models.insert(
@@ -80,11 +81,15 @@ pub fn build_resolved_schema(
                                         name: f.name.clone(),
                                         type_expr: f.type_expr.clone(),
                                         optional: f.optional,
+                                        default_value: None, // TODO: populate from parsed default values
+                                        plugin_configs: HashMap::new(), // TODO: populate from parsed plugin configs
                                         source_file: ancestor.path.clone(),
                                         source_span: f.span,
                                         cached_parsed_type: RefCell::new(None),
                                     })
                                     .collect(),
+                                parents: extends.clone(),
+                                plugin_configs: HashMap::new(), // TODO: populate from parsed plugin configs
                                 source_file: ancestor.path.clone(),
                                 source_span: def.span,
                             },
@@ -110,13 +115,14 @@ pub fn build_resolved_schema(
                         name: name.clone(),
                         type_expr: type_expr.clone(),
                         references: references.clone(),
+                        plugin_configs: HashMap::new(), // TODO: populate from parsed plugin configs
                         source_file: "current file".to_string(),
                         source_span: def.span,
                         cached_parsed_type: RefCell::new(None),
                     },
                 );
             }
-            DefinitionKind::Model { .. } => {
+            DefinitionKind::Model { extends } => {
                 // Add model from current file
                 if let Some(fields) = current_fields.get(name) {
                     resolved.models.insert(
@@ -129,11 +135,15 @@ pub fn build_resolved_schema(
                                     name: f.name.clone(),
                                     type_expr: f.type_expr.clone(),
                                     optional: f.optional,
+                                    default_value: None, // TODO: populate from parsed default values
+                                    plugin_configs: HashMap::new(), // TODO: populate from parsed plugin configs
                                     source_file: "current file".to_string(),
                                     source_span: f.span,
                                     cached_parsed_type: RefCell::new(None),
                                 })
                                 .collect(),
+                            parents: extends.clone(),
+                            plugin_configs: HashMap::new(), // TODO: populate from parsed plugin configs
                             source_file: "current file".to_string(),
                             source_span: def.span,
                         },

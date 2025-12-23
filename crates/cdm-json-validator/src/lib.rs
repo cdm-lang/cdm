@@ -452,6 +452,8 @@ mod tests {
             ResolvedModel {
                 name: "User".to_string(),
                 fields: user_fields,
+                parents: vec![],
+                plugin_configs: std::collections::HashMap::new(),
                 source_file: "test.cdm".to_string(),
                 source_span: span,
             },
@@ -469,6 +471,8 @@ mod tests {
             ResolvedModel {
                 name: "Post".to_string(),
                 fields: post_fields,
+                parents: vec![],
+                plugin_configs: std::collections::HashMap::new(),
                 source_file: "test.cdm".to_string(),
                 source_span: span,
             },

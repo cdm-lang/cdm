@@ -832,7 +832,7 @@ Plugins are imported at the top of CDM files, before any type or model definitio
 @sql {
   dialect: "postgres",
   schema: "public",
-  generate_output: "./db/schema",
+  build_output: "./db/schema",
   migrations_output: "./db/migrations"
 }
 
@@ -908,7 +908,7 @@ CDM extracts these keys before passing config to plugins:
 | Key | Type | Description |
 |-----|------|-------------|
 | `version` | `string` | Version constraint for plugin resolution |
-| `generate_output` | `string` | Output directory for generated files |
+| `build_output` | `string` | Output directory for generated files |
 | `migrations_output` | `string` | Output directory for migration files |
 
 ### 8.5 Configuration Levels
@@ -1108,7 +1108,7 @@ When building a context, CDM:
 2. Merges all type aliases and models
 3. Merges all plugin configurations
 4. Validates the complete schema
-5. Invokes each plugin's `generate` function
+5. Invokes each plugin's `build` function
 6. Writes output files to configured directories
 
 ---
@@ -1153,7 +1153,7 @@ cdm validate cdm/*.cdm          # Validate multiple files
 
 ### 11.3 Build Command
 
-Generates output files by running all plugin `generate` functions.
+Generates output files by running all plugin `build` functions.
 
 ```bash
 cdm build [files...]
@@ -1170,7 +1170,7 @@ cdm build api.cdm               # Build specific context
 1. Validate all files
 2. For each context file (or specified files):
    - Resolve full schema
-   - Call each plugin's `generate` function
+   - Call each plugin's `build` function
    - Write output files to configured directories
 
 ### 11.4 Migrate Command
@@ -1245,7 +1245,7 @@ cdm-plugin-example/
 ├── src/
 │   ├── lib.rs            # Plugin entry point
 │   ├── validate.rs       # Config validation
-│   ├── generate.rs       # Code generation
+│   ├── build.rs          # Code generation
 │   └── migrate.rs        # Migration generation
 ├── .gitignore
 └── README.md
@@ -1264,7 +1264,7 @@ cdm-plugin-example/
     "file": "target/wasm32-wasip1/release/cdm_plugin_example.wasm",
     "release_url": "https://github.com/.../releases/download/v{version}/plugin.wasm"
   },
-  "capabilities": ["generate", "migrate"]
+  "capabilities": ["build", "migrate"]
 }
 ```
 
@@ -1320,7 +1320,7 @@ CDM validates user-provided plugin configurations against this schema before cal
 
 ### 12.4 Plugin API
 
-Plugins must implement `schema()`. The `validate_config()`, `generate()`, and `migrate()` functions are optional.
+Plugins must implement `schema()`. The `validate_config()`, `build()`, and `migrate()` functions are optional.
 
 #### schema (Required)
 
@@ -1372,12 +1372,12 @@ struct ValidationError {
 }
 ```
 
-#### generate (Optional)
+#### build (Optional)
 
 Transforms schema into output files.
 
 ```rust
-fn generate(
+fn build(
     schema: Schema,
     config: JSON,
     utils: Utils,

@@ -13,7 +13,7 @@ Plugins are imported at the top of CDM files using `@name` syntax. All imports m
 @sql {
     dialect: "postgres",
     schema: "public",
-    generate_output: "./db/schema",
+    build_output: "./db/schema",
     migrations_output: "./db/migrations"
 }
 
@@ -35,7 +35,7 @@ CDM extracts these keys before passing config to plugins:
 | Key                 | Purpose                                  |
 | ------------------- | ---------------------------------------- |
 | `version`           | Version constraint for plugin resolution |
-| `generate_output`   | Output directory for generated files     |
+| `build_output`   | Output directory for generated files     |
 | `migrations_output` | Output directory for migration files     |
 
 ## Plugin Sources
@@ -149,7 +149,7 @@ cdm-plugin-my-plugin/
   "wasm": {
     "file": "target/wasm32-wasip1/release/cdm_plugin_my_plugin.wasm"
   },
-  "capabilities": ["generate", "migrate"]
+  "capabilities": ["build", "migrate"]
 }
 ```
 
@@ -213,12 +213,12 @@ pub fn validate_config(
 }
 ```
 
-### generate (Optional)
+### build (Optional)
 
 Transforms the schema into output files.
 
 ```rust
-pub fn generate(
+pub fn build(
     schema: Schema,
     config: JSON,
     utils: &Utils,
@@ -228,7 +228,7 @@ pub fn generate(
     for model in &schema.models {
         let name = utils.change_case(&model.name, CaseFormat::Snake);
         output.push_str(&format!("// Model: {}\n", name));
-        // Generate code...
+        // Build code...
     }
 
     vec![OutputFile {
@@ -338,7 +338,7 @@ Then run:
 
 ```bash
 cdm validate    # Check configs
-cdm build       # Run generate
+cdm build       # Run build for all plugins
 cdm migrate     # Run migrations
 ```
 
@@ -352,7 +352,7 @@ cdm plugin cache <name>         # Pre-download a plugin
 cdm plugin clear-cache          # Clear plugin cache
 
 cdm validate                    # Validate CDM files and configs
-cdm build                       # Run generate for all plugins
+cdm build                       # Run build for all plugins
 cdm migrate                     # Generate migrations from changes
 ```
 
