@@ -25,6 +25,12 @@ impl LoadedFile {
         }
     }
 
+    /// Create a new LoadedFile for testing purposes
+    #[cfg(test)]
+    pub(crate) fn new_for_test(path: PathBuf) -> Self {
+        Self::new(path)
+    }
+
     /// Get the source content, reading and caching it on first access
     pub fn source(&self) -> Result<String, std::io::Error> {
         // Check if already cached
