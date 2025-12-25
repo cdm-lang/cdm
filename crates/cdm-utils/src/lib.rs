@@ -91,6 +91,8 @@ pub struct ResolvedTypeAlias {
     /// Cached parsed type (lazy-initialized on first access)
     #[allow(clippy::type_complexity)]
     pub cached_parsed_type: std::cell::RefCell<Option<Result<ParsedType, String>>>,
+    /// Optional entity ID for migration tracking
+    pub entity_id: Option<u64>,
 }
 
 impl Clone for ResolvedTypeAlias {
@@ -104,6 +106,7 @@ impl Clone for ResolvedTypeAlias {
             source_span: self.source_span,
             // Don't clone the cache - let each clone re-parse if needed
             cached_parsed_type: std::cell::RefCell::new(None),
+            entity_id: self.entity_id,
         }
     }
 }
@@ -125,6 +128,7 @@ impl ResolvedTypeAlias {
             source_file,
             source_span,
             cached_parsed_type: std::cell::RefCell::new(None),
+            entity_id: None,
         }
     }
 
@@ -158,6 +162,8 @@ pub struct ResolvedModel {
     pub source_file: String,
     /// Span in the source file
     pub source_span: Span,
+    /// Optional entity ID for migration tracking
+    pub entity_id: Option<u64>,
 }
 
 /// A resolved field with source tracking
@@ -178,6 +184,8 @@ pub struct ResolvedField {
     /// Cached parsed type (lazy-initialized on first access)
     #[allow(clippy::type_complexity)]
     pub cached_parsed_type: std::cell::RefCell<Option<Result<ParsedType, String>>>,
+    /// Optional entity ID for migration tracking
+    pub entity_id: Option<u64>,
 }
 
 impl Clone for ResolvedField {
@@ -192,6 +200,7 @@ impl Clone for ResolvedField {
             source_span: self.source_span,
             // Don't clone the cache - let each clone re-parse if needed
             cached_parsed_type: std::cell::RefCell::new(None),
+            entity_id: self.entity_id,
         }
     }
 }
@@ -214,6 +223,7 @@ impl ResolvedField {
             source_file,
             source_span,
             cached_parsed_type: std::cell::RefCell::new(None),
+            entity_id: None,
         }
     }
 
@@ -602,6 +612,7 @@ mod tests {
                 end: Position { line: 0, column: 10 },
             },
             cached_parsed_type: std::cell::RefCell::new(None),
+            entity_id: None,
         };
 
         // First call should parse
@@ -630,6 +641,7 @@ mod tests {
                 end: Position { line: 0, column: 10 },
             },
             cached_parsed_type: std::cell::RefCell::new(None),
+            entity_id: None,
         };
 
         // Should default to string
@@ -650,6 +662,7 @@ mod tests {
                 end: Position { line: 0, column: 10 },
             },
             cached_parsed_type: std::cell::RefCell::new(None),
+            entity_id: None,
         };
 
         let result = alias.parsed_type().unwrap();
@@ -736,6 +749,7 @@ mod tests {
             plugin_configs: std::collections::HashMap::new(),
             source_file: "test.cdm".to_string(),
             source_span: span,
+            entity_id: None,
         };
 
         assert_eq!(model.parents.len(), 2);
@@ -767,6 +781,7 @@ mod tests {
             plugin_configs,
             source_file: "test.cdm".to_string(),
             source_span: span,
+            entity_id: None,
         };
 
         assert_eq!(model.plugin_configs.len(), 2);
@@ -795,6 +810,7 @@ mod tests {
                 end: Position { line: 0, column: 10 },
             },
             cached_parsed_type: std::cell::RefCell::new(None),
+            entity_id: None,
         };
 
         assert_eq!(alias.plugin_configs.len(), 1);
@@ -853,6 +869,7 @@ mod tests {
             plugin_configs,
             source_file: "test.cdm".to_string(),
             source_span: span,
+            entity_id: None,
         };
 
         let cloned = original.clone();
@@ -884,6 +901,7 @@ mod tests {
                 end: Position { line: 0, column: 10 },
             },
             cached_parsed_type: std::cell::RefCell::new(None),
+            entity_id: None,
         };
 
         let cloned = original.clone();

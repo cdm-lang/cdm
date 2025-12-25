@@ -309,9 +309,11 @@ mod tests {
                         optional: false,
                         default: None,
                         config: serde_json::json!({}),
+                        entity_id: None,
                     },
                 ],
                 config: serde_json::json!({}),
+                entity_id: None,
             },
         );
 
@@ -335,6 +337,7 @@ mod tests {
                         optional: false,
                         default: None,
                         config: serde_json::json!({}),
+                        entity_id: None,
                     },
                     cdm_plugin_api::FieldDefinition {
                         name: "title".to_string(),
@@ -344,9 +347,11 @@ mod tests {
                         optional: false,
                         default: None,
                         config: serde_json::json!({}),
+                        entity_id: None,
                     },
                 ],
                 config: serde_json::json!({}),
+                entity_id: None,
             },
         }];
 
@@ -403,9 +408,11 @@ mod tests {
                         optional: false,
                         default: None,
                         config: serde_json::json!({}),
+                        entity_id: None,
                     },
                 ],
                 config: serde_json::json!({}),
+                entity_id: None,
             },
         );
 
@@ -426,6 +433,7 @@ mod tests {
                 optional: false,
                 default: None,
                 config: serde_json::json!({}),
+                entity_id: None,
             },
         }];
 
@@ -470,6 +478,7 @@ mod tests {
                 parents: vec![],
                 fields: vec![],
                 config: serde_json::json!({}),
+                entity_id: None,
             },
         );
 
@@ -491,6 +500,7 @@ mod tests {
                     optional: false,
                     default: None,
                     config: serde_json::json!({}),
+                    entity_id: None,
                 },
             },
             Delta::FieldAdded {
@@ -504,6 +514,7 @@ mod tests {
                     optional: true,
                     default: None,
                     config: serde_json::json!({}),
+                    entity_id: None,
                 },
             },
         ];

@@ -155,9 +155,11 @@ fn build_cdm_schema_for_plugin(
                     optional: f.optional,
                     default: f.default_value.as_ref().map(|v| v.into()),
                     config: f.plugin_configs.get(plugin_name).cloned().unwrap_or(serde_json::json!({})),
+                    entity_id: f.entity_id,
                 }
             }).collect(),
             config: model.plugin_configs.get(plugin_name).cloned().unwrap_or(serde_json::json!({})),
+            entity_id: model.entity_id,
         });
     }
 
@@ -173,6 +175,7 @@ fn build_cdm_schema_for_plugin(
             name: name.clone(),
             alias_type: convert_type_expression(&parsed_type),
             config: alias.plugin_configs.get(plugin_name).cloned().unwrap_or(serde_json::json!({})),
+            entity_id: alias.entity_id,
         });
     }
 

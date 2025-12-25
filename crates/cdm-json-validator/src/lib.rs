@@ -456,6 +456,7 @@ mod tests {
                 plugin_configs: std::collections::HashMap::new(),
                 source_file: "test.cdm".to_string(),
                 source_span: span,
+                entity_id: None,
             },
         );
 
@@ -475,6 +476,7 @@ mod tests {
                 plugin_configs: std::collections::HashMap::new(),
                 source_file: "test.cdm".to_string(),
                 source_span: span,
+                entity_id: None,
             },
         );
 

@@ -34,6 +34,8 @@ pub struct Definition {
     pub span: Span,
     /// Plugin-specific configurations (plugin_name → config)
     pub plugin_configs: std::collections::HashMap<String, serde_json::Value>,
+    /// Optional entity ID for migration tracking
+    pub entity_id: Option<u64>,
 }
 
 /// Information about a field in a model.
@@ -53,6 +55,8 @@ pub struct FieldInfo {
     pub plugin_configs: std::collections::HashMap<String, serde_json::Value>,
     /// Default value for this field
     pub default_value: Option<serde_json::Value>,
+    /// Optional entity ID for migration tracking
+    pub entity_id: Option<u64>,
 }
 
 /// A resolved ancestor file with its symbol table and field information.

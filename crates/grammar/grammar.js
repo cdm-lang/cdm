@@ -17,6 +17,7 @@
  * - Field-level plugin overrides
  * - Context extensions: @extends ./base.cdm
  * - Model removal: -ModelName
+ * - Entity IDs: User { name: string #1 } #10
  */
 
 module.exports = grammar({
@@ -91,37 +92,50 @@ module.exports = grammar({
     model_removal: ($) => seq("-", field("name", $.identifier)),
 
     // =========================================================================
+    // ENTITY IDs
+    // =========================================================================
+
+    // Entity ID: #N where N is a positive integer
+    // Examples: #1, #42, #1000
+    // Used for stable identity tracking across schema versions
+    entity_id: ($) => seq("#", /[1-9][0-9]*/),
+
+    // =========================================================================
     // TYPE ALIASES
     // =========================================================================
 
-    // Type alias: Name: type [{ plugins }]
+    // Type alias: Name: type [{ plugins }] [#id]
     // Examples:
     //   Email: string
-    //   Status: "active" | "pending" | "deleted"
-    //   UUID: string { @validation { format: uuid } }
-    //   AccountType: "free" | "premium" | "enterprise" { @sql { type: "ENUM" } }
+    //   Email: string #1
+    //   Status: "active" | "pending" | "deleted" #2
+    //   UUID: string { @validation { format: uuid } } #3
+    //   AccountType: "free" | "premium" | "enterprise" { @sql { type: "ENUM" } } #4
     type_alias: ($) =>
       seq(
         field("name", $.identifier),
         ":",
         field("type", $._type_expression),
-        optional(field("plugins", $.plugin_block))
+        optional(field("plugins", $.plugin_block)),
+        optional(field("id", $.entity_id))
       ),
 
     // =========================================================================
     // MODEL DEFINITIONS
     // =========================================================================
 
-    // Model: Name [extends Parents] { members }
+    // Model: Name [extends Parents] { members } [#id]
     // Examples:
     //   User { name: string }
-    //   Article extends Timestamped { title: string }
-    //   AdminUser extends BaseUser, Timestamped { level: number }
+    //   User { name: string } #10
+    //   Article extends Timestamped { title: string } #11
+    //   AdminUser extends BaseUser, Timestamped { level: number } #12
     model_definition: ($) =>
       seq(
         field("name", $.identifier),
         optional(field("extends", $.extends_clause)),
-        field("body", $.model_body)
+        field("body", $.model_body),
+        optional(field("id", $.entity_id))
       ),
 
     extends_clause: ($) =>
@@ -169,18 +183,19 @@ module.exports = grammar({
         seq(field("name", $.identifier), field("plugins", $.plugin_block))
       ),
 
-    // Field definition: name[?] [: type [= default] [{ plugins }]]
+    // Field definition: name[?] [: type [= default] [{ plugins }]] [#id]
     // Examples:
     //   name                                    (untyped, defaults to string)
-    //   email: string                           (typed)
-    //   active: boolean = true                  (with default)
-    //   age?: Age                               (optional)
-    //   bio?                                    (optional, untyped)
-    //   posts: Post[]                           (array)
-    //   tags?: Tag[]                            (optional array)
-    //   status: "draft" | "published" = "draft" (inline union with default)
-    //   content: string { @sql { type: "TEXT" } }  (with plugins)
-    //   average_rating: decimal { @computed { from: "AVG(reviews.rating)" } }
+    //   name #1                                 (untyped with ID)
+    //   email: string #2                        (typed with ID)
+    //   active: boolean = true #3               (with default and ID)
+    //   age?: Age #4                            (optional with ID)
+    //   bio? #5                                 (optional, untyped with ID)
+    //   posts: Post[] #6                        (array with ID)
+    //   tags?: Tag[] #7                         (optional array with ID)
+    //   status: "draft" | "published" = "draft" #8 (inline union with default and ID)
+    //   content: string { @sql { type: "TEXT" } } #9  (with plugins and ID)
+    //   average_rating: decimal { @computed { from: "AVG(reviews.rating)" } } #10
     field_definition: ($) =>
       prec(
         1,
@@ -194,7 +209,8 @@ module.exports = grammar({
               optional(seq("=", field("default", $._default_value))),
               optional(field("plugins", $.plugin_block))
             )
-          )
+          ),
+          optional(field("id", $.entity_id))
         )
       ),
 

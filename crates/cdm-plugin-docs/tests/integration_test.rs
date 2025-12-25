@@ -258,6 +258,7 @@ fn create_test_schema() -> Schema {
                     optional: false,
                     default: None,
                     config: json!({}),
+                    entity_id: None,
                 },
                 FieldDefinition {
                     name: "email".to_string(),
@@ -269,12 +270,14 @@ fn create_test_schema() -> Schema {
                     config: json!({
                         "description": "User's email address"
                     }),
+                    entity_id: None,
                 },
             ],
             parents: vec![],
             config: json!({
                 "description": "A user in the system"
             }),
+            entity_id: None,
         },
     );
 
@@ -298,6 +301,7 @@ fn create_test_schema_with_examples() -> Schema {
             config: json!({
                 "example": "{\"id\": \"123\", \"email\": \"test@example.com\"}"
             }),
+            entity_id: None,
         },
     );
 
@@ -321,6 +325,7 @@ fn create_test_schema_with_hidden() -> Schema {
             config: json!({
                 "hidden": true
             }),
+            entity_id: None,
         },
     );
     models.insert(
@@ -330,6 +335,7 @@ fn create_test_schema_with_hidden() -> Schema {
             fields: vec![],
             parents: vec![],
             config: json!({}),
+            entity_id: None,
         },
     );
 
@@ -358,9 +364,11 @@ fn create_test_schema_with_deprecated() -> Schema {
                 config: json!({
                     "deprecated": true
                 }),
+                entity_id: None,
             }],
             parents: vec![],
             config: json!({}),
+            entity_id: None,
         },
     );
 

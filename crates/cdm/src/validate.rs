@@ -307,6 +307,18 @@ fn node_span(node: tree_sitter::Node) -> Span {
     }
 }
 
+/// Extract entity ID from a node if it has an "id" field.
+/// Returns None if no ID is present or if parsing fails.
+fn extract_entity_id(node: tree_sitter::Node, source: &str) -> Option<u64> {
+    node.child_by_field_name("id")
+        .and_then(|id_node| {
+            let text = get_node_text(id_node, source);
+            // Remove the '#' prefix and parse
+            text.strip_prefix('#')
+                .and_then(|num| num.parse::<u64>().ok())
+        })
+}
+
 // =============================================================================
 // Pass 1: Collect definitions into symbol table
 // =============================================================================
@@ -492,12 +504,16 @@ fn collect_type_alias(
         .cloned()
         .unwrap_or_default();
 
+    // Extract entity ID
+    let entity_id = extract_entity_id(node, source);
+
     symbol_table.definitions.insert(
         name.to_string(),
         Definition {
             kind: DefinitionKind::TypeAlias { references, type_expr },
             span,
             plugin_configs,
+            entity_id,
         },
     );
 }
@@ -611,12 +627,16 @@ fn collect_model(
         .cloned()
         .unwrap_or_default();
 
+    // Extract entity ID
+    let entity_id = extract_entity_id(node, source);
+
     symbol_table.definitions.insert(
         name.to_string(),
         Definition {
             kind: DefinitionKind::Model { extends },
             span,
             plugin_configs,
+            entity_id,
         },
     );
 }
@@ -677,6 +697,9 @@ fn collect_field_info(
                     .get(&(model_name.to_string(), name.clone()))
                     .cloned();
 
+                // Extract entity ID
+                let entity_id = extract_entity_id(child, source);
+
                 fields.push(FieldInfo {
                     name,
                     type_expr,
@@ -684,6 +707,7 @@ fn collect_field_info(
                     span,
                     plugin_configs,
                     default_value,
+                    entity_id,
                 });
             }
         }

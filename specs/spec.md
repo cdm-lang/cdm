@@ -1,6 +1,6 @@
 # CDM Language Specification
 
-**Version**: 1.0.0-draft  
+**Version**: 1.1.0-draft  
 **Status**: Draft
 
 ---
@@ -21,6 +21,8 @@
 12. [Plugin Development](#12-plugin-development)
 13. [Appendix A: Grammar](#appendix-a-grammar)
 14. [Appendix B: Error Catalog](#appendix-b-error-catalog)
+15. [Appendix C: Registry Format](#appendix-c-registry-format)
+16. [Appendix D: Data Exchange Format](#appendix-d-data-exchange-format)
 
 ---
 
@@ -44,6 +46,7 @@ CDM (Contextual Data Model) is a schema definition language designed to serve as
 3. **Extensible**: Plugin system for custom code generation and validation
 4. **Familiar Syntax**: TypeScript-inspired syntax for low learning curve
 5. **Type Safe**: Strong static validation before any code generation
+6. **Migration-Friendly**: Optional entity IDs enable reliable rename tracking across schema versions
 
 ### 1.3 Core Concepts
 
@@ -54,6 +57,8 @@ CDM (Contextual Data Model) is a schema definition language designed to serve as
 **Context**: A CDM file that extends another, providing environment-specific modifications to the schema.
 
 **Plugin**: A WebAssembly module that transforms CDM schemas into output files (code, SQL, documentation).
+
+**Entity ID**: An optional stable identifier (`#N`) that enables reliable rename tracking for migrations.
 
 ### 1.4 Example
 
@@ -66,31 +71,31 @@ CDM (Contextual Data Model) is a schema definition language designed to serve as
 Email: string {
   @validation { format: "email", max_length: 320 }
   @sql { type: "VARCHAR(320)" }
-}
+} #1
 
-Status: "active" | "pending" | "suspended"
+Status: "active" | "pending" | "suspended" #2
 
 // Models
 User {
-  id: string
-  email: Email
-  name: string
-  status: Status = "pending"
-  posts: Post[]
-  created_at: string
-  
+  id: string #1
+  email: Email #2
+  name: string #3
+  status: Status = "pending" #4
+  posts: Post[] #5
+  created_at: string #6
+
   @sql { table: "users", indexes: [{ fields: ["email"], unique: true }] }
-}
+} #10
 
 Post {
-  id: string
-  author: User
-  title: string
-  content: string
-  published: boolean = false
-  
+  id: string #1
+  author: User #2
+  title: string #3
+  content: string #4
+  published: boolean = false #5
+
   @sql { table: "posts" }
-}
+} #11
 ```
 
 ---
@@ -145,6 +150,7 @@ Strings are enclosed in double quotes with backslash escape sequences:
 ```
 
 **Escape sequences**:
+
 - `\"` - double quote
 - `\\` - backslash
 - `\/` - forward slash
@@ -177,18 +183,76 @@ false
 
 ### 2.6 Punctuation and Operators
 
-| Symbol | Usage |
-|--------|-------|
-| `{` `}` | Block delimiters (models, config objects) |
-| `[` `]` | Array type suffix, array literals |
-| `(` `)` | Reserved for future use |
-| `:` | Type annotation, object key-value separator |
-| `=` | Default value assignment |
-| `?` | Optional field marker |
-| `\|` | Union type separator |
-| `,` | Object/array element separator |
-| `-` | Field/model removal prefix |
-| `@` | Plugin/directive prefix |
+| Symbol  | Usage                                       |
+| ------- | ------------------------------------------- |
+| `{` `}` | Block delimiters (models, config objects)   |
+| `[` `]` | Array type suffix, array literals           |
+| `(` `)` | Reserved for future use                     |
+| `:`     | Type annotation, object key-value separator |
+| `=`     | Default value assignment                    |
+| `?`     | Optional field marker                       |
+| `\|`    | Union type separator                        |
+| `,`     | Object/array element separator              |
+| `-`     | Field/model removal prefix                  |
+| `@`     | Plugin/directive prefix                     |
+| `#`     | Entity ID prefix                            |
+
+### 2.7 Entity IDs
+
+Entity IDs are optional stable identifiers that enable reliable rename tracking across schema versions. IDs appear at the end of type alias, model, and field definitions.
+
+#### Syntax
+
+```
+#N
+```
+
+Where `N` is a positive integer (1 or greater).
+
+#### Examples
+
+```cdm
+Email: string #1                    // Type alias with ID
+Status: "active" | "pending" #2     // Union type alias with ID
+
+User {
+  name: string #1                   // Field with ID
+  email: string #2                  // Field with ID
+} #10                               // Model with ID
+```
+
+#### Purpose
+
+Entity IDs solve the ambiguity between renames and remove+add operations when computing migrations:
+
+```cdm
+// Before
+User {
+  name: string #1
+} #10
+
+// After - ID #1 proves this is a rename, not remove+add
+User {
+  displayName: string #1
+} #10
+```
+
+Without IDs, the migration system cannot distinguish between:
+
+- Renaming `name` to `displayName` (preserves data)
+- Removing `name` and adding `displayName` (loses data)
+
+#### Scope
+
+- **Model and Type Alias IDs**: Global within the project. No two models or type aliases can share the same ID.
+- **Field IDs**: Scoped to their containing model. Field `#1` in `User` is distinct from field `#1` in `Post`.
+
+#### Rules
+
+1. **Uniqueness**: No duplicate IDs within scope
+2. **Immutability**: Once assigned, IDs should never change
+3. **No Reuse**: Deleted entity IDs should not be reused for new entities
+4. **Optionality**: IDs are optional; entities without IDs use heuristic matching for migrations
 
 ---
 
@@ -198,12 +262,12 @@ false
 
 CDM provides four built-in primitive types:
 
-| Type | Description | Example Values |
-|------|-------------|----------------|
-| `string` | Unicode text | `"hello"`, `""` |
-| `number` | Numeric value (integer or floating-point) | `42`, `-3.14` |
-| `boolean` | Logical value | `true`, `false` |
-| `JSON` | Arbitrary JSON data | Any valid JSON |
+| Type      | Description                               | Example Values  |
+| --------- | ----------------------------------------- | --------------- |
+| `string`  | Unicode text                              | `"hello"`, `""` |
+| `number`  | Numeric value (integer or floating-point) | `42`, `-3.14`   |
+| `boolean` | Logical value                             | `true`, `false` |
+| `JSON`    | Arbitrary JSON data                       | Any valid JSON  |
 
 ### 3.2 Type Expressions
 
@@ -282,6 +346,14 @@ UserId: string
 Count: number
 ```
 
+With entity IDs for migration tracking:
+
+```cdm
+Email: string #1
+UserId: string #2
+Count: number #3
+```
+
 ### 4.2 Type Alias with Plugin Configuration
 
 Type aliases can include plugin-specific configuration:
@@ -290,11 +362,11 @@ Type aliases can include plugin-specific configuration:
 Email: string {
   @validation { format: "email", max_length: 320 }
   @sql { type: "VARCHAR(320)" }
-}
+} #1
 
 UUID: string {
   @sql { type: "UUID", default: "gen_random_uuid()" }
-}
+} #2
 ```
 
 ### 4.3 Union Type Aliases
@@ -302,11 +374,11 @@ UUID: string {
 Union types can be named via type alias:
 
 ```cdm
-Status: "active" | "pending" | "suspended" | "deleted"
+Status: "active" | "pending" | "suspended" | "deleted" #1
 
-Priority: "low" | "medium" | "high" | "critical"
+Priority: "low" | "medium" | "high" | "critical" #2
 
-ContentBlock: TextBlock | ImageBlock | CodeBlock
+ContentBlock: TextBlock | ImageBlock | CodeBlock #3
 ```
 
 Union type aliases can also have plugin configuration:
@@ -314,7 +386,7 @@ Union type aliases can also have plugin configuration:
 ```cdm
 AccountType: "free" | "premium" | "enterprise" {
   @sql { type: "ENUM", name: "account_type_enum" }
-}
+} #4
 ```
 
 ### 4.4 Type Alias Semantics
@@ -340,6 +412,16 @@ User {
 }
 ```
 
+With entity IDs:
+
+```cdm
+User {
+  id: string #1
+  name: string #2
+  email: string #3
+} #10
+```
+
 ### 5.2 Field Definitions
 
 Fields are defined within a model body. A field has:
@@ -349,6 +431,7 @@ Fields are defined within a model body. A field has:
 - **Type**: Optional type expression (defaults to `string` if omitted)
 - **Default value**: Optional default using `=`
 - **Plugin configuration**: Optional plugin block
+- **Entity ID**: Optional `#N` suffix for migration tracking
 
 #### Untyped Fields
 
@@ -356,31 +439,31 @@ If no type is specified, the field defaults to `string`:
 
 ```cdm
 BasicUser {
-  name      // Equivalent to: name: string
-  email     // Equivalent to: email: string
-  bio       // Equivalent to: bio: string
-}
+  name #1
+  email #2
+  bio #3
+} #10
 ```
 
 #### Typed Fields
 
 ```cdm
 TypedUser {
-  id: string
-  age: number
-  active: boolean
-  metadata: JSON
-}
+  id: string #1
+  age: number #2
+  active: boolean #3
+  metadata: JSON #4
+} #11
 ```
 
 #### Optional Fields
 
 ```cdm
 User {
-  name: string         // Required
-  nickname?: string    // Optional
-  bio?                 // Optional, defaults to string type
-}
+  name: string #1
+  nickname?: string #2
+  bio? #3
+} #12
 ```
 
 #### Fields with Default Values
@@ -389,12 +472,12 @@ Default values must be literals (string, number, boolean, array, or object):
 
 ```cdm
 Settings {
-  theme: string = "dark"
-  max_items: number = 100
-  enabled: boolean = true
-  tags: string[] = ["default"]
-  options: JSON = { "verbose": false }
-}
+  theme: string = "dark" #1
+  max_items: number = 100 #2
+  enabled: boolean = true #3
+  tags: string[] = ["default"] #4
+  options: JSON = { "verbose": false } #5
+} #13
 ```
 
 **Note**: Function calls (like `now()`) are not supported as default values. Time-based defaults should be handled by plugins or application code.
@@ -406,8 +489,8 @@ Post {
   content: string {
     @sql { type: "TEXT" }
     @validation { min_length: 10, max_length: 50000 }
-  }
-}
+  } #1
+} #20
 ```
 
 ### 5.3 Model-Level Plugin Configuration
@@ -416,16 +499,16 @@ Models can have plugin configuration blocks after all fields:
 
 ```cdm
 User {
-  id: string
-  email: string
-  name: string
-  
-  @sql { 
+  id: string #1
+  email: string #2
+  name: string #3
+
+  @sql {
     table: "users",
     indexes: [{ fields: ["email"], unique: true }]
   }
   @api { expose: ["id", "name", "email"] }
-}
+} #10
 ```
 
 ### 5.4 Field Relationships
@@ -434,21 +517,21 @@ Fields can reference other models, creating relationships:
 
 ```cdm
 User {
-  id: string
-  posts: Post[]      // One-to-many: User has many Posts
-}
+  id: string #1
+  posts: Post[] #2
+} #10
 
 Post {
-  id: string
-  author: User       // Many-to-one: Post belongs to User
-  tags: Tag[]        // Many-to-many: Post has many Tags
-}
+  id: string #1
+  author: User #2
+  tags: Tag[] #3
+} #11
 
 Tag {
-  id: string
-  name: string
-  posts: Post[]      // Many-to-many: Tag has many Posts
-}
+  id: string #1
+  name: string #2
+  posts: Post[] #3
+} #12
 ```
 
 Circular references between models are allowed and common for bidirectional relationships.
@@ -463,15 +546,15 @@ A model can extend another model using the `extends` keyword:
 
 ```cdm
 Timestamped {
-  created_at: string
-  updated_at: string
-}
+  created_at: string #1
+  updated_at: string #2
+} #10
 
 Article extends Timestamped {
-  id: string
-  title: string
-  content: string
-}
+  id: string #3
+  title: string #4
+  content: string #5
+} #11
 ```
 
 The child model inherits all fields from the parent. The effective definition of `Article` is:
@@ -492,20 +575,20 @@ A model can extend multiple parents:
 
 ```cdm
 Timestamped {
-  created_at: string
-  updated_at: string
-}
+  created_at: string #1
+  updated_at: string #2
+} #10
 
 Auditable {
-  created_by: User
-  updated_by: User
-}
+  created_by: User #1
+  updated_by: User #2
+} #11
 
 Document extends Timestamped, Auditable {
-  id: string
-  title: string
-  content: string
-}
+  id: string #3
+  title: string #4
+  content: string #5
+} #12
 ```
 
 #### Field Conflict Resolution
@@ -514,24 +597,24 @@ When multiple parents define the same field, the **last parent listed wins**:
 
 ```cdm
 Parent1 {
-  status: "active" | "inactive"
-}
+  status: "active" | "inactive" #1
+} #10
 
 Parent2 {
-  status: "enabled" | "disabled"
-}
+  status: "enabled" | "disabled" #1
+} #11
 
 Child extends Parent1, Parent2 {
   // status is "enabled" | "disabled" (from Parent2)
-}
+} #12
 ```
 
 The child can always override explicitly for clarity:
 
 ```cdm
 Child extends Parent1, Parent2 {
-  status: "on" | "off"  // Explicit override
-}
+  status: "on" | "off" #2
+} #12
 ```
 
 ### 6.3 Field Removal
@@ -540,23 +623,25 @@ Child models can remove inherited fields using the `-` prefix:
 
 ```cdm
 BaseUser {
-  id: string
-  username: string
-  email: string
-  password_hash: string
-  salt: string
-}
+  id: string #1
+  username: string #2
+  email: string #3
+  password_hash: string #4
+  salt: string #5
+} #10
 
 PublicUser extends BaseUser {
   -password_hash
   -salt
-  
-  display_name: string
-  avatar_url?: string
-}
+
+  display_name: string #6
+  avatar_url?: string #7
+} #11
 ```
 
 Field removal only applies to inherited fields. Attempting to remove a field that doesn't exist in a parent is an error.
+
+**Note**: Field removals reference the parent's field by name. The ID remains with the original field definition in the parent.
 
 ### 6.4 Field Override
 
@@ -568,12 +653,12 @@ Provide a complete new definition:
 
 ```cdm
 Parent {
-  status: "active" | "inactive"
-}
+  status: "active" | "inactive" #1
+} #10
 
 Child extends Parent {
-  status: "active" | "inactive" | "pending" = "pending"
-}
+  status: "active" | "inactive" | "pending" = "pending" #1
+} #11
 ```
 
 #### Adding Plugin Configuration
@@ -582,15 +667,15 @@ Add or override plugin configuration for an inherited field without redefining i
 
 ```cdm
 Parent {
-  email: string
-}
+  email: string #1
+} #10
 
 Child extends Parent {
   email {
     @validation { format: "email" }
     @sql { unique: true }
   }
-}
+} #11
 ```
 
 ### 6.5 Inheritance of Plugin Configuration
@@ -641,14 +726,14 @@ Context files can define new types and models:
 // New type alias
 ApiToken: string {
   @validation { pattern: "^[a-zA-Z0-9]{32}$" }
-}
+} #20
 
 // New model
 ApiRequest {
-  token: ApiToken
-  timestamp: string
-  endpoint: string
-}
+  token: ApiToken #1
+  timestamp: string #2
+  endpoint: string #3
+} #30
 ```
 
 #### Removing Definitions
@@ -677,10 +762,10 @@ Use the model name with a block to modify an inherited model:
 User {
   -password_hash      // Remove inherited field
   -salt               // Remove inherited field
-  
-  avatar_url: string  // Add new field
-  is_online: boolean = false
-  
+
+  avatar_url: string #10  // Add new field
+  is_online: boolean = false #11
+
   @api { expose: ["id", "name", "email", "avatar_url"] }
 }
 ```
@@ -696,10 +781,10 @@ Type aliases can be redefined, automatically affecting all fields that use them:
 Email: string {
   @validation { format: "email", max_length: 320 }
   @sql { type: "VARCHAR(320)" }
-}
+} #1
 
-User { email: Email }
-Admin { contact_email: Email }
+User { email: Email #1 } #10
+Admin { contact_email: Email #1 } #11
 ```
 
 ```cdm
@@ -709,7 +794,7 @@ Admin { contact_email: Email }
 Email: string {
   @validation { format: "email" }  // Simpler validation for API
   // No SQL config needed for API context
-}
+} #1
 ```
 
 In `api.cdm`, both `User.email` and `Admin.contact_email` use the redefined `Email` type.
@@ -728,7 +813,7 @@ When a context file extends another, plugin configurations are merged.
 
 ```cdm
 // base.cdm
-@sql { 
+@sql {
   dialect: "postgres",
   naming: { tables: "snake_case", columns: "snake_case" },
   indexes: [{ fields: ["id"] }]
@@ -747,11 +832,12 @@ When a context file extends another, plugin configurations are merged.
 ```
 
 **Result in child.cdm:**
+
 ```cdm
 @sql {
   dialect: "postgres",              // Inherited
   schema: "api",                    // Added
-  naming: { 
+  naming: {
     tables: "snake_case",           // Inherited (deep merge)
     columns: "camelCase"            // Overridden
   },
@@ -765,7 +851,11 @@ Contexts can extend other contexts, forming a chain:
 
 ```cdm
 // base.cdm
-User { id: string, email: string, password_hash: string }
+User {
+  id: string #1
+  email: string #2
+  password_hash: string #3
+} #10
 
 // client.cdm
 @extends ./base.cdm
@@ -773,10 +863,11 @@ User { -password_hash }
 
 // mobile.cdm
 @extends ./client.cdm
-User { device_token?: string }
+User { device_token?: string #4 }
 ```
 
 In `mobile.cdm`:
+
 - `User` has `id`, `email` (from base via client)
 - `password_hash` is removed (from client)
 - `device_token` is added (from mobile)
@@ -796,12 +887,12 @@ Example:
 
 ```cdm
 // base.cdm
-Status: "active" | "inactive"
-User { status: Status }
+Status: "active" | "inactive" #1
+User { status: Status #1 } #10
 
 // api.cdm
 @extends ./base.cdm
-Status: "active" | "inactive" | "pending"  // Override
+Status: "active" | "inactive" | "pending" #1  // Override
 ```
 
 When building `api.cdm`, `User.status` has type `"active" | "inactive" | "pending"`.
@@ -905,21 +996,21 @@ Keys can be unquoted identifiers or quoted strings. Values can be any JSON value
 
 CDM extracts these keys before passing config to plugins:
 
-| Key | Type | Description |
-|-----|------|-------------|
-| `version` | `string` | Version constraint for plugin resolution |
-| `build_output` | `string` | Output directory for generated files |
-| `migrations_output` | `string` | Output directory for migration files |
+| Key                 | Type     | Description                              |
+| ------------------- | -------- | ---------------------------------------- |
+| `version`           | `string` | Version constraint for plugin resolution |
+| `build_output`      | `string` | Output directory for generated files     |
+| `migrations_output` | `string` | Output directory for migration files     |
 
 ### 8.5 Configuration Levels
 
 Plugins receive configuration at three levels:
 
-| Level | Location | Example |
-|-------|----------|---------|
-| Global | Plugin import | `@sql { dialect: "postgres" }` |
-| Model | Model block | `User { @sql { table: "users" } }` |
-| Field | Field block | `email: string { @sql { type: "VARCHAR(320)" } }` |
+| Level  | Location      | Example                                           |
+| ------ | ------------- | ------------------------------------------------- |
+| Global | Plugin import | `@sql { dialect: "postgres" }`                    |
+| Model  | Model block   | `User { @sql { table: "users" } }`                |
+| Field  | Field block   | `email: string { @sql { type: "VARCHAR(320)" } }` |
 
 ### 8.6 Plugin Execution Order
 
@@ -964,46 +1055,56 @@ CDM validation occurs in multiple phases:
 
 #### File Structure
 
-| Rule | Error |
-|------|-------|
-| Plugin imports must come before definitions | E001 |
-| `@extends` must come before plugin imports | E002 |
-| (Reserved for future use) | E003 |
+| Rule                                        | Error |
+| ------------------------------------------- | ----- |
+| Plugin imports must come before definitions | E001  |
+| `@extends` must come before plugin imports  | E002  |
+| (Reserved for future use)                   | E003  |
 
 #### Type Definitions
 
-| Rule | Error |
-|------|-------|
-| Duplicate type alias in same file | E101 |
-| Circular type alias reference | E102 |
-| Unknown type reference | E103 |
+| Rule                              | Error |
+| --------------------------------- | ----- |
+| Duplicate type alias in same file | E101  |
+| Circular type alias reference     | E102  |
+| Unknown type reference            | E103  |
 
 #### Model Definitions
 
-| Rule | Error |
-|------|-------|
-| Duplicate model in same file | E201 |
-| Duplicate field in same model | E202 |
-| Unknown parent in extends clause | E203 |
-| Removing non-existent field | E204 |
-| Field override on non-inherited field | E205 |
+| Rule                                  | Error |
+| ------------------------------------- | ----- |
+| Duplicate model in same file          | E201  |
+| Duplicate field in same model         | E202  |
+| Unknown parent in extends clause      | E203  |
+| Removing non-existent field           | E204  |
+| Field override on non-inherited field | E205  |
 
 #### Context System
 
-| Rule | Error |
-|------|-------|
-| Circular extends chain | E301 |
-| Removing type alias still in use | E302 |
-| Removing model still referenced | E303 |
-| Extends file not found | E304 |
+| Rule                             | Error |
+| -------------------------------- | ----- |
+| Circular extends chain           | E301  |
+| Removing type alias still in use | E302  |
+| Removing model still referenced  | E303  |
+| Extends file not found           | E304  |
 
 #### Plugin System
 
-| Rule | Error |
-|------|-------|
-| Plugin not found | E401 |
-| Invalid plugin configuration | E402 |
-| Missing required plugin export | E403 |
+| Rule                           | Error |
+| ------------------------------ | ----- |
+| Plugin not found               | E401  |
+| Invalid plugin configuration   | E402  |
+| Missing required plugin export | E403  |
+| Plugin execution failed        | E404  |
+| Plugin output too large        | E405  |
+
+#### Entity IDs
+
+| Rule                                       | Error |
+| ------------------------------------------ | ----- |
+| Duplicate model/type alias ID              | E501  |
+| Duplicate field ID within model            | E502  |
+| Reused ID (was deleted in previous schema) | E503  |
 
 ### 9.3 Forward References
 
@@ -1012,12 +1113,12 @@ Within a single file, forward references are allowed:
 ```cdm
 // Valid: Post references User before User is defined
 Post {
-  author: User
-}
+  author: User #1
+} #10
 
 User {
-  posts: Post[]
-}
+  posts: Post[] #1
+} #11
 ```
 
 Forward references across files are resolved through the ancestor chain—a child context can reference types from ancestors, but not vice versa.
@@ -1028,12 +1129,12 @@ Circular references between models are allowed and common:
 
 ```cdm
 User {
-  posts: Post[]      // User references Post
-}
+  posts: Post[] #1
+} #10
 
 Post {
-  author: User       // Post references User
-}
+  author: User #1
+} #11
 ```
 
 ### 9.5 Error Recovery
@@ -1042,15 +1143,15 @@ The parser should recover from errors when possible to report multiple issues:
 
 ```cdm
 User {
-  name: string
-  email: UnknownType     // Error: Unknown type
-  age: number            // Continue parsing
-}
+  name: string #1
+  email: UnknownType #2    // Error: Unknown type
+  age: number #3           // Continue parsing
+} #10
 
 Post {
-  title: string
-  author: AlsoUnknown    // Error: Unknown type
-}
+  title: string #1
+  author: AlsoUnknown #2   // Error: Unknown type
+} #11
 ```
 
 Both errors should be reported in a single validation pass.
@@ -1110,6 +1211,7 @@ When building a context, CDM:
 4. Validates the complete schema
 5. Invokes each plugin's `build` function
 6. Writes output files to configured directories
+7. Warns about entities without IDs (if `--check-ids` specified)
 
 ---
 
@@ -1124,6 +1226,7 @@ Commands:
   validate    Validate CDM files
   build       Generate output files
   migrate     Generate migration files
+  format      Format CDM files and assign entity IDs
   plugin      Plugin management
 
 Options:
@@ -1143,10 +1246,13 @@ cdm validate cdm/*.cdm          # Validate multiple files
 ```
 
 **Options:**
+
 - `--quiet`, `-q`: Only output errors
 - `--format <fmt>`: Output format (text, json)
+- `--check-ids`: Validate entity ID usage (uniqueness, no reuse)
 
 **Exit Codes:**
+
 - 0: Validation successful
 - 1: Validation errors found
 - 2: File not found or other error
@@ -1162,11 +1268,14 @@ cdm build api.cdm               # Build specific context
 ```
 
 **Options:**
+
 - `--output`, `-o <dir>`: Override output directory
 - `--plugin <name>`: Only run specific plugin
 - `--dry-run`: Show what would be generated without writing
+- `--check-ids`: Warn about entities without IDs
 
 **Behavior:**
+
 1. Validate all files
 2. For each context file (or specified files):
    - Resolve full schema
@@ -1185,19 +1294,62 @@ cdm migrate --name "add_avatar" # Custom migration name
 ```
 
 **Options:**
+
 - `--name`, `-n <name>`: Custom migration name
 - `--output`, `-o <dir>`: Override migrations output directory
 - `--dry-run`: Show deltas without generating files
 
 **Behavior:**
+
 1. Load previous schema from `.cdm/previous_schema.json`
 2. Build current schema
-3. Compute deltas between previous and current
+3. Compute deltas between previous and current (using entity IDs when available)
 4. Call each plugin's `migrate` function with deltas
 5. Write migration files
 6. Save current schema as new previous schema
 
-### 11.5 Plugin Commands
+**Rename Detection:**
+
+- Entities with IDs: 100% reliable rename detection
+- Entities without IDs: Heuristic detection with user confirmation for ambiguous cases
+
+### 11.5 Format Command
+
+Formats CDM files and optionally assigns entity IDs.
+
+```bash
+cdm format [files...]
+cdm format                          # Format all .cdm files
+cdm format schema.cdm               # Format specific file
+cdm format --assign-ids             # Auto-assign missing IDs
+cdm format --check                  # Check formatting without writing
+```
+
+**Options:**
+
+- `--assign-ids`: Automatically assign IDs to entities without them
+- `--check`: Verify formatting without modifying files (exit code 1 if changes needed)
+- `--write`, `-w`: Write changes to files (default)
+
+**ID Assignment Behavior:**
+
+When `--assign-ids` is used:
+
+1. Finds all entities (models, type aliases, fields) without IDs
+2. Determines the next available ID for each scope
+3. Assigns sequential IDs to unidentified entities
+4. Reports assignments made
+
+```bash
+$ cdm format --assign-ids schema.cdm
+Assigned IDs:
+  Model 'NewModel' -> #15
+  Field 'NewModel.email' -> #1
+  Field 'NewModel.name' -> #2
+  Type alias 'NewStatus' -> #5
+```
+
+### 11.6 Plugin Commands
 
 #### List Plugins
 
@@ -1270,14 +1422,14 @@ cdm-plugin-example/
 
 **Fields:**
 
-| Field | Required | Description |
-|-------|----------|-------------|
-| `name` | Yes | Plugin identifier |
-| `version` | Yes | Semantic version |
-| `description` | Yes | Human-readable description |
-| `wasm.file` | Yes | Path to WASM file (relative to manifest) |
-| `wasm.release_url` | No | URL template for downloading releases |
-| `capabilities` | Yes | Array of: `"generate"`, `"migrate"` |
+| Field              | Required | Description                              |
+| ------------------ | -------- | ---------------------------------------- |
+| `name`             | Yes      | Plugin identifier                        |
+| `version`          | Yes      | Semantic version                         |
+| `description`      | Yes      | Human-readable description               |
+| `wasm.file`        | Yes      | Path to WASM file (relative to manifest) |
+| `wasm.release_url` | No       | URL template for downloading releases    |
+| `capabilities`     | Yes      | Array of: `"generate"`, `"migrate"`      |
 
 ### 12.3 Settings Schema
 
@@ -1420,49 +1572,58 @@ enum Delta {
     // Models
     ModelAdded { name: String, after: ModelDefinition },
     ModelRemoved { name: String, before: ModelDefinition },
-    ModelRenamed { 
-        old_name: String, 
-        new_name: String, 
-        before: ModelDefinition, 
-        after: ModelDefinition 
+    ModelRenamed {
+        old_name: String,
+        new_name: String,
+        id: Option<u32>,  // ID that links the rename
+        before: ModelDefinition,
+        after: ModelDefinition
     },
 
     // Fields
     FieldAdded { model: String, field: String, after: FieldDefinition },
     FieldRemoved { model: String, field: String, before: FieldDefinition },
-    FieldRenamed { 
-        model: String, 
-        old_name: String, 
-        new_name: String, 
-        before: FieldDefinition, 
-        after: FieldDefinition 
+    FieldRenamed {
+        model: String,
+        old_name: String,
+        new_name: String,
+        id: Option<u32>,  // ID that links the rename
+        before: FieldDefinition,
+        after: FieldDefinition
     },
-    FieldTypeChanged { 
-        model: String, 
-        field: String, 
-        before: TypeExpression, 
-        after: TypeExpression 
+    FieldTypeChanged {
+        model: String,
+        field: String,
+        before: TypeExpression,
+        after: TypeExpression
     },
-    FieldOptionalityChanged { 
-        model: String, 
-        field: String, 
+    FieldOptionalityChanged {
+        model: String,
+        field: String,
         before: bool,   // was optional
         after: bool     // is now optional
     },
-    FieldDefaultChanged { 
-        model: String, 
-        field: String, 
-        before: Option<Value>, 
-        after: Option<Value> 
+    FieldDefaultChanged {
+        model: String,
+        field: String,
+        before: Option<Value>,
+        after: Option<Value>
     },
 
     // Type Aliases
     TypeAliasAdded { name: String, after: TypeAliasDefinition },
     TypeAliasRemoved { name: String, before: TypeAliasDefinition },
-    TypeAliasTypeChanged { 
-        name: String, 
-        before: TypeExpression, 
-        after: TypeExpression 
+    TypeAliasRenamed {
+        old_name: String,
+        new_name: String,
+        id: Option<u32>,  // ID that links the rename
+        before: TypeAliasDefinition,
+        after: TypeAliasDefinition
+    },
+    TypeAliasTypeChanged {
+        name: String,
+        before: TypeExpression,
+        after: TypeExpression
     },
 
     // Inheritance
@@ -1476,11 +1637,17 @@ enum Delta {
 }
 ```
 
+**Rename Detection:**
+
+- Entities **with IDs**: 100% reliable rename detection. If an entity's ID exists in both schemas but the name differs, it's definitively a rename.
+- Entities **without IDs**: Heuristic detection based on type compatibility, name similarity, and structural matching. Ambiguous cases prompt for user confirmation.
+
 ### 12.6 Supporting Types
 
 ```rust
 struct ModelDefinition {
     name: String,
+    id: Option<u32>,              // Entity ID for rename tracking
     parents: Vec<String>,
     fields: Vec<FieldDefinition>,
     config: HashMap<String, JSON>,  // plugin name -> config
@@ -1488,6 +1655,7 @@ struct ModelDefinition {
 
 struct FieldDefinition {
     name: String,
+    id: Option<u32>,              // Entity ID for rename tracking
     field_type: TypeExpression,
     optional: bool,
     default: Option<Value>,
@@ -1496,6 +1664,7 @@ struct FieldDefinition {
 
 struct TypeAliasDefinition {
     name: String,
+    id: Option<u32>,              // Entity ID for rename tracking
     alias_type: TypeExpression,
     config: HashMap<String, JSON>,  // plugin name -> config
 }
@@ -1567,11 +1736,11 @@ Reference a local plugin during development:
 
 Plugins run with resource limits:
 
-| Limit | Default | Description |
-|-------|---------|-------------|
-| Memory | 256 MB | Maximum WASM memory |
+| Limit     | Default    | Description                     |
+| --------- | ---------- | ------------------------------- |
+| Memory    | 256 MB     | Maximum WASM memory             |
 | Execution | 30 seconds | Maximum execution time per call |
-| Output | 10 MB | Maximum total output size |
+| Output    | 10 MB      | Maximum total output size       |
 
 ---
 
@@ -1581,8 +1750,8 @@ Plugins run with resource limits:
 
 ```ebnf
 (* Top-level structure *)
-source_file = { plugin_import }, { definition } ;
-definition = extends_directive | model_removal | type_alias | model_definition ;
+source_file = { extends_directive }, { plugin_import }, { definition } ;
+definition = model_removal | type_alias | model_definition ;
 
 (* Comments *)
 comment = "//" , { any_char - newline } ;
@@ -1597,11 +1766,16 @@ plugin_path = ( "./" | "../" ) , path_segment , { "/" , path_segment } ;
 extends_directive = "@extends" , file_path ;
 model_removal = "-" , identifier ;
 
+(* Entity IDs *)
+entity_id = "#" , positive_integer ;
+positive_integer = nonzero_digit , { digit } ;
+nonzero_digit = "1" | "2" | "3" | "4" | "5" | "6" | "7" | "8" | "9" ;
+
 (* Type aliases *)
-type_alias = identifier , ":" , type_expression , [ plugin_block ] ;
+type_alias = identifier , ":" , type_expression , [ plugin_block ] , [ entity_id ] ;
 
 (* Models *)
-model_definition = identifier , [ extends_clause ] , model_body ;
+model_definition = identifier , [ extends_clause ] , model_body , [ entity_id ] ;
 extends_clause = "extends" , identifier , { "," , identifier } ;
 model_body = "{" , { model_member } , "}" ;
 model_member = field_removal | plugin_config | field_override | field_definition ;
@@ -1609,7 +1783,7 @@ model_member = field_removal | plugin_config | field_override | field_definition
 (* Fields *)
 field_removal = "-" , identifier ;
 field_override = identifier , plugin_block ;
-field_definition = identifier , [ "?" ] , [ ":" , type_expression , [ "=" , value ] , [ plugin_block ] ] ;
+field_definition = identifier , [ "?" ] , [ ":" , type_expression , [ "=" , value ] , [ plugin_block ] ] , [ entity_id ] ;
 
 (* Types *)
 type_expression = union_type | array_type | type_identifier ;
@@ -1653,57 +1827,67 @@ See `grammar.js` in the CDM repository for the complete tree-sitter grammar impl
 
 ### B.1 File Structure Errors
 
-| Code | Message | Description |
-|------|---------|-------------|
+| Code | Message                        | Description                                            |
+| ---- | ------------------------------ | ------------------------------------------------------ |
 | E001 | Plugin import after definition | Plugin imports must come before type/model definitions |
-| E002 | Extends after plugin import | @extends directives must come before plugin imports |
-| E003 | (Reserved) | Reserved for future use |
+| E002 | Extends after plugin import    | @extends directives must come before plugin imports    |
+| E003 | (Reserved)                     | Reserved for future use                                |
 
 ### B.2 Type Errors
 
-| Code | Message | Description |
-|------|---------|-------------|
-| E101 | Duplicate type alias '{name}' | Type alias defined multiple times in same file |
+| Code | Message                       | Description                                         |
+| ---- | ----------------------------- | --------------------------------------------------- |
+| E101 | Duplicate type alias '{name}' | Type alias defined multiple times in same file      |
 | E102 | Circular type alias reference | Type alias references itself directly or indirectly |
-| E103 | Unknown type '{name}' | Reference to undefined type |
+| E103 | Unknown type '{name}'         | Reference to undefined type                         |
 
 ### B.3 Model Errors
 
-| Code | Message | Description |
-|------|---------|-------------|
-| E201 | Duplicate model '{name}' | Model defined multiple times in same file |
-| E202 | Duplicate field '{field}' in model '{model}' | Field name used multiple times |
-| E203 | Unknown parent model '{name}' | Extends clause references undefined model |
-| E204 | Cannot remove non-existent field '{field}' | Field removal on field not in parent |
+| Code | Message                                         | Description                                |
+| ---- | ----------------------------------------------- | ------------------------------------------ |
+| E201 | Duplicate model '{name}'                        | Model defined multiple times in same file  |
+| E202 | Duplicate field '{field}' in model '{model}'    | Field name used multiple times             |
+| E203 | Unknown parent model '{name}'                   | Extends clause references undefined model  |
+| E204 | Cannot remove non-existent field '{field}'      | Field removal on field not in parent       |
 | E205 | Field override on non-inherited field '{field}' | Field override syntax used for local field |
 
 ### B.4 Context Errors
 
-| Code | Message | Description |
-|------|---------|-------------|
-| E301 | Circular extends chain | File extends itself directly or indirectly |
-| E302 | Cannot remove type '{name}': still referenced by {locations} | Type removal when type is still used |
+| Code | Message                                                       | Description                                  |
+| ---- | ------------------------------------------------------------- | -------------------------------------------- |
+| E301 | Circular extends chain                                        | File extends itself directly or indirectly   |
+| E302 | Cannot remove type '{name}': still referenced by {locations}  | Type removal when type is still used         |
 | E303 | Cannot remove model '{name}': still referenced by {locations} | Model removal when model is still referenced |
-| E304 | Extends file not found: '{path}' | Extended file does not exist |
+| E304 | Extends file not found: '{path}'                              | Extended file does not exist                 |
 
 ### B.5 Plugin Errors
 
-| Code | Message | Description |
-|------|---------|-------------|
-| E401 | Plugin not found: '{name}' | Could not resolve plugin |
-| E402 | Invalid plugin configuration: {details} | Plugin config validation failed |
-| E403 | Plugin missing required export: '{function}' | WASM module doesn't export required function (_schema) |
-| E404 | Plugin execution failed: {details} | Plugin function threw error or timed out |
-| E405 | Plugin output too large: {size} exceeds {limit} | Output size limit exceeded |
+| Code | Message                                         | Description                                             |
+| ---- | ----------------------------------------------- | ------------------------------------------------------- |
+| E401 | Plugin not found: '{name}'                      | Could not resolve plugin                                |
+| E402 | Invalid plugin configuration: {details}         | Plugin config validation failed                         |
+| E403 | Plugin missing required export: '{function}'    | WASM module doesn't export required function (\_schema) |
+| E404 | Plugin execution failed: {details}              | Plugin function threw error or timed out                |
+| E405 | Plugin output too large: {size} exceeds {limit} | Output size limit exceeded                              |
 
-### B.6 Warnings
+### B.6 Entity ID Errors
 
-| Code | Message | Description |
-|------|---------|-------------|
-| W001 | Unused type alias '{name}' | Type alias defined but never referenced |
-| W002 | Unused model '{name}' | Model defined but never referenced |
+| Code | Message                                     | Description                                        |
+| ---- | ------------------------------------------- | -------------------------------------------------- |
+| E501 | Duplicate entity ID #{id}                   | Same ID used for multiple models or type aliases   |
+| E502 | Duplicate field ID #{id} in model '{model}' | Same ID used for multiple fields in one model      |
+| E503 | Reused entity ID #{id}                      | ID was used by a deleted entity in previous schema |
+
+### B.7 Warnings
+
+| Code | Message                              | Description                                  |
+| ---- | ------------------------------------ | -------------------------------------------- |
+| W001 | Unused type alias '{name}'           | Type alias defined but never referenced      |
+| W002 | Unused model '{name}'                | Model defined but never referenced           |
 | W003 | Field shadows parent field '{field}' | Child field completely replaces parent field |
-| W004 | Empty model '{name}' | Model has no fields |
+| W004 | Empty model '{name}'                 | Model has no fields                          |
+| W005 | Entity '{name}' has no ID            | Entity lacks ID for migration tracking       |
+| W006 | Field '{model}.{field}' has no ID    | Field lacks ID for migration tracking        |
 
 ---
 
@@ -1757,6 +1941,7 @@ When passing schemas to plugins or storing for diffing:
   "type_aliases": [
     {
       "name": "Email",
+      "id": 1,
       "alias_type": { "kind": "identifier", "name": "string" },
       "config": {
         "validation": { "format": "email" },
@@ -1767,10 +1952,12 @@ When passing schemas to plugins or storing for diffing:
   "models": [
     {
       "name": "User",
+      "id": 10,
       "parents": [],
       "fields": [
         {
           "name": "id",
+          "id": 1,
           "field_type": { "kind": "identifier", "name": "string" },
           "optional": false,
           "default": null,
@@ -1778,6 +1965,7 @@ When passing schemas to plugins or storing for diffing:
         },
         {
           "name": "email",
+          "id": 2,
           "field_type": { "kind": "identifier", "name": "Email" },
           "optional": false,
           "default": null,
@@ -1792,6 +1980,8 @@ When passing schemas to plugins or storing for diffing:
 }
 ```
 
+**Note**: The `id` field is `null` when no entity ID is assigned.
+
 ### D.2 Type Expression JSON
 
 ```json
@@ -1802,8 +1992,8 @@ When passing schemas to plugins or storing for diffing:
 { "kind": "array", "element": { "kind": "identifier", "name": "Post" } }
 
 // Union
-{ 
-  "kind": "union", 
+{
+  "kind": "union",
   "members": [
     { "kind": "string_literal", "value": "active" },
     { "kind": "string_literal", "value": "inactive" }
@@ -1816,4 +2006,4 @@ When passing schemas to plugins or storing for diffing:
 
 ---
 
-*End of Specification*
+_End of Specification_

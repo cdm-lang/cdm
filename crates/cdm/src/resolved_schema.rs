@@ -65,6 +65,7 @@ pub fn build_resolved_schema(
                             source_file: ancestor.path.clone(),
                             source_span: def.span,
                             cached_parsed_type: RefCell::new(None),
+                            entity_id: def.entity_id,
                         },
                     );
                 }
@@ -86,12 +87,14 @@ pub fn build_resolved_schema(
                                         source_file: ancestor.path.clone(),
                                         source_span: f.span,
                                         cached_parsed_type: RefCell::new(None),
+                                        entity_id: f.entity_id,
                                     })
                                     .collect(),
                                 parents: extends.clone(),
                                 plugin_configs: def.plugin_configs.clone(),
                                 source_file: ancestor.path.clone(),
                                 source_span: def.span,
+                                entity_id: def.entity_id,
                             },
                         );
                     }
@@ -119,6 +122,7 @@ pub fn build_resolved_schema(
                         source_file: "current file".to_string(),
                         source_span: def.span,
                         cached_parsed_type: RefCell::new(None),
+                        entity_id: def.entity_id,
                     },
                 );
             }
@@ -140,10 +144,12 @@ pub fn build_resolved_schema(
                                     source_file: "current file".to_string(),
                                     source_span: f.span,
                                     cached_parsed_type: RefCell::new(None),
+                                    entity_id: f.entity_id,
                                 })
                                 .collect(),
                             parents: extends.clone(),
                             plugin_configs: def.plugin_configs.clone(),
+                            entity_id: def.entity_id,
                             source_file: "current file".to_string(),
                             source_span: def.span,
                         },

@@ -166,6 +166,8 @@ pub struct ModelDefinition {
     pub parents: Vec<String>,
     pub fields: Vec<FieldDefinition>,
     pub config: JSON,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entity_id: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -175,6 +177,8 @@ pub struct FieldDefinition {
     pub optional: bool,
     pub default: Option<Value>,
     pub config: JSON,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entity_id: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -182,6 +186,8 @@ pub struct TypeAliasDefinition {
     pub name: String,
     pub alias_type: TypeExpression,
     pub config: JSON,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub entity_id: Option<u64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -232,6 +238,8 @@ pub enum Delta {
     ModelRenamed {
         old_name: String,
         new_name: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        id: Option<u64>,
         before: ModelDefinition,
         after: ModelDefinition,
     },
@@ -251,6 +259,8 @@ pub enum Delta {
         model: String,
         old_name: String,
         new_name: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        id: Option<u64>,
         before: FieldDefinition,
         after: FieldDefinition,
     },
@@ -281,6 +291,14 @@ pub enum Delta {
     TypeAliasRemoved {
         name: String,
         before: TypeAliasDefinition,
+    },
+    TypeAliasRenamed {
+        old_name: String,
+        new_name: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        id: Option<u64>,
+        before: TypeAliasDefinition,
+        after: TypeAliasDefinition,
     },
     TypeAliasTypeChanged {
         name: String,
@@ -582,6 +600,7 @@ mod tests {
                 parents: vec![],
                 fields: vec![],
                 config: serde_json::json!({}),
+                entity_id: None,
             },
         };
 
@@ -606,6 +625,7 @@ mod tests {
                 optional: false,
                 default: None,
                 config: serde_json::json!({}),
+                entity_id: None,
             },
         };
 
@@ -635,9 +655,11 @@ mod tests {
                         optional: false,
                         default: None,
                         config: serde_json::json!({}),
+                        entity_id: None,
                     },
                 ],
                 config: serde_json::json!({}),
+                entity_id: None,
             },
         );
 
