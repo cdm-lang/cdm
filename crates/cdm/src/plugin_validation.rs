@@ -267,8 +267,8 @@ fn extract_plugin_imports_from_source(source: &str, source_file_path: &Path) -> 
     }
 }
 
-/// Extract all plugin imports from AST
-fn extract_plugin_imports(
+/// Extract all plugin imports from AST (public for use in build.rs)
+pub fn extract_plugin_imports(
     root: tree_sitter::Node,
     source: &str,
     source_file_path: &Path,

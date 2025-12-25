@@ -1,0 +1,5 @@
+// Test schema for build tests
+User {
+    id: string
+    name: string
+}

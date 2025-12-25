@@ -202,6 +202,19 @@ pub enum Value {
     Null,
 }
 
+impl From<&serde_json::Value> for Value {
+    fn from(json: &serde_json::Value) -> Self {
+        match json {
+            serde_json::Value::String(s) => Value::String(s.clone()),
+            serde_json::Value::Number(n) => Value::Number(n.as_f64().unwrap_or(0.0)),
+            serde_json::Value::Bool(b) => Value::Boolean(*b),
+            serde_json::Value::Null => Value::Null,
+            // Arrays and objects are not supported - convert to Null
+            _ => Value::Null,
+        }
+    }
+}
+
 /// Delta types for migrations
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

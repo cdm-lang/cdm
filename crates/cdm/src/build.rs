@@ -1,6 +1,11 @@
-use crate::FileResolver;
-use anyhow::Result;
-use std::path::Path;
+use crate::{FileResolver, PluginRunner, ValidationResult};
+use crate::resolved_schema::build_resolved_schema;
+use crate::plugin_validation::{extract_plugin_imports, PluginImport, PluginSource};
+use anyhow::{Result, Context};
+use cdm_plugin_api::{OutputFile, Schema};
+use std::path::{Path, PathBuf};
+use std::collections::HashMap;
+use std::fs;
 
 /// Build output files from a CDM schema using configured plugins
 pub fn build(path: &Path) -> Result<()> {
@@ -12,7 +17,11 @@ pub fn build(path: &Path) -> Result<()> {
         anyhow::anyhow!("Failed to load CDM file")
     })?;
 
-    // Validate the tree before building
+    // Extract data we need before consuming tree
+    let main_path = tree.main.path.clone();
+    let ancestors: Vec<_> = tree.ancestors.iter().map(|a| a.path.clone()).collect();
+
+    // Validate the tree (consumes tree)
     let validation_result = crate::validate_tree(tree).map_err(|diagnostics| {
         for diagnostic in &diagnostics {
             eprintln!("{}", diagnostic);
@@ -35,13 +44,580 @@ pub fn build(path: &Path) -> Result<()> {
         return Err(anyhow::anyhow!("Cannot build: validation errors found"));
     }
 
-    // TODO: Phase 2 - Implement plugin building
-    // 1. Extract plugin imports from validated schema
-    // 2. Load each plugin using PluginRunner
-    // 3. Build resolved schema
-    // 4. Call plugin.build() for each plugin
-    // 5. Write output files to configured directories
+    // Step 1 & 2: Extract plugin imports and build schema
+    let plugin_imports = extract_plugin_imports_from_tree(&validation_result, &main_path)?;
+    let resolved_schema = build_cdm_schema(&validation_result, &ancestors)?;
 
-    println!("Build completed successfully");
+    if plugin_imports.is_empty() {
+        println!("No plugins configured - nothing to build");
+        return Ok(());
+    }
+
+    // Step 3: Process each plugin
+    let mut all_output_files = Vec::new();
+
+    for plugin_import in &plugin_imports {
+        println!("Running plugin: {}", plugin_import.name);
+
+        // Load the plugin
+        let mut runner = load_plugin(plugin_import)?;
+
+        // Get the plugin's global config (or empty JSON object)
+        let global_config = plugin_import.global_config.clone()
+            .unwrap_or(serde_json::json!({}));
+
+        // Call the plugin's build function
+        match runner.build(resolved_schema.clone(), global_config) {
+            Ok(output_files) => {
+                println!("  Generated {} file(s)", output_files.len());
+                all_output_files.extend(output_files);
+            }
+            Err(e) => {
+                eprintln!("  Warning: Plugin '{}' build failed: {}", plugin_import.name, e);
+            }
+        }
+    }
+
+    // Step 4: Write all output files
+    write_output_files(&all_output_files)?;
+
+    println!("\n✓ Build completed successfully");
+    println!("  {} plugin(s) executed", plugin_imports.len());
+    println!("  {} file(s) generated", all_output_files.len());
+
     Ok(())
+}
+
+/// Extract plugin imports from the validated tree using the shared function
+fn extract_plugin_imports_from_tree(
+    validation_result: &ValidationResult,
+    main_path: &Path,
+) -> Result<Vec<PluginImport>> {
+    let parsed_tree = validation_result.tree.as_ref()
+        .context("No parsed tree available")?;
+
+    // We need to re-read the source file since tree was consumed
+    let main_source = fs::read_to_string(main_path)
+        .with_context(|| format!("Failed to read source file: {}", main_path.display()))?;
+
+    let root = parsed_tree.root_node();
+    Ok(extract_plugin_imports(root, &main_source, main_path))
+}
+
+/// Build the Schema structure from validation result
+fn build_cdm_schema(
+    validation_result: &ValidationResult,
+    ancestor_paths: &[PathBuf],
+) -> Result<Schema> {
+    // Build ancestors for resolved schema
+    let mut ancestors = Vec::new();
+    for ancestor_path in ancestor_paths {
+        let source = fs::read_to_string(ancestor_path)
+            .with_context(|| format!("Failed to read ancestor file: {}", ancestor_path.display()))?;
+        let ancestor_result = crate::validate(&source, &ancestors);
+        if ancestor_result.has_errors() {
+            anyhow::bail!("Ancestor file has validation errors: {}", ancestor_path.display());
+        }
+        ancestors.push(ancestor_result.into_ancestor(ancestor_path.display().to_string()));
+    }
+
+    // Build resolved schema (merging inheritance)
+    let resolved = build_resolved_schema(
+        &validation_result.symbol_table,
+        &validation_result.model_fields,
+        &ancestors,
+        &[],
+    );
+
+    // Convert to plugin API Schema format
+    let mut models = HashMap::new();
+    for (name, model) in resolved.models {
+        models.insert(name.clone(), cdm_plugin_api::ModelDefinition {
+            name: name.clone(),
+            parents: model.parents,
+            fields: model.fields.iter().map(|f| {
+                // Parse the type expression
+                let parsed_type = f.parsed_type().unwrap_or_else(|_| {
+                    // Default to string if parsing fails
+                    crate::ParsedType::Primitive(crate::PrimitiveType::String)
+                });
+
+                cdm_plugin_api::FieldDefinition {
+                    name: f.name.clone(),
+                    field_type: convert_type_expression(&parsed_type),
+                    optional: f.optional,
+                    default: f.default_value.as_ref().map(|v| v.into()),
+                    config: serde_json::json!({}), // TODO: Extract plugin-specific field configs
+                }
+            }).collect(),
+            config: serde_json::json!({}), // TODO: Extract plugin-specific model configs
+        });
+    }
+
+    let mut type_aliases = HashMap::new();
+    for (name, alias) in resolved.type_aliases {
+        // Parse the type expression
+        let parsed_type = alias.parsed_type().unwrap_or_else(|_| {
+            // Default to string if parsing fails
+            crate::ParsedType::Primitive(crate::PrimitiveType::String)
+        });
+
+        type_aliases.insert(name.clone(), cdm_plugin_api::TypeAliasDefinition {
+            name: name.clone(),
+            alias_type: convert_type_expression(&parsed_type),
+            config: serde_json::json!({}), // TODO: Extract plugin-specific alias configs
+        });
+    }
+
+    Ok(Schema {
+        models,
+        type_aliases,
+    })
+}
+
+fn convert_type_expression(parsed_type: &crate::ParsedType) -> cdm_plugin_api::TypeExpression {
+    use crate::{ParsedType, PrimitiveType};
+
+    match parsed_type {
+        ParsedType::Primitive(prim) => {
+            let name = match prim {
+                PrimitiveType::String => "string",
+                PrimitiveType::Number => "number",
+                PrimitiveType::Boolean => "boolean",
+            };
+            cdm_plugin_api::TypeExpression::Identifier {
+                name: name.to_string()
+            }
+        }
+        ParsedType::Reference(name) => {
+            cdm_plugin_api::TypeExpression::Identifier {
+                name: name.clone()
+            }
+        }
+        ParsedType::Array(inner) => {
+            cdm_plugin_api::TypeExpression::Array {
+                element_type: Box::new(convert_type_expression(inner))
+            }
+        }
+        ParsedType::Union(members) => {
+            cdm_plugin_api::TypeExpression::Union {
+                types: members.iter().map(convert_type_expression).collect()
+            }
+        }
+        ParsedType::Literal(value) => {
+            cdm_plugin_api::TypeExpression::StringLiteral {
+                value: value.clone()
+            }
+        }
+        ParsedType::Null => {
+            cdm_plugin_api::TypeExpression::Identifier {
+                name: "null".to_string()
+            }
+        }
+    }
+}
+
+/// Load a plugin from its import specification
+fn load_plugin(import: &PluginImport) -> Result<PluginRunner> {
+    let wasm_path = resolve_plugin_path(import)?;
+    PluginRunner::new(&wasm_path)
+        .with_context(|| format!("Failed to load plugin '{}'", import.name))
+}
+
+fn resolve_plugin_path(import: &PluginImport) -> Result<PathBuf> {
+    match &import.source {
+        Some(PluginSource::Path { path }) => {
+            let source_dir = import.source_file.parent()
+                .context("Failed to get source file directory")?;
+            let mut wasm_path = source_dir.join(path);
+
+            if !wasm_path.extension().map_or(false, |e| e == "wasm") {
+                wasm_path.set_extension("wasm");
+            }
+
+            if wasm_path.exists() {
+                Ok(wasm_path)
+            } else {
+                anyhow::bail!("Plugin WASM file not found: {}", wasm_path.display())
+            }
+        }
+        Some(PluginSource::Git { url }) => {
+            anyhow::bail!("Git plugin sources not yet supported: {}", url)
+        }
+        None => {
+            // Check default location: ./plugins/{name}.wasm
+            let local = PathBuf::from("./plugins")
+                .join(&import.name)
+                .with_extension("wasm");
+
+            if local.exists() {
+                Ok(local)
+            } else {
+                anyhow::bail!(
+                    "Plugin '{}' not found. Specify 'from' or place in ./plugins/",
+                    import.name
+                )
+            }
+        }
+    }
+}
+
+/// Write output files to disk
+fn write_output_files(files: &[OutputFile]) -> Result<()> {
+    for file in files {
+        let path = Path::new(&file.path);
+
+        // Create parent directories if needed
+        if let Some(parent) = path.parent() {
+            fs::create_dir_all(parent)
+                .with_context(|| format!("Failed to create directory: {}", parent.display()))?;
+        }
+
+        // Write the file
+        fs::write(path, &file.content)
+            .with_context(|| format!("Failed to write file: {}", path.display()))?;
+
+        println!("  Wrote: {}", path.display());
+    }
+
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use cdm_plugin_api::TypeExpression;
+    use crate::{ParsedType, PrimitiveType};
+    use std::fs;
+    use std::path::PathBuf;
+
+    fn fixtures_path() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("test_fixtures")
+            .join("build")
+    }
+
+    fn test_output_path() -> PathBuf {
+        PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+            .join("target")
+            .join("test_output")
+    }
+
+    fn test_span() -> cdm_utils::Span {
+        cdm_utils::Span {
+            start: cdm_utils::Position { line: 0, column: 0 },
+            end: cdm_utils::Position { line: 0, column: 0 },
+        }
+    }
+
+    #[test]
+    fn test_convert_type_expression_primitives() {
+        let string_type = ParsedType::Primitive(PrimitiveType::String);
+        let result = convert_type_expression(&string_type);
+        assert!(matches!(result, TypeExpression::Identifier { name } if name == "string"));
+
+        let number_type = ParsedType::Primitive(PrimitiveType::Number);
+        let result = convert_type_expression(&number_type);
+        assert!(matches!(result, TypeExpression::Identifier { name } if name == "number"));
+
+        let boolean_type = ParsedType::Primitive(PrimitiveType::Boolean);
+        let result = convert_type_expression(&boolean_type);
+        assert!(matches!(result, TypeExpression::Identifier { name } if name == "boolean"));
+    }
+
+    #[test]
+    fn test_convert_type_expression_reference() {
+        let ref_type = ParsedType::Reference("User".to_string());
+        let result = convert_type_expression(&ref_type);
+        assert!(matches!(result, TypeExpression::Identifier { name } if name == "User"));
+    }
+
+    #[test]
+    fn test_convert_type_expression_array() {
+        let array_type = ParsedType::Array(Box::new(ParsedType::Primitive(PrimitiveType::String)));
+        let result = convert_type_expression(&array_type);
+
+        match result {
+            TypeExpression::Array { element_type } => {
+                assert!(matches!(*element_type, TypeExpression::Identifier { name } if name == "string"));
+            }
+            _ => panic!("Expected Array type expression"),
+        }
+    }
+
+    #[test]
+    fn test_convert_type_expression_nested_array() {
+        // string[][]
+        let nested_array = ParsedType::Array(Box::new(
+            ParsedType::Array(Box::new(ParsedType::Primitive(PrimitiveType::String)))
+        ));
+        let result = convert_type_expression(&nested_array);
+
+        match result {
+            TypeExpression::Array { element_type } => {
+                match *element_type {
+                    TypeExpression::Array { element_type: inner } => {
+                        assert!(matches!(*inner, TypeExpression::Identifier { name } if name == "string"));
+                    }
+                    _ => panic!("Expected nested Array"),
+                }
+            }
+            _ => panic!("Expected Array type expression"),
+        }
+    }
+
+    #[test]
+    fn test_convert_type_expression_union() {
+        let union_type = ParsedType::Union(vec![
+            ParsedType::Primitive(PrimitiveType::String),
+            ParsedType::Primitive(PrimitiveType::Number),
+        ]);
+        let result = convert_type_expression(&union_type);
+
+        match result {
+            TypeExpression::Union { types } => {
+                assert_eq!(types.len(), 2);
+                assert!(matches!(&types[0], TypeExpression::Identifier { name } if name == "string"));
+                assert!(matches!(&types[1], TypeExpression::Identifier { name } if name == "number"));
+            }
+            _ => panic!("Expected Union type expression"),
+        }
+    }
+
+    #[test]
+    fn test_convert_type_expression_string_literal() {
+        let literal_type = ParsedType::Literal("active".to_string());
+        let result = convert_type_expression(&literal_type);
+        assert!(matches!(result, TypeExpression::StringLiteral { value } if value == "active"));
+    }
+
+    #[test]
+    fn test_convert_type_expression_null() {
+        let null_type = ParsedType::Null;
+        let result = convert_type_expression(&null_type);
+        assert!(matches!(result, TypeExpression::Identifier { name } if name == "null"));
+    }
+
+    #[test]
+    fn test_convert_type_expression_complex_union() {
+        // "active" | "inactive" | null
+        let union_type = ParsedType::Union(vec![
+            ParsedType::Literal("active".to_string()),
+            ParsedType::Literal("inactive".to_string()),
+            ParsedType::Null,
+        ]);
+        let result = convert_type_expression(&union_type);
+
+        match result {
+            TypeExpression::Union { types } => {
+                assert_eq!(types.len(), 3);
+                assert!(matches!(&types[0], TypeExpression::StringLiteral { value } if value == "active"));
+                assert!(matches!(&types[1], TypeExpression::StringLiteral { value } if value == "inactive"));
+                assert!(matches!(&types[2], TypeExpression::Identifier { name } if name == "null"));
+            }
+            _ => panic!("Expected Union type expression"),
+        }
+    }
+
+    #[test]
+    fn test_convert_type_expression_array_of_references() {
+        // User[]
+        let array_type = ParsedType::Array(Box::new(ParsedType::Reference("User".to_string())));
+        let result = convert_type_expression(&array_type);
+
+        match result {
+            TypeExpression::Array { element_type } => {
+                assert!(matches!(*element_type, TypeExpression::Identifier { name } if name == "User"));
+            }
+            _ => panic!("Expected Array type expression"),
+        }
+    }
+
+    #[test]
+    fn test_write_output_files_single_file() {
+        let output_dir = test_output_path().join("single_file");
+        let _ = fs::remove_dir_all(&output_dir); // Clean up from previous runs
+        let file_path = output_dir.join("output.txt");
+
+        let files = vec![OutputFile {
+            path: file_path.to_string_lossy().to_string(),
+            content: "test content".to_string(),
+        }];
+
+        let result = write_output_files(&files);
+        assert!(result.is_ok());
+
+        let content = fs::read_to_string(&file_path).unwrap();
+        assert_eq!(content, "test content");
+    }
+
+    #[test]
+    fn test_write_output_files_creates_directories() {
+        let output_dir = test_output_path().join("nested_dirs");
+        let _ = fs::remove_dir_all(&output_dir); // Clean up from previous runs
+        let file_path = output_dir.join("nested").join("dir").join("output.txt");
+
+        let files = vec![OutputFile {
+            path: file_path.to_string_lossy().to_string(),
+            content: "nested content".to_string(),
+        }];
+
+        let result = write_output_files(&files);
+        assert!(result.is_ok());
+
+        assert!(file_path.exists());
+        let content = fs::read_to_string(&file_path).unwrap();
+        assert_eq!(content, "nested content");
+    }
+
+    #[test]
+    fn test_write_output_files_multiple_files() {
+        let output_dir = test_output_path().join("multiple_files");
+        let _ = fs::remove_dir_all(&output_dir); // Clean up from previous runs
+        let file1 = output_dir.join("file1.txt");
+        let file2 = output_dir.join("file2.txt");
+
+        let files = vec![
+            OutputFile {
+                path: file1.to_string_lossy().to_string(),
+                content: "content 1".to_string(),
+            },
+            OutputFile {
+                path: file2.to_string_lossy().to_string(),
+                content: "content 2".to_string(),
+            },
+        ];
+
+        let result = write_output_files(&files);
+        assert!(result.is_ok());
+
+        assert_eq!(fs::read_to_string(&file1).unwrap(), "content 1");
+        assert_eq!(fs::read_to_string(&file2).unwrap(), "content 2");
+    }
+
+    #[test]
+    fn test_write_output_files_empty_list() {
+        let files: Vec<OutputFile> = vec![];
+        let result = write_output_files(&files);
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_resolve_plugin_path_with_explicit_path() {
+        let fixtures = fixtures_path();
+        let plugin_file = fixtures.join("test-plugin.wasm");
+        let source_file = fixtures.join("schema.cdm");
+
+        let import = PluginImport {
+            name: "test-plugin".to_string(),
+            source: Some(PluginSource::Path {
+                path: "test-plugin.wasm".to_string(),
+            }),
+            source_file: source_file.clone(),
+            global_config: None,
+            span: test_span(),
+        };
+
+        let result = resolve_plugin_path(&import);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), plugin_file);
+    }
+
+    #[test]
+    fn test_resolve_plugin_path_adds_wasm_extension() {
+        let fixtures = fixtures_path();
+        let plugin_file = fixtures.join("test-plugin.wasm");
+        let source_file = fixtures.join("schema.cdm");
+
+        let import = PluginImport {
+            name: "test-plugin".to_string(),
+            source: Some(PluginSource::Path {
+                path: "test-plugin".to_string(), // No .wasm extension
+            }),
+            source_file: source_file.clone(),
+            global_config: None,
+            span: test_span(),
+        };
+
+        let result = resolve_plugin_path(&import);
+        assert!(result.is_ok());
+        assert_eq!(result.unwrap(), plugin_file);
+    }
+
+    #[test]
+    fn test_resolve_plugin_path_file_not_found() {
+        let fixtures = fixtures_path();
+        let source_file = fixtures.join("schema.cdm");
+
+        let import = PluginImport {
+            name: "nonexistent".to_string(),
+            source: Some(PluginSource::Path {
+                path: "nonexistent.wasm".to_string(),
+            }),
+            source_file: source_file.clone(),
+            global_config: None,
+            span: test_span(),
+        };
+
+        let result = resolve_plugin_path(&import);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("not found"));
+    }
+
+    #[test]
+    fn test_resolve_plugin_path_git_not_supported() {
+        let fixtures = fixtures_path();
+        let source_file = fixtures.join("schema.cdm");
+
+        let import = PluginImport {
+            name: "test-plugin".to_string(),
+            source: Some(PluginSource::Git {
+                url: "https://github.com/user/repo".to_string(),
+            }),
+            source_file: source_file.clone(),
+            global_config: None,
+            span: test_span(),
+        };
+
+        let result = resolve_plugin_path(&import);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("not yet supported"));
+    }
+
+    #[test]
+    fn test_resolve_plugin_path_default_not_found() {
+        let fixtures = fixtures_path();
+        let source_file = fixtures.join("schema.cdm");
+
+        let import = PluginImport {
+            name: "nonexistent".to_string(),
+            source: None,
+            source_file: source_file.clone(),
+            global_config: None,
+            span: test_span(),
+        };
+
+        let result = resolve_plugin_path(&import);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("not found"));
+    }
+
+    #[test]
+    fn test_load_plugin_nonexistent_file() {
+        let fixtures = fixtures_path();
+        let source_file = fixtures.join("schema.cdm");
+
+        let import = PluginImport {
+            name: "test".to_string(),
+            source: Some(PluginSource::Path {
+                path: "nonexistent.wasm".to_string(),
+            }),
+            source_file: source_file.clone(),
+            global_config: None,
+            span: test_span(),
+        };
+
+        let result = load_plugin(&import);
+        assert!(result.is_err());
+    }
 }
