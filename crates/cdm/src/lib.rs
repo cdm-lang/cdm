@@ -16,5 +16,5 @@ pub use plugin_runner::PluginRunner;
 pub use file_resolver::{FileResolver, LoadedFile, LoadedFileTree};
 pub use grammar_parser::GrammarParser;
 pub use resolved_schema::{ResolvedSchema, ResolvedTypeAlias, ResolvedModel, ResolvedField, build_resolved_schema, find_references_in_resolved, ParsedType, PrimitiveType};
-pub use plugin_validation::{PluginImport, PluginSource, extract_plugin_imports};
+pub use plugin_validation::{PluginImport, PluginSource, extract_plugin_imports, extract_structured_plugin_configs, ExtractedPluginConfigs};
 pub use build::build;

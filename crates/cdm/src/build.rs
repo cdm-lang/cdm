@@ -44,16 +44,15 @@ pub fn build(path: &Path) -> Result<()> {
         return Err(anyhow::anyhow!("Cannot build: validation errors found"));
     }
 
-    // Step 1 & 2: Extract plugin imports and build schema
+    // Step 1: Extract plugin imports
     let plugin_imports = extract_plugin_imports_from_tree(&validation_result, &main_path)?;
-    let resolved_schema = build_cdm_schema(&validation_result, &ancestors)?;
 
     if plugin_imports.is_empty() {
         println!("No plugins configured - nothing to build");
         return Ok(());
     }
 
-    // Step 3: Process each plugin
+    // Step 2: Process each plugin
     let mut all_output_files = Vec::new();
 
     for plugin_import in &plugin_imports {
@@ -66,8 +65,15 @@ pub fn build(path: &Path) -> Result<()> {
         let global_config = plugin_import.global_config.clone()
             .unwrap_or(serde_json::json!({}));
 
+        // Build schema with this plugin's configs extracted
+        let plugin_schema = build_cdm_schema_for_plugin(
+            &validation_result,
+            &ancestors,
+            &plugin_import.name
+        )?;
+
         // Call the plugin's build function
-        match runner.build(resolved_schema.clone(), global_config) {
+        match runner.build(plugin_schema, global_config) {
             Ok(output_files) => {
                 println!("  Generated {} file(s)", output_files.len());
                 all_output_files.extend(output_files);
@@ -104,10 +110,11 @@ fn extract_plugin_imports_from_tree(
     Ok(extract_plugin_imports(root, &main_source, main_path))
 }
 
-/// Build the Schema structure from validation result
-fn build_cdm_schema(
+/// Build the Schema structure from validation result for a specific plugin
+fn build_cdm_schema_for_plugin(
     validation_result: &ValidationResult,
     ancestor_paths: &[PathBuf],
+    plugin_name: &str,
 ) -> Result<Schema> {
     // Build ancestors for resolved schema
     let mut ancestors = Vec::new();
@@ -147,10 +154,10 @@ fn build_cdm_schema(
                     field_type: convert_type_expression(&parsed_type),
                     optional: f.optional,
                     default: f.default_value.as_ref().map(|v| v.into()),
-                    config: serde_json::json!({}), // TODO: Extract plugin-specific field configs
+                    config: f.plugin_configs.get(plugin_name).cloned().unwrap_or(serde_json::json!({})),
                 }
             }).collect(),
-            config: serde_json::json!({}), // TODO: Extract plugin-specific model configs
+            config: model.plugin_configs.get(plugin_name).cloned().unwrap_or(serde_json::json!({})),
         });
     }
 
@@ -165,7 +172,7 @@ fn build_cdm_schema(
         type_aliases.insert(name.clone(), cdm_plugin_api::TypeAliasDefinition {
             name: name.clone(),
             alias_type: convert_type_expression(&parsed_type),
-            config: serde_json::json!({}), // TODO: Extract plugin-specific alias configs
+            config: alias.plugin_configs.get(plugin_name).cloned().unwrap_or(serde_json::json!({})),
         });
     }
 
@@ -619,5 +626,60 @@ mod tests {
 
         let result = load_plugin(&import);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_plugin_configs_flow_through_system() {
+        // Test that plugin configs are properly extracted and stored
+        let source = r#"
+            @sql { dialect: "postgres" }
+            @validation
+
+            User {
+                id: number
+                email: string {
+                    @sql { type: "VARCHAR(320)" }
+                    @validation { format: "email" }
+                }
+
+                @sql { table: "users" }
+                @validation { unique: ["email"] }
+            }
+
+            Status: "active" | "pending" {
+                @sql { type: "ENUM" }
+            }
+        "#;
+
+        // Validate and extract configs
+        let result = crate::validate(source, &[]);
+        assert!(!result.has_errors(), "Validation should succeed");
+
+        // Build resolved schema
+        let resolved = crate::build_resolved_schema(
+            &result.symbol_table,
+            &result.model_fields,
+            &[],
+            &[],
+        );
+
+        // Check model configs
+        let user_model = resolved.models.get("User").expect("User model should exist");
+        assert_eq!(user_model.plugin_configs.len(), 2, "User should have 2 plugin configs");
+        assert!(user_model.plugin_configs.contains_key("sql"));
+        assert!(user_model.plugin_configs.contains_key("validation"));
+
+        // Check field configs
+        let email_field = user_model.fields.iter()
+            .find(|f| f.name == "email")
+            .expect("email field should exist");
+        assert_eq!(email_field.plugin_configs.len(), 2, "email field should have 2 plugin configs");
+        assert!(email_field.plugin_configs.contains_key("sql"));
+        assert!(email_field.plugin_configs.contains_key("validation"));
+
+        // Check type alias configs
+        let status_alias = resolved.type_aliases.get("Status").expect("Status type alias should exist");
+        assert_eq!(status_alias.plugin_configs.len(), 1, "Status should have 1 plugin config");
+        assert!(status_alias.plugin_configs.contains_key("sql"));
     }
 }

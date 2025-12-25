@@ -320,13 +320,17 @@ fn collect_definitions(
     let mut symbol_table = SymbolTable::new();
     let mut model_fields: HashMap<String, Vec<FieldInfo>> = HashMap::new();
     let mut removals: Vec<(String, Span, &str)> = Vec::new(); // (name, span, kind)
+
+    // Extract all plugin configs and default values once upfront
+    let plugin_data = crate::extract_structured_plugin_configs(root, source);
+
     let mut cursor = root.walk();
 
     // First pass: collect definitions and removals
     for node in root.children(&mut cursor) {
         match node.kind() {
             "type_alias" => {
-                collect_type_alias(node, source, ancestors, &mut symbol_table, diagnostics);
+                collect_type_alias(node, source, ancestors, &mut symbol_table, &plugin_data, diagnostics);
             }
             "model_definition" => {
                 collect_model(
@@ -335,6 +339,7 @@ fn collect_definitions(
                     ancestors,
                     &mut symbol_table,
                     &mut model_fields,
+                    &plugin_data,
                     diagnostics,
                 );
             }
@@ -423,6 +428,7 @@ fn collect_type_alias(
     source: &str,
     ancestors: &[Ancestor],
     symbol_table: &mut SymbolTable,
+    plugin_data: &crate::ExtractedPluginConfigs,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(name_node) = node.child_by_field_name("name") else {
@@ -480,11 +486,18 @@ fn collect_type_alias(
         (Vec::new(), String::new())
     };
 
+    // Get plugin configs for this type alias
+    let plugin_configs = plugin_data.type_alias_configs
+        .get(name)
+        .cloned()
+        .unwrap_or_default();
+
     symbol_table.definitions.insert(
         name.to_string(),
         Definition {
             kind: DefinitionKind::TypeAlias { references, type_expr },
             span,
+            plugin_configs,
         },
     );
 }
@@ -540,6 +553,7 @@ fn collect_model(
     ancestors: &[Ancestor],
     symbol_table: &mut SymbolTable,
     model_fields: &mut HashMap<String, Vec<FieldInfo>>,
+    plugin_data: &crate::ExtractedPluginConfigs,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     let Some(name_node) = node.child_by_field_name("name") else {
@@ -587,15 +601,22 @@ fn collect_model(
     // Collect extends parents
     let extends = collect_extends_parents(node, source);
 
-    // Collect field information
-    let fields = collect_field_info(node, source);
+    // Collect field information with plugin configs and defaults
+    let fields = collect_field_info(node, source, name, plugin_data);
     model_fields.insert(name.to_string(), fields);
+
+    // Get plugin configs for this model
+    let plugin_configs = plugin_data.model_configs
+        .get(name)
+        .cloned()
+        .unwrap_or_default();
 
     symbol_table.definitions.insert(
         name.to_string(),
         Definition {
             kind: DefinitionKind::Model { extends },
             span,
+            plugin_configs,
         },
     );
 }
@@ -618,7 +639,12 @@ fn collect_extends_parents(node: tree_sitter::Node, source: &str) -> Vec<String>
 }
 
 /// Collect field information from a model definition.
-fn collect_field_info(node: tree_sitter::Node, source: &str) -> Vec<FieldInfo> {
+fn collect_field_info(
+    node: tree_sitter::Node,
+    source: &str,
+    model_name: &str,
+    plugin_data: &crate::ExtractedPluginConfigs,
+) -> Vec<FieldInfo> {
     let mut fields = Vec::new();
 
     let Some(body_node) = node.child_by_field_name("body") else {
@@ -640,11 +666,24 @@ fn collect_field_info(node: tree_sitter::Node, source: &str) -> Vec<FieldInfo> {
                     .child_by_field_name("type")
                     .map(|t| get_node_text(t, source).to_string());
 
+                // Get plugin configs for this field
+                let plugin_configs = plugin_data.field_configs
+                    .get(&(model_name.to_string(), name.clone()))
+                    .cloned()
+                    .unwrap_or_default();
+
+                // Get default value for this field
+                let default_value = plugin_data.field_defaults
+                    .get(&(model_name.to_string(), name.clone()))
+                    .cloned();
+
                 fields.push(FieldInfo {
                     name,
                     type_expr,
                     optional,
                     span,
+                    plugin_configs,
+                    default_value,
                 });
             }
         }

@@ -61,7 +61,7 @@ pub fn build_resolved_schema(
                             name: name.clone(),
                             type_expr: type_expr.clone(),
                             references: references.clone(),
-                            plugin_configs: HashMap::new(), // TODO: populate from parsed plugin configs
+                            plugin_configs: def.plugin_configs.clone(),
                             source_file: ancestor.path.clone(),
                             source_span: def.span,
                             cached_parsed_type: RefCell::new(None),
@@ -81,15 +81,15 @@ pub fn build_resolved_schema(
                                         name: f.name.clone(),
                                         type_expr: f.type_expr.clone(),
                                         optional: f.optional,
-                                        default_value: None, // TODO: populate from parsed default values
-                                        plugin_configs: HashMap::new(), // TODO: populate from parsed plugin configs
+                                        default_value: f.default_value.clone(),
+                                        plugin_configs: f.plugin_configs.clone(),
                                         source_file: ancestor.path.clone(),
                                         source_span: f.span,
                                         cached_parsed_type: RefCell::new(None),
                                     })
                                     .collect(),
                                 parents: extends.clone(),
-                                plugin_configs: HashMap::new(), // TODO: populate from parsed plugin configs
+                                plugin_configs: def.plugin_configs.clone(),
                                 source_file: ancestor.path.clone(),
                                 source_span: def.span,
                             },
@@ -115,7 +115,7 @@ pub fn build_resolved_schema(
                         name: name.clone(),
                         type_expr: type_expr.clone(),
                         references: references.clone(),
-                        plugin_configs: HashMap::new(), // TODO: populate from parsed plugin configs
+                        plugin_configs: def.plugin_configs.clone(),
                         source_file: "current file".to_string(),
                         source_span: def.span,
                         cached_parsed_type: RefCell::new(None),
@@ -135,15 +135,15 @@ pub fn build_resolved_schema(
                                     name: f.name.clone(),
                                     type_expr: f.type_expr.clone(),
                                     optional: f.optional,
-                                    default_value: None, // TODO: populate from parsed default values
-                                    plugin_configs: HashMap::new(), // TODO: populate from parsed plugin configs
+                                    default_value: f.default_value.clone(),
+                                    plugin_configs: f.plugin_configs.clone(),
                                     source_file: "current file".to_string(),
                                     source_span: f.span,
                                     cached_parsed_type: RefCell::new(None),
                                 })
                                 .collect(),
                             parents: extends.clone(),
-                            plugin_configs: HashMap::new(), // TODO: populate from parsed plugin configs
+                            plugin_configs: def.plugin_configs.clone(),
                             source_file: "current file".to_string(),
                             source_span: def.span,
                         },

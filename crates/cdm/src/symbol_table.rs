@@ -32,10 +32,12 @@ pub enum DefinitionKind {
 pub struct Definition {
     pub kind: DefinitionKind,
     pub span: Span,
+    /// Plugin-specific configurations (plugin_name → config)
+    pub plugin_configs: std::collections::HashMap<String, serde_json::Value>,
 }
 
 /// Information about a field in a model.
-/// 
+///
 /// Used for cross-file validation of field removals and overrides.
 #[derive(Debug, Clone)]
 pub struct FieldInfo {
@@ -47,6 +49,10 @@ pub struct FieldInfo {
     pub optional: bool,
     /// Source location of the field definition
     pub span: Span,
+    /// Plugin-specific configurations (plugin_name → config)
+    pub plugin_configs: std::collections::HashMap<String, serde_json::Value>,
+    /// Default value for this field
+    pub default_value: Option<serde_json::Value>,
 }
 
 /// A resolved ancestor file with its symbol table and field information.

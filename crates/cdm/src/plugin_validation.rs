@@ -4,6 +4,19 @@ use crate::{Diagnostic, Severity, PluginRunner, ResolvedSchema, validate};
 use cdm_utils::{Span, Position};
 use serde_json::Value as JSON;
 
+/// Structured plugin configuration data extracted from the AST
+#[derive(Debug, Clone)]
+pub struct ExtractedPluginConfigs {
+    /// Type alias configs: (type_name) -> (plugin_name -> config)
+    pub type_alias_configs: HashMap<String, HashMap<String, JSON>>,
+    /// Model configs: (model_name) -> (plugin_name -> config)
+    pub model_configs: HashMap<String, HashMap<String, JSON>>,
+    /// Field configs: (model_name, field_name) -> (plugin_name -> config)
+    pub field_configs: HashMap<(String, String), HashMap<String, JSON>>,
+    /// Field default values: (model_name, field_name) -> default_value
+    pub field_defaults: HashMap<(String, String), JSON>,
+}
+
 #[cfg(test)]
 mod tests;
 
@@ -399,6 +412,130 @@ fn parse_value(node: tree_sitter::Node, source: &str) -> Option<JSON> {
             }
         }
         _ => None,
+    }
+}
+
+/// Extract plugin configs and default values in a structured format for storage in FieldInfo/Definition
+///
+/// This function is used by validate.rs to populate plugin_configs and default_value fields
+/// during the initial parsing phase, so they're available throughout the compilation pipeline.
+pub fn extract_structured_plugin_configs(
+    root: tree_sitter::Node,
+    source: &str,
+) -> ExtractedPluginConfigs {
+    let mut type_alias_configs: HashMap<String, HashMap<String, JSON>> = HashMap::new();
+    let mut model_configs: HashMap<String, HashMap<String, JSON>> = HashMap::new();
+    let mut field_configs: HashMap<(String, String), HashMap<String, JSON>> = HashMap::new();
+    let mut field_defaults: HashMap<(String, String), JSON> = HashMap::new();
+
+    let mut cursor = root.walk();
+
+    for node in root.children(&mut cursor) {
+        match node.kind() {
+            "type_alias" => {
+                let type_name = node.child_by_field_name("name")
+                    .map(|n| node_text(n, source).to_string())
+                    .unwrap_or_default();
+
+                // Extract plugin configs from type alias plugins block
+                // Type aliases use "plugins" field, not "body"
+                if let Some(plugins) = node.child_by_field_name("plugins") {
+                    let mut configs_for_type = HashMap::new();
+                    extract_plugin_block_into_map(plugins, source, &mut configs_for_type);
+                    if !configs_for_type.is_empty() {
+                        type_alias_configs.insert(type_name, configs_for_type);
+                    }
+                }
+            }
+            "model_definition" => {
+                let model_name = node.child_by_field_name("name")
+                    .map(|n| node_text(n, source).to_string())
+                    .unwrap_or_default();
+
+                if let Some(body) = node.child_by_field_name("body") {
+                    extract_model_configs_structured(
+                        body,
+                        source,
+                        &model_name,
+                        &mut model_configs,
+                        &mut field_configs,
+                        &mut field_defaults,
+                    );
+                }
+            }
+            _ => {}
+        }
+    }
+
+    ExtractedPluginConfigs {
+        type_alias_configs,
+        model_configs,
+        field_configs,
+        field_defaults,
+    }
+}
+
+/// Extract plugin configs from a model body into structured maps
+fn extract_model_configs_structured(
+    body: tree_sitter::Node,
+    source: &str,
+    model_name: &str,
+    model_configs: &mut HashMap<String, HashMap<String, JSON>>,
+    field_configs: &mut HashMap<(String, String), HashMap<String, JSON>>,
+    field_defaults: &mut HashMap<(String, String), JSON>,
+) {
+    let mut cursor = body.walk();
+
+    for child in body.children(&mut cursor) {
+        match child.kind() {
+            "plugin_config" => {
+                // Model-level: @sql { table: "users" }
+                if let Some((name, value)) = parse_plugin_config_node(child, source) {
+                    model_configs
+                        .entry(model_name.to_string())
+                        .or_insert_with(HashMap::new)
+                        .insert(name, value);
+                }
+            }
+            "field_definition" | "field_override" => {
+                let field_name = child.child_by_field_name("name")
+                    .map(|n| node_text(n, source).to_string())
+                    .unwrap_or_default();
+
+                // Extract default value
+                if let Some(default_node) = child.child_by_field_name("default") {
+                    if let Some(default_value) = parse_value(default_node, source) {
+                        field_defaults.insert((model_name.to_string(), field_name.clone()), default_value);
+                    }
+                }
+
+                // Extract plugin configs
+                if let Some(plugins) = child.child_by_field_name("plugins") {
+                    let mut configs_for_field = HashMap::new();
+                    extract_plugin_block_into_map(plugins, source, &mut configs_for_field);
+                    if !configs_for_field.is_empty() {
+                        field_configs.insert((model_name.to_string(), field_name), configs_for_field);
+                    }
+                }
+            }
+            _ => {}
+        }
+    }
+}
+
+/// Extract plugin configs from a plugin block into a map (plugin_name -> config)
+fn extract_plugin_block_into_map(
+    block: tree_sitter::Node,
+    source: &str,
+    configs: &mut HashMap<String, JSON>,
+) {
+    let mut cursor = block.walk();
+    for child in block.children(&mut cursor) {
+        if child.kind() == "plugin_config" {
+            if let Some((name, value)) = parse_plugin_config_node(child, source) {
+                configs.insert(name, value);
+            }
+        }
     }
 }
 
