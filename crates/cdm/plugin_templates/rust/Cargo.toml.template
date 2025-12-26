@@ -7,10 +7,9 @@ edition = "2021"
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
-# TODO: Update the path to cdm-plugin-interface or use a published version
-# If you cloned the CDM repository, use: { path = "../cdm/crates/cdm-plugin-interface" }
-# Or use the git dependency:
-cdm-plugin-interface = { git = "https://github.com/cdm-lang/cdm.git" }
+# Uses the latest published version from crates.io
+# For local development, you can use: { path = "../cdm/crates/cdm-plugin-interface" }
+cdm-plugin-interface = "0.1"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 

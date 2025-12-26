@@ -43,8 +43,12 @@ pub fn plugin_new(name: &str, lang: &str, output_dir: Option<&Path>) -> Result<(
     println!("\n✓ Plugin created successfully!");
     println!("\nNext steps:");
     println!("  1. cd {}", plugin_dir.display());
-    println!("  2. cargo build --release --target wasm32-wasip1");
-    println!("  3. Use in a CDM schema with: @{} from ./{}", name, plugin_dir.display());
+    println!("  2. ./setup.sh           # Check dependencies and run initial build");
+    println!("  3. make help            # See all available commands");
+    println!("\nOr build manually:");
+    println!("  cargo build --release --target wasm32-wasip1");
+    println!("\nUse in a CDM schema:");
+    println!("  @{} from ./{}", name, plugin_dir.display());
 
     Ok(())
 }
@@ -88,6 +92,8 @@ fn create_rust_plugin(plugin_dir: &Path, name: &str) -> Result<()> {
         ("schema.cdm.template", "schema.cdm"),
         (".gitignore.template", ".gitignore"),
         ("README.md.template", "README.md"),
+        ("Makefile.template", "Makefile"),
+        ("setup.sh.template", "setup.sh"),
         ("src/lib.rs.template", "src/lib.rs"),
         ("src/build.rs.template", "src/build.rs"),
         ("src/migrate.rs.template", "src/migrate.rs"),
@@ -106,6 +112,16 @@ fn create_rust_plugin(plugin_dir: &Path, name: &str) -> Result<()> {
 
         fs::write(&output_path, processed_content)
             .with_context(|| format!("Failed to write {}", output_path.display()))?;
+    }
+
+    // Make setup.sh executable on Unix systems
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        let setup_sh = plugin_dir.join("setup.sh");
+        let mut perms = fs::metadata(&setup_sh)?.permissions();
+        perms.set_mode(0o755); // rwxr-xr-x
+        fs::set_permissions(&setup_sh, perms)?;
     }
 
     Ok(())
@@ -327,6 +343,8 @@ name = "cdm_plugin_{{CRATE_NAME}}"
         assert!(plugin_dir.join("schema.cdm").exists());
         assert!(plugin_dir.join(".gitignore").exists());
         assert!(plugin_dir.join("README.md").exists());
+        assert!(plugin_dir.join("Makefile").exists());
+        assert!(plugin_dir.join("setup.sh").exists());
         assert!(plugin_dir.join("src/lib.rs").exists());
         assert!(plugin_dir.join("src/build.rs").exists());
         assert!(plugin_dir.join("src/migrate.rs").exists());
