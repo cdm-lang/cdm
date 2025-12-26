@@ -1,0 +1,93 @@
+# cdm-plugin-{{PLUGIN_NAME}}
+
+A CDM plugin for [describe what this plugin does].
+
+## Features
+
+- TODO: List features
+
+## Configuration
+
+### Global Settings
+
+```cdm
+@{{PLUGIN_NAME}} {
+  // Add configuration options here
+}
+```
+
+### Model Settings
+
+```cdm
+MyModel {
+  // fields...
+
+  @{{PLUGIN_NAME}} {
+    // Model-specific configuration
+  }
+}
+```
+
+### Field Settings
+
+```cdm
+MyModel {
+  my_field: string {
+    @{{PLUGIN_NAME}} {
+      // Field-specific configuration
+    }
+  }
+}
+```
+
+## Building
+
+To build this plugin as a WebAssembly module:
+
+```bash
+rustup target add wasm32-wasip1
+cargo build --release --target wasm32-wasip1
+```
+
+The compiled WASM file will be at `target/wasm32-wasip1/release/cdm_plugin_{{CRATE_NAME}}.wasm`
+
+## Usage
+
+Use this plugin in your CDM schema:
+
+```cdm
+@{{PLUGIN_NAME}} from ./path/to/cdm-plugin-{{PLUGIN_NAME}} {
+  build_output: "./generated"
+  // Add configuration here
+}
+
+// Your schema definitions...
+```
+
+## Development
+
+### Running Tests
+
+```bash
+cargo test
+```
+
+### Local Testing
+
+Reference the plugin from a CDM file using a relative path:
+
+```cdm
+@{{PLUGIN_NAME}} from ./path/to/cdm-plugin-{{PLUGIN_NAME}} {
+  build_output: "./generated"
+}
+```
+
+Then run:
+
+```bash
+cdm build schema.cdm
+```
+
+## License
+
+TODO: Add license information

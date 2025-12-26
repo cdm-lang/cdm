@@ -1,0 +1,21 @@
+[package]
+name = "cdm-plugin-{{PLUGIN_NAME}}"
+version = "1.0.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# TODO: Update the path to cdm-plugin-api or use a published version
+# If you cloned the CDM repository, use: { path = "../cdm/crates/cdm-plugin-api" }
+# Or use the git dependency:
+cdm-plugin-api = { git = "https://github.com/cdm-lang/cdm.git" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true

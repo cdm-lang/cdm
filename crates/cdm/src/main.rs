@@ -43,6 +43,29 @@ enum Commands {
         #[arg(long)]
         dry_run: bool,
     },
+    /// Plugin management commands
+    Plugin {
+        #[command(subcommand)]
+        command: PluginCommands,
+    },
+}
+
+#[derive(Subcommand)]
+enum PluginCommands {
+    /// Create a new plugin from a template
+    New {
+        /// Name of the plugin to create
+        #[arg(value_name = "NAME")]
+        name: String,
+
+        /// Programming language for the plugin
+        #[arg(short = 'l', long, value_name = "LANG")]
+        lang: String,
+
+        /// Output directory for the plugin (defaults to current directory)
+        #[arg(short = 'o', long, value_name = "DIR")]
+        output: Option<PathBuf>,
+    },
 }
 
 fn main() -> Result<()> {
@@ -88,6 +111,16 @@ fn main() -> Result<()> {
             if let Err(err) = cdm::migrate(&file, name, output, dry_run) {
                 eprintln!("Migrate failed: {}", err);
                 std::process::exit(1);
+            }
+        }
+        Commands::Plugin { command } => {
+            match command {
+                PluginCommands::New { name, lang, output } => {
+                    if let Err(err) = cdm::plugin_new(&name, &lang, output.as_deref()) {
+                        eprintln!("Failed to create plugin: {}", err);
+                        std::process::exit(1);
+                    }
+                }
             }
         }
     }

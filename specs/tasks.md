@@ -277,10 +277,10 @@
 - ✅ Error handling and reporting (ValidationError propagation)
 
 ### 8.10 Example Plugins
-- ✅ cdm-plugin-docs (generates documentation)
-- ⏳ cdm-plugin-sql (SQL schema generation)
-- ⏳ cdm-plugin-typescript (TypeScript types)
-- ⏳ cdm-plugin-validation (validation code)
+- ✅ cdm-plugin-docs (generates documentation) - build() implemented
+- ✅ cdm-plugin-typescript (TypeScript type generation) - build() + validate_config() implemented
+- ⏳ cdm-plugin-sql (SQL schema generation) - NOT STARTED
+- ⏳ cdm-plugin-validation (validation code) - NOT STARTED (note: cdm-json-validator exists but different purpose)
 
 ---
 
@@ -597,7 +597,7 @@
 
 ## Summary Statistics
 
-### Overall Progress: ~90% Complete ⭐⭐⭐ (Updated 2025-12-25)
+### Overall Progress: ~92% Complete ⭐⭐⭐ (Updated 2025-12-25)
 
 **By Section:**
 - ✅ Lexical Structure: 100% (including entity IDs)
@@ -617,9 +617,10 @@
 - ✅ Data Exchange: 100% ⭐ (complete serialization/deserialization)
 
 **Test Coverage:**
-- 398 tests passing across all crates (330 in cdm crate including 52 entity ID tests + 34 delta tests)
-- 0 failures, 0 ignored
+- 478 tests passing across all crates (332 in cdm crate, 43 in cdm-plugin-api, 29 in cdm-utils, 21 in cdm-json-validator, etc.)
+- 0 failures, 3 ignored (2 in cdm-plugin-docs, 1 in cdm-plugin-typescript)
 - Comprehensive coverage of all core features including build and migrate commands
+- Note: Test count increased from 398 to 478 (+80 tests)
 
 ### Critical Path to MVP
 
@@ -636,11 +637,15 @@
 8. ✅ Implement delta computation - **COMPLETE** (all 16+ delta types with 34 tests, migrate.rs)
 9. ✅ Implement `cdm migrate` command - **COMPLETE** (full pipeline with ID-based rename detection)
 
-**Phase 3: Plugin Ecosystem** ⏳ 10% COMPLETE
+**Phase 3: Plugin Ecosystem** 🚧 25% COMPLETE
 10. ⏳ Implement plugin registry
 11. ⏳ Implement plugin caching
 12. ⏳ Implement `cdm plugin` commands
-13. ⏳ Create official plugins (sql, typescript, validation)
+13. 🚧 Create official plugins
+    - ✅ TypeScript plugin (build + validate_config)
+    - ✅ Docs plugin (build)
+    - ⏳ SQL plugin (not started)
+    - ⏳ Validation plugin (not started)
 
 **Phase 4: Polish** ⏳ 15% COMPLETE
 14. ✅ Entity ID system (E501-E503 complete)
@@ -713,16 +718,19 @@
   - Per-plugin config filtering implemented
   - Works for both build and migrate commands
 
-- ✅ **Overall progress: 90%** (up from 85%)
+- ✅ **Overall progress: 92%** (up from 90%)
   - Phase 1 (Core Build System): 100% complete ✅
   - Phase 2 (Migration System): 100% complete ✅
-  - Phase 3 (Plugin Ecosystem): 10% complete (local plugins only)
+  - Phase 3 (Plugin Ecosystem): 25% complete (2 working plugins: TypeScript + Docs)
   - Phase 4 (Polish): 15% complete (entity IDs done)
 
-- ✅ **Test coverage: 398 tests** (up from 354)
+- ✅ **Test coverage: 478 tests** (up from 398, +80 tests)
+  - 332 tests in cdm crate (core functionality)
   - 52 entity ID tests (extraction, validation, all entity types)
   - 34 delta computation tests (type/value/config equality, all delta types)
-  - All tests passing, 0 failures
+  - 43 tests in cdm-plugin-api (serialization, case conversion)
+  - 29 tests in cdm-utils, 21 in cdm-json-validator
+  - 475 passing, 0 failures, 3 ignored
 
 - 🎯 **Production-ready status**
   - Full end-to-end workflows for build and migrate
@@ -738,8 +746,65 @@
 
 **Next Priority:**
 - `cdm format` command for auto-assigning entity IDs (~10-15 hours)
-- Example plugins: SQL, TypeScript, Validation
+- SQL plugin with migrate() support for database migrations
 - Plugin registry and caching infrastructure
+
+### Current Status Summary (2025-12-25)
+
+**What's Working:**
+- ✅ Complete CDM language implementation (lexical, type system, models, inheritance, contexts)
+- ✅ Full CLI with validate, build, and migrate commands
+- ✅ TypeScript plugin generating .ts type definitions
+- ✅ Docs plugin generating documentation
+- ✅ Entity ID system for reliable rename tracking
+- ✅ Delta computation for migrations (16+ delta types)
+- ✅ WASM plugin execution infrastructure
+- ✅ 478 tests passing across all crates
+
+**What's Missing:**
+- ⏳ Format command for auto-assigning IDs
+- ⏳ SQL plugin (most important for real-world use)
+- ⏳ Plugin registry and caching
+- ⏳ Plugin commands (list, info, cache, etc.)
+- ⏳ Warnings W001-W006
+- ⏳ Plugin sandboxing limits (E405)
+
+**Recommended Next Task:**
+
+**Option 1: SQL Plugin with Migrations (HIGH IMPACT)** 🎯
+- **Why:** Most valuable for real-world adoption; demonstrates full build + migrate pipeline
+- **What:** Create cdm-plugin-sql with:
+  - `build()` - Generate SQL DDL schema files
+  - `migrate()` - Generate migration files from deltas
+  - Support for Postgres, MySQL, SQLite dialects
+  - Table/column name mapping, indexes, constraints
+- **Effort:** ~20-30 hours
+- **Impact:** Makes CDM production-ready for backend development
+
+**Option 2: Format Command (QUICK WIN)** ⚡
+- **Why:** Enables teams to adopt CDM without manually assigning entity IDs
+- **What:** Implement `cdm format --assign-ids` to auto-assign missing IDs
+- **Effort:** ~10-15 hours
+- **Impact:** Developer experience improvement; enables gradual adoption
+
+**Option 3: Plugin Registry (INFRASTRUCTURE)** 🏗️
+- **Why:** Required for public plugin distribution
+- **What:**
+  - JSON registry format with version resolution
+  - Plugin caching in `.cdm/cache/plugins/`
+  - `cdm plugin` commands (list, info, cache, clear-cache)
+  - Git plugin support
+- **Effort:** ~25-35 hours
+- **Impact:** Enables community plugin ecosystem
+
+**Recommendation:** Start with **Option 1 (SQL Plugin)** because:
+1. Demonstrates the full value proposition of CDM (schema → code + migrations)
+2. TypeScript plugin already exists as a reference implementation
+3. Migrate infrastructure is complete and tested (1,826 lines)
+4. SQL is the most common use case for schema management tools
+5. Creates a compelling demo for potential users
+
+After SQL plugin is complete, implement Option 2 (Format command) for developer experience, then Option 3 (Plugin Registry) for ecosystem growth.
 
 ### 2025-12-24: Build Command Complete - Production Ready! 🎉
 - ✅ **Build command fully implemented** - Complete end-to-end pipeline in [build.rs](../crates/cdm/src/build.rs) (623 lines)

@@ -9,3 +9,7 @@ members = [
     "crates/cdm-json-validator",
     "crates/cdm-utils",
 ]
+exclude = [
+    "crates/cdm-plugin-example",
+    "cdm-plugin-template-test",
+]

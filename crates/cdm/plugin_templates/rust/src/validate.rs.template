@@ -1,0 +1,76 @@
+use cdm_plugin_api::{ConfigLevel, PathSegment, Severity, Utils, ValidationError, JSON};
+
+/// Validates plugin configuration at different levels
+pub fn validate_config(
+    level: ConfigLevel,
+    config: JSON,
+    _utils: &Utils,
+) -> Vec<ValidationError> {
+    let mut errors = Vec::new();
+
+    match level {
+        ConfigLevel::Global => {
+            validate_global_config(&config, &mut errors);
+        }
+        ConfigLevel::Model { ref name } => {
+            validate_model_config(&config, name, &mut errors);
+        }
+        ConfigLevel::Field {
+            ref model,
+            ref field,
+        } => {
+            validate_field_config(&config, model, field, &mut errors);
+        }
+    }
+
+    errors
+}
+
+fn validate_global_config(config: &JSON, errors: &mut Vec<ValidationError>) {
+    // TODO: Add validation logic for global configuration
+    // Example:
+    // if let Some(format) = config.get("format") {
+    //     if let Some(format_str) = format.as_str() {
+    //         if !["json", "yaml"].contains(&format_str) {
+    //             errors.push(ValidationError {
+    //                 path: vec![PathSegment {
+    //                     kind: "global".to_string(),
+    //                     name: "format".to_string(),
+    //                 }],
+    //                 message: format!(
+    //                     "Invalid format '{}'. Must be one of: json, yaml",
+    //                     format_str
+    //                 ),
+    //                 severity: Severity::Error,
+    //             });
+    //         }
+    //     }
+    // }
+}
+
+fn validate_model_config(config: &JSON, model_name: &str, errors: &mut Vec<ValidationError>) {
+    // TODO: Add validation logic for model-level configuration
+}
+
+fn validate_field_config(
+    config: &JSON,
+    model_name: &str,
+    field_name: &str,
+    errors: &mut Vec<ValidationError>,
+) {
+    // TODO: Add validation logic for field-level configuration
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_validate_empty_config() {
+        let config = serde_json::json!({});
+        let utils = Utils;
+
+        let errors = validate_config(ConfigLevel::Global, config, &utils);
+        assert!(errors.is_empty());
+    }
+}

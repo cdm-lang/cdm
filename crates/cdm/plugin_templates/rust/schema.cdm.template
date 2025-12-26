@@ -1,0 +1,17 @@
+// Settings schema for this plugin
+// Define the configuration options that users can provide
+
+GlobalSettings {
+    // Add global configuration options here
+    // Example: output_format: "json" | "yaml" = "json"
+}
+
+ModelSettings {
+    // Add model-level configuration options here
+    // Example: table_name?: string
+}
+
+FieldSettings {
+    // Add field-level configuration options here
+    // Example: column_name?: string
+}

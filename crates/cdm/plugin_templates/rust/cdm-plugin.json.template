@@ -1,0 +1,11 @@
+{
+    "name": "{{PLUGIN_NAME}}",
+    "version": "1.0.0",
+    "description": "A CDM plugin for {{PLUGIN_NAME}}",
+    "schema": "schema.cdm",
+    "wasm": {
+        "file": "target/wasm32-wasip1/release/cdm_plugin_{{CRATE_NAME}}.wasm",
+        "release_url": "https://github.com/YOUR_ORG/cdm-plugin-{{PLUGIN_NAME}}/releases/download/v{version}/plugin.wasm"
+    },
+    "capabilities": ["build", "migrate"]
+}

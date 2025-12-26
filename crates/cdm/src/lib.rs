@@ -8,6 +8,7 @@ mod resolved_schema;
 mod plugin_validation;
 mod build;
 mod migrate;
+mod plugin_new;
 
 pub use diagnostics::{Diagnostic, Severity};
 pub use cdm_utils::{Position, Span};
@@ -20,3 +21,4 @@ pub use resolved_schema::{ResolvedSchema, ResolvedTypeAlias, ResolvedModel, Reso
 pub use plugin_validation::{PluginImport, PluginSource, extract_plugin_imports, extract_structured_plugin_configs, ExtractedPluginConfigs};
 pub use build::build;
 pub use migrate::migrate;
+pub use plugin_new::plugin_new;
