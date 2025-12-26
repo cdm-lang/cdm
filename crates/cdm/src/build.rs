@@ -685,4 +685,116 @@ mod tests {
         assert_eq!(status_alias.plugin_configs.len(), 1, "Status should have 1 plugin config");
         assert!(status_alias.plugin_configs.contains_key("sql"));
     }
+
+    #[test]
+    fn test_plugin_configs_passed_to_specific_plugin() {
+        // Regression test for Bug #1: Verify that model/field plugin configs
+        // are correctly filtered and passed to each individual plugin.
+        // This test mimics the exact scenario from BUGS.md
+        let source = r#"
+            @typescript { file_strategy: "per_model" }
+
+            User {
+                id: string #1
+                name: string #2
+
+                @typescript {
+                    file_name: "models/User.ts",
+                    readonly: true
+                }
+            } #10
+
+            Post {
+                title: string #1
+                content: string {
+                    @typescript { type_override: "string | null" }
+                } #2
+
+                @typescript { file_name: "models/Post.ts" }
+            } #11
+        "#;
+
+        // Validate and extract configs
+        let result = crate::validate(source, &[]);
+        assert!(!result.has_errors(), "Validation should succeed");
+
+        // Build resolved schema to verify extraction worked
+        let resolved = crate::build_resolved_schema(
+            &result.symbol_table,
+            &result.model_fields,
+            &[],
+            &[],
+        );
+
+        // Verify User model has typescript config
+        let user_model = resolved.models.get("User").expect("User model should exist");
+        assert!(user_model.plugin_configs.contains_key("typescript"),
+            "User model should have typescript config");
+        let user_ts_config = &user_model.plugin_configs["typescript"];
+        assert_eq!(user_ts_config.get("file_name").and_then(|v| v.as_str()), Some("models/User.ts"));
+        assert_eq!(user_ts_config.get("readonly").and_then(|v| v.as_bool()), Some(true));
+
+        // Verify Post model has typescript config
+        let post_model = resolved.models.get("Post").expect("Post model should exist");
+        assert!(post_model.plugin_configs.contains_key("typescript"),
+            "Post model should have typescript config");
+        let post_ts_config = &post_model.plugin_configs["typescript"];
+        assert_eq!(post_ts_config.get("file_name").and_then(|v| v.as_str()), Some("models/Post.ts"));
+
+        // Verify Post content field has typescript config
+        let content_field = post_model.fields.iter()
+            .find(|f| f.name == "content")
+            .expect("content field should exist");
+        assert!(content_field.plugin_configs.contains_key("typescript"),
+            "content field should have typescript config");
+        let content_ts_config = &content_field.plugin_configs["typescript"];
+        assert_eq!(content_ts_config.get("type_override").and_then(|v| v.as_str()),
+            Some("string | null"));
+
+        // Now test that build_cdm_schema_for_plugin correctly filters configs per plugin
+        use crate::plugin_validation::extract_plugin_imports;
+
+        let parsed_tree = result.tree.as_ref().expect("Tree should exist");
+        let plugin_imports = extract_plugin_imports(parsed_tree.root_node(), source, Path::new("test.cdm"));
+
+        // Build schema for typescript plugin specifically
+        let plugin_schema = build_cdm_schema_for_plugin(&result, &[], "typescript")
+            .expect("Should build schema for typescript plugin");
+
+        // Verify User model config is passed
+        let user_in_schema = plugin_schema.models.get("User").expect("User should be in schema");
+        let user_config_obj = user_in_schema.config.as_object().expect("Config should be object");
+        assert_eq!(user_config_obj.get("file_name").and_then(|v| v.as_str()), Some("models/User.ts"),
+            "User model config should contain file_name");
+        assert_eq!(user_config_obj.get("readonly").and_then(|v| v.as_bool()), Some(true),
+            "User model config should contain readonly");
+
+        // Verify Post model config is passed
+        let post_in_schema = plugin_schema.models.get("Post").expect("Post should be in schema");
+        let post_config_obj = post_in_schema.config.as_object().expect("Config should be object");
+        assert_eq!(post_config_obj.get("file_name").and_then(|v| v.as_str()), Some("models/Post.ts"),
+            "Post model config should contain file_name");
+
+        // Verify Post content field config is passed
+        let content_in_schema = post_in_schema.fields.iter()
+            .find(|f| f.name == "content")
+            .expect("content field should exist");
+        let content_config_obj = content_in_schema.config.as_object().expect("Config should be object");
+        assert_eq!(content_config_obj.get("type_override").and_then(|v| v.as_str()),
+            Some("string | null"),
+            "content field config should contain type_override");
+
+        // Verify that a different plugin would get empty configs
+        let other_plugin_schema = build_cdm_schema_for_plugin(&result, &[], "nonexistent")
+            .expect("Should build schema for nonexistent plugin");
+
+        let user_other = other_plugin_schema.models.get("User").expect("User should exist");
+        assert_eq!(user_other.config.as_object().unwrap().len(), 0,
+            "Configs for nonexistent plugin should be empty");
+
+        // BUG CHECK: The test above passes, which means configs ARE in the resolved schema
+        // and ARE being filtered correctly. So if the e2e test fails, the bug is elsewhere.
+        // Log this for debugging
+        eprintln!("DEBUG: Model configs in resolved schema exist and are being passed correctly");
+    }
 }

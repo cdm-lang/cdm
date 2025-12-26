@@ -88,7 +88,8 @@ fn build_single_file(schema: Schema, cfg: Config, utils: &Utils) -> Vec<OutputFi
 
     // Generate models
     for (name, model) in &schema.models {
-        let model_config = model.config.get("typescript").unwrap_or(&serde_json::Value::Null);
+        // Config is already filtered to this plugin by CDM core
+        let model_config = &model.config;
 
         if should_skip_model(model_config) {
             continue;
@@ -124,7 +125,8 @@ fn build_per_model_files(schema: Schema, cfg: Config, utils: &Utils) -> Vec<Outp
 
     // First pass: determine which models go to which files
     for (name, model) in &schema.models {
-        let model_config = model.config.get("typescript").unwrap_or(&serde_json::Value::Null);
+        // Config is already filtered to this plugin by CDM core
+        let model_config = &model.config;
 
         if should_skip_model(model_config) {
             continue;
@@ -159,7 +161,8 @@ fn build_per_model_files(schema: Schema, cfg: Config, utils: &Utils) -> Vec<Outp
 
     // Third pass: generate models grouped by file
     for (name, model) in &schema.models {
-        let model_config = model.config.get("typescript").unwrap_or(&serde_json::Value::Null);
+        // Config is already filtered to this plugin by CDM core
+        let model_config = &model.config;
 
         if should_skip_model(model_config) {
             continue;
@@ -205,14 +208,15 @@ fn generate_interface(
     result.push_str(&format!("{}interface {} {{\n", export, name));
 
     for field in &model.fields {
-        let field_config = field.config.get("typescript").unwrap_or(&serde_json::Value::Null);
+        // Config is already filtered to this plugin by CDM core
+        let field_config = &field.config;
 
         if should_skip_field(field_config) {
             continue;
         }
 
         let field_name = get_field_name(field_config, &field.name, &cfg.field_name_format, utils);
-        let readonly = if is_readonly_field(field_config) || is_readonly_model(&model.config.get("typescript").unwrap_or(&serde_json::Value::Null)) {
+        let readonly = if is_readonly_field(field_config) || is_readonly_model(&model.config) {
             "readonly "
         } else {
             ""
@@ -241,14 +245,15 @@ fn generate_class(
 
     // Properties
     for field in &model.fields {
-        let field_config = field.config.get("typescript").unwrap_or(&serde_json::Value::Null);
+        // Config is already filtered to this plugin by CDM core
+        let field_config = &field.config;
 
         if should_skip_field(field_config) {
             continue;
         }
 
         let field_name = get_field_name(field_config, &field.name, &cfg.field_name_format, utils);
-        let readonly = if is_readonly_field(field_config) || is_readonly_model(&model.config.get("typescript").unwrap_or(&serde_json::Value::Null)) {
+        let readonly = if is_readonly_field(field_config) || is_readonly_model(&model.config) {
             "readonly "
         } else {
             ""
@@ -281,14 +286,15 @@ fn generate_type_alias(
     result.push_str(&format!("{}type {} = {{\n", export, name));
 
     for field in &model.fields {
-        let field_config = field.config.get("typescript").unwrap_or(&serde_json::Value::Null);
+        // Config is already filtered to this plugin by CDM core
+        let field_config = &field.config;
 
         if should_skip_field(field_config) {
             continue;
         }
 
         let field_name = get_field_name(field_config, &field.name, &cfg.field_name_format, utils);
-        let readonly = if is_readonly_field(field_config) || is_readonly_model(&model.config.get("typescript").unwrap_or(&serde_json::Value::Null)) {
+        let readonly = if is_readonly_field(field_config) || is_readonly_model(&model.config) {
             "readonly "
         } else {
             ""
