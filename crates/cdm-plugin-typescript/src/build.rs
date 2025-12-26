@@ -1,4 +1,4 @@
-use cdm_plugin_api::{CaseFormat, OutputFile, Schema, Utils, JSON};
+use cdm_plugin_interface::{CaseFormat, OutputFile, Schema, Utils, JSON};
 use std::collections::HashMap;
 
 use crate::type_mapper::map_type_to_typescript;
@@ -198,7 +198,7 @@ fn build_per_model_files(schema: Schema, cfg: Config, utils: &Utils) -> Vec<Outp
 
 fn generate_interface(
     name: &str,
-    model: &cdm_plugin_api::ModelDefinition,
+    model: &cdm_plugin_interface::ModelDefinition,
     cfg: &Config,
     utils: &Utils,
 ) -> String {
@@ -234,7 +234,7 @@ fn generate_interface(
 
 fn generate_class(
     name: &str,
-    model: &cdm_plugin_api::ModelDefinition,
+    model: &cdm_plugin_interface::ModelDefinition,
     cfg: &Config,
     utils: &Utils,
 ) -> String {
@@ -276,7 +276,7 @@ fn generate_class(
 
 fn generate_type_alias(
     name: &str,
-    model: &cdm_plugin_api::ModelDefinition,
+    model: &cdm_plugin_interface::ModelDefinition,
     cfg: &Config,
     utils: &Utils,
 ) -> String {
@@ -312,7 +312,7 @@ fn generate_type_alias(
 
 // Helper functions
 
-fn should_skip_type_alias(alias: &cdm_plugin_api::TypeAliasDefinition) -> bool {
+fn should_skip_type_alias(alias: &cdm_plugin_interface::TypeAliasDefinition) -> bool {
     alias.config
         .get("skip")
         .and_then(|v| v.as_bool())
@@ -385,7 +385,7 @@ fn get_field_name(field_config: &serde_json::Value, default_name: &str, format: 
         .unwrap_or_else(|| format_name(default_name, format, utils))
 }
 
-fn get_field_type(field_config: &serde_json::Value, default_type: &cdm_plugin_api::TypeExpression, strict_nulls: bool) -> String {
+fn get_field_type(field_config: &serde_json::Value, default_type: &cdm_plugin_interface::TypeExpression, strict_nulls: bool) -> String {
     field_config
         .get("type_override")
         .and_then(|v| v.as_str())
@@ -420,7 +420,7 @@ fn format_optional(is_optional: bool, strategy: &str) -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cdm_plugin_api::{FieldDefinition, ModelDefinition, TypeAliasDefinition, TypeExpression};
+    use cdm_plugin_interface::{FieldDefinition, ModelDefinition, TypeAliasDefinition, TypeExpression};
     use serde_json::json;
 
     fn create_test_schema() -> Schema {

@@ -181,7 +181,7 @@ FieldSettings {
 Validates user configuration. Called for every config block.
 
 ```rust
-use cdm_plugin_api::*;
+use cdm_plugin_interface::*;
 
 pub fn validate_config(
     level: ConfigLevel,

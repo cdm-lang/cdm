@@ -1,6 +1,6 @@
 /// Integration tests for the docs plugin
 /// These tests verify the plugin works correctly when compiled to WASM
-use cdm_plugin_api::{ConfigLevel, Schema, Severity, Utils};
+use cdm_plugin_interface::{ConfigLevel, Schema, Severity, Utils};
 use serde_json::json;
 
 // Import the plugin functions directly for testing
@@ -241,7 +241,7 @@ fn test_generate_with_deprecated_fields() {
 // Helper functions to create test schemas
 
 fn create_test_schema() -> Schema {
-    use cdm_plugin_api::{FieldDefinition, ModelDefinition, TypeExpression};
+    use cdm_plugin_interface::{FieldDefinition, ModelDefinition, TypeExpression};
     use std::collections::HashMap;
 
     let mut models = HashMap::new();
@@ -288,7 +288,7 @@ fn create_test_schema() -> Schema {
 }
 
 fn create_test_schema_with_examples() -> Schema {
-    use cdm_plugin_api::ModelDefinition;
+    use cdm_plugin_interface::ModelDefinition;
     use std::collections::HashMap;
 
     let mut models = HashMap::new();
@@ -312,7 +312,7 @@ fn create_test_schema_with_examples() -> Schema {
 }
 
 fn create_test_schema_with_hidden() -> Schema {
-    use cdm_plugin_api::ModelDefinition;
+    use cdm_plugin_interface::ModelDefinition;
     use std::collections::HashMap;
 
     let mut models = HashMap::new();
@@ -346,7 +346,7 @@ fn create_test_schema_with_hidden() -> Schema {
 }
 
 fn create_test_schema_with_deprecated() -> Schema {
-    use cdm_plugin_api::{FieldDefinition, ModelDefinition, TypeExpression};
+    use cdm_plugin_interface::{FieldDefinition, ModelDefinition, TypeExpression};
     use std::collections::HashMap;
 
     let mut models = HashMap::new();

@@ -1,5 +1,5 @@
 [package]
-name = "cdm-plugin-api"
+name = "cdm-plugin-interface"
 version = "0.1.0"
 edition = "2021"
 

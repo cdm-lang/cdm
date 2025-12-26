@@ -253,7 +253,7 @@
 - ✅ Inherited config resolution (merge_json_values implementation)
 
 ### 8.8 Plugin API
-- ✅ `cdm-plugin-api` crate created
+- ✅ `cdm-plugin-interface` crate created
 - ✅ `schema()` function interface (required)
 - ✅ `validate_config()` function interface (required)
 - ✅ `build()` function interface (optional)
@@ -586,7 +586,7 @@
 
 ### Schema JSON Format
 - ✅ Schema JSON format documented
-- ✅ Schema serialization (Schema struct with serde in cdm-plugin-api)
+- ✅ Schema serialization (Schema struct with serde in cdm-plugin-interface)
 - ✅ Schema deserialization (used by plugins via serde)
 
 ### Type Expression JSON
@@ -617,7 +617,7 @@
 - ✅ Data Exchange: 100% ⭐ (complete serialization/deserialization)
 
 **Test Coverage:**
-- 478 tests passing across all crates (332 in cdm crate, 43 in cdm-plugin-api, 29 in cdm-utils, 21 in cdm-json-validator, etc.)
+- 478 tests passing across all crates (332 in cdm crate, 43 in cdm-plugin-interface, 29 in cdm-utils, 21 in cdm-json-validator, etc.)
 - 0 failures, 3 ignored (2 in cdm-plugin-docs, 1 in cdm-plugin-typescript)
 - Comprehensive coverage of all core features including build and migrate commands
 - Note: Test count increased from 398 to 478 (+80 tests)
@@ -728,7 +728,7 @@
   - 332 tests in cdm crate (core functionality)
   - 52 entity ID tests (extraction, validation, all entity types)
   - 34 delta computation tests (type/value/config equality, all delta types)
-  - 43 tests in cdm-plugin-api (serialization, case conversion)
+  - 43 tests in cdm-plugin-interface (serialization, case conversion)
   - 29 tests in cdm-utils, 21 in cdm-json-validator
   - 475 passing, 0 failures, 3 ignored
 

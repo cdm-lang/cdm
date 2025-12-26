@@ -2,7 +2,7 @@ use crate::{FileResolver, PluginRunner, ValidationResult};
 use crate::resolved_schema::build_resolved_schema;
 use crate::plugin_validation::{extract_plugin_imports, PluginImport, PluginSource};
 use anyhow::{Result, Context};
-use cdm_plugin_api::{OutputFile, Schema, Delta};
+use cdm_plugin_interface::{OutputFile, Schema, Delta};
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 use std::fs;
@@ -221,13 +221,13 @@ fn compute_type_alias_deltas(
     use std::collections::{HashSet, HashMap};
 
     // Build ID maps for rename detection
-    let prev_by_id: HashMap<u64, &cdm_plugin_api::TypeAliasDefinition> = previous
+    let prev_by_id: HashMap<u64, &cdm_plugin_interface::TypeAliasDefinition> = previous
         .type_aliases
         .values()
         .filter_map(|a| a.entity_id.map(|id| (id, a)))
         .collect();
 
-    let curr_by_id: HashMap<u64, &cdm_plugin_api::TypeAliasDefinition> = current
+    let curr_by_id: HashMap<u64, &cdm_plugin_interface::TypeAliasDefinition> = current
         .type_aliases
         .values()
         .filter_map(|a| a.entity_id.map(|id| (id, a)))
@@ -321,13 +321,13 @@ fn compute_model_deltas(
     use std::collections::{HashSet, HashMap};
 
     // Build ID maps for rename detection
-    let prev_by_id: HashMap<u64, &cdm_plugin_api::ModelDefinition> = previous
+    let prev_by_id: HashMap<u64, &cdm_plugin_interface::ModelDefinition> = previous
         .models
         .values()
         .filter_map(|m| m.entity_id.map(|id| (id, m)))
         .collect();
 
-    let curr_by_id: HashMap<u64, &cdm_plugin_api::ModelDefinition> = current
+    let curr_by_id: HashMap<u64, &cdm_plugin_interface::ModelDefinition> = current
         .models
         .values()
         .filter_map(|m| m.entity_id.map(|id| (id, m)))
@@ -427,19 +427,19 @@ fn compute_model_deltas(
 /// Compute field deltas within a model
 fn compute_field_deltas(
     model_name: &str,
-    prev_fields: &[cdm_plugin_api::FieldDefinition],
-    curr_fields: &[cdm_plugin_api::FieldDefinition],
+    prev_fields: &[cdm_plugin_interface::FieldDefinition],
+    curr_fields: &[cdm_plugin_interface::FieldDefinition],
     deltas: &mut Vec<Delta>,
 ) -> Result<()> {
     use std::collections::{HashSet, HashMap};
 
     // Build ID maps for rename detection
-    let prev_by_id: HashMap<u64, &cdm_plugin_api::FieldDefinition> = prev_fields
+    let prev_by_id: HashMap<u64, &cdm_plugin_interface::FieldDefinition> = prev_fields
         .iter()
         .filter_map(|f| f.entity_id.map(|id| (id, f)))
         .collect();
 
-    let curr_by_id: HashMap<u64, &cdm_plugin_api::FieldDefinition> = curr_fields
+    let curr_by_id: HashMap<u64, &cdm_plugin_interface::FieldDefinition> = curr_fields
         .iter()
         .filter_map(|f| f.entity_id.map(|id| (id, f)))
         .collect();
@@ -736,7 +736,7 @@ fn build_cdm_schema_for_plugin(
     // Convert to plugin API Schema format
     let mut models = HashMap::new();
     for (name, model) in resolved.models {
-        models.insert(name.clone(), cdm_plugin_api::ModelDefinition {
+        models.insert(name.clone(), cdm_plugin_interface::ModelDefinition {
             name: name.clone(),
             parents: model.parents,
             fields: model.fields.iter().map(|f| {
@@ -746,7 +746,7 @@ fn build_cdm_schema_for_plugin(
                     crate::ParsedType::Primitive(crate::PrimitiveType::String)
                 });
 
-                cdm_plugin_api::FieldDefinition {
+                cdm_plugin_interface::FieldDefinition {
                     name: f.name.clone(),
                     field_type: convert_type_expression(&parsed_type),
                     optional: f.optional,
@@ -778,7 +778,7 @@ fn build_cdm_schema_for_plugin(
             crate::ParsedType::Primitive(crate::PrimitiveType::String)
         });
 
-        type_aliases.insert(name.clone(), cdm_plugin_api::TypeAliasDefinition {
+        type_aliases.insert(name.clone(), cdm_plugin_interface::TypeAliasDefinition {
             name: name.clone(),
             alias_type: convert_type_expression(&parsed_type),
             config: if plugin_name.is_empty() {
@@ -797,7 +797,7 @@ fn build_cdm_schema_for_plugin(
 }
 
 /// Convert internal ParsedType to plugin API TypeExpression
-fn convert_type_expression(parsed_type: &crate::ParsedType) -> cdm_plugin_api::TypeExpression {
+fn convert_type_expression(parsed_type: &crate::ParsedType) -> cdm_plugin_interface::TypeExpression {
     use crate::{ParsedType, PrimitiveType};
 
     match parsed_type {
@@ -807,32 +807,32 @@ fn convert_type_expression(parsed_type: &crate::ParsedType) -> cdm_plugin_api::T
                 PrimitiveType::Number => "number",
                 PrimitiveType::Boolean => "boolean",
             };
-            cdm_plugin_api::TypeExpression::Identifier {
+            cdm_plugin_interface::TypeExpression::Identifier {
                 name: name.to_string()
             }
         }
         ParsedType::Reference(name) => {
-            cdm_plugin_api::TypeExpression::Identifier {
+            cdm_plugin_interface::TypeExpression::Identifier {
                 name: name.clone()
             }
         }
         ParsedType::Array(inner) => {
-            cdm_plugin_api::TypeExpression::Array {
+            cdm_plugin_interface::TypeExpression::Array {
                 element_type: Box::new(convert_type_expression(inner))
             }
         }
         ParsedType::Union(members) => {
-            cdm_plugin_api::TypeExpression::Union {
+            cdm_plugin_interface::TypeExpression::Union {
                 types: members.iter().map(convert_type_expression).collect()
             }
         }
         ParsedType::Literal(value) => {
-            cdm_plugin_api::TypeExpression::StringLiteral {
+            cdm_plugin_interface::TypeExpression::StringLiteral {
                 value: value.clone()
             }
         }
         ParsedType::Null => {
-            cdm_plugin_api::TypeExpression::Identifier {
+            cdm_plugin_interface::TypeExpression::Identifier {
                 name: "null".to_string()
             }
         }
@@ -840,8 +840,8 @@ fn convert_type_expression(parsed_type: &crate::ParsedType) -> cdm_plugin_api::T
 }
 
 /// Check if two type expressions are equal
-fn types_equal(a: &cdm_plugin_api::TypeExpression, b: &cdm_plugin_api::TypeExpression) -> bool {
-    use cdm_plugin_api::TypeExpression;
+fn types_equal(a: &cdm_plugin_interface::TypeExpression, b: &cdm_plugin_interface::TypeExpression) -> bool {
+    use cdm_plugin_interface::TypeExpression;
 
     match (a, b) {
         (TypeExpression::Identifier { name: n1 }, TypeExpression::Identifier { name: n2 }) => {
@@ -865,8 +865,8 @@ fn types_equal(a: &cdm_plugin_api::TypeExpression, b: &cdm_plugin_api::TypeExpre
 }
 
 /// Check if two optional values are equal
-fn values_equal(a: &Option<cdm_plugin_api::Value>, b: &Option<cdm_plugin_api::Value>) -> bool {
-    use cdm_plugin_api::Value;
+fn values_equal(a: &Option<cdm_plugin_interface::Value>, b: &Option<cdm_plugin_interface::Value>) -> bool {
+    use cdm_plugin_interface::Value;
 
     match (a, b) {
         (None, None) => true,
@@ -889,7 +889,7 @@ fn configs_equal(a: &serde_json::Value, b: &serde_json::Value) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cdm_plugin_api::{TypeExpression, Value, FieldDefinition, ModelDefinition, TypeAliasDefinition};
+    use cdm_plugin_interface::{TypeExpression, Value, FieldDefinition, ModelDefinition, TypeAliasDefinition};
     use serde_json::json;
 
     // Helper to create a simple identifier type

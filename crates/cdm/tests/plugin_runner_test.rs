@@ -1,5 +1,5 @@
 use cdm::PluginRunner;
-use cdm_plugin_api::{ConfigLevel, FieldDefinition, ModelDefinition, Schema, TypeExpression};
+use cdm_plugin_interface::{ConfigLevel, FieldDefinition, ModelDefinition, Schema, TypeExpression};
 use serde_json::json;
 use std::collections::HashMap;
 

@@ -4,7 +4,7 @@
 //! It validates structure, types, and optionality according to the parsed type definitions.
 
 use cdm_utils::{ParsedType, PrimitiveType, ResolvedSchema};
-use cdm_plugin_api::{PathSegment, Severity, ValidationError};
+use cdm_plugin_interface::{PathSegment, Severity, ValidationError};
 use serde_json::Value as JSON;
 use std::collections::HashSet;
 

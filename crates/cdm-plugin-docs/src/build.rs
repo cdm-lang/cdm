@@ -1,4 +1,4 @@
-use cdm_plugin_api::{OutputFile, Schema, TypeExpression, Utils, JSON};
+use cdm_plugin_interface::{OutputFile, Schema, TypeExpression, Utils, JSON};
 
 /// Builds documentation from the schema
 pub fn build(schema: Schema, config: JSON, utils: &Utils) -> Vec<OutputFile> {

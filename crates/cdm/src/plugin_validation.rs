@@ -47,7 +47,7 @@ pub struct PluginConfig {
     pub span: Span,
 }
 
-/// Configuration level matching cdm-plugin-api::ConfigLevel
+/// Configuration level matching cdm-plugin-interface::ConfigLevel
 #[derive(Debug, Clone, PartialEq)]
 pub enum ConfigLevel {
     Global,
@@ -796,12 +796,12 @@ fn validate_config_with_plugin(
 
     // LEVEL 2: Plugin semantic validation (if plugin has _validate_config)
     let api_level = match &config.level {
-        ConfigLevel::Global => cdm_plugin_api::ConfigLevel::Global,
+        ConfigLevel::Global => cdm_plugin_interface::ConfigLevel::Global,
         ConfigLevel::Model { name } => {
-            cdm_plugin_api::ConfigLevel::Model { name: name.clone() }
+            cdm_plugin_interface::ConfigLevel::Model { name: name.clone() }
         }
         ConfigLevel::Field { model, field } => {
-            cdm_plugin_api::ConfigLevel::Field {
+            cdm_plugin_interface::ConfigLevel::Field {
                 model: model.clone(),
                 field: field.clone(),
             }
@@ -828,8 +828,8 @@ fn validate_config_with_plugin(
                 diagnostics.push(Diagnostic {
                     message,
                     severity: match error.severity {
-                        cdm_plugin_api::Severity::Error => Severity::Error,
-                        cdm_plugin_api::Severity::Warning => Severity::Warning,
+                        cdm_plugin_interface::Severity::Error => Severity::Error,
+                        cdm_plugin_interface::Severity::Warning => Severity::Warning,
                     },
                     span: config.span,
                 });

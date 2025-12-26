@@ -178,7 +178,7 @@ FieldSettings {
 
 ```rust
 // src/lib.rs
-use cdm_plugin_api::schema_from_file;
+use cdm_plugin_interface::schema_from_file;
 
 // Embeds schema.cdm at compile time and creates the schema() export
 schema_from_file!("../schema.cdm");
@@ -190,7 +190,7 @@ schema_from_file!("../schema.cdm");
 #[no_mangle]
 pub extern "C" fn schema() -> *const u8 {
     let schema = r#"GlobalSettings { ... }"#;
-    cdm_plugin_api::ffi::write_string_to_wasm_memory(schema)
+    cdm_plugin_interface::ffi::write_string_to_wasm_memory(schema)
 }
 ```
 
@@ -205,7 +205,7 @@ CDM validates user-provided plugin configurations against this schema before cal
 Returns the plugin's configuration schema as a CDM string.
 
 ```rust
-use cdm_plugin_api::*;
+use cdm_plugin_interface::*;
 
 #[no_mangle]
 pub extern "C" fn schema() -> *const u8 {
@@ -235,7 +235,7 @@ Validates user configuration. Called for every config block after schema validat
 This function is optional. If not provided, only the schema-based validation will be performed.
 
 ```rust
-use cdm_plugin_api::*;
+use cdm_plugin_interface::*;
 
 pub fn validate_config(
     level: ConfigLevel,

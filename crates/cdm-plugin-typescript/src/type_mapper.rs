@@ -1,4 +1,4 @@
-use cdm_plugin_api::TypeExpression;
+use cdm_plugin_interface::TypeExpression;
 
 /// Maps a CDM type expression to a TypeScript type string
 pub fn map_type_to_typescript(type_expr: &TypeExpression, strict_nulls: bool) -> String {

@@ -2,7 +2,7 @@ use crate::{FileResolver, PluginRunner, ValidationResult};
 use crate::resolved_schema::build_resolved_schema;
 use crate::plugin_validation::{extract_plugin_imports, PluginImport, PluginSource};
 use anyhow::{Result, Context};
-use cdm_plugin_api::{OutputFile, Schema};
+use cdm_plugin_interface::{OutputFile, Schema};
 use std::path::{Path, PathBuf};
 use std::collections::HashMap;
 use std::fs;
@@ -139,7 +139,7 @@ fn build_cdm_schema_for_plugin(
     // Convert to plugin API Schema format
     let mut models = HashMap::new();
     for (name, model) in resolved.models {
-        models.insert(name.clone(), cdm_plugin_api::ModelDefinition {
+        models.insert(name.clone(), cdm_plugin_interface::ModelDefinition {
             name: name.clone(),
             parents: model.parents,
             fields: model.fields.iter().map(|f| {
@@ -149,7 +149,7 @@ fn build_cdm_schema_for_plugin(
                     crate::ParsedType::Primitive(crate::PrimitiveType::String)
                 });
 
-                cdm_plugin_api::FieldDefinition {
+                cdm_plugin_interface::FieldDefinition {
                     name: f.name.clone(),
                     field_type: convert_type_expression(&parsed_type),
                     optional: f.optional,
@@ -171,7 +171,7 @@ fn build_cdm_schema_for_plugin(
             crate::ParsedType::Primitive(crate::PrimitiveType::String)
         });
 
-        type_aliases.insert(name.clone(), cdm_plugin_api::TypeAliasDefinition {
+        type_aliases.insert(name.clone(), cdm_plugin_interface::TypeAliasDefinition {
             name: name.clone(),
             alias_type: convert_type_expression(&parsed_type),
             config: alias.plugin_configs.get(plugin_name).cloned().unwrap_or(serde_json::json!({})),
@@ -185,7 +185,7 @@ fn build_cdm_schema_for_plugin(
     })
 }
 
-fn convert_type_expression(parsed_type: &crate::ParsedType) -> cdm_plugin_api::TypeExpression {
+fn convert_type_expression(parsed_type: &crate::ParsedType) -> cdm_plugin_interface::TypeExpression {
     use crate::{ParsedType, PrimitiveType};
 
     match parsed_type {
@@ -195,32 +195,32 @@ fn convert_type_expression(parsed_type: &crate::ParsedType) -> cdm_plugin_api::T
                 PrimitiveType::Number => "number",
                 PrimitiveType::Boolean => "boolean",
             };
-            cdm_plugin_api::TypeExpression::Identifier {
+            cdm_plugin_interface::TypeExpression::Identifier {
                 name: name.to_string()
             }
         }
         ParsedType::Reference(name) => {
-            cdm_plugin_api::TypeExpression::Identifier {
+            cdm_plugin_interface::TypeExpression::Identifier {
                 name: name.clone()
             }
         }
         ParsedType::Array(inner) => {
-            cdm_plugin_api::TypeExpression::Array {
+            cdm_plugin_interface::TypeExpression::Array {
                 element_type: Box::new(convert_type_expression(inner))
             }
         }
         ParsedType::Union(members) => {
-            cdm_plugin_api::TypeExpression::Union {
+            cdm_plugin_interface::TypeExpression::Union {
                 types: members.iter().map(convert_type_expression).collect()
             }
         }
         ParsedType::Literal(value) => {
-            cdm_plugin_api::TypeExpression::StringLiteral {
+            cdm_plugin_interface::TypeExpression::StringLiteral {
                 value: value.clone()
             }
         }
         ParsedType::Null => {
-            cdm_plugin_api::TypeExpression::Identifier {
+            cdm_plugin_interface::TypeExpression::Identifier {
                 name: "null".to_string()
             }
         }
@@ -296,7 +296,7 @@ fn write_output_files(files: &[OutputFile]) -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cdm_plugin_api::TypeExpression;
+    use cdm_plugin_interface::TypeExpression;
     use crate::{ParsedType, PrimitiveType};
     use std::fs;
     use std::path::PathBuf;

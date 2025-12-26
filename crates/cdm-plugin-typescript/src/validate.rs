@@ -1,4 +1,4 @@
-use cdm_plugin_api::{ConfigLevel, PathSegment, Severity, Utils, ValidationError, JSON};
+use cdm_plugin_interface::{ConfigLevel, PathSegment, Severity, Utils, ValidationError, JSON};
 
 pub fn validate_config(
     level: ConfigLevel,

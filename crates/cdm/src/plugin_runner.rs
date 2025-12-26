@@ -1,5 +1,5 @@
 use anyhow::{anyhow, Context, Result};
-use cdm_plugin_api::{ConfigLevel, OutputFile, Schema, ValidationError, Delta};
+use cdm_plugin_interface::{ConfigLevel, OutputFile, Schema, ValidationError, Delta};
 use serde_json::Value as JSON;
 use std::path::Path;
 use wasmtime::*;
@@ -307,13 +307,13 @@ mod tests {
         let mut models = HashMap::new();
         models.insert(
             "User".to_string(),
-            cdm_plugin_api::ModelDefinition {
+            cdm_plugin_interface::ModelDefinition {
                 name: "User".to_string(),
                 parents: vec![],
                 fields: vec![
-                    cdm_plugin_api::FieldDefinition {
+                    cdm_plugin_interface::FieldDefinition {
                         name: "id".to_string(),
-                        field_type: cdm_plugin_api::TypeExpression::Identifier {
+                        field_type: cdm_plugin_interface::TypeExpression::Identifier {
                             name: "number".to_string(),
                         },
                         optional: false,
@@ -335,13 +335,13 @@ mod tests {
         // Create a delta representing adding a new model
         let deltas = vec![Delta::ModelAdded {
             name: "Post".to_string(),
-            after: cdm_plugin_api::ModelDefinition {
+            after: cdm_plugin_interface::ModelDefinition {
                 name: "Post".to_string(),
                 parents: vec![],
                 fields: vec![
-                    cdm_plugin_api::FieldDefinition {
+                    cdm_plugin_interface::FieldDefinition {
                         name: "id".to_string(),
-                        field_type: cdm_plugin_api::TypeExpression::Identifier {
+                        field_type: cdm_plugin_interface::TypeExpression::Identifier {
                             name: "number".to_string(),
                         },
                         optional: false,
@@ -349,9 +349,9 @@ mod tests {
                         config: serde_json::json!({}),
                         entity_id: None,
                     },
-                    cdm_plugin_api::FieldDefinition {
+                    cdm_plugin_interface::FieldDefinition {
                         name: "title".to_string(),
-                        field_type: cdm_plugin_api::TypeExpression::Identifier {
+                        field_type: cdm_plugin_interface::TypeExpression::Identifier {
                             name: "string".to_string(),
                         },
                         optional: false,
@@ -406,13 +406,13 @@ mod tests {
         let mut models = HashMap::new();
         models.insert(
             "User".to_string(),
-            cdm_plugin_api::ModelDefinition {
+            cdm_plugin_interface::ModelDefinition {
                 name: "User".to_string(),
                 parents: vec![],
                 fields: vec![
-                    cdm_plugin_api::FieldDefinition {
+                    cdm_plugin_interface::FieldDefinition {
                         name: "id".to_string(),
-                        field_type: cdm_plugin_api::TypeExpression::Identifier {
+                        field_type: cdm_plugin_interface::TypeExpression::Identifier {
                             name: "number".to_string(),
                         },
                         optional: false,
@@ -435,9 +435,9 @@ mod tests {
         let deltas = vec![Delta::FieldAdded {
             model: "User".to_string(),
             field: "email".to_string(),
-            after: cdm_plugin_api::FieldDefinition {
+            after: cdm_plugin_interface::FieldDefinition {
                 name: "email".to_string(),
-                field_type: cdm_plugin_api::TypeExpression::Identifier {
+                field_type: cdm_plugin_interface::TypeExpression::Identifier {
                     name: "string".to_string(),
                 },
                 optional: false,
@@ -483,7 +483,7 @@ mod tests {
         let mut models = HashMap::new();
         models.insert(
             "User".to_string(),
-            cdm_plugin_api::ModelDefinition {
+            cdm_plugin_interface::ModelDefinition {
                 name: "User".to_string(),
                 parents: vec![],
                 fields: vec![],
@@ -502,9 +502,9 @@ mod tests {
             Delta::FieldAdded {
                 model: "User".to_string(),
                 field: "name".to_string(),
-                after: cdm_plugin_api::FieldDefinition {
+                after: cdm_plugin_interface::FieldDefinition {
                     name: "name".to_string(),
-                    field_type: cdm_plugin_api::TypeExpression::Identifier {
+                    field_type: cdm_plugin_interface::TypeExpression::Identifier {
                         name: "string".to_string(),
                     },
                     optional: false,
@@ -516,9 +516,9 @@ mod tests {
             Delta::FieldAdded {
                 model: "User".to_string(),
                 field: "age".to_string(),
-                after: cdm_plugin_api::FieldDefinition {
+                after: cdm_plugin_interface::FieldDefinition {
                     name: "age".to_string(),
-                    field_type: cdm_plugin_api::TypeExpression::Identifier {
+                    field_type: cdm_plugin_interface::TypeExpression::Identifier {
                         name: "number".to_string(),
                     },
                     optional: true,

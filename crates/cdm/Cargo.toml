@@ -9,7 +9,7 @@ clap = { version = "4.5.53", features = ["derive"] }
 colored = "3.0.0"
 tree-sitter = "0.25.10"
 grammar = { path = "../grammar" }
-cdm-plugin-api = { path = "../cdm-plugin-api" }
+cdm-plugin-interface = { path = "../cdm-plugin-interface" }
 cdm-utils = { path = "../cdm-utils" }
 cdm-json-validator = { path = "../cdm-json-validator" }
 wasmtime = "27.0.0"

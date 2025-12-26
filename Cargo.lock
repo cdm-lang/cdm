@@ -265,7 +265,7 @@ dependencies = [
  "anyhow",
  "cc",
  "cdm-json-validator",
- "cdm-plugin-api",
+ "cdm-plugin-interface",
  "cdm-utils",
  "clap",
  "colored",
@@ -284,16 +284,8 @@ name = "cdm-json-validator"
 version = "0.1.0"
 dependencies = [
  "cdm",
- "cdm-plugin-api",
+ "cdm-plugin-interface",
  "cdm-utils",
- "serde_json",
-]
-
-[[package]]
-name = "cdm-plugin-api"
-version = "0.1.0"
-dependencies = [
- "serde",
  "serde_json",
 ]
 
@@ -301,7 +293,15 @@ dependencies = [
 name = "cdm-plugin-docs"
 version = "1.0.0"
 dependencies = [
- "cdm-plugin-api",
+ "cdm-plugin-interface",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "cdm-plugin-interface"
+version = "0.1.0"
+dependencies = [
  "serde",
  "serde_json",
 ]
@@ -310,7 +310,7 @@ dependencies = [
 name = "cdm-plugin-typescript"
 version = "1.0.0"
 dependencies = [
- "cdm-plugin-api",
+ "cdm-plugin-interface",
  "serde",
  "serde_json",
 ]

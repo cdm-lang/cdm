@@ -1,4 +1,4 @@
-use cdm_plugin_api::{Delta, OutputFile, Schema, Utils, JSON};
+use cdm_plugin_interface::{Delta, OutputFile, Schema, Utils, JSON};
 
 /// Generates migration files from schema changes
 pub fn migrate(
@@ -175,7 +175,7 @@ pub fn migrate(
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cdm_plugin_api::{FieldDefinition, ModelDefinition, TypeExpression};
+    use cdm_plugin_interface::{FieldDefinition, ModelDefinition, TypeExpression};
     use std::collections::HashMap;
 
     #[test]

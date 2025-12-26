@@ -293,10 +293,10 @@ make run-example
 
 ### Available Types
 
-Import from `cdm_plugin_api`:
+Import from `cdm_plugin_interface`:
 
 ```rust
-use cdm_plugin_api::{
+use cdm_plugin_interface::{
     ConfigLevel,      // Global | Model | Field
     ValidationError,  // Error with path, message, severity
     OutputFile,       // Generated file (path + content)

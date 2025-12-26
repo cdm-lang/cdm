@@ -1,4 +1,4 @@
-use cdm_plugin_api::{OutputFile, Schema, Utils, JSON};
+use cdm_plugin_interface::{OutputFile, Schema, Utils, JSON};
 
 /// Generates code from the schema
 pub fn build(schema: Schema, config: JSON, utils: &Utils) -> Vec<OutputFile> {
@@ -41,7 +41,7 @@ pub fn build(schema: Schema, config: JSON, utils: &Utils) -> Vec<OutputFile> {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use cdm_plugin_api::{ModelDefinition, TypeAliasDefinition};
+    use cdm_plugin_interface::{ModelDefinition, TypeAliasDefinition};
     use std::collections::HashMap;
 
     #[test]
