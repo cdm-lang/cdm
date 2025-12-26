@@ -240,7 +240,8 @@ fn test_model_level_plugin_config() {
 
     let cdm_content = r#"
 @docs from ../../../../target/wasm32-wasip1/release/cdm_plugin_docs.wasm {
-  format: "markdown"
+  format: "markdown",
+  build_output: "./docs"
 }
 
 User {
@@ -280,7 +281,8 @@ fn test_field_level_plugin_config() {
 
     let cdm_content = r#"
 @docs from ../../../../target/wasm32-wasip1/release/cdm_plugin_docs.wasm {
-  format: "markdown"
+  format: "markdown",
+  build_output: "./docs"
 }
 
 User {
@@ -332,5 +334,31 @@ fn test_plugin_imported_in_ancestor() {
         !validation_result.has_errors(),
         "Expected no errors when plugin imported in ancestor, got: {:?}",
         validation_result.diagnostics
+    );
+}
+
+#[test]
+fn test_missing_build_output_error() {
+    if !docs_plugin_exists() {
+        eprintln!("Skipping test - cdm_plugin_docs.wasm not found");
+        return;
+    }
+
+    let tree = load_fixture("missing_build_output.cdm").expect("Failed to load fixture");
+    let result = validate_tree(tree);
+
+    assert!(result.is_err(), "Expected validation to fail when build_output is missing");
+
+    let diagnostics = result.unwrap_err();
+
+    // Should contain E406 error about missing build_output
+    let has_e406_error = diagnostics.iter().any(|d| {
+        d.message.contains("E406") && d.message.contains("build_output")
+    });
+
+    assert!(
+        has_e406_error,
+        "Expected E406 error about missing build_output, got: {:?}",
+        diagnostics
     );
 }

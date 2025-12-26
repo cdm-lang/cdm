@@ -64,8 +64,15 @@ CDM (Contextual Data Model) is a schema definition language designed to serve as
 
 ```cdm
 // Import plugins
-@sql { dialect: "postgres", schema: "public" }
-@typescript { output: "./types" }
+@sql {
+  dialect: "postgres",
+  schema: "public",
+  build_output: "./db/schema",
+  migrations_output: "./db/migrations"
+}
+@typescript {
+  build_output: "./types"
+}
 
 // Type aliases
 Email: string {
@@ -916,10 +923,10 @@ Plugins extend CDM with custom code generation and validation. Plugins are WebAs
 Plugins are imported at the top of CDM files, before any type or model definitions:
 
 ```cdm
-// Registry plugin (no config)
+// Registry plugin (validation only - no build/migrate, so no output dirs needed)
 @validation
 
-// Registry plugin with config
+// Registry plugin with build and migrate capabilities
 @sql {
   dialect: "postgres",
   schema: "public",
@@ -927,15 +934,17 @@ Plugins are imported at the top of CDM files, before any type or model definitio
   migrations_output: "./db/migrations"
 }
 
-// Git plugin with version
+// Git plugin with build capability
 @analytics from git:https://github.com/myorg/cdm-analytics.git {
   version: "1.0.0",
-  endpoint: "https://analytics.example.com"
+  endpoint: "https://analytics.example.com",
+  build_output: "./analytics"
 }
 
-// Local plugin for development
+// Local plugin for development with build capability
 @custom from ./plugins/my-plugin {
-  debug: true
+  debug: true,
+  build_output: "./generated/custom"
 }
 ```
 
@@ -996,11 +1005,17 @@ Keys can be unquoted identifiers or quoted strings. Values can be any JSON value
 
 CDM extracts these keys before passing config to plugins:
 
-| Key                 | Type     | Description                              |
-| ------------------- | -------- | ---------------------------------------- |
-| `version`           | `string` | Version constraint for plugin resolution |
-| `build_output`      | `string` | Output directory for generated files     |
-| `migrations_output` | `string` | Output directory for migration files     |
+| Key                 | Type     | Required                        | Description                              |
+| ------------------- | -------- | ------------------------------- | ---------------------------------------- |
+| `version`           | `string` | No                              | Version constraint for plugin resolution |
+| `build_output`      | `string` | Yes, if plugin has `build()`    | Output directory for generated files     |
+| `migrations_output` | `string` | Yes, if plugin has `migrate()`  | Output directory for migration files     |
+
+**Validation Rules:**
+
+- If a plugin exports a `build()` function, the global config **must** include `build_output`
+- If a plugin exports a `migrate()` function, the global config **must** include `migrations_output`
+- CDM validates these requirements after loading the plugin and reports error E406 if required keys are missing
 
 ### 8.5 Configuration Levels
 
@@ -1097,6 +1112,7 @@ CDM validation occurs in multiple phases:
 | Missing required plugin export | E403  |
 | Plugin execution failed        | E404  |
 | Plugin output too large        | E405  |
+| Missing required output config | E406  |
 
 #### Entity IDs
 
@@ -1862,13 +1878,14 @@ See `grammar.js` in the CDM repository for the complete tree-sitter grammar impl
 
 ### B.5 Plugin Errors
 
-| Code | Message                                         | Description                                             |
-| ---- | ----------------------------------------------- | ------------------------------------------------------- |
-| E401 | Plugin not found: '{name}'                      | Could not resolve plugin                                |
-| E402 | Invalid plugin configuration: {details}         | Plugin config validation failed                         |
-| E403 | Plugin missing required export: '{function}'    | WASM module doesn't export required function (\_schema) |
-| E404 | Plugin execution failed: {details}              | Plugin function threw error or timed out                |
-| E405 | Plugin output too large: {size} exceeds {limit} | Output size limit exceeded                              |
+| Code | Message                                                      | Description                                             |
+| ---- | ------------------------------------------------------------ | ------------------------------------------------------- |
+| E401 | Plugin not found: '{name}'                                   | Could not resolve plugin                                |
+| E402 | Invalid plugin configuration: {details}                      | Plugin config validation failed                         |
+| E403 | Plugin missing required export: '{function}'                 | WASM module doesn't export required function (\_schema) |
+| E404 | Plugin execution failed: {details}                           | Plugin function threw error or timed out                |
+| E405 | Plugin output too large: {size} exceeds {limit}              | Output size limit exceeded                              |
+| E406 | Plugin '{name}' requires '{key}' in global config            | Plugin has capability but missing required output path  |
 
 ### B.6 Entity ID Errors
 

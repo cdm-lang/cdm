@@ -1,5 +1,6 @@
 @docs from ../../../../target/wasm32-wasip1/release/cdm_plugin_docs.wasm {
-  title: "My Schema"
+  title: "My Schema",
+  build_output: "./docs"
 }
 
 User {

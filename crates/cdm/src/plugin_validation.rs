@@ -233,6 +233,18 @@ pub fn validate_plugins(
         return;
     }
 
+    // Step 5.5: Validate that required output configs are present
+    for import in &all_plugin_imports {
+        if let Some(cached_plugin) = cache.plugins.get(&import.name) {
+            validate_output_config_requirements(import, cached_plugin, diagnostics);
+        }
+    }
+
+    // If any required configs are missing, stop (fail fast)
+    if diagnostics.iter().any(|d| d.severity == Severity::Error) {
+        return;
+    }
+
     // Step 6: Validate global configs from plugin imports
     for import in &all_plugin_imports {
         if let Some(global_config) = &import.global_config {
@@ -663,6 +675,70 @@ fn parse_plugin_config_node(
     Some((name, value))
 }
 
+/// Filter out reserved config keys that CDM uses internally
+fn filter_reserved_config_keys(config: &serde_json::Value) -> serde_json::Value {
+    if let Some(obj) = config.as_object() {
+        let mut filtered = obj.clone();
+        filtered.remove("build_output");
+        filtered.remove("migrations_output");
+        filtered.remove("version");
+        serde_json::Value::Object(filtered)
+    } else {
+        config.clone()
+    }
+}
+
+/// Validate that plugins with build/migrate capabilities have required output configs
+fn validate_output_config_requirements(
+    import: &PluginImport,
+    cached_plugin: &CachedPlugin,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    let global_config = import.global_config.as_ref().unwrap_or(&serde_json::Value::Null);
+
+    // Check if plugin has build capability and requires build_output
+    if let Ok(has_build) = cached_plugin.runner.has_build() {
+        if has_build {
+            let has_build_output = global_config.get("build_output")
+                .and_then(|v| v.as_str())
+                .map(|s| !s.is_empty())
+                .unwrap_or(false);
+
+            if !has_build_output {
+                diagnostics.push(Diagnostic {
+                    message: format!(
+                        "E406: Plugin '{}' requires 'build_output' in global config",
+                        import.name
+                    ),
+                    severity: Severity::Error,
+                    span: import.span,
+                });
+            }
+        }
+    }
+
+    // Check if plugin has migrate capability and requires migrations_output
+    if let Ok(has_migrate) = cached_plugin.runner.has_migrate() {
+        if has_migrate {
+            let has_migrations_output = global_config.get("migrations_output")
+                .and_then(|v| v.as_str())
+                .map(|s| !s.is_empty())
+                .unwrap_or(false);
+
+            if !has_migrations_output {
+                diagnostics.push(Diagnostic {
+                    message: format!(
+                        "E406: Plugin '{}' requires 'migrations_output' in global config",
+                        import.name
+                    ),
+                    severity: Severity::Error,
+                    span: import.span,
+                });
+            }
+        }
+    }
+}
+
 /// Validate config using two-level validation:
 /// Level 1: Validate against plugin's schema (structural)
 /// Level 2: Call plugin's WASM validate function (semantic)
@@ -679,9 +755,16 @@ fn validate_config_with_plugin(
             ConfigLevel::Field { .. } => "FieldSettings",
         };
 
+        // Filter out reserved config keys before validation
+        let filtered_config = if matches!(config.level, ConfigLevel::Global) {
+            filter_reserved_config_keys(&config.config)
+        } else {
+            config.config.clone()
+        };
+
         let schema_errors = cdm_json_validator::validate_json(
             resolved_schema,
-            &config.config,
+            &filtered_config,
             model_name,
         );
 

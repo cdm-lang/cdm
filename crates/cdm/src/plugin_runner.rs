@@ -89,6 +89,16 @@ impl PluginRunner {
         Ok(instance.get_func(&mut store, function_name).is_some())
     }
 
+    /// Check if the plugin has a build function
+    pub fn has_build(&self) -> Result<bool> {
+        self.has_function("_build")
+    }
+
+    /// Check if the plugin has a migrate function
+    pub fn has_migrate(&self) -> Result<bool> {
+        self.has_function("_migrate")
+    }
+
     /// Build output files from a schema
     pub fn build(
         &mut self,

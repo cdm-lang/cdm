@@ -1,8 +1,9 @@
 @docs from ../../../../target/wasm32-wasip1/release/cdm_plugin_docs.wasm {
-  format: "invalid_format",
-  build_output: "./docs"
+  format: "markdown",
+  title: "Test Schema"
 }
 
 User {
   id: number
+  name: string
 }
