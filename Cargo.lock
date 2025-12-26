@@ -305,6 +305,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cdm-plugin-typescript"
+version = "1.0.0"
+dependencies = [
+ "cdm-plugin-api",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "cdm-utils"
 version = "0.1.0"
 dependencies = [

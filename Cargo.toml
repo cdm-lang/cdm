@@ -5,6 +5,7 @@ members = [
     "crates/grammar",
     "crates/cdm-plugin-api",
     "crates/cdm-plugin-docs",
+    "crates/cdm-plugin-typescript",
     "crates/cdm-json-validator",
     "crates/cdm-utils",
 ]
