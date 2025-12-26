@@ -1,0 +1,23 @@
+// Invalid schema: demonstrates duplicate entity ID errors
+
+// Duplicate IDs between type aliases - should error
+Email: string #10
+UUID: string #10  // ERROR: duplicate global ID
+
+// Duplicate IDs between model and type alias - should error
+Status: "active" | "inactive" #20
+
+User {
+    name: string #1
+    email: string #1  // ERROR: duplicate field ID within User model
+} #20  // ERROR: duplicate global ID (same as Status)
+
+// Valid: Same field ID in different models is OK
+Post {
+    title: string #1  // OK: different model scope
+}
+
+// Valid: Model ID can be same as field ID (different scopes)
+Article {
+    content: string #30
+} #30  // OK: different scope

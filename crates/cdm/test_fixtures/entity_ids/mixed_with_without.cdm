@@ -1,0 +1,26 @@
+// Mixed schema: some entities have IDs, some don't
+// This is valid - IDs are optional
+
+// Type aliases - mixed
+Email: string #1  // Has ID
+Username: string  // No ID - valid
+
+// Models - mixed
+User {
+    id: string #1  // Has ID
+    email: Email #2  // Has ID
+    username: Username  // No ID - valid
+    bio?: string  // No ID - valid
+} #10  // Model has ID
+
+// No ID on model
+Post {
+    title: string #1  // Has ID
+    content: string  // No ID - valid
+}  // Model has no ID - valid
+
+// Completely without IDs
+Comment {
+    text: string
+    author: string
+}

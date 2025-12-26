@@ -1,0 +1,37 @@
+@extends ./base_schema.cdm
+
+// Evolved schema with entity IDs for migration tracking
+// This represents a schema at version 2
+
+// Renamed type alias (same ID indicates rename, not remove+add)
+EmailAddress: string #1  // Was: Email
+
+// New type alias
+PhoneNumber: string #6
+
+// Status unchanged #3
+
+// User model evolution
+User {
+    // Renamed field (same ID)
+    user_id: UUID #1  // Was: id
+
+    // email field kept as-is #2
+
+    // Renamed field (same ID)
+    full_name: string #3  // Was: name
+
+    // status field kept as-is #4
+
+    // bio field kept as-is #5
+
+    // New field
+    phone?: PhoneNumber #7
+
+    // Removed field would just be absent (password_hash was never in base)
+}
+
+// Post model - add new field
+Post {
+    tags: string[] #6  // New field
+}

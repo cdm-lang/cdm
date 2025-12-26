@@ -7,6 +7,7 @@ mod grammar_parser;
 mod resolved_schema;
 mod plugin_validation;
 mod build;
+mod migrate;
 
 pub use diagnostics::{Diagnostic, Severity};
 pub use cdm_utils::{Position, Span};
@@ -18,3 +19,4 @@ pub use grammar_parser::GrammarParser;
 pub use resolved_schema::{ResolvedSchema, ResolvedTypeAlias, ResolvedModel, ResolvedField, build_resolved_schema, find_references_in_resolved, ParsedType, PrimitiveType};
 pub use plugin_validation::{PluginImport, PluginSource, extract_plugin_imports, extract_structured_plugin_configs, ExtractedPluginConfigs};
 pub use build::build;
+pub use migrate::migrate;

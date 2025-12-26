@@ -717,6 +717,98 @@ fn collect_field_info(
 }
 
 // =============================================================================
+// Entity ID Validation
+// =============================================================================
+
+/// Validate entity IDs for uniqueness within their scope
+fn validate_entity_ids(
+    symbol_table: &SymbolTable,
+    model_fields: &HashMap<String, Vec<FieldInfo>>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    // Track global IDs for models and type aliases (they share a global namespace)
+    let mut global_ids: HashMap<u64, (String, Span)> = HashMap::new();
+
+    // Sort definitions by source position to ensure consistent error messages
+    let mut sorted_defs: Vec<_> = symbol_table.definitions.iter().collect();
+    sorted_defs.sort_by_key(|(_, def)| (def.span.start.line, def.span.start.column));
+
+    // Check model and type alias IDs (global scope)
+    for (name, def) in sorted_defs {
+        if let Some(id) = def.entity_id {
+            if let Some((existing_name, existing_span)) = global_ids.get(&id) {
+                diagnostics.push(Diagnostic {
+                    message: format!(
+                        "Duplicate entity ID #{}: already used by '{}' at line {}",
+                        id, existing_name, existing_span.start.line + 1
+                    ),
+                    severity: Severity::Error,
+                    span: def.span,
+                });
+            } else {
+                global_ids.insert(id, (name.clone(), def.span));
+            }
+        }
+    }
+
+    // Check field IDs (scoped per model)
+    for (model_name, fields) in model_fields {
+        let mut field_ids: HashMap<u64, (String, Span)> = HashMap::new();
+
+        for field in fields {
+            if let Some(id) = field.entity_id {
+                if let Some((existing_name, existing_span)) = field_ids.get(&id) {
+                    diagnostics.push(Diagnostic {
+                        message: format!(
+                            "Duplicate field ID #{} in model '{}': already used by field '{}' at line {}",
+                            id, model_name, existing_name, existing_span.start.line + 1
+                        ),
+                        severity: Severity::Error,
+                        span: field.span,
+                    });
+                } else {
+                    field_ids.insert(id, (field.name.clone(), field.span));
+                }
+            }
+        }
+    }
+}
+
+/// Warn about entities without IDs (for --check-ids flag)
+fn warn_missing_ids(
+    symbol_table: &SymbolTable,
+    model_fields: &HashMap<String, Vec<FieldInfo>>,
+    diagnostics: &mut Vec<Diagnostic>,
+) {
+    // Check models and type aliases
+    for (name, def) in &symbol_table.definitions {
+        if def.entity_id.is_none() {
+            diagnostics.push(Diagnostic {
+                message: format!("Entity '{}' has no ID for migration tracking", name),
+                severity: Severity::Warning,
+                span: def.span,
+            });
+        }
+    }
+
+    // Check fields
+    for (model_name, fields) in model_fields {
+        for field in fields {
+            if field.entity_id.is_none() {
+                diagnostics.push(Diagnostic {
+                    message: format!(
+                        "Field '{}.{}' has no ID for migration tracking",
+                        model_name, field.name
+                    ),
+                    severity: Severity::Warning,
+                    span: field.span,
+                });
+            }
+        }
+    }
+}
+
+// =============================================================================
 // Pass 2: Semantic validation
 // =============================================================================
 
@@ -737,6 +829,9 @@ fn collect_semantic_errors(
 
     // Pass 2c: Validate references and fields
     validate_references(root, source, &symbol_table, &model_fields, ancestors, diagnostics);
+
+    // Pass 2d: Validate entity IDs
+    validate_entity_ids(&symbol_table, &model_fields, diagnostics);
 
     (symbol_table, model_fields)
 }

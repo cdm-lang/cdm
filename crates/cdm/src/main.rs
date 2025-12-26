@@ -25,6 +25,24 @@ enum Commands {
         #[arg(value_name = "FILE")]
         path: PathBuf,
     },
+    /// Generate migration files from schema changes
+    Migrate {
+        /// Path to CDM file to migrate (exactly one required)
+        #[arg(value_name = "FILE")]
+        file: PathBuf,
+
+        /// Migration name (required)
+        #[arg(short = 'n', long)]
+        name: String,
+
+        /// Override migrations output directory
+        #[arg(short = 'o', long)]
+        output: Option<PathBuf>,
+
+        /// Show deltas without generating files
+        #[arg(long)]
+        dry_run: bool,
+    },
 }
 
 fn main() -> Result<()> {
@@ -63,6 +81,12 @@ fn main() -> Result<()> {
         Commands::Build { path } => {
             if let Err(err) = cdm::build(&path) {
                 eprintln!("Build failed: {}", err);
+                std::process::exit(1);
+            }
+        }
+        Commands::Migrate { file, name, output, dry_run } => {
+            if let Err(err) = cdm::migrate(&file, name, output, dry_run) {
+                eprintln!("Migrate failed: {}", err);
                 std::process::exit(1);
             }
         }

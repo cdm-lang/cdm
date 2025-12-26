@@ -4324,3 +4324,373 @@ fn test_valid_type_alias_removal() {
     // Status type should NOT exist (removed)
     assert!(!result.symbol_table.definitions.contains_key("Status"));
 }
+
+// ============================================================================
+// ENTITY ID TESTS
+// ============================================================================
+
+#[test]
+fn test_entity_id_extraction_type_alias() {
+    let source = "Email: string #42";
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    assert!(diagnostics.is_empty());
+    let def = symbol_table.get("Email").expect("Email should be defined");
+    assert_eq!(def.entity_id, Some(42));
+}
+
+#[test]
+fn test_entity_id_extraction_model() {
+    let source = r#"
+        User {
+            name: string
+        } #100
+    "#;
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    assert!(diagnostics.is_empty());
+    let def = symbol_table.get("User").expect("User should be defined");
+    assert_eq!(def.entity_id, Some(100));
+}
+
+#[test]
+fn test_entity_id_extraction_field() {
+    let source = r#"
+        User {
+            name: string #5
+            email: string #10
+        }
+    "#;
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    let (symbol_table, model_fields) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    assert!(diagnostics.is_empty());
+    let fields = model_fields.get("User").expect("User fields should exist");
+    assert_eq!(fields.len(), 2);
+
+    let name_field = fields.iter().find(|f| f.name == "name").expect("name field should exist");
+    assert_eq!(name_field.entity_id, Some(5));
+
+    let email_field = fields.iter().find(|f| f.name == "email").expect("email field should exist");
+    assert_eq!(email_field.entity_id, Some(10));
+}
+
+#[test]
+fn test_entity_id_optional_field() {
+    let source = r#"
+        User {
+            bio?: string #7
+        }
+    "#;
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    let (_, model_fields) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    assert!(diagnostics.is_empty());
+    let fields = model_fields.get("User").expect("User fields should exist");
+    let bio_field = fields.iter().find(|f| f.name == "bio").expect("bio field should exist");
+    assert_eq!(bio_field.entity_id, Some(7));
+    assert!(bio_field.optional);
+}
+
+#[test]
+fn test_entity_id_with_default_value() {
+    let source = r#"
+        User {
+            active: boolean = true #15
+        }
+    "#;
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    let (_, model_fields) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    assert!(diagnostics.is_empty());
+    let fields = model_fields.get("User").expect("User fields should exist");
+    let active_field = fields.iter().find(|f| f.name == "active").expect("active field should exist");
+    assert_eq!(active_field.entity_id, Some(15));
+}
+
+#[test]
+fn test_entity_id_with_plugins() {
+    let source = r#"
+        Email: string { @validation { format: "email" } } #20
+    "#;
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    assert!(diagnostics.is_empty());
+    let def = symbol_table.get("Email").expect("Email should be defined");
+    assert_eq!(def.entity_id, Some(20));
+    assert!(def.plugin_configs.contains_key("validation"));
+}
+
+#[test]
+fn test_duplicate_entity_id_models() {
+    let source = r#"
+        User {
+            name: string
+        } #10
+
+        Post {
+            title: string
+        } #10
+    "#;
+
+    let result = validate_source(source);
+    assert!(has_error_containing(&result, "Duplicate entity ID #10"));
+    assert!(has_error_containing(&result, "already used by 'User'"));
+}
+
+#[test]
+fn test_duplicate_entity_id_type_aliases() {
+    let source = r#"
+        Email: string #5
+        UUID: string #5
+    "#;
+
+    let result = validate_source(source);
+    assert!(has_error_containing(&result, "Duplicate entity ID #5"));
+    assert!(has_error_containing(&result, "already used by 'Email'"));
+}
+
+#[test]
+fn test_duplicate_entity_id_mixed() {
+    let source = r#"
+        Email: string #100
+
+        User {
+            name: string
+        } #100
+    "#;
+
+    let result = validate_source(source);
+    assert!(has_error_containing(&result, "Duplicate entity ID #100"));
+    assert!(has_error_containing(&result, "already used by 'Email'"));
+}
+
+#[test]
+fn test_duplicate_field_id_same_model() {
+    let source = r#"
+        User {
+            name: string #1
+            email: string #1
+        }
+    "#;
+
+    let result = validate_source(source);
+    assert!(has_error_containing(&result, "Duplicate field ID #1"));
+    assert!(has_error_containing(&result, "in model 'User'"));
+    assert!(has_error_containing(&result, "already used by field 'name'"));
+}
+
+#[test]
+fn test_field_id_different_models_allowed() {
+    let source = r#"
+        User {
+            name: string #1
+        }
+
+        Post {
+            title: string #1
+        }
+    "#;
+
+    let result = validate_source(source);
+    assert!(!has_error_containing(&result, "Duplicate field ID"));
+}
+
+#[test]
+fn test_same_id_model_and_field_allowed() {
+    let source = r#"
+        User {
+            name: string #10
+        } #10
+    "#;
+
+    let result = validate_source(source);
+    // This should be valid - models and fields are in different scopes
+    assert!(!has_error_containing(&result, "Duplicate entity ID #10"));
+}
+
+#[test]
+fn test_multiple_duplicate_ids() {
+    let source = r#"
+        User {
+            name: string #1
+            email: string #1
+            bio: string #2
+            notes: string #2
+        }
+
+        Email: string #50
+        UUID: string #50
+    "#;
+
+    let result = validate_source(source);
+    assert!(has_error_containing(&result, "Duplicate field ID #1"));
+    assert!(has_error_containing(&result, "Duplicate field ID #2"));
+    assert!(has_error_containing(&result, "Duplicate entity ID #50"));
+}
+
+#[test]
+fn test_entity_id_with_inheritance() {
+    let source = r#"
+        Base {
+            id: string #1
+        } #10
+
+        Extended extends Base {
+            name: string #2
+        } #20
+    "#;
+
+    let result = validate_source(source);
+    assert!(!has_error_containing(&result, "Duplicate"));
+}
+
+#[test]
+fn test_entity_id_union_type() {
+    let source = r#"
+        Status: "active" | "pending" | "deleted" #3
+    "#;
+
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    assert!(diagnostics.is_empty());
+    let def = symbol_table.get("Status").expect("Status should be defined");
+    assert_eq!(def.entity_id, Some(3));
+}
+
+#[test]
+fn test_entity_id_array_field() {
+    let source = r#"
+        User {
+            tags: string[] #8
+        }
+    "#;
+
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    let (_, model_fields) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    assert!(diagnostics.is_empty());
+    let fields = model_fields.get("User").expect("User fields should exist");
+    let tags_field = fields.iter().find(|f| f.name == "tags").expect("tags field should exist");
+    assert_eq!(tags_field.entity_id, Some(8));
+}
+
+#[test]
+fn test_entity_id_untyped_field() {
+    let source = r#"
+        User {
+            name #12
+        }
+    "#;
+
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    let (_, model_fields) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    assert!(diagnostics.is_empty());
+    let fields = model_fields.get("User").expect("User fields should exist");
+    let name_field = fields.iter().find(|f| f.name == "name").expect("name field should exist");
+    assert_eq!(name_field.entity_id, Some(12));
+}
+
+#[test]
+fn test_entity_ids_mixed_with_without() {
+    let source = r#"
+        User {
+            id: string #1
+            name: string
+            email: string #3
+        } #100
+
+        Post {
+            title: string
+        }
+    "#;
+
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    let (symbol_table, model_fields) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    assert!(diagnostics.is_empty());
+
+    let user_def = symbol_table.get("User").expect("User should be defined");
+    assert_eq!(user_def.entity_id, Some(100));
+
+    let post_def = symbol_table.get("Post").expect("Post should be defined");
+    assert_eq!(post_def.entity_id, None);
+
+    let user_fields = model_fields.get("User").expect("User fields should exist");
+    let id_field = user_fields.iter().find(|f| f.name == "id").expect("id field should exist");
+    assert_eq!(id_field.entity_id, Some(1));
+
+    let name_field = user_fields.iter().find(|f| f.name == "name").expect("name field should exist");
+    assert_eq!(name_field.entity_id, None);
+
+    let email_field = user_fields.iter().find(|f| f.name == "email").expect("email field should exist");
+    assert_eq!(email_field.entity_id, Some(3));
+}
+
+#[test]
+fn test_entity_id_zero_not_allowed() {
+    // Entity IDs must be positive integers (1-9 followed by 0-9*)
+    // #0 should not parse as a valid entity_id
+    let source = r#"
+        User {
+            name: string
+        } #0
+    "#;
+
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    // The grammar should reject #0, so entity_id should be None
+    let user_def = symbol_table.get("User").expect("User should be defined");
+    assert_eq!(user_def.entity_id, None, "Entity ID #0 should not be valid");
+}
+
+#[test]
+fn test_large_entity_ids() {
+    let source = r#"
+        User {
+            name: string #999999
+        } #1000000
+    "#;
+
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    let (symbol_table, model_fields) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    assert!(diagnostics.is_empty());
+
+    let user_def = symbol_table.get("User").expect("User should be defined");
+    assert_eq!(user_def.entity_id, Some(1000000));
+
+    let fields = model_fields.get("User").expect("User fields should exist");
+    let name_field = fields.iter().find(|f| f.name == "name").expect("name field should exist");
+    assert_eq!(name_field.entity_id, Some(999999));
+}

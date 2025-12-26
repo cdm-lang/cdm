@@ -1,0 +1,31 @@
+// Base schema with entity IDs for migration tracking
+// This represents a schema at version 1
+
+// Type aliases
+Email: string #1
+UUID: string #2
+Status: "active" | "pending" | "deleted" #3
+
+// Base model for timestamps
+Timestamped {
+    created_at: string #1
+    updated_at: string #2
+} #10
+
+// User model
+User {
+    id: UUID #1
+    email: Email #2
+    name: string #3
+    status: Status #4
+    bio?: string #5
+} #20
+
+// Post model with inheritance
+Post extends Timestamped {
+    id: UUID #1
+    title: string #2
+    content: string #3
+    author_id: UUID #4
+    published: boolean = false #5
+} #30

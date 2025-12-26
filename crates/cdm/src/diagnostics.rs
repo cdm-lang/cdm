@@ -38,3 +38,12 @@ pub const E402_INVALID_PLUGIN_CONFIG: &str = "E402";
 pub const E403_MISSING_PLUGIN_EXPORT: &str = "E403";
 pub const E404_PLUGIN_EXECUTION_FAILED: &str = "E404";
 pub const E405_PLUGIN_OUTPUT_TOO_LARGE: &str = "E405";
+
+// Entity ID error codes
+pub const E501_DUPLICATE_ENTITY_ID: &str = "E501";
+pub const E502_DUPLICATE_FIELD_ID: &str = "E502";
+pub const E503_REUSED_ID: &str = "E503";
+
+// Entity ID warning codes
+pub const W005_MISSING_ENTITY_ID: &str = "W005";
+pub const W006_MISSING_FIELD_ID: &str = "W006";
