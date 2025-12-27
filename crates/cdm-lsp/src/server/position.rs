@@ -108,8 +108,10 @@ mod tests {
         let text = "Hello 😀 World";
 
         // "😀" is 4 bytes (F0 9F 98 80) but 2 UTF-16 code units
-        // Position (0, 7) should be after emoji (byte 11)
-        assert_eq!(lsp_position_to_byte_offset(text, Position { line: 0, character: 8 }), 11);
+        // UTF-16: H(0) e(1) l(2) l(3) o(4) sp(5) 😀(6-7) sp(8) W(9)...
+        // Bytes:  H(0) e(1) l(2) l(3) o(4) sp(5) 😀(6-9) sp(10) W(11)...
+        // Position (0, 8) should be the space after emoji (byte 10)
+        assert_eq!(lsp_position_to_byte_offset(text, Position { line: 0, character: 8 }), 10);
     }
 
     #[test]
@@ -143,8 +145,10 @@ mod tests {
         assert_eq!(range.start, Position { line: 0, character: 0 });
         assert_eq!(range.end, Position { line: 0, character: 4 });
 
-        // Span of "name" (bytes 10-14)
-        let range = byte_span_to_lsp_range(text, 10, 14);
+        // Span of "name" (bytes 9-13)
+        // Line 1: "  name: string"
+        // Bytes: sp(7) sp(8) n(9) a(10) m(11) e(12) :(13)
+        let range = byte_span_to_lsp_range(text, 9, 13);
         assert_eq!(range.start, Position { line: 1, character: 2 });
         assert_eq!(range.end, Position { line: 1, character: 6 });
     }

@@ -85,13 +85,16 @@
     "publish": "vsce publish"
   },
   "devDependencies": {
+    "@types/jest": "^30.0.0",
     "@types/node": "^18.0.0",
-    "@types/vscode": "^1.75.0",
+    "@types/vscode": "^1.107.0",
     "@typescript-eslint/eslint-plugin": "^6.0.0",
     "@typescript-eslint/parser": "^6.0.0",
+    "@vscode/vsce": "^2.22.0",
     "eslint": "^8.0.0",
-    "typescript": "^5.0.0",
-    "@vscode/vsce": "^2.22.0"
+    "jest": "^30.2.0",
+    "ts-jest": "^29.4.6",
+    "typescript": "^5.0.0"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1"

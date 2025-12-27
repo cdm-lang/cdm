@@ -34,15 +34,10 @@ impl DocumentStore {
     }
 
     /// Check if a document exists
+    #[allow(dead_code)]
     pub fn contains(&self, uri: &Url) -> bool {
         let docs = self.documents.read().unwrap();
         docs.contains_key(uri)
-    }
-
-    /// Get all document URIs
-    pub fn uris(&self) -> Vec<Url> {
-        let docs = self.documents.read().unwrap();
-        docs.keys().cloned().collect()
     }
 }
 

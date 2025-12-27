@@ -79,11 +79,11 @@ User {
         let uri = Url::parse("file:///test.cdm").unwrap();
         let diagnostics = compute_diagnostics(text, &uri);
 
-        // Should have E103 error for unknown type
+        // Should have E103 error for undefined type
         assert!(diagnostics.len() > 0);
 
         let first_diag = &diagnostics[0];
         assert_eq!(first_diag.severity, Some(DiagnosticSeverity::ERROR));
-        assert!(first_diag.message.contains("Unknown type"));
+        assert!(first_diag.message.contains("Undefined type"));
     }
 }

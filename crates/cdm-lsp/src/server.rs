@@ -5,6 +5,7 @@ use tower_lsp::{Client, LanguageServer};
 mod document;
 mod position;
 mod diagnostics;
+mod navigation;
 
 use document::DocumentStore;
 
@@ -50,12 +51,12 @@ impl LanguageServer for CdmLanguageServer {
                         ..Default::default()
                     },
                 )),
-                // Only advertise capabilities that are actually implemented
-                // Future features will be enabled as they're implemented:
-                // - hover_provider
+                // Navigation features
+                hover_provider: Some(HoverProviderCapability::Simple(true)),
+                definition_provider: Some(OneOf::Left(true)),
+                references_provider: Some(OneOf::Left(true)),
+                // Future features to be implemented:
                 // - completion_provider
-                // - definition_provider
-                // - references_provider
                 // - document_formatting_provider
                 // - document_symbol_provider
                 // - rename_provider
@@ -121,10 +122,49 @@ impl LanguageServer for CdmLanguageServer {
     }
 
     async fn hover(&self, params: HoverParams) -> Result<Option<Hover>> {
-        eprintln!("Hover request at {:?}", params.text_document_position_params.position);
+        let uri = &params.text_document_position_params.text_document.uri;
+        let position = params.text_document_position_params.position;
 
-        // TODO: Implement hover provider
-        // For now, return None
+        eprintln!("Hover request at {:?} in {}", position, uri);
+
+        // Get the document text
+        let text = match self.documents.get(uri) {
+            Some(t) => t,
+            None => return Ok(None),
+        };
+
+        // Find the symbol at the cursor position
+        let (symbol, _range) = match navigation::find_symbol_at_position(&text, position) {
+            Some(s) => s,
+            None => return Ok(None),
+        };
+
+        // Get all definitions in the document
+        let definitions = navigation::extract_definitions(&text);
+
+        // Find the definition for this symbol
+        if let Some((_, def_info)) = definitions.iter().find(|(name, _)| name == &symbol) {
+            return Ok(Some(Hover {
+                contents: HoverContents::Markup(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value: def_info.hover_text.clone(),
+                }),
+                range: None,
+            }));
+        }
+
+        // Check if it's a built-in type
+        if cdm::is_builtin_type(&symbol) {
+            let hover_text = format!("```cdm\n{}\n```\n\nBuilt-in type", symbol);
+            return Ok(Some(Hover {
+                contents: HoverContents::Markup(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value: hover_text,
+                }),
+                range: None,
+            }));
+        }
+
         Ok(None)
     }
 
@@ -140,19 +180,74 @@ impl LanguageServer for CdmLanguageServer {
         &self,
         params: GotoDefinitionParams,
     ) -> Result<Option<GotoDefinitionResponse>> {
-        eprintln!("Go-to-definition request at {:?}", params.text_document_position_params.position);
+        let uri = &params.text_document_position_params.text_document.uri;
+        let position = params.text_document_position_params.position;
 
-        // TODO: Implement go-to-definition
-        // For now, return None
+        eprintln!("Go-to-definition request at {:?} in {}", position, uri);
+
+        // Get the document text
+        let text = match self.documents.get(uri) {
+            Some(t) => t,
+            None => return Ok(None),
+        };
+
+        // Find the symbol at the cursor position
+        let (symbol, _range) = match navigation::find_symbol_at_position(&text, position) {
+            Some(s) => s,
+            None => return Ok(None),
+        };
+
+        // Get all definitions in the document
+        let definitions = navigation::extract_definitions(&text);
+
+        // Find the definition for this symbol
+        if let Some((_, def_info)) = definitions.iter().find(|(name, _)| name == &symbol) {
+            return Ok(Some(GotoDefinitionResponse::Scalar(Location {
+                uri: uri.clone(),
+                range: def_info.range,
+            })));
+        }
+
         Ok(None)
     }
 
     async fn references(&self, params: ReferenceParams) -> Result<Option<Vec<Location>>> {
-        eprintln!("References request at {:?}", params.text_document_position.position);
+        let uri = &params.text_document_position.text_document.uri;
+        let position = params.text_document_position.position;
+        let include_declaration = params.context.include_declaration;
 
-        // TODO: Implement find references
-        // For now, return None
-        Ok(None)
+        eprintln!("References request at {:?} in {} (include_declaration: {})",
+                  position, uri, include_declaration);
+
+        // Get the document text
+        let text = match self.documents.get(uri) {
+            Some(t) => t,
+            None => return Ok(None),
+        };
+
+        // Find the symbol at the cursor position
+        let (symbol, _range) = match navigation::find_symbol_at_position(&text, position) {
+            Some(s) => s,
+            None => return Ok(None),
+        };
+
+        // Find all references to this symbol
+        let ranges = navigation::find_all_references(&text, &symbol);
+
+        // Convert ranges to locations
+        let locations: Vec<Location> = ranges
+            .into_iter()
+            .map(|range| Location {
+                uri: uri.clone(),
+                range,
+            })
+            .collect();
+
+        if locations.is_empty() {
+            Ok(None)
+        } else {
+            Ok(Some(locations))
+        }
     }
 
     async fn formatting(&self, params: DocumentFormattingParams) -> Result<Option<Vec<TextEdit>>> {

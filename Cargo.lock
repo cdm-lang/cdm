@@ -334,6 +334,7 @@ name = "cdm-lsp"
 version = "0.1.0"
 dependencies = [
  "cdm",
+ "grammar",
  "serde",
  "serde_json",
  "tokio",

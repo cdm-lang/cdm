@@ -1,7 +1,7 @@
 # CDM LSP Implementation Status
 
 **Date**: 2025-12-26
-**Status**: Phase 1 Complete + VS Code Extension Ready ✅
+**Status**: Phase 1 & 2 Complete - Navigation Features Implemented ✅
 
 ---
 
@@ -11,12 +11,13 @@
 
 **Files Created:**
 - `src/main.rs` (17 lines) - Entry point with tokio runtime
-- `src/server.rs` (168 lines) - Core LSP server implementation
+- `src/server.rs` (260 lines) - Core LSP server implementation with navigation
 - `src/server/document.rs` (70 lines) - Thread-safe document store
 - `src/server/position.rs` (165 lines) - Position mapping utilities
 - `src/server/diagnostics.rs` (90 lines) - Diagnostic computation
+- `src/server/navigation.rs` (245 lines) - Navigation features (hover, go-to-def, references)
 
-**Total**: ~510 lines of Rust code
+**Total**: ~850 lines of Rust code
 
 ### Features Working
 
@@ -48,6 +49,22 @@
    - HashMap-based with RwLock
    - Insert/get/remove/contains operations
 
+6. **Hover Provider** ✅
+   - Shows type information on hover
+   - Displays type alias definitions with their type expressions
+   - Shows model definitions with fields and extends clause
+   - Recognizes built-in types (string, number, boolean, etc.)
+
+7. **Go-to-Definition** ✅
+   - Jump to type alias definitions
+   - Jump to model definitions
+   - Works within single file (no cross-file navigation yet)
+
+8. **Find References** ✅
+   - Finds all uses of a type in the document
+   - Finds all uses of a model in the document
+   - Highlights all occurrences of the symbol
+
 ### Capabilities Declared
 
 The server advertises these capabilities to clients:
@@ -55,14 +72,15 @@ The server advertises these capabilities to clients:
 ```rust
 ServerCapabilities {
     text_document_sync: FULL (complete file sync),
-    hover_provider: true,  // Declared but not yet implemented
-    completion_provider: true,  // Declared but not yet implemented
-    definition_provider: true,  // Declared but not yet implemented
-    references_provider: true,  // Declared but not yet implemented
-    document_formatting_provider: true,  // Declared but not yet implemented
-    document_symbol_provider: true,  // Declared but not yet implemented
-    rename_provider: true,  // Declared but not yet implemented
-    code_action_provider: true,  // Declared but not yet implemented
+    hover_provider: true,  // ✅ Implemented
+    definition_provider: true,  // ✅ Implemented
+    references_provider: true,  // ✅ Implemented
+    // Not yet implemented:
+    // - completion_provider
+    // - document_formatting_provider
+    // - document_symbol_provider
+    // - rename_provider
+    // - code_action_provider
 }
 ```
 
@@ -151,8 +169,10 @@ cargo test -p cdm-lsp
 ```
 
 **Current Test Status:**
-- ✅ 5 tests passing
-- ⚠️ 3 tests failing (position mapping edge cases with emojis - non-critical)
+- ✅ All 16 tests passing
+- ✅ Position mapping tests fixed (emoji handling)
+- ✅ Diagnostic tests fixed (message validation)
+- ✅ Navigation tests all passing (8 tests)
 
 ---
 
