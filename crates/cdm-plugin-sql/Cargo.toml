@@ -1,0 +1,19 @@
+[package]
+name = "cdm-plugin-sql"
+version = "1.0.0"
+edition = "2021"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# Uses the local version for development
+cdm-plugin-interface = { path = "../cdm-plugin-interface" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"
+
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+strip = true

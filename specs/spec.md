@@ -317,6 +317,23 @@ content: TextBlock | ImageBlock | VideoBlock
 result: "error" | SuccessPayload
 ```
 
+**Note**: Union types of models are currently supported in field definitions. Union types for models themselves (discriminated unions) are planned for a future version and would enable patterns like:
+
+```cdm
+// Future feature - not yet supported
+ConfigValue: StringConfig | NumberConfig | BooleanConfig
+
+StringConfig {
+  type: "string"
+  value: string
+}
+
+NumberConfig {
+  type: "number"
+  value: number
+}
+```
+
 ### 3.3 Optional Types
 
 Fields can be marked optional with the `?` suffix on the field name:

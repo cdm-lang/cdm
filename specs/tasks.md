@@ -81,6 +81,9 @@
 - ✅ Union type compatibility
 - 🔍 Full type compatibility checking (needs comprehensive tests)
 
+### 3.5 Future Features
+- ⏳ Union types for models (discriminated unions) - Allow type aliases to be unions of model types, not just string literals
+
 ---
 
 ## 3. Type Aliases (Section 4)

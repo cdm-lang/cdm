@@ -1,0 +1,10 @@
+{
+    "name": "sql",
+    "version": "1.0.0",
+    "description": "Generate SQL DDL schemas and migrations for PostgreSQL and SQLite",
+    "schema": "schema.cdm",
+    "wasm": {
+        "file": "target/wasm32-wasip1/release/cdm_plugin_sql.wasm"
+    },
+    "capabilities": ["build", "migrate"]
+}
