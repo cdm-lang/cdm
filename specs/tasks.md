@@ -338,8 +338,8 @@
 - ⏳ W002: Unused model
 - ⏳ W003: Field shadows parent
 - ⏳ W004: Empty model
-- ⏳ W005: Entity has no ID (for migration tracking)
-- ⏳ W006: Field has no ID (for migration tracking)
+- ✅ W005: Entity has no ID (for migration tracking) - implemented via --check-ids flag
+- ✅ W006: Field has no ID (for migration tracking) - implemented via --check-ids flag
 
 ### 9.3 Forward References
 - ✅ Forward references within file
@@ -394,6 +394,7 @@
 - ✅ `cdm validate <file>` - single file validation
 - ⏳ `cdm validate` - all .cdm files in directory
 - ⏳ `cdm validate <pattern>` - glob pattern support
+- ✅ `--check-ids` flag - warn about entities without IDs for migration tracking (W005, W006)
 - ⏳ `--quiet` / `-q` flag
 - ⏳ `--format <fmt>` flag (json output)
 - ✅ Exit code 0 (success)
@@ -573,8 +574,8 @@
 - ⏳ W002 implementation
 - ⏳ W003 implementation
 - ⏳ W004 implementation
-- ⏳ W005 implementation (Entity has no ID)
-- ⏳ W006 implementation (Field has no ID)
+- ✅ W005 implementation (Entity has no ID) - via --check-ids flag
+- ✅ W006 implementation (Field has no ID) - via --check-ids flag
 
 ---
 
@@ -613,20 +614,20 @@
 - ✅ Inheritance: 100%
 - ✅ Context System: 100% (E301-E304 all complete)
 - ✅ Plugin System: 95% ⭐⭐ (WASM execution, validation, build() + migrate() complete)
-- ✅ Semantic Validation: 97% ⭐⭐ (all errors E101-E503 complete, only E405 + warnings remain)
+- ✅ Semantic Validation: 98% ⭐⭐ (all errors E101-E503 complete, W005-W006 complete, only E405 + W001-W004 remain)
 - ✅ File Structure: 100% ⭐ (complete path resolution & merging)
 - ✅ CLI Interface: 95% ⭐⭐⭐⭐ (validate ✅, build ✅, migrate ✅, plugin new ✅, format ✅, plugin list/info/cache ⏳)
 - ✅ Plugin Development: 95% ⭐ (API complete, working example)
 - ✅ Grammar: 100%
-- ✅ Error Catalog: 90% ⭐⭐ (E001-E503 complete, only E405 + warnings remain)
+- ✅ Error Catalog: 93% ⭐⭐ (E001-E503 complete, W005-W006 complete, only E405 + W001-W004 remain)
 - ⏳ Registry Format: 10%
 - ✅ Data Exchange: 100% ⭐ (complete serialization/deserialization)
 
 **Test Coverage:**
-- 610 tests passing across all crates (374 in cdm crate, 79 in cdm-plugin-sql, 43 in cdm-plugin-interface, 29 in cdm-utils, 27 in cdm-plugin-typescript, 21 in cdm-json-validator, 14 in cdm-plugin-docs, etc.)
+- 615 tests passing across all crates (379 in cdm crate, 79 in cdm-plugin-sql, 43 in cdm-plugin-interface, 29 in cdm-utils, 27 in cdm-plugin-typescript, 21 in cdm-json-validator, 14 in cdm-plugin-docs, etc.)
 - 0 failures, 3 ignored (doc tests)
-- Comprehensive coverage of all core features including build, migrate, and format commands
-- Note: Test count increased from 590 to 610 (+20 tests - format command comprehensive testing)
+- Comprehensive coverage of all core features including build, migrate, format, and validate commands
+- Note: Test count increased from 610 to 615 (+5 tests - --check-ids flag testing)
 
 ### Critical Path to MVP
 
@@ -653,11 +654,11 @@
     - ✅ SQL plugin (build + migrate + validate_config - COMPLETE!)
     - ⏳ Validation plugin (not started)
 
-**Phase 4: Polish** ✅ 50% COMPLETE
+**Phase 4: Polish** ✅ 60% COMPLETE
 14. ✅ Entity ID system (E501-E503 complete)
 15. ✅ Format command (auto-assigning IDs + whitespace formatting - COMPLETE!)
 16. ⏳ Complete remaining error code (E405)
-17. ⏳ Add warnings (W001-W006)
+17. 🚧 Add warnings (W001-W006) - W005-W006 complete via --check-ids flag
 18. ⏳ Multi-file validation
 19. ⏳ Better diagnostics
 20. ⏳ Plugin sandboxing
@@ -698,6 +699,56 @@
   5. Plugin sandboxing (memory, time, output limits)
 
 ## Recent Updates
+
+### 2025-12-26 (Late Night): --check-ids Flag Implementation 🎯
+
+**Validation Command Enhanced with Entity ID Warnings**
+- ✅ **--check-ids flag implemented** - W005 and W006 warnings complete
+  - CLI flag added to `cdm validate` command
+  - `validate_tree_with_options(tree, check_ids)` function in validate.rs
+  - Backward compatible `validate_tree()` wrapper (calls with check_ids=false)
+  - `warn_missing_ids()` function activated (removed #[allow(dead_code)])
+
+- ✅ **Warning implementation**:
+  - W005: Warns about models and type aliases without entity IDs
+  - W006: Warns about fields without entity IDs
+  - Only shown when `--check-ids` flag is used
+  - Helps ensure complete ID coverage for migration tracking
+
+- ✅ **5 comprehensive tests** covering:
+  - Missing IDs on models
+  - Missing IDs on fields
+  - Missing IDs on type aliases
+  - Multiple missing IDs across entities
+  - No warnings when all entities have IDs
+
+- ✅ **Production-ready features**:
+  - Exported `validate_tree_with_options` in public API
+  - Help text documents the flag
+  - Warnings displayed to stdout (vs errors to stderr)
+  - Example: `cdm validate schema.cdm --check-ids`
+
+**Updated Metrics:**
+- Overall progress: 96% (maintained, quality improvement)
+- Test count: 615 (up from 610, +5 tests)
+- Semantic Validation: 98% complete (up from 97%)
+- Error Catalog: 93% complete (up from 90%)
+- Phase 4 (Polish): 60% complete (up from 50%)
+- Warnings: 2/6 complete (W005, W006 done; W001-W004 remain)
+
+**Impact:**
+- Developers can now validate their schemas have complete ID coverage
+- Prevents missing IDs that would break rename detection in migrations
+- Completes the entity ID system started in Phase 4
+- Simple opt-in flag doesn't affect existing workflows
+
+**Example Output:**
+```bash
+$ cdm validate schema.cdm --check-ids
+warning[4:1]: Entity 'Email' has no ID for migration tracking
+warning[10:1]: Entity 'Address' has no ID for migration tracking
+warning[19:5]: Field 'User.email' has no ID for migration tracking
+```
 
 ### 2025-12-26 (Night): Format Command Complete - Phase 4 Milestone! 🎉🎉🎉
 

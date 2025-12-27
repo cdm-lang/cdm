@@ -14,7 +14,7 @@ mod format;
 pub use diagnostics::{Diagnostic, Severity};
 pub use cdm_utils::{Position, Span};
 pub use symbol_table::{Ancestor,SymbolTable, Definition, DefinitionKind, FieldInfo, field_exists_in_parents, is_builtin_type, is_type_defined, resolve_definition};
-pub use validate::{validate, validate_tree, ValidationResult};
+pub use validate::{validate, validate_tree, validate_tree_with_options, ValidationResult};
 pub use plugin_runner::PluginRunner;
 pub use file_resolver::{FileResolver, LoadedFile, LoadedFileTree};
 pub use grammar_parser::GrammarParser;

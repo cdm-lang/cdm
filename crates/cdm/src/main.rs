@@ -19,6 +19,10 @@ enum Commands {
     Validate {
         #[arg(value_name = "FILE")]
         path: PathBuf,
+
+        /// Warn about entities without IDs for migration tracking
+        #[arg(long)]
+        check_ids: bool,
     },
     /// Build output files from a CDM schema using configured plugins
     Build {
@@ -90,7 +94,7 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Validate { path } => {
+        Commands::Validate { path, check_ids } => {
             let tree = match cdm::FileResolver::load(&path) {
                 Ok(tree) => tree,
                 Err(diagnostics) => {
@@ -101,7 +105,7 @@ fn main() -> Result<()> {
                 }
             };
 
-            match cdm::validate_tree(tree) {
+            match cdm::validate_tree_with_options(tree, check_ids) {
                 Ok(result) => {
                     for diagnostic in &result.diagnostics {
                         if diagnostic.severity == cdm::Severity::Error {

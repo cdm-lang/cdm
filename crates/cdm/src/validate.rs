@@ -194,6 +194,10 @@ pub fn validate(source: &str, ancestors: &[Ancestor]) -> ValidationResult {
 /// and converted to an Ancestor struct before the next is processed, minimizing
 /// peak memory usage.
 pub fn validate_tree(tree: LoadedFileTree) -> Result<ValidationResult, Vec<Diagnostic>> {
+    validate_tree_with_options(tree, false)
+}
+
+pub fn validate_tree_with_options(tree: LoadedFileTree, check_ids: bool) -> Result<ValidationResult, Vec<Diagnostic>> {
     // Validate all ancestors in streaming fashion
     let mut ancestors = Vec::new();
     let mut ancestor_sources = Vec::new();
@@ -256,6 +260,11 @@ pub fn validate_tree(tree: LoadedFileTree) -> Result<ValidationResult, Vec<Diagn
     // Check for plugin validation errors
     if result.has_errors() {
         return Err(result.diagnostics);
+    }
+
+    // Check for missing entity IDs if --check-ids flag is set
+    if check_ids {
+        warn_missing_ids(&result.symbol_table, &result.model_fields, &mut result.diagnostics);
     }
 
     Ok(result)
@@ -775,7 +784,6 @@ fn validate_entity_ids(
 }
 
 /// Warn about entities without IDs (for --check-ids flag)
-#[allow(dead_code)]
 fn warn_missing_ids(
     symbol_table: &SymbolTable,
     model_fields: &HashMap<String, Vec<FieldInfo>>,

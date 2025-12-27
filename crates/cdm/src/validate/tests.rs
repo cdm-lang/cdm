@@ -4694,3 +4694,129 @@ fn test_large_entity_ids() {
     let name_field = fields.iter().find(|f| f.name == "name").expect("name field should exist");
     assert_eq!(name_field.entity_id, Some(999999));
 }
+// =============================================================================
+// Tests for --check-ids flag
+// =============================================================================
+
+#[test]
+fn test_warn_missing_ids_on_model() {
+    let source = r#"
+        User {
+            name: string #5
+        }
+    "#;
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    let (symbol_table, model_fields) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    assert!(diagnostics.is_empty());
+
+    // Call warn_missing_ids
+    warn_missing_ids(&symbol_table, &model_fields, &mut diagnostics);
+
+    // Should have a warning about User model missing ID
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].severity, Severity::Warning);
+    assert!(diagnostics[0].message.contains("Entity 'User' has no ID"));
+}
+
+#[test]
+fn test_warn_missing_ids_on_field() {
+    let source = r#"
+        User {
+            name: string
+            email: string #10
+        } #5
+    "#;
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    let (symbol_table, model_fields) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    assert!(diagnostics.is_empty());
+
+    // Call warn_missing_ids
+    warn_missing_ids(&symbol_table, &model_fields, &mut diagnostics);
+
+    // Should have a warning about User.name field missing ID
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].severity, Severity::Warning);
+    assert!(diagnostics[0].message.contains("Field 'User.name' has no ID"));
+}
+
+#[test]
+fn test_warn_missing_ids_on_type_alias() {
+    let source = r#"
+        Email: string
+    "#;
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    let (symbol_table, model_fields) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    assert!(diagnostics.is_empty());
+
+    // Call warn_missing_ids
+    warn_missing_ids(&symbol_table, &model_fields, &mut diagnostics);
+
+    // Should have a warning about Email type alias missing ID
+    assert_eq!(diagnostics.len(), 1);
+    assert_eq!(diagnostics[0].severity, Severity::Warning);
+    assert!(diagnostics[0].message.contains("Entity 'Email' has no ID"));
+}
+
+#[test]
+fn test_warn_missing_ids_multiple() {
+    let source = r#"
+        User {
+            name: string
+            email: string #10
+        }
+
+        Post {
+            title: string #20
+        } #100
+    "#;
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    let (symbol_table, model_fields) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    assert!(diagnostics.is_empty());
+
+    // Call warn_missing_ids
+    warn_missing_ids(&symbol_table, &model_fields, &mut diagnostics);
+
+    // Should have warnings for: User model, User.name field
+    assert_eq!(diagnostics.len(), 2);
+    assert!(diagnostics.iter().all(|d| d.severity == Severity::Warning));
+    assert!(diagnostics.iter().any(|d| d.message.contains("Entity 'User' has no ID")));
+    assert!(diagnostics.iter().any(|d| d.message.contains("Field 'User.name' has no ID")));
+}
+
+#[test]
+fn test_warn_missing_ids_none_when_all_have_ids() {
+    let source = r#"
+        User {
+            name: string #1
+            email: string #2
+        } #10
+
+        Post {
+            title: string #20
+        } #100
+    "#;
+    let tree = parse(source);
+    let mut diagnostics = Vec::new();
+
+    let (symbol_table, model_fields) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+
+    assert!(diagnostics.is_empty());
+
+    // Call warn_missing_ids
+    warn_missing_ids(&symbol_table, &model_fields, &mut diagnostics);
+
+    // Should have no warnings since everything has IDs
+    assert_eq!(diagnostics.len(), 0);
+}
