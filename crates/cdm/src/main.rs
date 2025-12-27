@@ -175,6 +175,7 @@ fn main() -> Result<()> {
                 check,
                 write: !check, // Don't write if --check is set
                 indent_size: indent,
+                format_whitespace: true, // Always format whitespace by default
             };
 
             // Format files

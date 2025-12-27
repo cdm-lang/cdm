@@ -25,6 +25,9 @@ pub struct FormatOptions {
 
     /// Number of spaces for indentation (default: 2)
     pub indent_size: usize,
+
+    /// Format whitespace (indentation, spacing, etc.)
+    pub format_whitespace: bool,
 }
 
 impl Default for FormatOptions {
@@ -34,6 +37,7 @@ impl Default for FormatOptions {
             check: false,
             write: true,
             indent_size: 2,
+            format_whitespace: true,
         }
     }
 }
@@ -191,9 +195,25 @@ pub fn format_file(
         modified = !assignments.is_empty();
     }
 
-    // If there are changes and write is enabled, reconstruct the source
-    let new_source = if modified && options.write {
+    // Generate formatted source
+    let new_source = if options.format_whitespace {
+        // Format whitespace and optionally add IDs
+        let formatted = format_source(root, &source, &assignments, options.indent_size);
+        // Check if formatting changed anything
+        if formatted != source {
+            modified = true;
+        }
+        Some(formatted)
+    } else if modified {
+        // Only add IDs without reformatting whitespace
         Some(reconstruct_source(root, &source, &assignments, options.indent_size))
+    } else {
+        None
+    };
+
+    // If there are changes and write is enabled, write the file
+    let new_source = if (modified || new_source.is_some()) && options.write {
+        new_source
     } else {
         None
     };
@@ -610,6 +630,207 @@ fn collect_field_insertions(
 }
 
 // =============================================================================
+// Whitespace Formatting
+// =============================================================================
+
+/// Format source code with proper whitespace and optionally add IDs
+fn format_source(
+    root: Node,
+    source: &str,
+    assignments: &[IdAssignment],
+    indent_size: usize,
+) -> String {
+    // Build ID assignment map for quick lookup
+    let mut assignment_map = HashMap::new();
+    for assignment in assignments {
+        assignment_map.insert(
+            (
+                assignment.entity_type,
+                assignment.entity_name.clone(),
+                assignment.model_name.clone(),
+            ),
+            assignment.assigned_id,
+        );
+    }
+
+    let mut output = String::new();
+    let indent = " ".repeat(indent_size);
+    let mut cursor = root.walk();
+    let mut first_item = true;
+
+    for child in root.children(&mut cursor) {
+        match child.kind() {
+            "comment" => {
+                if !first_item {
+                    output.push('\n');
+                }
+                output.push_str(&format_comment(child, source));
+                output.push('\n');
+                first_item = false;
+            }
+            "type_alias" => {
+                if !first_item {
+                    output.push('\n');
+                }
+                output.push_str(&format_type_alias(child, source, &assignment_map));
+                output.push('\n');
+                first_item = false;
+            }
+            "model_definition" => {
+                if !first_item {
+                    output.push('\n');
+                }
+                output.push_str(&format_model(child, source, &assignment_map, &indent));
+                output.push('\n');
+                first_item = false;
+            }
+            _ => {
+                // Skip whitespace and other nodes
+            }
+        }
+    }
+
+    output
+}
+
+/// Format a comment
+fn format_comment(node: Node, source: &str) -> String {
+    get_node_text(node, source)
+}
+
+/// Format a type alias
+fn format_type_alias(
+    node: Node,
+    source: &str,
+    assignment_map: &HashMap<(EntityType, String, Option<String>), u64>,
+) -> String {
+    let name = node
+        .child_by_field_name("name")
+        .map(|n| get_node_text(n, source))
+        .unwrap_or_default();
+
+    let type_node = node.child_by_field_name("type");
+    let type_str = if let Some(type_node) = type_node {
+        format_type(type_node, source)
+    } else {
+        String::new()
+    };
+
+    // Check for ID (existing or assigned)
+    let id = if let Some(id_node) = node.child_by_field_name("id") {
+        format!(" {}", get_node_text(id_node, source))
+    } else if let Some(&assigned_id) = assignment_map.get(&(EntityType::TypeAlias, name.clone(), None)) {
+        format!(" #{}", assigned_id)
+    } else {
+        String::new()
+    };
+
+    format!("{}: {}{}", name, type_str, id)
+}
+
+/// Format a type expression
+fn format_type(node: Node, source: &str) -> String {
+    match node.kind() {
+        "union_type" => {
+            let mut parts = Vec::new();
+            let mut cursor = node.walk();
+            for child in node.children(&mut cursor) {
+                if child.kind() != "|" {
+                    parts.push(format_type(child, source));
+                }
+            }
+            parts.join(" | ")
+        }
+        "array_type" => {
+            let element_type = node
+                .child_by_field_name("element")
+                .map(|n| format_type(n, source))
+                .unwrap_or_default();
+            format!("{}[]", element_type)
+        }
+        "optional_type" => {
+            let base_type = node
+                .child_by_field_name("type")
+                .map(|n| format_type(n, source))
+                .unwrap_or_default();
+            format!("{}?", base_type)
+        }
+        _ => get_node_text(node, source),
+    }
+}
+
+/// Format a model definition
+fn format_model(
+    node: Node,
+    source: &str,
+    assignment_map: &HashMap<(EntityType, String, Option<String>), u64>,
+    indent: &str,
+) -> String {
+    let model_name = node
+        .child_by_field_name("name")
+        .map(|n| get_node_text(n, source))
+        .unwrap_or_default();
+
+    let mut output = format!("{} {{\n", model_name);
+
+    // Format fields
+    if let Some(body) = node.child_by_field_name("body") {
+        let mut cursor = body.walk();
+        for member in body.children(&mut cursor) {
+            if member.kind() == "field_definition" {
+                let field_str = format_field(member, source, &model_name, assignment_map, indent);
+                output.push_str(&field_str);
+                output.push('\n');
+            }
+        }
+    }
+
+    // Close model and add ID
+    output.push('}');
+
+    // Check for ID (existing or assigned)
+    if let Some(id_node) = node.child_by_field_name("id") {
+        output.push_str(&format!(" {}", get_node_text(id_node, source)));
+    } else if let Some(&assigned_id) = assignment_map.get(&(EntityType::Model, model_name.clone(), None)) {
+        output.push_str(&format!(" #{}", assigned_id));
+    }
+
+    output
+}
+
+/// Format a field definition
+fn format_field(
+    node: Node,
+    source: &str,
+    model_name: &str,
+    assignment_map: &HashMap<(EntityType, String, Option<String>), u64>,
+    indent: &str,
+) -> String {
+    let field_name = node
+        .child_by_field_name("name")
+        .map(|n| get_node_text(n, source))
+        .unwrap_or_default();
+
+    let type_node = node.child_by_field_name("type");
+    let type_str = if let Some(type_node) = type_node {
+        format_type(type_node, source)
+    } else {
+        String::new()
+    };
+
+    // Check for ID (existing or assigned)
+    let id = if let Some(id_node) = node.child_by_field_name("id") {
+        format!(" {}", get_node_text(id_node, source))
+    } else if let Some(&assigned_id) = assignment_map.get(&(EntityType::Field, field_name.clone(), Some(model_name.to_string()))) {
+        format!(" #{}", assigned_id)
+    } else {
+        String::new()
+    };
+
+    format!("{}{}: {}{}", indent, field_name, type_str, id)
+}
+
+// =============================================================================
 // Utility Functions
 // =============================================================================
 
@@ -696,6 +917,7 @@ mod tests {
             check: true, // Don't write
             write: false,
             indent_size: 2,
+            format_whitespace: false,
         };
 
         let result = format_file(&path, &options).expect("Format should succeed");
@@ -753,6 +975,7 @@ mod tests {
             check: true,
             write: false,
             indent_size: 2,
+            format_whitespace: false,
         };
 
         let result = format_file(&path, &options).expect("Format should succeed");
@@ -806,6 +1029,7 @@ mod tests {
             check: true,
             write: false,
             indent_size: 2,
+            format_whitespace: false,
         };
 
         let result = format_file(&path, &options).expect("Format should succeed");
@@ -824,6 +1048,7 @@ mod tests {
             check: true,
             write: false,
             indent_size: 2,
+            format_whitespace: false,
         };
 
         let result = format_file(&path, &options).expect("Format should succeed");
@@ -883,6 +1108,7 @@ mod tests {
             check: true,
             write: false,
             indent_size: 2,
+            format_whitespace: false,
         };
 
         let results = format_files(&[path1, path2], &options).expect("Format should succeed");
@@ -907,6 +1133,7 @@ mod tests {
             check: true,
             write: false,
             indent_size: 2,
+            format_whitespace: false,
         };
 
         let result = format_file(&path, &options);
@@ -932,6 +1159,7 @@ mod tests {
             check: false, // Actually write
             write: true,
             indent_size: 2,
+            format_whitespace: false,
         };
 
         let result = format_file(&temp_path, &options).expect("Format should succeed");
@@ -956,6 +1184,7 @@ mod tests {
             check: true,
             write: false,
             indent_size: 2,
+            format_whitespace: false,
         };
 
         let result = format_file(&path, &options).expect("Format should succeed");
@@ -1108,10 +1337,83 @@ Post {
             check: true,
             write: false,
             indent_size: 2,
+            format_whitespace: false,
         };
 
         // format_files should fail if any file fails
         let result = format_files(&[valid_path, invalid_path], &options);
         assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_whitespace_formatting() {
+        use std::io::Write;
+        use tempfile::NamedTempFile;
+
+        // Create a file with inconsistent whitespace
+        let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        write!(temp_file, "Email:string\n\nStatus:\"active\"|\"pending\"\n\nUser{{\nid:string\nemail:Email\n}}\n").expect("Failed to write");
+        let temp_path = temp_file.path().to_path_buf();
+
+        let options = FormatOptions {
+            assign_ids: true,
+            check: false,
+            write: true,
+            indent_size: 2,
+            format_whitespace: true,
+        };
+
+        let result = format_file(&temp_path, &options).expect("Format should succeed");
+        assert!(result.modified);
+
+        // Read back the formatted content
+        let content = std::fs::read_to_string(&temp_path).expect("Failed to read formatted file");
+
+        // Should have proper spacing around colons
+        assert!(content.contains("Email: string"));
+        assert!(content.contains("Status: \"active\" | \"pending\""));
+
+        // Should have proper indentation
+        assert!(content.contains("  id: string"));
+        assert!(content.contains("  email: Email"));
+
+        // Should have proper spacing around braces
+        assert!(content.contains("User {\n"));
+        assert!(content.contains("} #"));
+    }
+
+    #[test]
+    fn test_whitespace_formatting_preserves_ids() {
+        use std::io::Write;
+        use tempfile::NamedTempFile;
+
+        // Create a file with existing IDs but bad whitespace
+        let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        write!(temp_file, "Email:string#42\n\nUser{{\nid:string#1\n}}#10\n").expect("Failed to write");
+        let temp_path = temp_file.path().to_path_buf();
+
+        let options = FormatOptions {
+            assign_ids: false,
+            check: false,
+            write: true,
+            indent_size: 2,
+            format_whitespace: true,
+        };
+
+        let result = format_file(&temp_path, &options).expect("Format should succeed");
+        assert!(result.modified);
+
+        // Read back the formatted content
+        let content = std::fs::read_to_string(&temp_path).expect("Failed to read formatted file");
+
+        // Should preserve existing IDs
+        assert!(content.contains("#42"));
+        assert!(content.contains("#10"));
+        assert!(content.contains("#1"));
+
+        // Should have proper formatting
+        assert!(content.contains("Email: string #42"));
+        assert!(content.contains("  id: string #1"));
+        assert!(content.contains("} #10"));
     }
 }
