@@ -1,6 +1,7 @@
 mod build;
 mod migrate;
 mod type_mapper;
+mod utils;
 mod validate;
 
 use cdm_plugin_interface::schema_from_file;
