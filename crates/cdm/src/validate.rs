@@ -6,6 +6,10 @@ use crate::{
     Ancestor, Definition, DefinitionKind, Diagnostic, FieldInfo, Severity,
     SymbolTable, field_exists_in_parents, is_builtin_type, is_type_defined, resolve_definition,
 };
+use crate::diagnostics::{
+    E501_DUPLICATE_ENTITY_ID, E502_DUPLICATE_FIELD_ID,
+    W005_MISSING_ENTITY_ID, W006_MISSING_FIELD_ID,
+};
 use crate::file_resolver::LoadedFileTree;
 use crate::resolved_schema::{build_resolved_schema, find_references_in_resolved};
 use crate::plugin_validation::validate_plugins;
@@ -748,8 +752,8 @@ fn validate_entity_ids(
             if let Some((existing_name, existing_span)) = global_ids.get(&id) {
                 diagnostics.push(Diagnostic {
                     message: format!(
-                        "Duplicate entity ID #{}: already used by '{}' at line {}",
-                        id, existing_name, existing_span.start.line + 1
+                        "{}: Duplicate entity ID #{}: already used by '{}' at line {}",
+                        E501_DUPLICATE_ENTITY_ID, id, existing_name, existing_span.start.line + 1
                     ),
                     severity: Severity::Error,
                     span: def.span,
@@ -769,8 +773,8 @@ fn validate_entity_ids(
                 if let Some((existing_name, existing_span)) = field_ids.get(&id) {
                     diagnostics.push(Diagnostic {
                         message: format!(
-                            "Duplicate field ID #{} in model '{}': already used by field '{}' at line {}",
-                            id, model_name, existing_name, existing_span.start.line + 1
+                            "{}: Duplicate field ID #{} in model '{}': already used by field '{}' at line {}",
+                            E502_DUPLICATE_FIELD_ID, id, model_name, existing_name, existing_span.start.line + 1
                         ),
                         severity: Severity::Error,
                         span: field.span,
@@ -793,7 +797,7 @@ fn warn_missing_ids(
     for (name, def) in &symbol_table.definitions {
         if def.entity_id.is_none() {
             diagnostics.push(Diagnostic {
-                message: format!("Entity '{}' has no ID for migration tracking", name),
+                message: format!("{}: Entity '{}' has no ID for migration tracking", W005_MISSING_ENTITY_ID, name),
                 severity: Severity::Warning,
                 span: def.span,
             });
@@ -806,8 +810,8 @@ fn warn_missing_ids(
             if field.entity_id.is_none() {
                 diagnostics.push(Diagnostic {
                     message: format!(
-                        "Field '{}.{}' has no ID for migration tracking",
-                        model_name, field.name
+                        "{}: Field '{}.{}' has no ID for migration tracking",
+                        W006_MISSING_FIELD_ID, model_name, field.name
                     ),
                     severity: Severity::Warning,
                     span: field.span,

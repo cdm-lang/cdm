@@ -1,6 +1,10 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 use crate::{Diagnostic, Severity, PluginRunner, ResolvedSchema, validate};
+use crate::diagnostics::{
+    E401_PLUGIN_NOT_FOUND, E402_INVALID_PLUGIN_CONFIG, E403_MISSING_PLUGIN_EXPORT,
+    E404_PLUGIN_EXECUTION_FAILED, E406_MISSING_OUTPUT_CONFIG,
+};
 use cdm_utils::{Span, Position};
 use serde_json::Value as JSON;
 
@@ -89,7 +93,7 @@ impl PluginCache {
             Ok(path) => path,
             Err(msg) => {
                 diagnostics.push(Diagnostic {
-                    message: format!("E401: Plugin not found: '{}' - {}", import.name, msg),
+                    message: format!("{}: Plugin not found: '{}' - {}", E401_PLUGIN_NOT_FOUND, import.name, msg),
                     severity: Severity::Error,
                     span: import.span,
                 });
@@ -102,7 +106,7 @@ impl PluginCache {
             Ok(r) => r,
             Err(e) => {
                 diagnostics.push(Diagnostic {
-                    message: format!("E401: Failed to load plugin '{}': {}", import.name, e),
+                    message: format!("{}: Failed to load plugin '{}': {}", E401_PLUGIN_NOT_FOUND, import.name, e),
                     severity: Severity::Error,
                     span: import.span,
                 });
@@ -116,8 +120,8 @@ impl PluginCache {
             Err(e) => {
                 diagnostics.push(Diagnostic {
                     message: format!(
-                        "E403: Plugin '{}' missing required export '_schema': {}",
-                        import.name, e
+                        "{}: Plugin '{}' missing required export '_schema': {}",
+                        E403_MISSING_PLUGIN_EXPORT, import.name, e
                     ),
                     severity: Severity::Error,
                     span: import.span,
@@ -267,8 +271,8 @@ pub fn validate_plugins(
             // Plugin used but not imported
             diagnostics.push(Diagnostic {
                 message: format!(
-                    "E402: Plugin '{}' used but not imported. Add '@{}' at top of file",
-                    config.plugin_name, config.plugin_name
+                    "{}: Plugin '{}' used but not imported. Add '@{}' at top of file",
+                    E402_INVALID_PLUGIN_CONFIG, config.plugin_name, config.plugin_name
                 ),
                 severity: Severity::Error,
                 span: config.span,
@@ -705,8 +709,8 @@ fn validate_output_config_requirements(
             if !has_build_output {
                 diagnostics.push(Diagnostic {
                     message: format!(
-                        "E406: Plugin '{}' requires 'build_output' in global config",
-                        import.name
+                        "{}: Plugin '{}' requires 'build_output' in global config",
+                        E406_MISSING_OUTPUT_CONFIG, import.name
                     ),
                     severity: Severity::Error,
                     span: import.span,
@@ -726,8 +730,8 @@ fn validate_output_config_requirements(
             if !has_migrations_output {
                 diagnostics.push(Diagnostic {
                     message: format!(
-                        "E406: Plugin '{}' requires 'migrations_output' in global config",
-                        import.name
+                        "{}: Plugin '{}' requires 'migrations_output' in global config",
+                        E406_MISSING_OUTPUT_CONFIG, import.name
                     ),
                     severity: Severity::Error,
                     span: import.span,
@@ -774,9 +778,9 @@ fn validate_config_with_plugin(
                 .join(".");
 
             let message = if path_str.is_empty() {
-                format!("E402: {}", error.message)
+                format!("{}: {}", E402_INVALID_PLUGIN_CONFIG, error.message)
             } else {
-                format!("E402: {}: {}", path_str, error.message)
+                format!("{}: {}: {}", E402_INVALID_PLUGIN_CONFIG, path_str, error.message)
             };
 
             diagnostics.push(Diagnostic {
@@ -836,8 +840,8 @@ fn validate_config_with_plugin(
         Err(e) => {
             diagnostics.push(Diagnostic {
                 message: format!(
-                    "E404: Plugin execution failed for '{}': {}",
-                    config.plugin_name, e
+                    "{}: Plugin execution failed for '{}': {}",
+                    E404_PLUGIN_EXECUTION_FAILED, config.plugin_name, e
                 ),
                 severity: Severity::Error,
                 span: config.span,
