@@ -742,9 +742,12 @@ fn format_type(node: Node, source: &str) -> String {
             parts.join(" | ")
         }
         "array_type" => {
-            let element_type = node
-                .child_by_field_name("element")
-                .map(|n| format_type(n, source))
+            // array_type is: type_identifier "[" "]"
+            // The first child is the type_identifier
+            let mut cursor = node.walk();
+            let element_type = node.children(&mut cursor)
+                .find(|child| child.kind() == "type_identifier")
+                .map(|n| get_node_text(n, source))
                 .unwrap_or_default();
             format!("{}[]", element_type)
         }
@@ -771,7 +774,25 @@ fn format_model(
         .map(|n| get_node_text(n, source))
         .unwrap_or_default();
 
-    let mut output = format!("{} {{\n", model_name);
+    // Check for extends clause
+    let extends_str = if let Some(extends_clause) = node.child_by_field_name("extends") {
+        let mut parent_names = Vec::new();
+        let mut cursor = extends_clause.walk();
+        for child in extends_clause.children(&mut cursor) {
+            if child.kind() == "identifier" {
+                parent_names.push(get_node_text(child, source));
+            }
+        }
+        if !parent_names.is_empty() {
+            format!(" extends {}", parent_names.join(", "))
+        } else {
+            String::new()
+        }
+    } else {
+        String::new()
+    };
+
+    let mut output = format!("{}{} {{\n", model_name, extends_str);
 
     // Format fields
     if let Some(body) = node.child_by_field_name("body") {
@@ -1415,5 +1436,61 @@ Post {
         assert!(content.contains("Email: string #42"));
         assert!(content.contains("  id: string #1"));
         assert!(content.contains("} #10"));
+    }
+
+    #[test]
+    fn test_format_preserves_extends_clause() {
+        use std::io::Write;
+        use tempfile::NamedTempFile;
+
+        // Create a file with extends clause
+        let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        write!(temp_file, "User {{ name: string #1 }} #10\n\nAdminUser extends User {{ role: string #1 }} #20\n").expect("Failed to write");
+        let temp_path = temp_file.path().to_path_buf();
+
+        let options = FormatOptions {
+            assign_ids: false,
+            check: false,
+            write: true,
+            indent_size: 2,
+            format_whitespace: true,
+        };
+
+        let _result = format_file(&temp_path, &options).expect("Format should succeed");
+
+        // Read back the formatted content
+        let content = std::fs::read_to_string(&temp_path).expect("Failed to read formatted file");
+
+        // Should preserve extends clause
+        assert!(content.contains("AdminUser extends User"),
+            "Expected 'AdminUser extends User' but got:\n{}", content);
+    }
+
+    #[test]
+    fn test_format_preserves_array_types() {
+        use std::io::Write;
+        use tempfile::NamedTempFile;
+
+        // Create a file with array types
+        let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
+        write!(temp_file, "User {{ permissions: string[] #1 }} #10\n").expect("Failed to write");
+        let temp_path = temp_file.path().to_path_buf();
+
+        let options = FormatOptions {
+            assign_ids: false,
+            check: false,
+            write: true,
+            indent_size: 2,
+            format_whitespace: true,
+        };
+
+        let _result = format_file(&temp_path, &options).expect("Format should succeed");
+
+        // Read back the formatted content
+        let content = std::fs::read_to_string(&temp_path).expect("Failed to read formatted file");
+
+        // Should preserve array element type
+        assert!(content.contains("string[]"),
+            "Expected 'string[]' but got:\n{}", content);
     }
 }

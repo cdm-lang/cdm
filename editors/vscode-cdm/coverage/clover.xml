@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<coverage generated="1766820470853" clover="3.2.0">
-  <project timestamp="1766820470853" name="All files">
+<coverage generated="1766822458510" clover="3.2.0">
+  <project timestamp="1766822458510" name="All files">
     <metrics statements="24" coveredstatements="23" conditionals="10" coveredconditionals="6" methods="4" coveredmethods="4" elements="38" coveredelements="33" complexity="0" loc="24" ncloc="24" packages="1" files="1" classes="1"/>
     <file name="extension.ts" path="/Users/alarner/projects/cdm/editors/vscode-cdm/src/extension.ts">
       <metrics statements="24" coveredstatements="23" conditionals="10" coveredconditionals="6" methods="4" coveredmethods="4"/>

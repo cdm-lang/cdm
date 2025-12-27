@@ -320,7 +320,6 @@ impl LanguageServer for CdmLanguageServer {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use tower_lsp::lsp_types::*;
     use tower_lsp::LspService;
 
     // Helper function to create a mock server with client

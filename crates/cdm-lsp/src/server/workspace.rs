@@ -31,12 +31,6 @@ struct WorkspaceState {
 struct CachedParse {
     /// The document text
     text: String,
-
-    /// Parsed tree-sitter tree (stored as bytes for thread safety)
-    tree_bytes: Vec<u8>,
-
-    /// List of @extends file paths found in this file
-    extends_paths: Vec<String>,
 }
 
 impl Workspace {
@@ -92,11 +86,9 @@ impl Workspace {
 
         state.dependencies.insert(uri.clone(), dependencies);
 
-        // Cache the parse tree (simplified - just store text and extends for now)
+        // Cache the parse tree (simplified - just store text for now)
         state.parse_cache.insert(uri.clone(), CachedParse {
             text: text.clone(),
-            tree_bytes: Vec::new(), // We'll use on-demand parsing for now
-            extends_paths,
         });
     }
 
@@ -181,24 +173,6 @@ impl Workspace {
         state.parse_cache.get(uri).map(|cached| cached.text.clone())
     }
 
-    /// Load ancestor files for validation
-    pub fn load_ancestors(&self, uri: &Url) -> Vec<cdm::Ancestor> {
-        let dependency_chain = self.get_dependency_chain(uri);
-        let state = self.state.read().unwrap();
-
-        let mut ancestors = Vec::new();
-
-        for dep_uri in dependency_chain {
-            if let Some(cached) = state.parse_cache.get(&dep_uri) {
-                // Parse the ancestor file
-                if let Some(ancestor) = parse_ancestor(&dep_uri, &cached.text) {
-                    ancestors.push(ancestor);
-                }
-            }
-        }
-
-        ancestors
-    }
 }
 
 /// Extract @extends directives from a CDM file
@@ -255,21 +229,6 @@ fn resolve_path_to_uri(base_uri: &Url, path: &str, _root_uri: Option<&Url>) -> O
     Url::from_file_path(resolved_path).ok()
 }
 
-/// Parse an ancestor file and build the Ancestor struct
-fn parse_ancestor(_uri: &Url, _text: &str) -> Option<cdm::Ancestor> {
-    use cdm::SymbolTable;
-
-    // TODO: Properly parse ancestor files and build symbol tables
-    // For now, return a minimal ancestor struct
-    let symbol_table = SymbolTable::new();
-    let model_fields = HashMap::new();
-
-    Some(cdm::Ancestor {
-        path: _uri.path().to_string(),
-        symbol_table,
-        model_fields,
-    })
-}
 
 #[cfg(test)]
 mod tests {
