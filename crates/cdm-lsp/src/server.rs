@@ -13,6 +13,7 @@ mod symbols;
 mod rename;
 mod code_actions;
 mod folding;
+mod semantic_tokens;
 
 use document::DocumentStore;
 use workspace::Workspace;
@@ -98,6 +99,20 @@ impl LanguageServer for CdmLanguageServer {
                 code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
                 // Folding ranges
                 folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
+                // Semantic tokens
+                semantic_tokens_provider: Some(
+                    SemanticTokensServerCapabilities::SemanticTokensOptions(
+                        SemanticTokensOptions {
+                            legend: SemanticTokensLegend {
+                                token_types: semantic_tokens::LEGEND_TYPE.to_vec(),
+                                token_modifiers: semantic_tokens::LEGEND_MODIFIER.to_vec(),
+                            },
+                            range: Some(false),
+                            full: Some(SemanticTokensFullOptions::Bool(true)),
+                            work_done_progress_options: WorkDoneProgressOptions::default(),
+                        },
+                    ),
+                ),
                 ..Default::default()
             },
             server_info: Some(ServerInfo {
@@ -428,6 +443,31 @@ impl LanguageServer for CdmLanguageServer {
         let ranges = folding::compute_folding_ranges(&text);
 
         Ok(ranges)
+    }
+
+    async fn semantic_tokens_full(
+        &self,
+        params: SemanticTokensParams,
+    ) -> Result<Option<SemanticTokensResult>> {
+        let uri = &params.text_document.uri;
+
+        eprintln!("Semantic tokens request for {}", uri);
+
+        // Get the document text
+        let text = match self.documents.get(uri) {
+            Some(t) => t,
+            None => return Ok(None),
+        };
+
+        // Compute semantic tokens
+        let tokens = semantic_tokens::compute_semantic_tokens(&text);
+
+        Ok(tokens.map(|data| {
+            SemanticTokensResult::Tokens(SemanticTokens {
+                result_id: None,
+                data,
+            })
+        }))
     }
 }
 

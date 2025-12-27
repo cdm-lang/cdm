@@ -20,9 +20,7 @@
     "database",
     "code generation"
   ],
-  "activationEvents": [
-    "onLanguage:cdm"
-  ],
+  "activationEvents": [],
   "main": "./out/extension.js",
   "contributes": {
     "languages": [
@@ -36,13 +34,6 @@
           ".cdm"
         ],
         "configuration": "./language-configuration.json"
-      }
-    ],
-    "grammars": [
-      {
-        "language": "cdm",
-        "scopeName": "source.cdm",
-        "path": "./syntaxes/cdm.tmLanguage.json"
       }
     ],
     "configuration": {
@@ -80,7 +71,80 @@
         "command": "cdm.restartServer",
         "title": "CDM: Restart Language Server"
       }
-    ]
+    ],
+    "semanticTokenScopes": [
+      {
+        "language": "cdm",
+        "scopes": {
+          "comment": ["comment.line.cdm"],
+          "keyword": ["storage.modifier.cdm", "keyword.control.extends"],
+          "string": ["string.quoted.double.cdm"],
+          "number": ["constant.numeric.cdm"],
+          "operator": ["keyword.operator.cdm"],
+          "type": ["support.type.cdm"],
+          "type.readonly": ["support.type.primitive.cdm"],
+          "class": ["entity.name.class.cdm"],
+          "class.definition": ["entity.name.class.cdm"],
+          "property": ["variable.other.property.cdm"],
+          "property.definition": ["variable.other.property.cdm"],
+          "parameter": ["storage.type.entity-id.cdm"],
+          "parameter.readonly": ["storage.type.entity-id.cdm"],
+          "macro": ["entity.name.plugin.cdm"],
+          "enumMember": ["string.quoted.double.cdm"]
+        }
+      }
+    ],
+    "configurationDefaults": {
+      "[cdm]": {
+        "editor.semanticHighlighting.enabled": true
+      },
+      "editor.tokenColorCustomizations": {
+        "[Default Dark Modern]": {
+          "textMateRules": [
+            {
+              "scope": "storage.type.entity-id.cdm",
+              "settings": {
+                "foreground": "#5a5a5a",
+                "fontStyle": "italic"
+              }
+            }
+          ]
+        },
+        "[Default Light Modern]": {
+          "textMateRules": [
+            {
+              "scope": "storage.type.entity-id.cdm",
+              "settings": {
+                "foreground": "#a8a8a8",
+                "fontStyle": "italic"
+              }
+            }
+          ]
+        },
+        "[*Dark*]": {
+          "textMateRules": [
+            {
+              "scope": "storage.type.entity-id.cdm",
+              "settings": {
+                "foreground": "#5a5a5a",
+                "fontStyle": "italic"
+              }
+            }
+          ]
+        },
+        "[*Light*]": {
+          "textMateRules": [
+            {
+              "scope": "storage.type.entity-id.cdm",
+              "settings": {
+                "foreground": "#a8a8a8",
+                "fontStyle": "italic"
+              }
+            }
+          ]
+        }
+      }
+    }
   },
   "scripts": {
     "vscode:prepublish": "npm run compile",

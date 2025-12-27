@@ -1,0 +1,40 @@
+// This is a test file for semantic tokens
+@sql {
+  dialect: "postgres",
+  schema: "public",
+  build_output: "./db/schema",
+  migrations_output: "./db/migrations"
+}
+@typescript {
+  build_output: "./types"
+}
+
+// Type aliases
+Email: string {
+  @validation { format: "email", max_length: 320 }
+  @sql { type: "VARCHAR(320)" }
+} #1
+
+Status: "active" | "pending" | "suspended" #2
+
+// Models
+User {
+  id: string #1
+  email: Email #2
+  name: string #3
+  status: Status = "pending" #4
+  posts: Post[] #5
+  created_at: string #6
+
+  @sql { table: "users", indexes: [{ fields: ["email"], unique: true }] }
+} #10
+
+Post {
+  id: string #1
+  author: User #2
+  title: string #3
+  content: string #4
+  published: boolean = false #5
+
+  @sql { table: "posts" }
+} #11
