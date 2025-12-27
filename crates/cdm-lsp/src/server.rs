@@ -24,6 +24,7 @@ pub struct CdmLanguageServer {
     client: Client,
     documents: DocumentStore,
     workspace: Workspace,
+    assign_ids_on_save: std::sync::Arc<std::sync::RwLock<bool>>,
 }
 
 impl CdmLanguageServer {
@@ -32,6 +33,7 @@ impl CdmLanguageServer {
             client,
             documents: DocumentStore::new(),
             workspace: Workspace::new(),
+            assign_ids_on_save: std::sync::Arc::new(std::sync::RwLock::new(false)),
         }
     }
 
@@ -63,6 +65,16 @@ impl LanguageServer for CdmLanguageServer {
         // Set workspace root if available
         if let Some(root_uri) = params.root_uri.clone() {
             self.workspace.set_root(root_uri);
+        }
+
+        // Read initialization options
+        if let Some(init_options) = params.initialization_options {
+            if let Some(assign_ids_on_save) = init_options.get("assignIdsOnSave").and_then(|v| v.as_bool()) {
+                if let Ok(mut setting) = self.assign_ids_on_save.write() {
+                    *setting = assign_ids_on_save;
+                    eprintln!("  Assign IDs on save: {}", assign_ids_on_save);
+                }
+            }
         }
 
         Ok(InitializeResult {
@@ -336,8 +348,13 @@ impl LanguageServer for CdmLanguageServer {
             None => return Ok(None),
         };
 
+        // Get the assign_ids_on_save setting
+        let assign_ids = self.assign_ids_on_save.read()
+            .map(|setting| *setting)
+            .unwrap_or(false);
+
         // Format the document
-        let edits = formatting::format_document(&text, uri);
+        let edits = formatting::format_document(&text, uri, assign_ids);
 
         Ok(edits)
     }

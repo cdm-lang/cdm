@@ -54,6 +54,11 @@
           "default": true,
           "description": "Check for missing entity IDs (W005/W006 warnings)"
         },
+        "cdm.format.assignIdsOnSave": {
+          "type": "boolean",
+          "default": false,
+          "description": "Automatically assign entity IDs to models, type aliases, and fields when saving"
+        },
         "cdm.trace.server": {
           "type": "string",
           "enum": [

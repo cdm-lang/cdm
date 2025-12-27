@@ -5,7 +5,7 @@
 use tower_lsp::lsp_types::*;
 
 /// Format a CDM document and return text edits
-pub fn format_document(text: &str, uri: &Url) -> Option<Vec<TextEdit>> {
+pub fn format_document(text: &str, uri: &Url, assign_ids: bool) -> Option<Vec<TextEdit>> {
     // Convert URI to path
     let path = uri.to_file_path().ok()?;
 
@@ -14,7 +14,7 @@ pub fn format_document(text: &str, uri: &Url) -> Option<Vec<TextEdit>> {
 
     // Format the file using cdm::format_file
     let options = cdm::FormatOptions {
-        assign_ids: false, // Don't auto-assign IDs during LSP formatting
+        assign_ids,
         check: false,
         write: true,
         indent_size: 2,
@@ -99,7 +99,7 @@ email:Email#2
 
         let uri = Url::from_file_path(temp_file.path()).unwrap();
 
-        let edits = format_document(text, &uri);
+        let edits = format_document(text, &uri, false);
         assert!(edits.is_some());
 
         let edits = edits.unwrap();
@@ -124,7 +124,7 @@ User {
 
         let uri = Url::parse("file:///test.cdm").unwrap();
 
-        let edits = format_document(text, &uri);
+        let edits = format_document(text, &uri, false);
         // Should return None if no changes
         assert!(edits.is_none());
     }
@@ -135,7 +135,7 @@ User {
 
         let uri = Url::parse("file:///test.cdm").unwrap();
 
-        let edits = format_document(text, &uri);
+        let edits = format_document(text, &uri, false);
         // Should return None if formatting fails
         assert!(edits.is_none());
     }

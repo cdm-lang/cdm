@@ -44,7 +44,8 @@ export function activate(context: vscode.ExtensionContext) {
     },
     initializationOptions: {
       checkIds: config.get('validation.checkIds'),
-      indentSize: config.get('format.indentSize')
+      indentSize: config.get('format.indentSize'),
+      assignIdsOnSave: config.get('format.assignIdsOnSave')
     },
     outputChannelName: 'CDM Language Server',
     traceOutputChannel: traceLevel !== 'off' ? vscode.window.createOutputChannel('CDM Language Server Trace') : undefined
@@ -62,6 +63,29 @@ export function activate(context: vscode.ExtensionContext) {
   context.subscriptions.push(
     vscode.commands.registerCommand('cdm.restartServer', async () => {
       await restartServer();
+    })
+  );
+
+  // Register on-save handler for auto-assigning entity IDs
+  context.subscriptions.push(
+    vscode.workspace.onWillSaveTextDocument(async (event) => {
+      const config = vscode.workspace.getConfiguration('cdm');
+      const assignIdsOnSave = config.get<boolean>('format.assignIdsOnSave');
+
+      if (!assignIdsOnSave) {
+        return;
+      }
+
+      const document = event.document;
+      if (document.languageId !== 'cdm') {
+        return;
+      }
+
+      // Request formatting with entity ID assignment from the LSP server
+      // This will be handled by the document formatting provider
+      event.waitUntil(
+        vscode.commands.executeCommand('editor.action.formatDocument')
+      );
     })
   );
 
