@@ -8,7 +8,7 @@ members = [
     "crates/cdm-plugin-typescript",
     "crates/cdm-plugin-sql",
     "crates/cdm-json-validator",
-    "crates/cdm-utils",
+    "crates/cdm-utils", "crates/cdm-lsp",
 ]
 exclude = [
     "crates/cdm-plugin-example",

@@ -1,0 +1,99 @@
+{
+  "name": "cdm",
+  "displayName": "CDM Language Support",
+  "description": "Language support for CDM (Contextual Data Model)",
+  "version": "0.1.0",
+  "publisher": "cdm-lang",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/cdm-lang/cdm"
+  },
+  "engines": {
+    "vscode": "^1.75.0"
+  },
+  "categories": [
+    "Programming Languages"
+  ],
+  "keywords": [
+    "cdm",
+    "schema",
+    "database",
+    "code generation"
+  ],
+  "activationEvents": [
+    "onLanguage:cdm"
+  ],
+  "main": "./out/extension.js",
+  "contributes": {
+    "languages": [
+      {
+        "id": "cdm",
+        "aliases": [
+          "CDM",
+          "cdm"
+        ],
+        "extensions": [
+          ".cdm"
+        ],
+        "configuration": "./language-configuration.json"
+      }
+    ],
+    "configuration": {
+      "title": "CDM",
+      "properties": {
+        "cdm.server.path": {
+          "type": "string",
+          "default": "cdm-lsp",
+          "description": "Path to cdm-lsp server binary. If not set, will look for 'cdm-lsp' in PATH."
+        },
+        "cdm.format.indentSize": {
+          "type": "number",
+          "default": 2,
+          "description": "Number of spaces for indentation when formatting"
+        },
+        "cdm.validation.checkIds": {
+          "type": "boolean",
+          "default": true,
+          "description": "Check for missing entity IDs (W005/W006 warnings)"
+        },
+        "cdm.trace.server": {
+          "type": "string",
+          "enum": [
+            "off",
+            "messages",
+            "verbose"
+          ],
+          "default": "off",
+          "description": "Trace LSP communication for debugging"
+        }
+      }
+    },
+    "commands": [
+      {
+        "command": "cdm.restartServer",
+        "title": "CDM: Restart Language Server"
+      }
+    ]
+  },
+  "scripts": {
+    "vscode:prepublish": "npm run compile",
+    "compile": "tsc -p ./",
+    "watch": "tsc -watch -p ./",
+    "pretest": "npm run compile",
+    "lint": "eslint src --ext ts",
+    "package": "vsce package",
+    "publish": "vsce publish"
+  },
+  "devDependencies": {
+    "@types/node": "^18.0.0",
+    "@types/vscode": "^1.75.0",
+    "@typescript-eslint/eslint-plugin": "^6.0.0",
+    "@typescript-eslint/parser": "^6.0.0",
+    "eslint": "^8.0.0",
+    "typescript": "^5.0.0",
+    "@vscode/vsce": "^2.22.0"
+  },
+  "dependencies": {
+    "vscode-languageclient": "^9.0.1"
+  }
+}

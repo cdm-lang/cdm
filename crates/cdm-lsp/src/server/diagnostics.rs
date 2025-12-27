@@ -1,0 +1,89 @@
+use tower_lsp::lsp_types::*;
+use cdm::{validate, Diagnostic as CdmDiagnostic, Severity};
+
+/// Compute diagnostics for a CDM document
+pub fn compute_diagnostics(text: &str, _uri: &Url) -> Vec<Diagnostic> {
+    // For now, validate without ancestors (single-file validation)
+    // TODO: In the future, we should resolve @extends and pass ancestors
+    let ancestors = vec![];
+
+    let validation_result = validate(text, &ancestors);
+
+    // Convert CDM diagnostics to LSP diagnostics
+    validation_result
+        .diagnostics
+        .iter()
+        .map(|diag| cdm_diagnostic_to_lsp(diag))
+        .collect()
+}
+
+/// Convert a CDM diagnostic to an LSP diagnostic
+fn cdm_diagnostic_to_lsp(diag: &CdmDiagnostic) -> Diagnostic {
+    // Convert CDM span (line/column 0-indexed) to LSP position
+    let range = Range {
+        start: Position {
+            line: diag.span.start.line as u32,
+            character: diag.span.start.column as u32,
+        },
+        end: Position {
+            line: diag.span.end.line as u32,
+            character: diag.span.end.column as u32,
+        },
+    };
+
+    let severity = match diag.severity {
+        Severity::Error => DiagnosticSeverity::ERROR,
+        Severity::Warning => DiagnosticSeverity::WARNING,
+    };
+
+    Diagnostic {
+        range,
+        severity: Some(severity),
+        code: None, // TODO: Extract error codes from message
+        source: Some("cdm".to_string()),
+        message: diag.message.clone(),
+        related_information: None,
+        tags: None,
+        code_description: None,
+        data: None,
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn test_valid_file_no_diagnostics() {
+        let text = r#"
+User {
+  name: string #1
+} #10
+"#;
+
+        let uri = Url::parse("file:///test.cdm").unwrap();
+        let diagnostics = compute_diagnostics(text, &uri);
+
+        // Should have no errors for valid CDM
+        assert_eq!(diagnostics.len(), 0);
+    }
+
+    #[test]
+    fn test_unknown_type_error() {
+        let text = r#"
+User {
+  email: UnknownType #1
+} #10
+"#;
+
+        let uri = Url::parse("file:///test.cdm").unwrap();
+        let diagnostics = compute_diagnostics(text, &uri);
+
+        // Should have E103 error for unknown type
+        assert!(diagnostics.len() > 0);
+
+        let first_diag = &diagnostics[0];
+        assert_eq!(first_diag.severity, Some(DiagnosticSeverity::ERROR));
+        assert!(first_diag.message.contains("Unknown type"));
+    }
+}
