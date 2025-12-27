@@ -9,6 +9,10 @@ mod navigation;
 mod completion;
 mod formatting;
 mod workspace;
+mod symbols;
+mod rename;
+mod code_actions;
+mod folding;
 
 use document::DocumentStore;
 use workspace::Workspace;
@@ -83,10 +87,17 @@ impl LanguageServer for CdmLanguageServer {
                 }),
                 // Formatting
                 document_formatting_provider: Some(OneOf::Left(true)),
-                // Future features to be implemented:
-                // - document_symbol_provider
-                // - rename_provider
-                // - code_action_provider
+                // Document symbols
+                document_symbol_provider: Some(OneOf::Left(true)),
+                // Rename
+                rename_provider: Some(OneOf::Right(RenameOptions {
+                    prepare_provider: Some(true),
+                    work_done_progress_options: WorkDoneProgressOptions::default(),
+                })),
+                // Code actions
+                code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
+                // Folding ranges
+                folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
                 ..Default::default()
             },
             server_info: Some(ServerInfo {
@@ -314,6 +325,109 @@ impl LanguageServer for CdmLanguageServer {
         let edits = formatting::format_document(&text, uri);
 
         Ok(edits)
+    }
+
+    async fn document_symbol(
+        &self,
+        params: DocumentSymbolParams,
+    ) -> Result<Option<DocumentSymbolResponse>> {
+        let uri = &params.text_document.uri;
+
+        eprintln!("Document symbol request for {}", uri);
+
+        // Get the document text
+        let text = match self.documents.get(uri) {
+            Some(t) => t,
+            None => return Ok(None),
+        };
+
+        // Compute document symbols
+        let symbols = symbols::compute_document_symbols(&text);
+
+        Ok(symbols.map(DocumentSymbolResponse::Nested))
+    }
+
+    async fn prepare_rename(
+        &self,
+        params: TextDocumentPositionParams,
+    ) -> Result<Option<PrepareRenameResponse>> {
+        let uri = &params.text_document.uri;
+        let position = params.position;
+
+        eprintln!("Prepare rename request at {:?} in {}", position, uri);
+
+        // Get the document text
+        let text = match self.documents.get(uri) {
+            Some(t) => t,
+            None => return Ok(None),
+        };
+
+        // Prepare the rename
+        let response = rename::prepare_rename(&text, position);
+
+        Ok(response)
+    }
+
+    async fn rename(&self, params: RenameParams) -> Result<Option<WorkspaceEdit>> {
+        let uri = &params.text_document_position.text_document.uri;
+        let position = params.text_document_position.position;
+        let new_name = &params.new_name;
+
+        eprintln!("Rename request at {:?} in {} to {}", position, uri, new_name);
+
+        // Get the document text
+        let text = match self.documents.get(uri) {
+            Some(t) => t,
+            None => return Ok(None),
+        };
+
+        // Perform the rename
+        let edit = rename::rename_symbol(&text, position, new_name, uri);
+
+        Ok(edit)
+    }
+
+    async fn code_action(&self, params: CodeActionParams) -> Result<Option<CodeActionResponse>> {
+        let uri = &params.text_document.uri;
+        let range = params.range;
+
+        eprintln!("Code action request for range {:?} in {}", range, uri);
+
+        // Get the document text
+        let text = match self.documents.get(uri) {
+            Some(t) => t,
+            None => return Ok(None),
+        };
+
+        // Get diagnostics from the params (provided by client)
+        let diagnostics: Vec<Diagnostic> = params
+            .context
+            .diagnostics
+            .iter()
+            .cloned()
+            .collect();
+
+        // Compute code actions
+        let actions = code_actions::compute_code_actions(&text, range, &diagnostics, uri);
+
+        Ok(actions)
+    }
+
+    async fn folding_range(&self, params: FoldingRangeParams) -> Result<Option<Vec<FoldingRange>>> {
+        let uri = &params.text_document.uri;
+
+        eprintln!("Folding range request for {}", uri);
+
+        // Get the document text
+        let text = match self.documents.get(uri) {
+            Some(t) => t,
+            None => return Ok(None),
+        };
+
+        // Compute folding ranges
+        let ranges = folding::compute_folding_ranges(&text);
+
+        Ok(ranges)
     }
 }
 
@@ -814,6 +928,84 @@ id:string#1
         assert!(formatted.contains("Email: string #1"));
         assert!(formatted.contains("User {"));
         assert!(formatted.contains("  id: string #1"));
+    }
+
+    #[tokio::test]
+    async fn test_prepare_rename_type_alias() {
+        let server = create_test_server();
+
+        let uri = Url::parse("file:///test.cdm").unwrap();
+        let text = r#"Email: string #1
+
+User {
+  email: Email #1
+} #10"#;
+
+        server.did_open(DidOpenTextDocumentParams {
+            text_document: TextDocumentItem {
+                uri: uri.clone(),
+                language_id: "cdm".to_string(),
+                version: 1,
+                text: text.to_string(),
+            },
+        }).await;
+
+        // Prepare rename on "Email" in definition
+        let params = TextDocumentPositionParams {
+            text_document: TextDocumentIdentifier { uri: uri.clone() },
+            position: Position { line: 0, character: 2 },
+        };
+
+        let result = server.prepare_rename(params).await.unwrap();
+        assert!(result.is_some(), "Should be able to prepare rename for type alias");
+    }
+
+    #[tokio::test]
+    async fn test_rename_type_alias_server() {
+        let server = create_test_server();
+
+        let uri = Url::parse("file:///test.cdm").unwrap();
+        let text = r#"Email: string #1
+
+User {
+  email: Email #1
+} #10"#;
+
+        server.did_open(DidOpenTextDocumentParams {
+            text_document: TextDocumentItem {
+                uri: uri.clone(),
+                language_id: "cdm".to_string(),
+                version: 1,
+                text: text.to_string(),
+            },
+        }).await;
+
+        // Rename "Email" to "EmailAddress"
+        let params = RenameParams {
+            text_document_position: TextDocumentPositionParams {
+                text_document: TextDocumentIdentifier { uri: uri.clone() },
+                position: Position { line: 0, character: 2 },
+            },
+            new_name: "EmailAddress".to_string(),
+            work_done_progress_params: WorkDoneProgressParams::default(),
+        };
+
+        let result = server.rename(params).await.unwrap();
+        assert!(result.is_some(), "Rename should return WorkspaceEdit");
+
+        let edit = result.unwrap();
+        assert!(edit.changes.is_some(), "WorkspaceEdit should have changes");
+
+        let changes = edit.changes.unwrap();
+        let text_edits = changes.get(&uri).unwrap();
+
+        // Should find 2 occurrences
+        assert_eq!(text_edits.len(), 2, "Should find 2 occurrences of Email");
+
+        // Check that all edits have the new name
+        for text_edit in text_edits {
+            assert_eq!(text_edit.new_text, "EmailAddress");
+        }
     }
 
     #[tokio::test]

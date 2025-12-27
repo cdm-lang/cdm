@@ -9,7 +9,7 @@
     "url": "https://github.com/cdm-lang/cdm"
   },
   "engines": {
-    "vscode": "^1.75.0"
+    "vscode": "^1.107.0"
   },
   "categories": [
     "Programming Languages"
@@ -36,6 +36,13 @@
           ".cdm"
         ],
         "configuration": "./language-configuration.json"
+      }
+    ],
+    "grammars": [
+      {
+        "language": "cdm",
+        "scopeName": "source.cdm",
+        "path": "./syntaxes/cdm.tmLanguage.json"
       }
     ],
     "configuration": {

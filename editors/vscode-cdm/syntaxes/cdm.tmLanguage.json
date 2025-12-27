@@ -1,0 +1,607 @@
+{
+  "$schema": "https://raw.githubusercontent.com/martinring/tmlanguage/master/tmlanguage.json",
+  "name": "CDM",
+  "scopeName": "source.cdm",
+  "patterns": [
+    {
+      "include": "#comments"
+    },
+    {
+      "include": "#extends-directive"
+    },
+    {
+      "include": "#plugin-import"
+    },
+    {
+      "include": "#model-removal"
+    },
+    {
+      "include": "#type-alias"
+    },
+    {
+      "include": "#model-definition"
+    }
+  ],
+  "repository": {
+    "comments": {
+      "patterns": [
+        {
+          "name": "comment.line.double-slash.cdm",
+          "match": "//.*$"
+        }
+      ]
+    },
+    "extends-directive": {
+      "patterns": [
+        {
+          "match": "(@extends)\\s+([^\\s\\n]+)",
+          "captures": {
+            "1": {
+              "name": "keyword.control.extends.cdm"
+            },
+            "2": {
+              "name": "string.unquoted.path.cdm"
+            }
+          }
+        }
+      ]
+    },
+    "plugin-import": {
+      "patterns": [
+        {
+          "match": "(@)([a-zA-Z_][a-zA-Z0-9_]*)\\s+(from)\\s+(git:)([^\\s\\n{}]+)",
+          "captures": {
+            "1": {
+              "name": "punctuation.definition.plugin.cdm"
+            },
+            "2": {
+              "name": "entity.name.plugin.cdm"
+            },
+            "3": {
+              "name": "keyword.control.from.cdm"
+            },
+            "4": {
+              "name": "keyword.other.git.cdm"
+            },
+            "5": {
+              "name": "string.unquoted.url.cdm"
+            }
+          }
+        },
+        {
+          "match": "(@)([a-zA-Z_][a-zA-Z0-9_]*)\\s+(from)\\s+(\\.\\.?\\/[^\\s\\n{}]+)",
+          "captures": {
+            "1": {
+              "name": "punctuation.definition.plugin.cdm"
+            },
+            "2": {
+              "name": "entity.name.plugin.cdm"
+            },
+            "3": {
+              "name": "keyword.control.from.cdm"
+            },
+            "4": {
+              "name": "string.unquoted.path.cdm"
+            }
+          }
+        },
+        {
+          "match": "(@)([a-zA-Z_][a-zA-Z0-9_]*)",
+          "captures": {
+            "1": {
+              "name": "punctuation.definition.plugin.cdm"
+            },
+            "2": {
+              "name": "entity.name.plugin.cdm"
+            }
+          }
+        }
+      ]
+    },
+    "model-removal": {
+      "patterns": [
+        {
+          "match": "^\\s*(-)([a-zA-Z_][a-zA-Z0-9_]*)(?=\\s|$)",
+          "captures": {
+            "1": {
+              "name": "keyword.operator.removal.cdm"
+            },
+            "2": {
+              "name": "entity.name.type.removed.cdm"
+            }
+          }
+        }
+      ]
+    },
+    "type-alias": {
+      "patterns": [
+        {
+          "begin": "^\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\s*(:)(?!:)",
+          "end": "(?=(#|$|\\n\\s*[a-zA-Z_@-]))",
+          "beginCaptures": {
+            "1": {
+              "name": "entity.name.type.alias.cdm"
+            },
+            "2": {
+              "name": "punctuation.separator.type.cdm"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#entity-id"
+            },
+            {
+              "include": "#plugin-block"
+            },
+            {
+              "include": "#type-expression-in-alias"
+            }
+          ]
+        }
+      ]
+    },
+    "model-definition": {
+      "patterns": [
+        {
+          "begin": "^\\s*([a-zA-Z_][a-zA-Z0-9_]*)(?=\\s+(extends|\\{))",
+          "end": "(})\\s*(#[1-9][0-9]*)?",
+          "beginCaptures": {
+            "1": {
+              "name": "entity.name.class.cdm"
+            }
+          },
+          "endCaptures": {
+            "1": {
+              "name": "punctuation.definition.block.end.cdm"
+            },
+            "2": {
+              "name": "storage.type.entity-id.cdm"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#extends-clause"
+            },
+            {
+              "include": "#model-body"
+            }
+          ]
+        }
+      ]
+    },
+    "extends-clause": {
+      "patterns": [
+        {
+          "match": "(extends)\\s+([a-zA-Z_][a-zA-Z0-9_]*)(?:\\s*,\\s*([a-zA-Z_][a-zA-Z0-9_]*))*",
+          "captures": {
+            "1": {
+              "name": "keyword.control.extends.cdm"
+            },
+            "2": {
+              "name": "entity.other.inherited-class.cdm"
+            },
+            "3": {
+              "name": "entity.other.inherited-class.cdm"
+            }
+          }
+        }
+      ]
+    },
+    "model-body": {
+      "patterns": [
+        {
+          "name": "punctuation.definition.block.begin.cdm",
+          "match": "\\{"
+        },
+        {
+          "include": "#field-removal"
+        },
+        {
+          "include": "#plugin-config"
+        },
+        {
+          "include": "#field-override"
+        },
+        {
+          "include": "#field-definition"
+        }
+      ]
+    },
+    "field-removal": {
+      "patterns": [
+        {
+          "match": "\\s*(-)([a-zA-Z_][a-zA-Z0-9_]*)",
+          "captures": {
+            "1": {
+              "name": "keyword.operator.removal.cdm"
+            },
+            "2": {
+              "name": "variable.other.member.removed.cdm"
+            }
+          }
+        }
+      ]
+    },
+    "field-override": {
+      "patterns": [
+        {
+          "begin": "\\s*([a-zA-Z_][a-zA-Z0-9_]*)\\s*(\\{)(?=\\s*@)",
+          "end": "\\}",
+          "beginCaptures": {
+            "1": {
+              "name": "variable.other.member.override.cdm"
+            },
+            "2": {
+              "name": "punctuation.definition.block.begin.cdm"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.block.end.cdm"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#plugin-config"
+            }
+          ]
+        }
+      ]
+    },
+    "field-definition": {
+      "patterns": [
+        {
+          "match": "\\s*([a-zA-Z_][a-zA-Z0-9_]*)(\\?)?\\s*(:)?",
+          "captures": {
+            "1": {
+              "name": "variable.other.property.cdm"
+            },
+            "2": {
+              "name": "keyword.operator.optional.cdm"
+            },
+            "3": {
+              "name": "punctuation.separator.type.cdm"
+            }
+          }
+        },
+        {
+          "include": "#type-expression-in-field"
+        },
+        {
+          "include": "#default-value"
+        },
+        {
+          "include": "#plugin-block"
+        },
+        {
+          "include": "#entity-id"
+        }
+      ]
+    },
+    "type-expression-in-alias": {
+      "patterns": [
+        {
+          "include": "#union-type-in-alias"
+        },
+        {
+          "include": "#array-type-in-alias"
+        },
+        {
+          "include": "#builtin-type"
+        },
+        {
+          "include": "#custom-type-in-alias"
+        }
+      ]
+    },
+    "type-expression-in-field": {
+      "patterns": [
+        {
+          "include": "#union-type-in-field"
+        },
+        {
+          "include": "#array-type-in-field"
+        },
+        {
+          "include": "#builtin-type"
+        },
+        {
+          "include": "#custom-type-in-field"
+        }
+      ]
+    },
+    "union-type-in-alias": {
+      "patterns": [
+        {
+          "match": "(\\|)",
+          "name": "keyword.operator.union.cdm"
+        },
+        {
+          "include": "#string-literal"
+        }
+      ]
+    },
+    "union-type-in-field": {
+      "patterns": [
+        {
+          "match": "(\\|)",
+          "name": "keyword.operator.union.cdm"
+        },
+        {
+          "include": "#string-literal"
+        }
+      ]
+    },
+    "array-type-in-alias": {
+      "patterns": [
+        {
+          "match": "([a-zA-Z_][a-zA-Z0-9_]*)(\\[\\])",
+          "captures": {
+            "1": {
+              "name": "support.type.primitive.cdm"
+            },
+            "2": {
+              "name": "punctuation.definition.array.cdm"
+            }
+          }
+        }
+      ]
+    },
+    "array-type-in-field": {
+      "patterns": [
+        {
+          "match": "([a-zA-Z_][a-zA-Z0-9_]*)(\\[\\])",
+          "captures": {
+            "1": {
+              "name": "entity.name.type.cdm"
+            },
+            "2": {
+              "name": "punctuation.definition.array.cdm"
+            }
+          }
+        }
+      ]
+    },
+    "builtin-type": {
+      "patterns": [
+        {
+          "match": "\\b(string|number|boolean|decimal|date|datetime|timestamp|binary|json)\\b",
+          "name": "support.type.primitive.cdm"
+        }
+      ]
+    },
+    "custom-type-in-alias": {
+      "patterns": [
+        {
+          "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\b",
+          "name": "support.type.primitive.cdm"
+        }
+      ]
+    },
+    "custom-type-in-field": {
+      "patterns": [
+        {
+          "match": "\\b([a-zA-Z_][a-zA-Z0-9_]*)\\b",
+          "name": "entity.name.type.cdm"
+        }
+      ]
+    },
+    "default-value": {
+      "patterns": [
+        {
+          "match": "=",
+          "name": "keyword.operator.assignment.cdm"
+        },
+        {
+          "include": "#string-literal"
+        },
+        {
+          "include": "#number-literal"
+        },
+        {
+          "include": "#boolean-literal"
+        },
+        {
+          "include": "#array-literal"
+        },
+        {
+          "include": "#object-literal"
+        }
+      ]
+    },
+    "plugin-block": {
+      "patterns": [
+        {
+          "begin": "\\{(?=\\s*@)",
+          "end": "\\}",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.block.begin.cdm"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.block.end.cdm"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#plugin-config"
+            }
+          ]
+        }
+      ]
+    },
+    "plugin-config": {
+      "patterns": [
+        {
+          "begin": "(@)([a-zA-Z_][a-zA-Z0-9_]*)\\s*(\\{)",
+          "end": "\\}",
+          "beginCaptures": {
+            "1": {
+              "name": "punctuation.definition.plugin.cdm"
+            },
+            "2": {
+              "name": "entity.name.plugin.cdm"
+            },
+            "3": {
+              "name": "punctuation.definition.block.begin.cdm"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.block.end.cdm"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#object-entry"
+            }
+          ]
+        }
+      ]
+    },
+    "entity-id": {
+      "patterns": [
+        {
+          "match": "(#)([1-9][0-9]*)",
+          "captures": {
+            "1": {
+              "name": "storage.type.entity-id.cdm"
+            },
+            "2": {
+              "name": "storage.type.entity-id.cdm"
+            }
+          }
+        }
+      ]
+    },
+    "object-literal": {
+      "patterns": [
+        {
+          "begin": "\\{",
+          "end": "\\}",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.object.begin.cdm"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.object.end.cdm"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#object-entry"
+            }
+          ]
+        }
+      ]
+    },
+    "object-entry": {
+      "patterns": [
+        {
+          "match": "([a-zA-Z_][a-zA-Z0-9_]*)\\s*(:)",
+          "captures": {
+            "1": {
+              "name": "support.property-name.cdm"
+            },
+            "2": {
+              "name": "punctuation.separator.key-value.cdm"
+            }
+          }
+        },
+        {
+          "include": "#string-literal"
+        },
+        {
+          "include": "#number-literal"
+        },
+        {
+          "include": "#boolean-literal"
+        },
+        {
+          "include": "#array-literal"
+        },
+        {
+          "include": "#object-literal"
+        },
+        {
+          "match": ",",
+          "name": "punctuation.separator.comma.cdm"
+        }
+      ]
+    },
+    "array-literal": {
+      "patterns": [
+        {
+          "begin": "\\[",
+          "end": "\\]",
+          "beginCaptures": {
+            "0": {
+              "name": "punctuation.definition.array.begin.cdm"
+            }
+          },
+          "endCaptures": {
+            "0": {
+              "name": "punctuation.definition.array.end.cdm"
+            }
+          },
+          "patterns": [
+            {
+              "include": "#string-literal"
+            },
+            {
+              "include": "#number-literal"
+            },
+            {
+              "include": "#boolean-literal"
+            },
+            {
+              "include": "#array-literal"
+            },
+            {
+              "include": "#object-literal"
+            },
+            {
+              "match": ",",
+              "name": "punctuation.separator.comma.cdm"
+            }
+          ]
+        }
+      ]
+    },
+    "string-literal": {
+      "patterns": [
+        {
+          "name": "string.quoted.double.cdm",
+          "begin": "\"",
+          "end": "\"",
+          "patterns": [
+            {
+              "name": "constant.character.escape.cdm",
+              "match": "\\\\([\"\\\\/bfnrt]|u[0-9a-fA-F]{4})"
+            }
+          ]
+        }
+      ]
+    },
+    "number-literal": {
+      "patterns": [
+        {
+          "name": "constant.numeric.cdm",
+          "match": "-?\\d+(\\.\\d+)?"
+        }
+      ]
+    },
+    "boolean-literal": {
+      "patterns": [
+        {
+          "name": "constant.language.boolean.cdm",
+          "match": "\\b(true|false)\\b"
+        }
+      ]
+    }
+  }
+}
