@@ -6,14 +6,19 @@ mod document;
 mod position;
 mod diagnostics;
 mod navigation;
+mod completion;
+mod formatting;
+mod workspace;
 
 use document::DocumentStore;
+use workspace::Workspace;
 
 /// The CDM Language Server
 #[derive(Clone)]
 pub struct CdmLanguageServer {
     client: Client,
     documents: DocumentStore,
+    workspace: Workspace,
 }
 
 impl CdmLanguageServer {
@@ -21,6 +26,7 @@ impl CdmLanguageServer {
         Self {
             client,
             documents: DocumentStore::new(),
+            workspace: Workspace::new(),
         }
     }
 
@@ -31,6 +37,15 @@ impl CdmLanguageServer {
             self.client.publish_diagnostics(uri.clone(), diagnostics, None).await;
         }
     }
+
+    /// Re-validate all files that depend on the given file
+    async fn revalidate_dependents(&self, uri: &Url) {
+        let dependents = self.workspace.get_all_dependents(uri);
+
+        for dependent_uri in dependents {
+            self.publish_diagnostics(&dependent_uri).await;
+        }
+    }
 }
 
 #[tower_lsp::async_trait]
@@ -39,6 +54,11 @@ impl LanguageServer for CdmLanguageServer {
         eprintln!("Initializing CDM Language Server");
         eprintln!("  Root URI: {:?}", params.root_uri);
         eprintln!("  Client: {:?}", params.client_info);
+
+        // Set workspace root if available
+        if let Some(root_uri) = params.root_uri.clone() {
+            self.workspace.set_root(root_uri);
+        }
 
         Ok(InitializeResult {
             capabilities: ServerCapabilities {
@@ -56,9 +76,14 @@ impl LanguageServer for CdmLanguageServer {
                 hover_provider: Some(HoverProviderCapability::Simple(true)),
                 definition_provider: Some(OneOf::Left(true)),
                 references_provider: Some(OneOf::Left(true)),
+                // Completion
+                completion_provider: Some(CompletionOptions {
+                    trigger_characters: Some(vec![":".to_string(), " ".to_string()]),
+                    ..Default::default()
+                }),
+                // Formatting
+                document_formatting_provider: Some(OneOf::Left(true)),
                 // Future features to be implemented:
-                // - completion_provider
-                // - document_formatting_provider
                 // - document_symbol_provider
                 // - rename_provider
                 // - code_action_provider
@@ -89,8 +114,14 @@ impl LanguageServer for CdmLanguageServer {
         let uri = params.text_document.uri;
         let text = params.text_document.text;
 
-        self.documents.insert(uri.clone(), text);
+        self.documents.insert(uri.clone(), text.clone());
+        self.workspace.update_document(uri.clone(), text);
+
+        // Publish diagnostics for this file
         self.publish_diagnostics(&uri).await;
+
+        // Re-validate dependent files
+        self.revalidate_dependents(&uri).await;
     }
 
     async fn did_change(&self, params: DidChangeTextDocumentParams) {
@@ -100,8 +131,14 @@ impl LanguageServer for CdmLanguageServer {
 
         // We use FULL sync, so there's only one change with the full text
         if let Some(change) = params.content_changes.into_iter().next() {
-            self.documents.insert(uri.clone(), change.text);
+            self.documents.insert(uri.clone(), change.text.clone());
+            self.workspace.update_document(uri.clone(), change.text);
+
+            // Publish diagnostics for this file
             self.publish_diagnostics(&uri).await;
+
+            // Re-validate dependent files
+            self.revalidate_dependents(&uri).await;
         }
     }
 
@@ -117,6 +154,7 @@ impl LanguageServer for CdmLanguageServer {
 
         let uri = params.text_document.uri;
         self.documents.remove(&uri);
+        self.workspace.remove_document(&uri);
 
         // Clear diagnostics
         self.client.publish_diagnostics(uri, vec![], None).await;
@@ -170,11 +208,21 @@ impl LanguageServer for CdmLanguageServer {
     }
 
     async fn completion(&self, params: CompletionParams) -> Result<Option<CompletionResponse>> {
-        eprintln!("Completion request at {:?}", params.text_document_position.position);
+        let uri = &params.text_document_position.text_document.uri;
+        let position = params.text_document_position.position;
 
-        // TODO: Implement completion provider
-        // For now, return None
-        Ok(None)
+        eprintln!("Completion request at {:?} in {}", position, uri);
+
+        // Get the document text
+        let text = match self.documents.get(uri) {
+            Some(t) => t,
+            None => return Ok(None),
+        };
+
+        // Compute completions
+        let completions = completion::compute_completions(&text, position);
+
+        Ok(completions.map(CompletionResponse::Array))
     }
 
     async fn goto_definition(
@@ -252,11 +300,20 @@ impl LanguageServer for CdmLanguageServer {
     }
 
     async fn formatting(&self, params: DocumentFormattingParams) -> Result<Option<Vec<TextEdit>>> {
-        eprintln!("Formatting request for {}", params.text_document.uri);
+        let uri = &params.text_document.uri;
 
-        // TODO: Implement document formatting
-        // For now, return None
-        Ok(None)
+        eprintln!("Formatting request for {}", uri);
+
+        // Get the document text
+        let text = match self.documents.get(uri) {
+            Some(t) => t,
+            None => return Ok(None),
+        };
+
+        // Format the document
+        let edits = formatting::format_document(&text, uri);
+
+        Ok(edits)
     }
 }
 
@@ -295,6 +352,8 @@ mod tests {
         assert!(result.capabilities.hover_provider.is_some());
         assert!(result.capabilities.definition_provider.is_some());
         assert!(result.capabilities.references_provider.is_some());
+        assert!(result.capabilities.completion_provider.is_some());
+        assert!(result.capabilities.document_formatting_provider.is_some());
 
         // Verify server info
         assert!(result.server_info.is_some());
@@ -659,16 +718,31 @@ User {
     }
 
     #[tokio::test]
-    async fn test_completion_not_implemented() {
-        
+    async fn test_completion_after_colon() {
         let server = create_test_server();
 
+        let uri = Url::parse("file:///test.cdm").unwrap();
+        let text = r#"Email: string #1
+
+User {
+  name:
+} #10
+"#.to_string();
+
+        server.did_open(DidOpenTextDocumentParams {
+            text_document: TextDocumentItem {
+                uri: uri.clone(),
+                language_id: "cdm".to_string(),
+                version: 1,
+                text,
+            },
+        }).await;
+
+        // Request completion after "name: "
         let params = CompletionParams {
             text_document_position: TextDocumentPositionParams {
-                text_document: TextDocumentIdentifier {
-                    uri: Url::parse("file:///test.cdm").unwrap(),
-                },
-                position: Position { line: 0, character: 0 },
+                text_document: TextDocumentIdentifier { uri },
+                position: Position { line: 3, character: 8 },
             },
             work_done_progress_params: WorkDoneProgressParams::default(),
             partial_result_params: PartialResultParams::default(),
@@ -676,18 +750,52 @@ User {
         };
 
         let result = server.completion(params).await.unwrap();
-        assert!(result.is_none());
+        assert!(result.is_some());
+
+        if let Some(CompletionResponse::Array(items)) = result {
+            // Should have built-in types + Email type alias
+            assert!(items.len() >= 4);
+            assert!(items.iter().any(|i| i.label == "string"));
+            assert!(items.iter().any(|i| i.label == "Email"));
+        } else {
+            panic!("Expected array of completion items");
+        }
     }
 
     #[tokio::test]
-    async fn test_formatting_not_implemented() {
-        
+    async fn test_formatting_with_bad_whitespace() {
+        use std::io::Write;
+
         let server = create_test_server();
 
-        let params = DocumentFormattingParams {
-            text_document: TextDocumentIdentifier {
-                uri: Url::parse("file:///test.cdm").unwrap(),
+        // Create a real temporary file
+        let mut temp_file = tempfile::Builder::new()
+            .suffix(".cdm")
+            .tempfile()
+            .unwrap();
+
+        let text = r#"Email:string#1
+
+User{
+id:string#1
+}#10
+"#;
+        write!(temp_file, "{}", text).unwrap();
+        temp_file.flush().unwrap();
+
+        let uri = Url::from_file_path(temp_file.path()).unwrap();
+
+        server.did_open(DidOpenTextDocumentParams {
+            text_document: TextDocumentItem {
+                uri: uri.clone(),
+                language_id: "cdm".to_string(),
+                version: 1,
+                text: text.to_string(),
             },
+        }).await;
+
+        let params = DocumentFormattingParams {
+            text_document: TextDocumentIdentifier { uri },
             options: FormattingOptions {
                 tab_size: 2,
                 insert_spaces: true,
@@ -697,7 +805,16 @@ User {
         };
 
         let result = server.formatting(params).await.unwrap();
-        assert!(result.is_none());
+        assert!(result.is_some());
+
+        let edits = result.unwrap();
+        assert_eq!(edits.len(), 1);
+
+        // Should have proper spacing
+        let formatted = &edits[0].new_text;
+        assert!(formatted.contains("Email: string #1"));
+        assert!(formatted.contains("User {"));
+        assert!(formatted.contains("  id: string #1"));
     }
 
     #[tokio::test]
