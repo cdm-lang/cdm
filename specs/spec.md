@@ -1726,6 +1726,9 @@ CDM provides utility functions to plugins:
 struct Utils {
     // String case conversion
     fn change_case(&self, input: &str, format: CaseFormat) -> String;
+
+    // English pluralization
+    fn pluralize(&self, input: &str) -> String;
 }
 
 enum CaseFormat {
@@ -1737,6 +1740,31 @@ enum CaseFormat {
     Title,      // User Profile
 }
 ```
+
+#### Pluralization
+
+The `pluralize` function converts singular English words to their plural form following standard English pluralization rules:
+
+```rust
+utils.pluralize("user")      // "users"
+utils.pluralize("category")  // "categories"
+utils.pluralize("person")    // "people"
+utils.pluralize("child")     // "children"
+utils.pluralize("box")       // "boxes"
+utils.pluralize("leaf")      // "leaves"
+```
+
+**Pluralization Rules:**
+
+1. **Regular plurals**: Adds 's' (cat → cats)
+2. **Sibilants** (s, x, z, ch, sh): Adds 'es' (box → boxes)
+3. **Consonant + y**: Changes to 'ies' (city → cities)
+4. **Vowel + y**: Adds 's' (boy → boys)
+5. **Words ending in f/fe**: Changes to 'ves' (leaf → leaves)
+6. **Consonant + o**: Adds 'es' (hero → heroes)
+7. **Irregular plurals**: Handles common irregular forms (person → people, child → children, etc.)
+8. **Unchanging words**: Returns original (sheep → sheep, fish → fish)
+9. **Case preservation**: Maintains capitalization (Person → People)
 
 ### 12.8 Building Plugins
 

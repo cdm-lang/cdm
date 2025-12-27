@@ -70,6 +70,10 @@ impl Utils {
             CaseFormat::Title => to_title_case(input),
         }
     }
+
+    pub fn pluralize(&self, input: &str) -> String {
+        pluralize(input)
+    }
 }
 
 // Simple implementations for case conversion
@@ -150,6 +154,88 @@ fn to_title_case(s: &str) -> String {
         })
         .collect::<Vec<_>>()
         .join(" ")
+}
+
+fn pluralize(s: &str) -> String {
+    if s.is_empty() {
+        return String::new();
+    }
+
+    let s_lower = s.to_lowercase();
+
+    // Irregular plurals
+    let irregular = [
+        ("person", "people"),
+        ("child", "children"),
+        ("man", "men"),
+        ("woman", "women"),
+        ("tooth", "teeth"),
+        ("foot", "feet"),
+        ("mouse", "mice"),
+        ("goose", "geese"),
+    ];
+
+    for (singular, plural) in &irregular {
+        if s_lower == *singular {
+            // Preserve the original case
+            return if s.chars().next().unwrap().is_uppercase() {
+                capitalize(plural)
+            } else {
+                plural.to_string()
+            };
+        }
+    }
+
+    // Words that don't change
+    let unchanging = ["sheep", "fish", "deer", "species", "series"];
+    if unchanging.contains(&s_lower.as_str()) {
+        return s.to_string();
+    }
+
+    // Rules-based pluralization
+    if s_lower.ends_with("s") || s_lower.ends_with("x") || s_lower.ends_with("z")
+        || s_lower.ends_with("ch") || s_lower.ends_with("sh") {
+        return format!("{}es", s);
+    }
+
+    if s_lower.ends_with("y") {
+        if let Some(second_last) = s_lower.chars().rev().nth(1) {
+            if !"aeiou".contains(second_last) {
+                // Consonant + y -> ies
+                return format!("{}ies", &s[..s.len() - 1]);
+            }
+        }
+        // Vowel + y -> ys
+        return format!("{}s", s);
+    }
+
+    if s_lower.ends_with("f") {
+        return format!("{}ves", &s[..s.len() - 1]);
+    }
+
+    if s_lower.ends_with("fe") {
+        return format!("{}ves", &s[..s.len() - 2]);
+    }
+
+    if s_lower.ends_with("o") {
+        if let Some(second_last) = s_lower.chars().rev().nth(1) {
+            if !"aeiou".contains(second_last) {
+                // Consonant + o -> oes (for most cases)
+                return format!("{}es", s);
+            }
+        }
+    }
+
+    // Default: just add 's'
+    format!("{}s", s)
+}
+
+fn capitalize(s: &str) -> String {
+    let mut chars = s.chars();
+    match chars.next() {
+        None => String::new(),
+        Some(first) => first.to_uppercase().collect::<String>() + chars.as_str(),
+    }
 }
 
 /// Schema types
@@ -702,5 +788,87 @@ mod tests {
             serde_json::to_string(&CaseFormat::Title).unwrap(),
             "\"title\""
         );
+    }
+
+    // Pluralization tests
+    #[test]
+    fn test_pluralize_regular() {
+        assert_eq!(pluralize("cat"), "cats");
+        assert_eq!(pluralize("dog"), "dogs");
+        assert_eq!(pluralize("table"), "tables");
+        assert_eq!(pluralize(""), "");
+    }
+
+    #[test]
+    fn test_pluralize_s_x_z_ch_sh() {
+        assert_eq!(pluralize("bus"), "buses");
+        assert_eq!(pluralize("box"), "boxes");
+        assert_eq!(pluralize("buzz"), "buzzes");
+        assert_eq!(pluralize("church"), "churches");
+        assert_eq!(pluralize("dish"), "dishes");
+    }
+
+    #[test]
+    fn test_pluralize_consonant_y() {
+        assert_eq!(pluralize("city"), "cities");
+        assert_eq!(pluralize("baby"), "babies");
+        assert_eq!(pluralize("lady"), "ladies");
+    }
+
+    #[test]
+    fn test_pluralize_vowel_y() {
+        assert_eq!(pluralize("boy"), "boys");
+        assert_eq!(pluralize("key"), "keys");
+        assert_eq!(pluralize("toy"), "toys");
+    }
+
+    #[test]
+    fn test_pluralize_f_fe() {
+        assert_eq!(pluralize("leaf"), "leaves");
+        assert_eq!(pluralize("knife"), "knives");
+        assert_eq!(pluralize("wife"), "wives");
+    }
+
+    #[test]
+    fn test_pluralize_consonant_o() {
+        assert_eq!(pluralize("hero"), "heroes");
+        assert_eq!(pluralize("potato"), "potatoes");
+        assert_eq!(pluralize("tomato"), "tomatoes");
+    }
+
+    #[test]
+    fn test_pluralize_irregular() {
+        assert_eq!(pluralize("person"), "people");
+        assert_eq!(pluralize("child"), "children");
+        assert_eq!(pluralize("man"), "men");
+        assert_eq!(pluralize("woman"), "women");
+        assert_eq!(pluralize("tooth"), "teeth");
+        assert_eq!(pluralize("foot"), "feet");
+        assert_eq!(pluralize("mouse"), "mice");
+        assert_eq!(pluralize("goose"), "geese");
+    }
+
+    #[test]
+    fn test_pluralize_irregular_capitalized() {
+        assert_eq!(pluralize("Person"), "People");
+        assert_eq!(pluralize("Child"), "Children");
+        assert_eq!(pluralize("Man"), "Men");
+    }
+
+    #[test]
+    fn test_pluralize_unchanging() {
+        assert_eq!(pluralize("sheep"), "sheep");
+        assert_eq!(pluralize("fish"), "fish");
+        assert_eq!(pluralize("deer"), "deer");
+        assert_eq!(pluralize("species"), "species");
+        assert_eq!(pluralize("series"), "series");
+    }
+
+    #[test]
+    fn test_utils_pluralize() {
+        let utils = Utils;
+        assert_eq!(utils.pluralize("user"), "users");
+        assert_eq!(utils.pluralize("category"), "categories");
+        assert_eq!(utils.pluralize("person"), "people");
     }
 }

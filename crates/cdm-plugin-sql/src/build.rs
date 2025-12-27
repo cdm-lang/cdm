@@ -68,7 +68,10 @@ mod tests {
             models: HashMap::new(),
         };
 
-        let config = json!({ "dialect": "postgresql" });
+        let config = json!({
+            "dialect": "postgresql",
+            "pluralize_table_names": false
+        });
         let utils = Utils;
 
         let files = build(schema, config, &utils);
@@ -127,7 +130,10 @@ mod tests {
             models,
         };
 
-        let config = json!({ "dialect": "postgresql" });
+        let config = json!({
+            "dialect": "postgresql",
+            "pluralize_table_names": false
+        });
         let utils = Utils;
 
         let files = build(schema, config, &utils);
@@ -181,7 +187,10 @@ mod tests {
             models,
         };
 
-        let config = json!({ "dialect": "sqlite" });
+        let config = json!({
+            "dialect": "sqlite",
+            "pluralize_table_names": false
+        });
         let utils = Utils;
 
         let files = build(schema, config, &utils);
@@ -229,7 +238,10 @@ mod tests {
             models,
         };
 
-        let config = json!({ "dialect": "postgresql" });
+        let config = json!({
+            "dialect": "postgresql",
+            "pluralize_table_names": false
+        });
         let utils = Utils;
 
         let files = build(schema, config, &utils);
@@ -285,7 +297,10 @@ mod tests {
             models,
         };
 
-        let config = json!({ "dialect": "postgresql" });
+        let config = json!({
+            "dialect": "postgresql",
+            "pluralize_table_names": false
+        });
         let utils = Utils;
 
         let files = build(schema, config, &utils);
@@ -330,7 +345,10 @@ mod tests {
             models,
         };
 
-        let config = json!({ "dialect": "postgresql" });
+        let config = json!({
+            "dialect": "postgresql",
+            "pluralize_table_names": false
+        });
         let utils = Utils;
 
         let files = build(schema, config, &utils);
@@ -370,7 +388,10 @@ mod tests {
             models,
         };
 
-        let config = json!({ "dialect": "postgresql" });
+        let config = json!({
+            "dialect": "postgresql",
+            "pluralize_table_names": false
+        });
         let utils = Utils;
 
         let files = build(schema, config, &utils);
@@ -398,7 +419,10 @@ mod tests {
             models,
         };
 
-        let config = json!({ "dialect": "postgresql" });
+        let config = json!({
+            "dialect": "postgresql",
+            "pluralize_table_names": false
+        });
         let utils = Utils;
 
         let files = build(schema, config, &utils);

@@ -14,7 +14,20 @@ pub fn get_table_name(model_name: &str, model_config: &JSON, global_config: &JSO
         .and_then(|v| v.as_str())
         .unwrap_or("snake_case");
 
-    apply_name_format(model_name, format)
+    let formatted_name = apply_name_format(model_name, format);
+
+    // Apply pluralization if enabled (default: true)
+    let should_pluralize = global_config
+        .get("pluralize_table_names")
+        .and_then(|v| v.as_bool())
+        .unwrap_or(true);
+
+    if should_pluralize {
+        let utils = Utils;
+        utils.pluralize(&formatted_name)
+    } else {
+        formatted_name
+    }
 }
 
 /// Get the column name for a field, applying any overrides or formatting
@@ -334,10 +347,73 @@ mod tests {
     #[test]
     fn test_get_table_name_with_formatting() {
         let model_config = json!({});
-        let global_config = json!({ "table_name_format": "snake_case" });
+        let global_config = json!({
+            "table_name_format": "snake_case",
+            "pluralize_table_names": false  // Disable for this test
+        });
 
         let name = get_table_name("UserProfile", &model_config, &global_config);
         assert_eq!(name, "user_profile");
+    }
+
+    #[test]
+    fn test_get_table_name_with_pluralization() {
+        let model_config = json!({});
+        let global_config = json!({
+            "table_name_format": "snake_case",
+            "pluralize_table_names": true
+        });
+
+        let name = get_table_name("User", &model_config, &global_config);
+        assert_eq!(name, "users");
+    }
+
+    #[test]
+    fn test_get_table_name_with_pluralization_default() {
+        let model_config = json!({});
+        let global_config = json!({
+            "table_name_format": "snake_case"
+            // pluralize_table_names not specified, should default to true
+        });
+
+        let name = get_table_name("Category", &model_config, &global_config);
+        assert_eq!(name, "categories");
+    }
+
+    #[test]
+    fn test_get_table_name_pluralization_disabled() {
+        let model_config = json!({});
+        let global_config = json!({
+            "table_name_format": "snake_case",
+            "pluralize_table_names": false
+        });
+
+        let name = get_table_name("User", &model_config, &global_config);
+        assert_eq!(name, "user");
+    }
+
+    #[test]
+    fn test_get_table_name_pluralization_irregular() {
+        let model_config = json!({});
+        let global_config = json!({
+            "table_name_format": "snake_case",
+            "pluralize_table_names": true
+        });
+
+        let name = get_table_name("Person", &model_config, &global_config);
+        assert_eq!(name, "people");
+    }
+
+    #[test]
+    fn test_get_table_name_override_ignores_pluralization() {
+        let model_config = json!({ "table_name": "my_custom_table" });
+        let global_config = json!({
+            "table_name_format": "snake_case",
+            "pluralize_table_names": true
+        });
+
+        let name = get_table_name("User", &model_config, &global_config);
+        assert_eq!(name, "my_custom_table");
     }
 
     #[test]

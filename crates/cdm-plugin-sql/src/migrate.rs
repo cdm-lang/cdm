@@ -629,7 +629,7 @@ mod tests {
             },
         }];
 
-        let config = serde_json::json!({ "dialect": "postgresql" });
+        let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
         let utils = Utils;
 
         let files = migrate(schema, deltas, config, &utils);
@@ -701,7 +701,7 @@ mod tests {
             },
         }];
 
-        let config = serde_json::json!({ "dialect": "postgresql" });
+        let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
         let utils = Utils;
 
         let files = migrate(schema, deltas, config, &utils);
@@ -731,7 +731,7 @@ mod tests {
             },
         }];
 
-        let config = serde_json::json!({ "dialect": "postgresql" });
+        let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
         let utils = Utils;
 
         let files = migrate(schema, deltas, config, &utils);
@@ -785,7 +785,7 @@ mod tests {
             },
         }];
 
-        let config = serde_json::json!({ "dialect": "sqlite" });
+        let config = serde_json::json!({ "dialect": "sqlite", "pluralize_table_names": false });
         let utils = Utils;
 
         let files = migrate(schema, deltas, config, &utils);
@@ -833,7 +833,7 @@ mod tests {
             after: true,   // became optional
         }];
 
-        let config = serde_json::json!({ "dialect": "postgresql" });
+        let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
         let utils = Utils;
 
         let files = migrate(schema, deltas, config, &utils);
@@ -883,7 +883,7 @@ mod tests {
             after: Some(Value::String("active".to_string())),
         }];
 
-        let config = serde_json::json!({ "dialect": "postgresql" });
+        let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
         let utils = Utils;
 
         let files = migrate(schema, deltas, config, &utils);
@@ -935,7 +935,7 @@ mod tests {
             after: None,
         }];
 
-        let config = serde_json::json!({ "dialect": "postgresql" });
+        let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
         let utils = Utils;
 
         let files = migrate(schema, deltas, config, &utils);
@@ -976,7 +976,7 @@ mod tests {
             },
         }];
 
-        let config = serde_json::json!({ "dialect": "postgresql" });
+        let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
         let utils = Utils;
 
         let files = migrate(schema, deltas, config, &utils);
@@ -1020,7 +1020,7 @@ mod tests {
             },
         }];
 
-        let config = serde_json::json!({ "dialect": "sqlite" });
+        let config = serde_json::json!({ "dialect": "sqlite", "pluralize_table_names": false });
         let utils = Utils;
 
         let files = migrate(schema, deltas, config, &utils);
@@ -1088,7 +1088,7 @@ mod tests {
             },
         }];
 
-        let config = serde_json::json!({ "dialect": "sqlite" });
+        let config = serde_json::json!({ "dialect": "sqlite", "pluralize_table_names": false });
         let utils = Utils;
 
         let files = migrate(schema, deltas, config, &utils);
@@ -1141,7 +1141,7 @@ mod tests {
             },
         }];
 
-        let config = serde_json::json!({ "dialect": "postgresql" });
+        let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
         let utils = Utils;
 
         let files = migrate(schema, deltas, config, &utils);
@@ -1176,7 +1176,8 @@ mod tests {
 
         let config = serde_json::json!({
             "dialect": "postgresql",
-            "schema": "public"
+            "schema": "public",
+            "pluralize_table_names": false
         });
         let utils = Utils;
 
@@ -1238,7 +1239,8 @@ mod tests {
         let config = serde_json::json!({
             "dialect": "postgresql",
             "table_name_format": "snake_case",
-            "column_name_format": "snake_case"
+            "column_name_format": "snake_case",
+            "pluralize_table_names": false
         });
         let utils = Utils;
 
@@ -1287,7 +1289,7 @@ mod tests {
             after: true,   // became optional
         }];
 
-        let config = serde_json::json!({ "dialect": "postgresql" });
+        let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
         let utils = Utils;
 
         let files = migrate(schema, deltas, config, &utils);
@@ -1335,7 +1337,7 @@ mod tests {
             after: false,  // became required
         }];
 
-        let config = serde_json::json!({ "dialect": "postgresql" });
+        let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
         let utils = Utils;
 
         let files = migrate(schema, deltas, config, &utils);
@@ -1392,7 +1394,7 @@ mod tests {
             },
         ];
 
-        let config = serde_json::json!({ "dialect": "sqlite" });
+        let config = serde_json::json!({ "dialect": "sqlite", "pluralize_table_names": false });
         let utils = Utils;
 
         let files = migrate(schema, deltas, config, &utils);
@@ -1477,7 +1479,7 @@ mod tests {
             },
         ];
 
-        let config = serde_json::json!({ "dialect": "postgresql" });
+        let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
         let utils = Utils;
 
         let files = migrate(schema, deltas, config, &utils);
@@ -1511,14 +1513,14 @@ mod tests {
         }];
 
         // Test PostgreSQL file naming
-        let config = serde_json::json!({ "dialect": "postgresql" });
+        let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
         let utils = Utils;
         let files = migrate(schema.clone(), deltas.clone(), config, &utils);
         assert_eq!(files[0].path, "001_migration.up.postgres.sql");
         assert_eq!(files[1].path, "001_migration.down.postgres.sql");
 
         // Test SQLite file naming
-        let config = serde_json::json!({ "dialect": "sqlite" });
+        let config = serde_json::json!({ "dialect": "sqlite", "pluralize_table_names": false });
         let files = migrate(schema, deltas, config, &utils);
         assert_eq!(files[0].path, "001_migration.up.sqlite.sql");
         assert_eq!(files[1].path, "001_migration.down.sqlite.sql");
@@ -1552,7 +1554,7 @@ mod tests {
             },
         }];
 
-        let config = serde_json::json!({ "dialect": "postgresql" });
+        let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
         let utils = Utils;
 
         let files = migrate(schema, deltas, config, &utils);
@@ -1606,7 +1608,7 @@ DROP TABLE \"user\";
             },
         }];
 
-        let config = serde_json::json!({ "dialect": "postgresql" });
+        let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
         let utils = Utils;
 
         let files = migrate(schema, deltas, config, &utils);
@@ -1658,7 +1660,7 @@ DROP TABLE \"user\";
             },
         }];
 
-        let config = serde_json::json!({ "dialect": "postgresql" });
+        let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
         let utils = Utils;
 
         let files = migrate(schema, deltas, config, &utils);
@@ -1712,7 +1714,7 @@ DROP TABLE \"post\";
             },
         }];
 
-        let config = serde_json::json!({ "dialect": "postgresql" });
+        let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
         let utils = Utils;
 
         let files = migrate(schema, deltas, config, &utils);
@@ -1766,7 +1768,7 @@ DROP TABLE \"user\";
             },
         }];
 
-        let config = serde_json::json!({ "dialect": "postgresql" });
+        let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
         let utils = Utils;
 
         let files = migrate(schema, deltas, config, &utils);
@@ -1830,7 +1832,7 @@ DROP TABLE \"document\";
             },
         }];
 
-        let config = serde_json::json!({ "dialect": "postgresql" });
+        let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
         let utils = Utils;
 
         let files = migrate(schema, deltas, config, &utils);
@@ -1912,7 +1914,7 @@ DROP TABLE \"user\";
             }),
         }];
 
-        let config = serde_json::json!({ "dialect": "postgresql" });
+        let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
         let utils = Utils;
 
         let files = migrate(schema, deltas, config, &utils);
@@ -1955,7 +1957,7 @@ DROP TABLE \"user\";
             },
         }];
 
-        let config = serde_json::json!({ "dialect": "sqlite" });
+        let config = serde_json::json!({ "dialect": "sqlite", "pluralize_table_names": false });
         let utils = Utils;
 
         let files = migrate(schema, deltas, config, &utils);
@@ -2001,7 +2003,7 @@ DROP TABLE \"user\";
             },
         }];
 
-        let config = serde_json::json!({ "dialect": "postgresql" });
+        let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
         let utils = Utils;
 
         let files = migrate(schema, deltas, config, &utils);
@@ -2044,7 +2046,7 @@ DROP TABLE \"user\";
             },
         }];
 
-        let config = serde_json::json!({ "dialect": "postgresql" });
+        let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
         let utils = Utils;
 
         let files = migrate(schema, deltas, config, &utils);
@@ -2096,7 +2098,7 @@ DROP TABLE \"user_role\";
             },
         }];
 
-        let config = serde_json::json!({ "dialect": "postgresql" });
+        let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
         let utils = Utils;
 
         let files = migrate(schema, deltas, config, &utils);
@@ -2150,7 +2152,8 @@ DROP TABLE \"product\";
 
         let config = serde_json::json!({
             "dialect": "postgresql",
-            "schema": "public"
+            "schema": "public",
+            "pluralize_table_names": false
         });
         let utils = Utils;
 
@@ -2218,7 +2221,7 @@ DROP TABLE \"public\".\"user\";
             },
         }];
 
-        let config = serde_json::json!({ "dialect": "postgresql" });
+        let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
         let utils = Utils;
 
         let files = migrate(schema, deltas, config, &utils);

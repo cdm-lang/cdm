@@ -11,6 +11,9 @@ GlobalSettings {
   table_name_format: "snake_case" | "preserve" | "camel_case" | "pascal_case" = "snake_case"
   column_name_format: "snake_case" | "preserve" | "camel_case" | "pascal_case" = "snake_case"
 
+  // Automatically pluralize table names (e.g., User -> users)
+  pluralize_table_names: boolean = true
+
   // Default string column length (when no explicit length specified)
   default_string_length: number = 255
 

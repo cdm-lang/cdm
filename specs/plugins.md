@@ -363,6 +363,39 @@ utils.change_case("userProfile", CaseFormat::Kebab)    // "user-profile"
 utils.change_case("user_profile", CaseFormat::Constant) // "USER_PROFILE"
 ```
 
+### pluralize
+
+Convert singular English words to their plural form:
+
+```rust
+utils.pluralize("user")      // "users"
+utils.pluralize("category")  // "categories"
+utils.pluralize("person")    // "people"
+utils.pluralize("child")     // "children"
+utils.pluralize("box")       // "boxes"
+utils.pluralize("leaf")      // "leaves"
+utils.pluralize("sheep")     // "sheep"
+```
+
+**Common Use Cases:**
+
+- Generating table names from model names: `utils.pluralize(utils.change_case(&model.name, CaseFormat::Snake))`
+- Creating collection endpoint names: `/api/${utils.pluralize(model.name.toLowerCase())}`
+- Generating array/list variable names in generated code
+
+**Pluralization Rules:**
+
+The function handles:
+- Regular plurals (adds 's')
+- Sibilants ending in s, x, z, ch, sh (adds 'es')
+- Words ending in consonant + y (changes to 'ies')
+- Words ending in vowel + y (adds 's')
+- Words ending in f or fe (changes to 'ves')
+- Words ending in consonant + o (adds 'es')
+- Irregular plurals (person → people, child → children, man → men, etc.)
+- Unchanging words (sheep, fish, deer, species, series)
+- Case preservation (Person → People)
+
 ## Building Your Plugin
 
 ```bash
