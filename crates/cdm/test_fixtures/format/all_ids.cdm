@@ -1,0 +1,18 @@
+// Test file with all entity IDs already assigned
+
+Email: string #1
+
+Status: "active" | "pending" | "deleted" #2
+
+User {
+  id: string #1
+  email: Email #2
+  name: string #3
+  status: Status #4
+} #10
+
+Post {
+  title: string #1
+  content: string #2
+  author: User #3
+} #11

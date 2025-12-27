@@ -1,0 +1,18 @@
+// Test file with partial entity IDs (mixed)
+
+Email: string #1
+
+Status: "active" | "pending" | "deleted"
+
+User {
+  id: string #1
+  email: Email
+  name: string #3
+  status: Status
+} #10
+
+Post {
+  title: string
+  content: string
+  author: User
+}

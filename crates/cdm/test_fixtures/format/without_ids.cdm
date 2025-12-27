@@ -1,0 +1,18 @@
+// Test file without any entity IDs
+
+Email: string
+
+Status: "active" | "pending" | "deleted"
+
+User {
+  id: string
+  email: Email
+  name: string
+  status: Status
+}
+
+Post {
+  title: string
+  content: string
+  author: User
+}

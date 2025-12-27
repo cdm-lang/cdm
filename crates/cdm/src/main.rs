@@ -48,6 +48,24 @@ enum Commands {
         #[command(subcommand)]
         command: PluginCommands,
     },
+    /// Format CDM files and optionally assign entity IDs
+    Format {
+        /// Files or glob patterns to format
+        #[arg(value_name = "FILES", required = true)]
+        files: Vec<String>,
+
+        /// Auto-assign entity IDs to entities without them
+        #[arg(long)]
+        assign_ids: bool,
+
+        /// Check formatting without writing changes (dry-run)
+        #[arg(long)]
+        check: bool,
+
+        /// Number of spaces for indentation (default: 2)
+        #[arg(long, default_value = "2")]
+        indent: usize,
+    },
 }
 
 #[derive(Subcommand)]
@@ -120,6 +138,106 @@ fn main() -> Result<()> {
                         eprintln!("Failed to create plugin: {}", err);
                         std::process::exit(1);
                     }
+                }
+            }
+        }
+        Commands::Format { files, assign_ids, check, indent } => {
+            // Expand glob patterns
+            let mut paths = Vec::new();
+            for pattern in &files {
+                match glob::glob(pattern) {
+                    Ok(entries) => {
+                        for entry in entries {
+                            match entry {
+                                Ok(path) => paths.push(path),
+                                Err(e) => {
+                                    eprintln!("Error reading path: {}", e);
+                                    std::process::exit(1);
+                                }
+                            }
+                        }
+                    }
+                    Err(e) => {
+                        eprintln!("Invalid glob pattern '{}': {}", pattern, e);
+                        std::process::exit(1);
+                    }
+                }
+            }
+
+            if paths.is_empty() {
+                eprintln!("No files matched the provided patterns");
+                std::process::exit(1);
+            }
+
+            // Create format options
+            let options = cdm::FormatOptions {
+                assign_ids,
+                check,
+                write: !check, // Don't write if --check is set
+                indent_size: indent,
+            };
+
+            // Format files
+            match cdm::format_files(&paths, &options) {
+                Ok(results) => {
+                    let mut total_modified = 0;
+                    let mut total_assignments = 0;
+
+                    for result in &results {
+                        if result.modified {
+                            total_modified += 1;
+
+                            if assign_ids && !result.assignments.is_empty() {
+                                println!("{}:", result.path.display());
+                                for assignment in &result.assignments {
+                                    match assignment.entity_type {
+                                        cdm::EntityType::Field => {
+                                            println!(
+                                                "  {} '{}.{}' -> #{}",
+                                                assignment.entity_type,
+                                                assignment.model_name.as_ref().unwrap(),
+                                                assignment.entity_name,
+                                                assignment.assigned_id
+                                            );
+                                        }
+                                        _ => {
+                                            println!(
+                                                "  {} '{}' -> #{}",
+                                                assignment.entity_type,
+                                                assignment.entity_name,
+                                                assignment.assigned_id
+                                            );
+                                        }
+                                    }
+                                }
+                                total_assignments += result.assignments.len();
+                            }
+                        }
+                    }
+
+                    if check {
+                        if total_modified > 0 {
+                            println!("\n{} file(s) need formatting", total_modified);
+                            std::process::exit(1);
+                        } else {
+                            println!("All files are properly formatted");
+                        }
+                    } else {
+                        if total_modified > 0 {
+                            println!("\nFormatted {} file(s)", total_modified);
+                            if assign_ids {
+                                println!("Assigned {} entity ID(s)", total_assignments);
+                            }
+                        } else {
+                            println!("No changes needed");
+                        }
+                    }
+                }
+                Err(diagnostics) => {
+                    for diagnostic in &diagnostics {
+                        eprintln!("{}", diagnostic);
+                    }
+                    std::process::exit(1);
                 }
             }
         }

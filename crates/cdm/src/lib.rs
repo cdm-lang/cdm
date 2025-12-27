@@ -9,6 +9,7 @@ mod plugin_validation;
 mod build;
 mod migrate;
 mod plugin_new;
+mod format;
 
 pub use diagnostics::{Diagnostic, Severity};
 pub use cdm_utils::{Position, Span};
@@ -22,3 +23,4 @@ pub use plugin_validation::{PluginImport, PluginSource, extract_plugin_imports, 
 pub use build::build;
 pub use migrate::migrate;
 pub use plugin_new::plugin_new;
+pub use format::{format_file, format_files, FormatOptions, FormatResult, IdAssignment, EntityType};
