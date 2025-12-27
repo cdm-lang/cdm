@@ -282,7 +282,7 @@ dependencies = [
 
 [[package]]
 name = "cdm-json-validator"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cdm",
  "cdm-plugin-interface",
@@ -292,7 +292,7 @@ dependencies = [
 
 [[package]]
 name = "cdm-plugin-docs"
-version = "1.0.0"
+version = "0.1.0"
 dependencies = [
  "cdm-plugin-interface",
  "serde",
@@ -309,7 +309,7 @@ dependencies = [
 
 [[package]]
 name = "cdm-plugin-sql"
-version = "1.0.0"
+version = "0.1.0"
 dependencies = [
  "cdm-plugin-interface",
  "serde",
@@ -318,7 +318,7 @@ dependencies = [
 
 [[package]]
 name = "cdm-plugin-typescript"
-version = "1.0.0"
+version = "0.1.0"
 dependencies = [
  "cdm-plugin-interface",
  "serde",

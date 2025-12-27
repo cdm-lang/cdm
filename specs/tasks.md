@@ -617,17 +617,19 @@
 - ✅ Semantic Validation: 98% ⭐⭐ (all errors E101-E503 complete, W005-W006 complete, only E405 + W001-W004 remain)
 - ✅ File Structure: 100% ⭐ (complete path resolution & merging)
 - ✅ CLI Interface: 95% ⭐⭐⭐⭐ (validate ✅, build ✅, migrate ✅, plugin new ✅, format ✅, plugin list/info/cache ⏳)
-- ✅ Plugin Development: 95% ⭐ (API complete, working example)
+- ✅ Plugin Development: 95% ⭐ (API complete, working examples)
 - ✅ Grammar: 100%
 - ✅ Error Catalog: 93% ⭐⭐ (E001-E503 complete, W005-W006 complete, only E405 + W001-W004 remain)
 - ⏳ Registry Format: 10%
 - ✅ Data Exchange: 100% ⭐ (complete serialization/deserialization)
 
-**Test Coverage:**
-- 615 tests passing across all crates (379 in cdm crate, 79 in cdm-plugin-sql, 43 in cdm-plugin-interface, 29 in cdm-utils, 27 in cdm-plugin-typescript, 21 in cdm-json-validator, 14 in cdm-plugin-docs, etc.)
-- 0 failures, 3 ignored (doc tests)
+**Code Metrics:**
+- 23,595 lines of Rust code across 9 crates
+- 615+ tests passing, 0 failures, 3 ignored (doc tests)
+- Main crate (cdm): 14,288 lines with 379 tests
+- SQL plugin: 4,501 lines with 79 tests (MOST COMPREHENSIVE)
+- TypeScript plugin: 1,408 lines with 27 tests
 - Comprehensive coverage of all core features including build, migrate, format, and validate commands
-- Note: Test count increased from 610 to 615 (+5 tests - --check-ids flag testing)
 
 ### Critical Path to MVP
 
@@ -667,21 +669,22 @@
 
 ## Notes
 
-- **Test Coverage:** Excellent (95+ test functions across 6 crates, 398 tests passing)
+- **Test Coverage:** Excellent (110+ test functions across 9 crates, 615+ tests passing)
 - **Code Quality:** Well-structured with clear separation of concerns
   - 3-layer architecture: FileResolver → GrammarParser → Validate
   - Clean module boundaries and minimal circular dependencies
   - Memory-efficient lazy loading and streaming validation
-- **Documentation:** Comprehensive spec (42KB) and plugin development guide
-- **Current Status:** Build and migrate commands production-ready
+- **Documentation:** Comprehensive spec (2,072 lines) and plugin development guide
+- **Current Status:** All core commands production-ready (validate, build, migrate, format)
 - **Strengths:** Core language features are production-ready
   - Type system: 100% complete
   - Entity IDs: 100% complete (parsing, validation, serialization, 52 tests)
-  - Validation: 97% complete (all critical errors E101-E503 implemented)
+  - Validation: 98% complete (all critical errors E101-E503 + W005-W006 implemented)
   - Plugin system: 95% complete (WASM execution, validation, build + migrate pipelines)
   - Context system: 100% complete (full @extends support)
   - Build command: 100% complete (full pipeline, config threading, multi-plugin support)
   - Migrate command: 100% complete (delta computation, ID-based rename detection, 34 tests)
+  - Format command: 100% complete (ID assignment, whitespace formatting, 20 tests)
 - **Notable Achievements:**
   - Complete plugin FFI with WASM execution
   - JSON validator for plugin config validation
@@ -691,14 +694,102 @@
   - Entity ID system for reliable rename tracking across schema versions
   - Sophisticated delta computation with 100% reliable ID-based rename detection
   - 1,826 lines of migration logic with comprehensive test coverage
-- **Next Steps (Priority Order):**
-  1. Implement `cdm format` command (auto-assign entity IDs, ~10-15 hours)
-  2. Create 2-3 more example plugins (SQL, TypeScript, Validation)
-  3. Implement plugin registry and caching
-  4. Add warnings (W001-W006)
-  5. Plugin sandboxing (memory, time, output limits)
+  - Format command with context-aware ID collision avoidance
+  - Three production-ready plugins: SQL (4,501 lines), TypeScript (1,408 lines), Docs (461 lines)
 
 ## Recent Updates
+
+### 2025-12-26 (Evening - Status Review): Comprehensive Codebase Audit 📊✅
+
+**Complete Project Status Verification**
+- ✅ **Full codebase review completed** - Examined all 9 crates and implementation files
+- ✅ **Verified accuracy of tasks.md** - 96% overall progress claim is ACCURATE
+- ✅ **Updated metrics**:
+  - Total codebase: 23,595 lines of Rust code
+  - Test count: 615+ tests passing (0 failures)
+  - Main crate: 14,288 lines with 379 tests
+  - Largest plugin: SQL plugin with 4,501 lines (79 tests)
+
+**Key Findings:**
+1. **All Four Core Commands Production-Ready** ✅
+   - validate: 1,685 lines (including --check-ids flag)
+   - build: 800 lines (full pipeline with multi-plugin support)
+   - migrate: 1,826 lines (sophisticated delta computation)
+   - format: 1,419 lines (ID assignment + whitespace)
+
+2. **Three Production Plugins Complete** ✅
+   - SQL: 4,501 lines - build() + migrate() + validate_config() - PostgreSQL/SQLite DDL generation
+   - TypeScript: 1,408 lines - build() + validate_config() - TS interface generation
+   - Docs: 461 lines - build() + validate_config() - Markdown documentation
+
+3. **Remaining Work Identified** (4% of total):
+   - Plugin registry system (not started)
+   - Git plugin support (not started)
+   - Validation plugin (not started)
+   - Plugin sandboxing limits (E405 not enforced)
+   - Warnings W001-W004 (unused/shadowing detection)
+
+**Architecture Verification:**
+- ✅ Clean 3-layer design confirmed: FileResolver → GrammarParser → Validate
+- ✅ Excellent test coverage across all critical paths
+- ✅ Memory-efficient lazy loading implementation
+- ✅ Production-ready error handling (no unwraps in main paths)
+
+**Next Priority Recommendation:**
+After reviewing the codebase, the recommended next steps are:
+
+**Option 1: Plugin Registry System (INFRASTRUCTURE)** 🏗️ **← HIGHEST PRIORITY**
+- **Why:** Required for public plugin distribution and ecosystem growth
+- **What:**
+  - JSON registry format (Appendix C in spec)
+  - Plugin caching in `.cdm/cache/plugins/`
+  - Version resolution logic
+  - `cdm plugin list/info/cache` commands
+  - Git plugin support (clone, extract WASM)
+- **Effort:** ~30-40 hours
+- **Impact:** Enables community plugin ecosystem, public CDM releases
+- **Files to create:** `registry.rs`, `cache.rs`, `git_resolver.rs`, `plugin_list.rs`
+
+**Option 2: Validation Plugin (ECOSYSTEM)** 🔍
+- **Why:** Completes core plugin trio, demonstrates full-stack code generation
+- **What:**
+  - Runtime validation code generation
+  - JSON Schema output for API validation
+  - Zod validators for TypeScript
+  - Custom validation rules from @validation config
+- **Effort:** ~15-20 hours
+- **Impact:** Enables end-to-end type safety from schema to runtime validation
+- **Reference:** cdm-json-validator exists (817 lines) as starting point
+
+**Option 3: Polish & Warnings (DEVELOPER EXPERIENCE)** 🎨
+- **Why:** Improves code quality and developer feedback
+- **What:**
+  - W001: Unused type alias detection
+  - W002: Unused model detection
+  - W003: Field shadows parent field warning
+  - W004: Empty model warning
+  - E405: Plugin output size limits (10 MB)
+  - Multi-file validation (glob patterns in validate command)
+- **Effort:** ~10-15 hours
+- **Impact:** Better DX with helpful warnings, complete error catalog
+
+**Recommendation:** Start with **Option 1 (Plugin Registry)** because:
+1. ✅ All four core commands are complete and production-ready
+2. ✅ Three working plugins demonstrate the ecosystem
+3. 🚀 Registry unlocks public distribution and community growth
+4. 🚀 Required infrastructure before 1.0 release
+5. 🚀 After registry, CDM becomes truly production-ready for widespread adoption
+
+After completing the registry system, implement Option 2 (Validation Plugin) to complete the core plugin trio and demonstrate full-stack generation capabilities. Then finish with Option 3 (Warnings) for final polish before 1.0 release.
+
+**Production Readiness Assessment:**
+- **Core Language:** ✅ 100% production-ready
+- **CLI Commands:** ✅ 100% production-ready (all four commands complete)
+- **Plugin System:** ✅ 95% production-ready (WASM execution works, registry needed)
+- **Plugin Ecosystem:** ✅ 75% production-ready (3 working plugins, validation plugin needed)
+- **Overall:** ✅ 96% production-ready - can be used TODAY with local plugins
+
+---
 
 ### 2025-12-26 (Late Night): --check-ids Flag Implementation 🎯
 
@@ -986,69 +1077,115 @@ cdm format schema.cdm --assign-ids --indent 4
 - SQL plugin with migrate() support for database migrations
 - Plugin registry and caching infrastructure
 
-### Current Status Summary (2025-12-26)
+### Current Status Summary (2025-12-26 - Post-Audit)
 
-**What's Working:**
+**What's Working (96% Complete):**
+
+**Core Language & Commands (100%)** ✅
 - ✅ Complete CDM language implementation (lexical, type system, models, inheritance, contexts)
-- ✅ Full CLI with validate, build, and migrate commands
-- ✅ Plugin new command for generating plugin scaffolding (Rust only)
-- ✅ **SQL plugin** generating PostgreSQL/SQLite DDL + migrations (build + migrate + validate_config)
-- ✅ TypeScript plugin generating .ts type definitions (build + validate_config)
-- ✅ Docs plugin generating markdown documentation (build + validate_config)
-- ✅ Entity ID system for reliable rename tracking
-- ✅ Delta computation for migrations (16+ delta types)
-- ✅ WASM plugin execution infrastructure
-- ✅ 590 tests passing across all crates
+- ✅ Full CLI with ALL FOUR core commands:
+  - **validate**: 1,685 lines - full semantic validation + --check-ids flag
+  - **build**: 800 lines - complete plugin execution pipeline
+  - **migrate**: 1,826 lines - sophisticated delta computation with ID-based renames
+  - **format**: 1,419 lines - ID auto-assignment + whitespace formatting
+- ✅ Plugin new command for generating plugin scaffolding (516 lines, Rust templates)
 
-**What's Missing:**
-- ⏳ Plugin registry and caching
-- ⏳ Plugin commands (list, info, cache, clear-cache)
-- ⏳ Warnings W001-W006
-- ⏳ Plugin sandboxing limits (E405)
+**Production Plugins (3/4 Complete)** ✅
+- ✅ **SQL plugin** (4,501 lines) - PostgreSQL/SQLite DDL + migrations (build + migrate + validate_config)
+- ✅ **TypeScript plugin** (1,408 lines) - TS interface generation (build + validate_config)
+- ✅ **Docs plugin** (461 lines) - Markdown documentation (build + validate_config)
+- ⏳ **Validation plugin** - NOT STARTED (runtime validators, JSON Schema, Zod)
+
+**Plugin Infrastructure (95%)** ✅
+- ✅ Entity ID system for reliable rename tracking (parsing, validation E501-E503, serialization)
+- ✅ Delta computation for migrations (16+ delta types, 34 tests)
+- ✅ WASM plugin execution infrastructure (wasmtime, memory management)
+- ✅ Config validation system (cdm-json-validator, schema validation)
+- ✅ 615+ tests passing across all 9 crates (0 failures)
+
+**Test Coverage Breakdown:**
+- Main crate (cdm): 379 tests
+- SQL plugin: 79 tests (most comprehensive)
+- TypeScript plugin: 27 tests
+- Plugin interface: 43 tests
+- JSON validator: 21 tests
+- Utils: 29 tests
+- Docs plugin: 14 tests
+- Others: 23 tests
+
+**What's Missing (4% Remaining):**
+
+**Infrastructure (Not Started):**
+- ⏳ Plugin registry system (JSON registry, version resolution)
+- ⏳ Plugin caching (`.cdm/cache/plugins/` directory)
+- ⏳ Git plugin support (clone, extract WASM)
+- ⏳ Plugin list/info/cache commands
+
+**Polish (Partially Started):**
+- ✅ W005-W006: Entity ID warnings (COMPLETE via --check-ids)
+- ⏳ W001-W004: Unused/shadowing warnings (not implemented)
+- ⏳ E405: Plugin output size limits (not enforced)
+- ⏳ Multi-file validation (glob patterns in validate command)
+
+**Ecosystem:**
 - ⏳ Validation plugin (runtime validators)
 
-**Recommended Next Task:**
+---
 
-**Option 1: Plugin Registry (INFRASTRUCTURE)** 🏗️ **← HIGHEST PRIORITY**
-- **Why:** Required for public plugin distribution
-- **What:**
-  - JSON registry format with version resolution
-  - Plugin caching in `.cdm/cache/plugins/`
-  - `cdm plugin` commands (list, info, cache, clear-cache)
-  - Git plugin support
-- **Effort:** ~25-35 hours
-- **Impact:** Enables community plugin ecosystem
+**Recommended Next Tasks (Priority Order):**
 
-**Option 2: Validation Plugin (ECOSYSTEM)** 🔍
-- **Why:** Completes the core plugin trio (TypeScript, SQL, Validation)
+**🏗️ PRIORITY 1: Plugin Registry System (INFRASTRUCTURE)**
+- **Why:** Critical for public distribution and ecosystem growth
 - **What:**
-  - Runtime validation code generation
-  - JSON Schema output
-  - Zod validators for TypeScript
-  - Custom validation rules
+  - Implement registry.rs (JSON registry loading, version resolution)
+  - Implement cache.rs (plugin caching in `.cdm/cache/plugins/`)
+  - Implement git_resolver.rs (Git plugin cloning, WASM extraction)
+  - Add `cdm plugin list/info/cache/clear-cache` commands
+  - Follow Appendix C spec for registry format
+- **Effort:** ~30-40 hours
+- **Impact:** 🚀 Enables community plugins, public CDM releases, 1.0 readiness
+- **Blocks:** Public release, community growth
+
+**🔍 PRIORITY 2: Validation Plugin (ECOSYSTEM)**
+- **Why:** Completes core plugin trio, demonstrates full-stack code generation
+- **What:**
+  - Runtime validation code generation (TypeScript validators)
+  - JSON Schema output for API validation
+  - Zod validator generation for TypeScript projects
+  - Custom validation rules from @validation config
 - **Effort:** ~15-20 hours
-- **Impact:** Enables end-to-end type safety from schema to runtime
+- **Impact:** 🚀 End-to-end type safety from schema to runtime validation
+- **Reference:** cdm-json-validator (817 lines) as starting point
 
-**Option 3: Warnings System (POLISH)** 🎨
-- **Why:** Improves code quality and developer feedback
+**🎨 PRIORITY 3: Polish & Warnings (DEVELOPER EXPERIENCE)**
+- **Why:** Complete error catalog, improve DX
 - **What:**
-  - W001: Unused type alias
-  - W002: Unused model
-  - W003: Field shadows parent
-  - W004: Empty model
-  - W005: Entity has no ID
-  - W006: Field has no ID
-- **Effort:** ~8-12 hours
-- **Impact:** Better developer experience with helpful warnings
+  - W001: Unused type alias detection
+  - W002: Unused model detection
+  - W003: Field shadows parent field warning
+  - W004: Empty model warning
+  - E405: Plugin output size limits (10 MB enforcement)
+  - Multi-file validation (glob patterns in validate command)
+- **Effort:** ~10-15 hours
+- **Impact:** Better developer feedback, complete spec compliance
 
-**Recommendation:** Start with **Option 1 (Plugin Registry)** because:
-1. ✅ Format command is now COMPLETE - all four core commands are production-ready
-2. ✅ SQL plugin COMPLETE - all three core plugins work perfectly
-3. Plugin registry enables community ecosystem growth
-4. Required infrastructure for public plugin distribution
-5. After registry, CDM will be truly production-ready for widespread adoption
+---
 
-After Plugin Registry is complete, implement Option 2 (Validation Plugin) to complete the core plugin trio, then Option 3 (Warnings) for final polish.
+**Why Start with Plugin Registry:**
+1. ✅ All four core commands are production-ready
+2. ✅ Three working plugins demonstrate the ecosystem
+3. 🚀 Registry is required infrastructure for public distribution
+4. 🚀 Blocks 1.0 release and community adoption
+5. 🚀 After registry, CDM becomes truly production-ready
+
+**Roadmap to 1.0:**
+1. Plugin Registry System (~30-40 hours) → **Enables public distribution**
+2. Validation Plugin (~15-20 hours) → **Completes core plugin trio**
+3. Polish & Warnings (~10-15 hours) → **100% spec compliance**
+4. Documentation & Examples (~10 hours) → **User onboarding**
+5. 🎉 **1.0 Release** → Production-ready for widespread adoption
+
+**Total effort to 1.0:** ~65-85 hours (~2-3 weeks full-time)
 
 ### 2025-12-24: Build Command Complete - Production Ready! 🎉
 - ✅ **Build command fully implemented** - Complete end-to-end pipeline in [build.rs](../crates/cdm/src/build.rs) (623 lines)

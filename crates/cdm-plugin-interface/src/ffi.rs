@@ -15,7 +15,7 @@ unsafe fn read_bytes(ptr: *const u8, len: usize) -> Vec<u8> {
     if ptr.is_null() || len == 0 {
         return Vec::new();
     }
-    slice::from_raw_parts(ptr, len).to_vec()
+    unsafe { slice::from_raw_parts(ptr, len).to_vec() }
 }
 
 /// Allocate memory and write bytes, returning a pointer with length prefix
@@ -67,8 +67,8 @@ where
     F: Fn(ConfigLevel, JSON, &Utils) -> Vec<ValidationError>,
 {
     // Read inputs from WASM memory
-    let level_bytes = read_bytes(level_ptr, level_len);
-    let config_bytes = read_bytes(config_ptr, config_len);
+    let level_bytes = unsafe { read_bytes(level_ptr, level_len) };
+    let config_bytes = unsafe { read_bytes(config_ptr, config_len) };
 
     // Deserialize inputs
     let level: ConfigLevel = match serde_json::from_slice(&level_bytes) {
@@ -119,8 +119,8 @@ where
     F: Fn(Schema, JSON, &Utils) -> Vec<OutputFile>,
 {
     // Read inputs from WASM memory
-    let schema_bytes = read_bytes(schema_ptr, schema_len);
-    let config_bytes = read_bytes(config_ptr, config_len);
+    let schema_bytes = unsafe { read_bytes(schema_ptr, schema_len) };
+    let config_bytes = unsafe { read_bytes(config_ptr, config_len) };
 
     // Deserialize inputs
     let schema: Schema = match serde_json::from_slice(&schema_bytes) {
@@ -173,9 +173,9 @@ where
     F: Fn(Schema, Vec<Delta>, JSON, &Utils) -> Vec<OutputFile>,
 {
     // Read inputs from WASM memory
-    let schema_bytes = read_bytes(schema_ptr, schema_len);
-    let deltas_bytes = read_bytes(deltas_ptr, deltas_len);
-    let config_bytes = read_bytes(config_ptr, config_len);
+    let schema_bytes = unsafe { read_bytes(schema_ptr, schema_len) };
+    let deltas_bytes = unsafe { read_bytes(deltas_ptr, deltas_len) };
+    let config_bytes = unsafe { read_bytes(config_ptr, config_len) };
 
     // Deserialize inputs
     let schema: Schema = match serde_json::from_slice(&schema_bytes) {
@@ -222,7 +222,7 @@ where
 /// Standard WASM memory allocation function
 ///
 /// This should be exported as `_alloc` by all plugins.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub extern "C" fn _alloc(size: usize) -> *mut u8 {
     let mut buf = Vec::with_capacity(size);
     let ptr = buf.as_mut_ptr();
@@ -236,10 +236,10 @@ pub extern "C" fn _alloc(size: usize) -> *mut u8 {
 ///
 /// # Safety
 /// This function is unsafe because it deallocates raw pointers.
-#[no_mangle]
+#[unsafe(no_mangle)]
 pub unsafe extern "C" fn _dealloc(ptr: *mut u8, size: usize) {
     if !ptr.is_null() && size > 0 {
-        let _ = Vec::from_raw_parts(ptr, 0, size);
+        let _ = unsafe { Vec::from_raw_parts(ptr, 0, size) };
     }
 }
 
@@ -247,7 +247,7 @@ pub unsafe extern "C" fn _dealloc(ptr: *mut u8, size: usize) {
 #[macro_export]
 macro_rules! export_schema {
     ($func:expr) => {
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub extern "C" fn _schema() -> *mut u8 {
             $crate::ffi::ffi_schema($func)
         }
@@ -258,7 +258,7 @@ macro_rules! export_schema {
 #[macro_export]
 macro_rules! export_validate_config {
     ($func:expr) => {
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub extern "C" fn _validate_config(
             level_ptr: *const u8,
             level_len: usize,
@@ -282,7 +282,7 @@ macro_rules! export_validate_config {
 #[macro_export]
 macro_rules! export_build {
     ($func:expr) => {
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub extern "C" fn _build(
             schema_ptr: *const u8,
             schema_len: usize,
@@ -306,7 +306,7 @@ macro_rules! export_build {
 #[macro_export]
 macro_rules! export_migrate {
     ($func:expr) => {
-        #[no_mangle]
+        #[unsafe(no_mangle)]
         pub extern "C" fn _migrate(
             schema_ptr: *const u8,
             schema_len: usize,
