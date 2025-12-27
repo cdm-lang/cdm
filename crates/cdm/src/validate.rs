@@ -775,6 +775,7 @@ fn validate_entity_ids(
 }
 
 /// Warn about entities without IDs (for --check-ids flag)
+#[allow(dead_code)]
 fn warn_missing_ids(
     symbol_table: &SymbolTable,
     model_fields: &HashMap<String, Vec<FieldInfo>>,

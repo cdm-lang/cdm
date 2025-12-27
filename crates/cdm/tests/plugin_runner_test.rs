@@ -2,11 +2,47 @@ use cdm::PluginRunner;
 use cdm_plugin_interface::{ConfigLevel, FieldDefinition, ModelDefinition, Schema, TypeExpression};
 use serde_json::json;
 use std::collections::HashMap;
+use std::path::PathBuf;
+use std::process::Command;
 
 const WASM_PATH: &str = "../../target/wasm32-wasip1/release/cdm_plugin_docs.wasm";
 
+/// Ensures the docs plugin WASM is built before running tests
+fn ensure_docs_plugin_built() {
+    let wasm_path = PathBuf::from(WASM_PATH);
+
+    if !wasm_path.exists() {
+        // Determine the project root (2 levels up from the test binary location)
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let project_root = manifest_dir.parent().unwrap();
+
+        let build_result = Command::new("cargo")
+            .current_dir(project_root)
+            .args(&[
+                "build",
+                "--release",
+                "--target", "wasm32-wasip1",
+                "-p", "cdm-plugin-docs"
+            ])
+            .status();
+
+        match build_result {
+            Ok(status) if status.success() => {
+                // Build succeeded
+            }
+            Ok(status) => {
+                panic!("Failed to build docs plugin WASM: exit code {:?}", status.code());
+            }
+            Err(e) => {
+                panic!("Failed to execute cargo build for docs plugin: {}. Make sure 'wasm32-wasip1' target is installed with: rustup target add wasm32-wasip1", e);
+            }
+        }
+    }
+}
+
 #[test]
 fn test_load_docs_plugin() {
+    ensure_docs_plugin_built();
     let wasm_path = "../../target/wasm32-wasip1/release/cdm_plugin_docs.wasm";
     let result = PluginRunner::new(wasm_path);
     assert!(
@@ -18,6 +54,7 @@ fn test_load_docs_plugin() {
 
 #[test]
 fn test_get_schema() {
+    ensure_docs_plugin_built();
     let wasm_path = WASM_PATH;
     let mut runner = PluginRunner::new(wasm_path).expect("Failed to load plugin");
 
@@ -48,6 +85,7 @@ fn test_get_schema() {
 
 #[test]
 fn test_validate_global_config_valid() {
+    ensure_docs_plugin_built();
     let wasm_path = WASM_PATH;
     let mut runner = PluginRunner::new(wasm_path).expect("Failed to load plugin");
 
@@ -71,6 +109,7 @@ fn test_validate_global_config_valid() {
 
 #[test]
 fn test_validate_global_config_invalid_format() {
+    ensure_docs_plugin_built();
     let wasm_path = WASM_PATH;
     let mut runner = PluginRunner::new(wasm_path).expect("Failed to load plugin");
 
@@ -95,6 +134,7 @@ fn test_validate_global_config_invalid_format() {
 
 #[test]
 fn test_generate_markdown() {
+    ensure_docs_plugin_built();
     let wasm_path = WASM_PATH;
     let mut runner = PluginRunner::new(wasm_path).expect("Failed to load plugin");
 
@@ -143,6 +183,7 @@ fn test_generate_markdown() {
 
 #[test]
 fn test_generate_html() {
+    ensure_docs_plugin_built();
     let wasm_path = WASM_PATH;
     let mut runner = PluginRunner::new(wasm_path).expect("Failed to load plugin");
 
@@ -199,6 +240,7 @@ fn test_generate_html() {
 
 #[test]
 fn test_validate_model_config() {
+    ensure_docs_plugin_built();
     let wasm_path = WASM_PATH;
     let mut runner = PluginRunner::new(wasm_path).expect("Failed to load plugin");
 
@@ -226,6 +268,7 @@ fn test_validate_model_config() {
 
 #[test]
 fn test_validate_field_config() {
+    ensure_docs_plugin_built();
     let wasm_path = WASM_PATH;
     let mut runner = PluginRunner::new(wasm_path).expect("Failed to load plugin");
 
@@ -254,6 +297,7 @@ fn test_validate_field_config() {
 
 #[test]
 fn test_validate_config_is_optional() {
+    ensure_docs_plugin_built();
     // This test verifies that if a plugin doesn't have validate_config,
     // the validate() method returns an empty error array instead of failing.
     // Since cdm-plugin-docs DOES have validate_config, this test

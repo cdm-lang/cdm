@@ -60,9 +60,8 @@ pub struct PluginCache {
     plugins: HashMap<String, CachedPlugin>,
 }
 
-struct CachedPlugin {
+pub(crate) struct CachedPlugin {
     runner: PluginRunner,
-    schema_cdm: String,
     resolved_schema: Option<ResolvedSchema>,  // Parsed schema for Level 1 validation
 }
 
@@ -75,7 +74,7 @@ impl PluginCache {
 
     /// Load plugin and cache, or return cached version.
     /// Returns None and adds E401 diagnostic if plugin can't be loaded.
-    pub fn load_plugin(
+    pub(crate) fn load_plugin(
         &mut self,
         import: &PluginImport,
         diagnostics: &mut Vec<Diagnostic>,
@@ -147,7 +146,6 @@ impl PluginCache {
         // Cache and return
         let cached = CachedPlugin {
             runner,
-            schema_cdm,
             resolved_schema,
         };
         self.plugins.insert(import.name.clone(), cached);

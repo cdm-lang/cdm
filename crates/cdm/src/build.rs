@@ -755,7 +755,7 @@ mod tests {
         use crate::plugin_validation::extract_plugin_imports;
 
         let parsed_tree = result.tree.as_ref().expect("Tree should exist");
-        let plugin_imports = extract_plugin_imports(parsed_tree.root_node(), source, Path::new("test.cdm"));
+        let _plugin_imports = extract_plugin_imports(parsed_tree.root_node(), source, Path::new("test.cdm"));
 
         // Build schema for typescript plugin specifically
         let plugin_schema = build_cdm_schema_for_plugin(&result, &[], "typescript")

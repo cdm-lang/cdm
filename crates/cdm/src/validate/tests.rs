@@ -4370,7 +4370,7 @@ fn test_entity_id_extraction_field() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (symbol_table, model_fields) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (_symbol_table, model_fields) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     assert!(diagnostics.is_empty());
     let fields = model_fields.get("User").expect("User fields should exist");

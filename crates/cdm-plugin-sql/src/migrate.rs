@@ -70,7 +70,7 @@ pub fn migrate(
                 down_content.push('\n');
             }
 
-            Delta::ModelRenamed { old_name, new_name, id, before, after } => {
+            Delta::ModelRenamed { old_name, new_name, id: _, before, after } => {
                 // UP: RENAME TABLE
                 let old_table_name = get_table_name(old_name, &before.config, &config);
                 let new_table_name = get_table_name(new_name, &after.config, &config);
@@ -171,7 +171,7 @@ pub fn migrate(
                 ));
             }
 
-            Delta::FieldRenamed { model, old_name, new_name, id, before, after } => {
+            Delta::FieldRenamed { model, old_name, new_name, id: _, before, after } => {
                 // UP: RENAME COLUMN
                 let table_name = get_table_name(model, &after.config, &config);
                 let old_column_name = get_column_name(old_name, &before.config, &config);
@@ -271,7 +271,7 @@ pub fn migrate(
                 }
             }
 
-            Delta::FieldOptionalityChanged { model, field, before, after } => {
+            Delta::FieldOptionalityChanged { model, field, before: _, after } => {
                 // UP: SET/DROP NOT NULL
                 let model_def = current_schema.models.get(model).unwrap();
                 let table_name = get_table_name(model, &model_def.config, &config);
@@ -405,23 +405,23 @@ pub fn migrate(
                 }
             }
 
-            Delta::TypeAliasAdded { name, after } => {
+            Delta::TypeAliasAdded { name, after: _ } => {
                 // Type aliases don't generate SQL migrations
                 up_content.push_str(&format!("-- Type alias added: {}\n\n", name));
                 down_content.push_str(&format!("-- Type alias removed: {}\n\n", name));
             }
 
-            Delta::TypeAliasRemoved { name, before } => {
+            Delta::TypeAliasRemoved { name, before: _ } => {
                 up_content.push_str(&format!("-- Type alias removed: {}\n\n", name));
                 down_content.push_str(&format!("-- Type alias added: {}\n\n", name));
             }
 
-            Delta::TypeAliasRenamed { old_name, new_name, id, before, after } => {
+            Delta::TypeAliasRenamed { old_name, new_name, id: _, before: _, after: _ } => {
                 up_content.push_str(&format!("-- Type alias renamed: {} -> {}\n\n", old_name, new_name));
                 down_content.push_str(&format!("-- Type alias renamed: {} -> {}\n\n", new_name, old_name));
             }
 
-            Delta::TypeAliasTypeChanged { name, before, after } => {
+            Delta::TypeAliasTypeChanged { name, before: _, after: _ } => {
                 up_content.push_str(&format!("-- Type alias changed: {}\n\n", name));
                 down_content.push_str(&format!("-- Type alias changed: {}\n\n", name));
             }
@@ -438,17 +438,17 @@ pub fn migrate(
                 down_content.push_str(&format!("-- Inheritance added: {} extends {}\n\n", model, parent));
             }
 
-            Delta::GlobalConfigChanged { before, after } => {
+            Delta::GlobalConfigChanged { before: _, after: _ } => {
                 up_content.push_str("-- Global config changed\n\n");
                 down_content.push_str("-- Global config changed\n\n");
             }
 
-            Delta::ModelConfigChanged { model, before, after } => {
+            Delta::ModelConfigChanged { model, before: _, after: _ } => {
                 up_content.push_str(&format!("-- Model config changed: {}\n\n", model));
                 down_content.push_str(&format!("-- Model config changed: {}\n\n", model));
             }
 
-            Delta::FieldConfigChanged { model, field, before, after } => {
+            Delta::FieldConfigChanged { model, field, before: _, after: _ } => {
                 up_content.push_str(&format!("-- Field config changed: {}.{}\n\n", model, field));
                 down_content.push_str(&format!("-- Field config changed: {}.{}\n\n", model, field));
             }

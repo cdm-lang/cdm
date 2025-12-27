@@ -1,5 +1,6 @@
 use std::path::PathBuf;
 use std::fs;
+use std::process::Command;
 
 #[test]
 fn test_build_with_valid_schema() {
@@ -48,12 +49,38 @@ fn test_build_with_typescript_plugin_configs() {
 
     let schema_file = temp_dir.join("test.cdm");
 
-    // Copy the typescript plugin WASM to a local path
+    // Build the typescript plugin WASM if it doesn't exist
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
     let plugin_source = manifest_dir
         .parent().unwrap()
         .parent().unwrap()
         .join("target/wasm32-wasip1/release/cdm_plugin_typescript.wasm");
+
+    // Build the plugin if it doesn't exist
+    if !plugin_source.exists() {
+        let project_root = manifest_dir.parent().unwrap().parent().unwrap();
+        let build_result = Command::new("cargo")
+            .current_dir(project_root)
+            .args(&[
+                "build",
+                "--release",
+                "--target", "wasm32-wasip1",
+                "-p", "cdm-plugin-typescript"
+            ])
+            .status();
+
+        match build_result {
+            Ok(status) if status.success() => {
+                // Build succeeded
+            }
+            Ok(status) => {
+                panic!("Failed to build TypeScript plugin WASM: exit code {:?}", status.code());
+            }
+            Err(e) => {
+                panic!("Failed to execute cargo build for TypeScript plugin: {}. Make sure 'wasm32-wasip1' target is installed with: rustup target add wasm32-wasip1", e);
+            }
+        }
+    }
 
     let plugin_dest = temp_dir.join("typescript.wasm");
     fs::copy(&plugin_source, &plugin_dest).unwrap();
