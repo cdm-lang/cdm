@@ -16,7 +16,8 @@ use crate::plugin_validation::validate_plugins;
 use cdm_utils::{Position, Span};
 
 #[cfg(test)]
-mod tests;
+#[path = "validate/validate_tests.rs"]
+mod validate_tests;
 
 #[derive(Debug)]
 pub struct ValidationResult {
