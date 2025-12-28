@@ -90,6 +90,7 @@ jobs:
           echo "Release notes created"
 
       - name: Create GitHub Release
+        id: create_release
         uses: softprops/action-gh-release@v1
         with:
           tag_name: ${{ steps.tag_info.outputs.tag }}
@@ -102,3 +103,75 @@ jobs:
           prerelease: false
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update registry.json
+        id: update_registry
+        run: |
+          # Read plugin metadata
+          PLUGIN_JSON="crates/${{ steps.tag_info.outputs.plugin_name }}/cdm-plugin.json"
+          PLUGIN_SHORTNAME=$(jq -r '.name' "$PLUGIN_JSON")
+          DESCRIPTION=$(jq -r '.description' "$PLUGIN_JSON")
+          CHECKSUM=$(cat crates/${{ steps.tag_info.outputs.plugin_name }}/target/wasm32-wasip1/release/${{ steps.tag_info.outputs.crate_name }}.wasm.sha256)
+
+          # Extract version without 'v' prefix
+          VERSION="${{ steps.tag_info.outputs.version }}"
+          VERSION="${VERSION#v}"
+
+          # Construct WASM URL
+          WASM_URL="https://github.com/${{ github.repository }}/releases/download/${{ steps.tag_info.outputs.tag }}/${{ steps.tag_info.outputs.crate_name }}.wasm"
+
+          echo "Updating registry for plugin: $PLUGIN_SHORTNAME"
+          echo "Version: $VERSION"
+          echo "URL: $WASM_URL"
+          echo "Checksum: $CHECKSUM"
+
+          # Update registry.json using jq
+          jq --arg name "$PLUGIN_SHORTNAME" \
+             --arg version "$VERSION" \
+             --arg desc "$DESCRIPTION" \
+             --arg url "$WASM_URL" \
+             --arg checksum "sha256:$CHECKSUM" \
+             --arg repo "git:https://github.com/${{ github.repository }}.git" \
+             --arg updated "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+             '
+             .updated_at = $updated |
+             .plugins[$name] = {
+               description: $desc,
+               repository: $repo,
+               official: true,
+               versions: ((.plugins[$name].versions // {}) + {
+                 ($version): {
+                   wasm_url: $url,
+                   checksum: $checksum
+                 }
+               }),
+               latest: $version
+             }
+             ' registry.json > registry.json.tmp
+
+          mv registry.json.tmp registry.json
+
+          echo "Registry updated successfully"
+
+      - name: Create Pull Request for registry update
+        uses: peter-evans/create-pull-request@v6
+        with:
+          token: ${{ secrets.GITHUB_TOKEN }}
+          commit-message: "Update registry: ${{ steps.tag_info.outputs.plugin_name }} ${{ steps.tag_info.outputs.version }}"
+          branch: registry-update-${{ steps.tag_info.outputs.tag }}
+          delete-branch: true
+          title: "Update registry: ${{ steps.tag_info.outputs.plugin_name }} ${{ steps.tag_info.outputs.version }}"
+          body: |
+            This PR automatically updates the plugin registry for the release of **${{ steps.tag_info.outputs.plugin_name }} ${{ steps.tag_info.outputs.version }}**.
+
+            ## Changes
+            - Updated registry.json with new version information
+            - WASM URL: `https://github.com/${{ github.repository }}/releases/download/${{ steps.tag_info.outputs.tag }}/${{ steps.tag_info.outputs.crate_name }}.wasm`
+            - Checksum: `sha256:$(cat crates/${{ steps.tag_info.outputs.plugin_name }}/target/wasm32-wasip1/release/${{ steps.tag_info.outputs.crate_name }}.wasm.sha256)`
+
+            This PR was automatically created by the plugin release workflow.
+
+            Related release: [${{ steps.tag_info.outputs.tag }}](${{ steps.create_release.outputs.url }})
+          labels: |
+            automated
+            registry

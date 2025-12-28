@@ -53,6 +53,10 @@ When you push a tag matching the pattern `cdm-plugin-*-v*.*.*`, the GitHub Actio
    - Release notes with installation instructions
    - The compiled `.wasm` file
    - The `.wasm.sha256` checksum file
+5. Update `registry.json` with the new version information
+6. Create a Pull Request with the registry update
+
+**Note:** After the workflow completes, you'll need to review and merge the automatically created PR to update the registry.
 
 ## Tag Naming Convention
 
