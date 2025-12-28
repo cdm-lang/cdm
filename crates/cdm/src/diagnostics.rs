@@ -50,3 +50,7 @@ pub const E503_REUSED_ID: &str = "E503";
 // Entity ID warning codes
 pub const W005_MISSING_ENTITY_ID: &str = "W005";
 pub const W006_MISSING_FIELD_ID: &str = "W006";
+
+#[cfg(test)]
+#[path = "diagnostics/diagnostics_tests.rs"]
+mod diagnostics_tests;
