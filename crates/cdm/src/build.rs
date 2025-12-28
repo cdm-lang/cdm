@@ -1,6 +1,6 @@
 use crate::{FileResolver, PluginRunner, ValidationResult};
 use crate::resolved_schema::build_resolved_schema;
-use crate::plugin_validation::{extract_plugin_imports, PluginImport, PluginSource};
+use crate::plugin_validation::{extract_plugin_imports, PluginImport};
 use anyhow::{Result, Context};
 use cdm_plugin_interface::{OutputFile, Schema};
 use std::path::{Path, PathBuf};
@@ -229,47 +229,9 @@ fn convert_type_expression(parsed_type: &crate::ParsedType) -> cdm_plugin_interf
 
 /// Load a plugin from its import specification
 fn load_plugin(import: &PluginImport) -> Result<PluginRunner> {
-    let wasm_path = resolve_plugin_path(import)?;
+    let wasm_path = crate::plugin_resolver::resolve_plugin_path(import)?;
     PluginRunner::new(&wasm_path)
         .with_context(|| format!("Failed to load plugin '{}'", import.name))
-}
-
-fn resolve_plugin_path(import: &PluginImport) -> Result<PathBuf> {
-    match &import.source {
-        Some(PluginSource::Path { path }) => {
-            let source_dir = import.source_file.parent()
-                .context("Failed to get source file directory")?;
-            let mut wasm_path = source_dir.join(path);
-
-            if !wasm_path.extension().map_or(false, |e| e == "wasm") {
-                wasm_path.set_extension("wasm");
-            }
-
-            if wasm_path.exists() {
-                Ok(wasm_path)
-            } else {
-                anyhow::bail!("Plugin WASM file not found: {}", wasm_path.display())
-            }
-        }
-        Some(PluginSource::Git { url }) => {
-            anyhow::bail!("Git plugin sources not yet supported: {}", url)
-        }
-        None => {
-            // Check default location: ./plugins/{name}.wasm
-            let local = PathBuf::from("./plugins")
-                .join(&import.name)
-                .with_extension("wasm");
-
-            if local.exists() {
-                Ok(local)
-            } else {
-                anyhow::bail!(
-                    "Plugin '{}' not found. Specify 'from' or place in ./plugins/",
-                    import.name
-                )
-            }
-        }
-    }
 }
 
 /// Write output files to disk
@@ -297,7 +259,7 @@ fn write_output_files(files: &[OutputFile]) -> Result<()> {
 mod tests {
     use super::*;
     use cdm_plugin_interface::TypeExpression;
-    use crate::{ParsedType, PrimitiveType};
+    use crate::{ParsedType, PrimitiveType, PluginImport, PluginSource};
     use std::fs;
     use std::path::PathBuf;
 
@@ -528,7 +490,7 @@ mod tests {
             span: test_span(),
         };
 
-        let result = resolve_plugin_path(&import);
+        let result = crate::plugin_resolver::resolve_plugin_path(&import);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), plugin_file);
     }
@@ -549,7 +511,7 @@ mod tests {
             span: test_span(),
         };
 
-        let result = resolve_plugin_path(&import);
+        let result = crate::plugin_resolver::resolve_plugin_path(&import);
         assert!(result.is_ok());
         assert_eq!(result.unwrap(), plugin_file);
     }
@@ -569,29 +531,80 @@ mod tests {
             span: test_span(),
         };
 
-        let result = resolve_plugin_path(&import);
+        let result = crate::plugin_resolver::resolve_plugin_path(&import);
         assert!(result.is_err());
         assert!(result.unwrap_err().to_string().contains("not found"));
     }
 
     #[test]
-    fn test_resolve_plugin_path_git_not_supported() {
-        let fixtures = fixtures_path();
-        let source_file = fixtures.join("schema.cdm");
+    #[serial_test::serial]
+    fn test_resolve_plugin_path_registry_plugin() {
+        // This test verifies that a plugin can be resolved from the registry
+        // It uses the real typescript plugin from the registry
+        let source_file = PathBuf::from("test.cdm");
 
         let import = PluginImport {
-            name: "test-plugin".to_string(),
-            source: Some(PluginSource::Git {
-                url: "https://github.com/user/repo".to_string(),
-            }),
+            name: "typescript".to_string(),
+            source: None, // No source = try local, then registry
+            global_config: Some(serde_json::json!({
+                "version": "0.1.0"
+            })),
             source_file: source_file.clone(),
-            global_config: None,
             span: test_span(),
         };
 
-        let result = resolve_plugin_path(&import);
-        assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("not yet supported"));
+        let result = crate::plugin_resolver::resolve_plugin_path(&import);
+
+        // Should succeed - will download from registry if not cached
+        assert!(
+            result.is_ok(),
+            "Registry plugin resolution should succeed: {:?}",
+            result.err()
+        );
+
+        let wasm_path = result.unwrap();
+        assert!(
+            wasm_path.exists(),
+            "Resolved WASM file should exist: {}",
+            wasm_path.display()
+        );
+
+        // Verify it's in the cache directory
+        assert!(
+            wasm_path.to_string_lossy().contains(".cdm/cache/plugins/typescript"),
+            "Plugin should be cached in .cdm/cache/plugins/typescript"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_resolve_plugin_path_registry_plugin_cached() {
+        // This test verifies that cached plugins are reused
+        // First resolution will download (if needed), second should use cache
+        let source_file = PathBuf::from("test.cdm");
+
+        let import = PluginImport {
+            name: "typescript".to_string(),
+            source: None,
+            global_config: Some(serde_json::json!({
+                "version": "0.1.0"
+            })),
+            source_file: source_file.clone(),
+            span: test_span(),
+        };
+
+        // First resolution
+        let result1 = crate::plugin_resolver::resolve_plugin_path(&import);
+        assert!(result1.is_ok(), "First resolution should succeed");
+        let path1 = result1.unwrap();
+
+        // Second resolution should return the same cached path
+        let result2 = crate::plugin_resolver::resolve_plugin_path(&import);
+        assert!(result2.is_ok(), "Second resolution should succeed");
+        let path2 = result2.unwrap();
+
+        assert_eq!(path1, path2, "Cached plugin should return same path");
+        assert!(path1.exists(), "Cached plugin file should exist");
     }
 
     #[test]
@@ -600,16 +613,16 @@ mod tests {
         let source_file = fixtures.join("schema.cdm");
 
         let import = PluginImport {
-            name: "nonexistent".to_string(),
+            name: "nonexistent-plugin-12345".to_string(),
             source: None,
-            source_file: source_file.clone(),
             global_config: None,
+            source_file: source_file.clone(),
             span: test_span(),
         };
 
-        let result = resolve_plugin_path(&import);
+        let result = crate::plugin_resolver::resolve_plugin_path(&import);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("not found"));
+        // Should fail because plugin doesn't exist locally or in registry
     }
 
     #[test]

@@ -4820,3 +4820,85 @@ fn test_warn_missing_ids_none_when_all_have_ids() {
     // Should have no warnings since everything has IDs
     assert_eq!(diagnostics.len(), 0);
 }
+
+#[test]
+#[serial_test::serial]
+fn test_plugin_resolution_from_registry() {
+    // This test verifies that validation can resolve plugins from the registry
+    // The plugin_validation module delegates to the shared plugin_resolver
+    use crate::plugin_validation::PluginImport;
+    use std::path::PathBuf;
+
+    let source_file = PathBuf::from("test.cdm");
+
+    let import = PluginImport {
+        name: "typescript".to_string(),
+        source: None, // No source = try local, then registry
+        global_config: Some(serde_json::json!({
+            "version": "0.1.0"
+        })),
+        source_file: source_file.clone(),
+        span: cdm_utils::Span {
+            start: cdm_utils::Position { line: 0, column: 0 },
+            end: cdm_utils::Position { line: 0, column: 0 },
+        },
+    };
+
+    // This should succeed by downloading from registry (or using cached version)
+    let result = crate::plugin_resolver::resolve_plugin_path(&import);
+
+    assert!(
+        result.is_ok(),
+        "Registry plugin resolution should succeed in validation: {:?}",
+        result.err()
+    );
+
+    let wasm_path = result.unwrap();
+    assert!(
+        wasm_path.exists(),
+        "Resolved WASM file should exist: {}",
+        wasm_path.display()
+    );
+
+    // Verify it's in the cache directory
+    assert!(
+        wasm_path.to_string_lossy().contains(".cdm/cache/plugins/typescript"),
+        "Plugin should be cached in .cdm/cache/plugins/typescript"
+    );
+}
+
+#[test]
+#[serial_test::serial]
+fn test_plugin_resolution_cached_registry() {
+    // This test verifies that validation reuses cached registry plugins
+    use crate::plugin_validation::PluginImport;
+    use std::path::PathBuf;
+
+    let source_file = PathBuf::from("test.cdm");
+
+    let import = PluginImport {
+        name: "typescript".to_string(),
+        source: None,
+        global_config: Some(serde_json::json!({
+            "version": "0.1.0"
+        })),
+        source_file: source_file.clone(),
+        span: cdm_utils::Span {
+            start: cdm_utils::Position { line: 0, column: 0 },
+            end: cdm_utils::Position { line: 0, column: 0 },
+        },
+    };
+
+    // First resolution
+    let result1 = crate::plugin_resolver::resolve_plugin_path(&import);
+    assert!(result1.is_ok(), "First resolution should succeed");
+    let path1 = result1.unwrap();
+
+    // Second resolution should return the same cached path
+    let result2 = crate::plugin_resolver::resolve_plugin_path(&import);
+    assert!(result2.is_ok(), "Second resolution should succeed");
+    let path2 = result2.unwrap();
+
+    assert_eq!(path1, path2, "Cached plugin should return same path");
+    assert!(path1.exists(), "Cached plugin file should exist");
+}

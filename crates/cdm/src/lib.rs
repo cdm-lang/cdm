@@ -6,6 +6,7 @@ mod file_resolver;
 mod grammar_parser;
 mod resolved_schema;
 mod plugin_validation;
+mod plugin_resolver;
 mod build;
 mod migrate;
 mod plugin_new;

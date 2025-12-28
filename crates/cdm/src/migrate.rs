@@ -652,16 +652,19 @@ fn load_plugin(import: &PluginImport) -> Result<PluginRunner> {
 }
 
 /// Resolve plugin path based on import specification
+///
+/// This uses the shared resolver but adds special handling for local development
+/// where plugins might be in target/wasm32-wasip1/release/
 fn resolve_plugin_path(import: &PluginImport) -> Result<PathBuf> {
     match &import.source {
         Some(PluginSource::Path { path }) => {
-            // Resolve relative to the CDM file's directory
+            // For local path plugins, check both the standard location and the development build location
             let base_dir = import.source_file.parent()
                 .ok_or_else(|| anyhow::anyhow!("Could not determine source file directory"))?;
 
             let resolved_path = base_dir.join(path);
 
-            // Look for WASM in target/wasm32-wasip1/release/
+            // Look for WASM in target/wasm32-wasip1/release/ (development)
             let wasm_name = import.name.replace("-", "_");
             let wasm_path = resolved_path
                 .join("target/wasm32-wasip1/release")
@@ -683,27 +686,8 @@ fn resolve_plugin_path(import: &PluginImport) -> Result<PathBuf> {
                 resolved_path.display()
             ))
         }
-        Some(PluginSource::Git { url }) => {
-            Err(anyhow::anyhow!(
-                "Git plugins not yet implemented: {}",
-                url
-            ))
-        }
-        None => {
-            // Registry plugin - look in .cdm/cache/plugins/
-            let cache_dir = PathBuf::from(".cdm/cache/plugins").join(&import.name);
-            let wasm_file = cache_dir.join(format!("{}.wasm", import.name.replace("-", "_")));
-
-            if !wasm_file.exists() {
-                return Err(anyhow::anyhow!(
-                    "Plugin '{}' not found in cache. Try running 'cdm plugin cache {}'",
-                    import.name,
-                    import.name
-                ));
-            }
-
-            Ok(wasm_file)
-        }
+        // For git and registry plugins, use the shared resolver
+        _ => crate::plugin_resolver::resolve_plugin_path(import),
     }
 }
 
@@ -910,6 +894,85 @@ mod tests {
     // Helper to create a string literal type
     fn string_literal(value: &str) -> TypeExpression {
         TypeExpression::StringLiteral { value: value.to_string() }
+    }
+
+    // Helper for test spans
+    fn test_span() -> cdm_utils::Span {
+        cdm_utils::Span {
+            start: cdm_utils::Position { line: 0, column: 0 },
+            end: cdm_utils::Position { line: 0, column: 0 },
+        }
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_resolve_plugin_path_registry_plugin() {
+        // This test verifies that a plugin can be resolved from the registry in migrate
+        // It uses the real typescript plugin from the registry
+        let source_file = std::path::PathBuf::from("test.cdm");
+
+        let import = crate::PluginImport {
+            name: "typescript".to_string(),
+            source: None, // No source = try local, then registry
+            global_config: Some(json!({
+                "version": "0.1.0"
+            })),
+            source_file: source_file.clone(),
+            span: test_span(),
+        };
+
+        let result = resolve_plugin_path(&import);
+
+        // Should succeed - will download from registry if not cached
+        assert!(
+            result.is_ok(),
+            "Registry plugin resolution should succeed: {:?}",
+            result.err()
+        );
+
+        let wasm_path = result.unwrap();
+        assert!(
+            wasm_path.exists(),
+            "Resolved WASM file should exist: {}",
+            wasm_path.display()
+        );
+
+        // Verify it's in the cache directory
+        assert!(
+            wasm_path.to_string_lossy().contains(".cdm/cache/plugins/typescript"),
+            "Plugin should be cached in .cdm/cache/plugins/typescript"
+        );
+    }
+
+    #[test]
+    #[serial_test::serial]
+    fn test_resolve_plugin_path_registry_plugin_cached() {
+        // This test verifies that cached plugins are reused in migrate
+        // First resolution will download (if needed), second should use cache
+        let source_file = std::path::PathBuf::from("test.cdm");
+
+        let import = crate::PluginImport {
+            name: "typescript".to_string(),
+            source: None,
+            global_config: Some(json!({
+                "version": "0.1.0"
+            })),
+            source_file: source_file.clone(),
+            span: test_span(),
+        };
+
+        // First resolution
+        let result1 = resolve_plugin_path(&import);
+        assert!(result1.is_ok(), "First resolution should succeed");
+        let path1 = result1.unwrap();
+
+        // Second resolution should return the same cached path
+        let result2 = resolve_plugin_path(&import);
+        assert!(result2.is_ok(), "Second resolution should succeed");
+        let path2 = result2.unwrap();
+
+        assert_eq!(path1, path2, "Cached plugin should return same path");
+        assert!(path1.exists(), "Cached plugin file should exist");
     }
 
     #[test]
