@@ -30,6 +30,7 @@ struct WorkspaceState {
 
 struct CachedParse {
     /// The document text
+    #[allow(dead_code)] // Used in tests
     text: String,
 }
 
@@ -138,6 +139,7 @@ impl Workspace {
     }
 
     /// Get the dependency chain for a file (files it extends, in order)
+    #[allow(dead_code)] // Used in tests
     pub fn get_dependency_chain(&self, uri: &Url) -> Vec<Url> {
         let state = self.state.read().unwrap();
         let mut result = Vec::new();
@@ -168,6 +170,7 @@ impl Workspace {
     }
 
     /// Get cached text for a document
+    #[allow(dead_code)] // Used in tests
     pub fn get_cached_text(&self, uri: &Url) -> Option<String> {
         let state = self.state.read().unwrap();
         state.parse_cache.get(uri).map(|cached| cached.text.clone())

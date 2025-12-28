@@ -29,6 +29,7 @@ const TOKEN_CLASS: u32 = 6;
 const TOKEN_PROPERTY: u32 = 7;
 const TOKEN_PARAMETER: u32 = 8;      // Used for entity IDs
 const TOKEN_VARIABLE: u32 = 9;
+#[allow(dead_code)] // Used in token type display in tests
 const TOKEN_FUNCTION: u32 = 10;
 const TOKEN_MACRO: u32 = 11;          // Used for plugin names
 const TOKEN_ENUM_MEMBER: u32 = 12;    // Used for string literals in unions

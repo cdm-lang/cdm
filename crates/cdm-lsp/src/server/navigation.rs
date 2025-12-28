@@ -87,6 +87,7 @@ pub fn extract_definitions(text: &str) -> Vec<(String, DefinitionInfo)> {
 
 #[derive(Debug, Clone)]
 pub struct DefinitionInfo {
+    #[allow(dead_code)] // Used in tests
     pub kind: DefinitionKind,
     pub range: Range,
     pub hover_text: String,
