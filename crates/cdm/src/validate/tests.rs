@@ -4860,10 +4860,12 @@ fn test_plugin_resolution_from_registry() {
         wasm_path.display()
     );
 
-    // Verify it's in the cache directory
+    // Verify it's in the cache directory (platform-specific location with "plugins/typescript")
+    let path_str = wasm_path.to_string_lossy();
     assert!(
-        wasm_path.to_string_lossy().contains(".cdm/cache/plugins/typescript"),
-        "Plugin should be cached in .cdm/cache/plugins/typescript"
+        path_str.contains("plugins/typescript"),
+        "Plugin should be cached in plugins/typescript directory, got: {}",
+        path_str
     );
 }
 

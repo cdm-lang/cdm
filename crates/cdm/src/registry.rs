@@ -129,14 +129,36 @@ pub fn get_registry_url() -> String {
 
 /// Get cache directory path, creating it if necessary
 pub fn get_cache_path() -> Result<PathBuf> {
-    let cache_dir = std::env::var("CDM_CACHE_DIR")
-        .unwrap_or_else(|_| ".cdm/cache".to_string());
+    // Allow override via environment variable
+    if let Ok(cache_dir) = std::env::var("CDM_CACHE_DIR") {
+        let path = PathBuf::from(cache_dir);
+        fs::create_dir_all(&path)
+            .context(format!("Failed to create cache directory: {}", path.display()))?;
+        return Ok(path);
+    }
 
-    let path = PathBuf::from(cache_dir);
-    fs::create_dir_all(&path)
-        .context(format!("Failed to create cache directory: {}", path.display()))?;
+    // Use platform-specific cache directory
+    let cache_dir = if cfg!(target_os = "macos") {
+        dirs::home_dir()
+            .context("Could not determine home directory")?
+            .join("Library")
+            .join("Caches")
+            .join("cdm")
+    } else if cfg!(target_os = "windows") {
+        dirs::cache_dir()
+            .context("Could not determine cache directory")?
+            .join("cdm")
+    } else {
+        // Linux and other Unix-like systems (follows XDG Base Directory spec)
+        dirs::cache_dir()
+            .context("Could not determine cache directory")?
+            .join("cdm")
+    };
 
-    Ok(path)
+    fs::create_dir_all(&cache_dir)
+        .context(format!("Failed to create cache directory: {}", cache_dir.display()))?;
+
+    Ok(cache_dir)
 }
 
 /// Get cache TTL in seconds from environment or default (24 hours)
@@ -303,9 +325,20 @@ mod tests {
         assert!(result.is_ok());
 
         let path = result.unwrap();
-        // Default should be .cdm/cache
+        // Default should be platform-specific cache directory containing "cdm"
         assert!(path.to_string_lossy().contains("cdm"));
-        assert!(path.to_string_lossy().contains("cache"));
+
+        // Verify it's using the right platform-specific location
+        if cfg!(target_os = "macos") {
+            assert!(path.to_string_lossy().contains("Library/Caches"));
+        } else if cfg!(target_os = "windows") {
+            // Windows cache path typically contains "AppData" or "Local"
+            let path_str = path.to_string_lossy();
+            assert!(path_str.contains("Cache") || path_str.contains("cache"));
+        } else {
+            // Linux/Unix - should follow XDG spec
+            assert!(path.to_string_lossy().contains("cache"));
+        }
 
         unsafe {
             std::env::remove_var("CDM_CACHE_DIR");
