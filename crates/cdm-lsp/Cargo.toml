@@ -4,7 +4,7 @@ version = "0.1.0"
 edition = "2024"
 authors = ["CDM Contributors"]
 description = "Language Server Protocol implementation for CDM"
-license = "MIT"
+license = "MPL-2.0"
 
 [[bin]]
 name = "cdm-lsp"

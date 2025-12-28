@@ -3,7 +3,7 @@ name = "cdm-plugin-interface"
 version = "0.1.0"
 edition = "2024"
 description = "Plugin interface for CDM - types and utilities for building CDM plugins as WebAssembly modules"
-license = "MIT"
+license = "MPL-2.0"
 
 [dependencies]
 serde = { version = "1.0", features = ["derive"] }

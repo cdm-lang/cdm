@@ -4,6 +4,7 @@
   "description": "Language support for CDM (Contextual Data Model)",
   "version": "0.1.0",
   "publisher": "larner-dev",
+  "license": "MPL-2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/cdm-lang/cdm"
