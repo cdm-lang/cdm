@@ -1,0 +1,104 @@
+name: Plugin Release
+
+on:
+  push:
+    tags:
+      - 'cdm-plugin-*-v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Create Plugin Release
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract plugin info from tag
+        id: tag_info
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+          # Extract plugin name (e.g., cdm-plugin-docs from cdm-plugin-docs-v0.1.0)
+          PLUGIN_NAME=$(echo $TAG | sed -E 's/-v[0-9]+\.[0-9]+\.[0-9]+$//')
+          echo "plugin_name=$PLUGIN_NAME" >> $GITHUB_OUTPUT
+
+          # Extract version (e.g., v0.1.0 from cdm-plugin-docs-v0.1.0)
+          VERSION=$(echo $TAG | sed -E 's/.*(-v[0-9]+\.[0-9]+\.[0-9]+)$/\1/' | sed 's/^-//')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          # Convert plugin name to crate name (replace hyphens with underscores)
+          CRATE_NAME=$(echo $PLUGIN_NAME | sed 's/-/_/g')
+          echo "crate_name=$CRATE_NAME" >> $GITHUB_OUTPUT
+
+          echo "Releasing $PLUGIN_NAME $VERSION (crate: $CRATE_NAME)"
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: wasm32-wasip1
+
+      - name: Build plugin
+        working-directory: crates/${{ steps.tag_info.outputs.plugin_name }}
+        run: |
+          cargo build --release --target wasm32-wasip1 --target-dir target
+
+      - name: Generate checksum
+        working-directory: crates/${{ steps.tag_info.outputs.plugin_name }}
+        run: |
+          WASM_FILE="target/wasm32-wasip1/release/${{ steps.tag_info.outputs.crate_name }}.wasm"
+          shasum -a 256 $WASM_FILE | awk '{print $1}' > $WASM_FILE.sha256
+          echo "Checksum: $(cat $WASM_FILE.sha256)"
+
+      - name: Create release notes
+        id: release_notes
+        run: |
+          cat > release_notes.md << 'EOF'
+          # ${{ steps.tag_info.outputs.plugin_name }} ${{ steps.tag_info.outputs.version }}
+
+          ## Installation
+
+          Download the WASM file and verify its integrity:
+
+          ```bash
+          # Download the plugin
+          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.tag_info.outputs.tag }}/${{ steps.tag_info.outputs.crate_name }}.wasm
+
+          # Download the checksum
+          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.tag_info.outputs.tag }}/${{ steps.tag_info.outputs.crate_name }}.wasm.sha256
+
+          # Verify the checksum
+          echo "$(cat ${{ steps.tag_info.outputs.crate_name }}.wasm.sha256)  ${{ steps.tag_info.outputs.crate_name }}.wasm" | shasum -a 256 -c
+          ```
+
+          ## Checksum
+
+          SHA256: `$(cat crates/${{ steps.tag_info.outputs.plugin_name }}/target/wasm32-wasip1/release/${{ steps.tag_info.outputs.crate_name }}.wasm.sha256)`
+
+          ## Plugin Info
+
+          - **Plugin Name**: ${{ steps.tag_info.outputs.plugin_name }}
+          - **Version**: ${{ steps.tag_info.outputs.version }}
+          - **WASM Target**: wasm32-wasip1
+          EOF
+
+          echo "Release notes created"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.tag_info.outputs.tag }}
+          name: ${{ steps.tag_info.outputs.plugin_name }} ${{ steps.tag_info.outputs.version }}
+          body_path: release_notes.md
+          files: |
+            crates/${{ steps.tag_info.outputs.plugin_name }}/target/wasm32-wasip1/release/${{ steps.tag_info.outputs.crate_name }}.wasm
+            crates/${{ steps.tag_info.outputs.plugin_name }}/target/wasm32-wasip1/release/${{ steps.tag_info.outputs.crate_name }}.wasm.sha256
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
