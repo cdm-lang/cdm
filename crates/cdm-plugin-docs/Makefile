@@ -31,8 +31,8 @@ help:
 
 # Variables
 WASM_TARGET = wasm32-wasip1
-RELEASE_WASM = ../../target/$(WASM_TARGET)/release/cdm_plugin_docs.wasm
-DEBUG_WASM = ../../target/$(WASM_TARGET)/debug/cdm_plugin_docs.wasm
+RELEASE_WASM = target/$(WASM_TARGET)/release/cdm_plugin_docs.wasm
+DEBUG_WASM = target/$(WASM_TARGET)/debug/cdm_plugin_docs.wasm
 PLUGIN_NAME = cdm-plugin-docs
 
 # Check if dependencies are installed
@@ -89,7 +89,7 @@ test-wasm: build
 run-example: build
 	@echo "Running example..."
 	@if [ -f "example/schema.cdm" ]; then \
-		cd ../.. && cargo run --bin cdm -- validate crates/cdm-plugin-docs/example/schema.cdm; \
+		cdm validate example/schema.cdm; \
 	else \
 		echo "No example file found. Create example/schema.cdm to test your plugin."; \
 	fi
