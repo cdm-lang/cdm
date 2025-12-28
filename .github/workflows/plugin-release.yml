@@ -159,7 +159,11 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git checkout main
+          # Fetch and checkout main branch
+          git fetch origin main
+          git checkout -B main origin/main
+
+          # Add and commit the updated registry
           git add registry.json
           git commit -m "Update registry: ${{ steps.tag_info.outputs.plugin_name }} ${{ steps.tag_info.outputs.version }}
 
@@ -168,4 +172,5 @@ jobs:
           - WASM URL: https://github.com/${{ github.repository }}/releases/download/${{ steps.tag_info.outputs.tag }}/${{ steps.tag_info.outputs.crate_name }}.wasm
           - Checksum: sha256:$(cat crates/${{ steps.tag_info.outputs.plugin_name }}/target/wasm32-wasip1/release/${{ steps.tag_info.outputs.crate_name }}.wasm.sha256)"
 
+          # Push to main
           git push origin main
