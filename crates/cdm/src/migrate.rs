@@ -530,19 +530,60 @@ fn compute_field_deltas(
         }
     }
 
-    // Phase 3: Process fields WITHOUT entity IDs (treat as remove+add)
+    // Phase 3: Process fields WITHOUT entity IDs
     for curr_field in curr_fields {
         if curr_field.entity_id.is_none() && !processed_names.contains(&curr_field.name) {
             // Check if field with same name exists in previous
             let prev_match = prev_fields.iter().find(|f| f.name == curr_field.name && f.entity_id.is_none());
 
-            if prev_match.is_none() {
-                // Addition
-                deltas.push(Delta::FieldAdded {
-                    model: model_name.to_string(),
-                    field: curr_field.name.clone(),
-                    after: curr_field.clone(),
-                });
+            match prev_match {
+                Some(prev_field) => {
+                    // Same name, no IDs - check for modifications
+                    if !types_equal(&prev_field.field_type, &curr_field.field_type) {
+                        deltas.push(Delta::FieldTypeChanged {
+                            model: model_name.to_string(),
+                            field: curr_field.name.clone(),
+                            before: prev_field.field_type.clone(),
+                            after: curr_field.field_type.clone(),
+                        });
+                    }
+
+                    if prev_field.optional != curr_field.optional {
+                        deltas.push(Delta::FieldOptionalityChanged {
+                            model: model_name.to_string(),
+                            field: curr_field.name.clone(),
+                            before: prev_field.optional,
+                            after: curr_field.optional,
+                        });
+                    }
+
+                    if !values_equal(&prev_field.default, &curr_field.default) {
+                        deltas.push(Delta::FieldDefaultChanged {
+                            model: model_name.to_string(),
+                            field: curr_field.name.clone(),
+                            before: prev_field.default.clone(),
+                            after: curr_field.default.clone(),
+                        });
+                    }
+
+                    // Check for field-level config changes
+                    if !configs_equal(&prev_field.config, &curr_field.config) {
+                        deltas.push(Delta::FieldConfigChanged {
+                            model: model_name.to_string(),
+                            field: curr_field.name.clone(),
+                            before: prev_field.config.clone(),
+                            after: curr_field.config.clone(),
+                        });
+                    }
+                }
+                None => {
+                    // Addition
+                    deltas.push(Delta::FieldAdded {
+                        model: model_name.to_string(),
+                        field: curr_field.name.clone(),
+                        after: curr_field.clone(),
+                    });
+                }
             }
             processed_names.insert(curr_field.name.clone());
         }
@@ -1579,6 +1620,212 @@ mod tests {
             }
             _ => panic!("Expected FieldTypeChanged delta"),
         }
+    }
+
+    #[test]
+    fn test_compute_field_deltas_type_changed_from_implicit_string() {
+        // This test simulates the bug where a field with no type specified (defaults to string)
+        // is changed to an explicit non-string type. The previous schema will have "string"
+        // (from the default), and the current schema should have the new type.
+        let prev_fields = vec![
+            FieldDefinition {
+                name: "count".to_string(),
+                field_type: ident_type("string"), // Implicit string (no type specified in CDM)
+                optional: false,
+                default: None,
+                config: json!({}),
+                entity_id: Some(1),
+            },
+        ];
+        let curr_fields = vec![
+            FieldDefinition {
+                name: "count".to_string(),
+                field_type: ident_type("number"), // Now explicitly typed as number
+                optional: false,
+                default: None,
+                config: json!({}),
+                entity_id: Some(1),
+            },
+        ];
+
+        let mut deltas = Vec::new();
+        compute_field_deltas("User", &prev_fields, &curr_fields, &mut deltas).unwrap();
+
+        assert_eq!(deltas.len(), 1, "Expected exactly one delta for type change from implicit string to explicit number");
+        match &deltas[0] {
+            Delta::FieldTypeChanged { model, field, before, after } => {
+                assert_eq!(model, "User");
+                assert_eq!(field, "count");
+                assert!(types_equal(before, &ident_type("string")), "Expected before type to be string");
+                assert!(types_equal(after, &ident_type("number")), "Expected after type to be number");
+            }
+            _ => panic!("Expected FieldTypeChanged delta, got: {:?}", deltas[0]),
+        }
+    }
+
+    #[test]
+    fn test_compute_field_deltas_type_changed_without_entity_id() {
+        // BUG: When fields don't have entity IDs, type changes are not detected
+        // This happens when the previous schema was saved before entity IDs were added,
+        // or when fields are defined without explicit IDs.
+        let prev_fields = vec![
+            FieldDefinition {
+                name: "count".to_string(),
+                field_type: ident_type("string"), // Was implicitly string
+                optional: false,
+                default: None,
+                config: json!({}),
+                entity_id: None, // No entity ID
+            },
+        ];
+        let curr_fields = vec![
+            FieldDefinition {
+                name: "count".to_string(),
+                field_type: ident_type("number"), // Now explicitly number
+                optional: false,
+                default: None,
+                config: json!({}),
+                entity_id: None, // Still no entity ID
+            },
+        ];
+
+        let mut deltas = Vec::new();
+        compute_field_deltas("User", &prev_fields, &curr_fields, &mut deltas).unwrap();
+
+        assert_eq!(deltas.len(), 1, "Expected exactly one delta for type change");
+        match &deltas[0] {
+            Delta::FieldTypeChanged { model, field, before, after } => {
+                assert_eq!(model, "User");
+                assert_eq!(field, "count");
+                assert!(types_equal(before, &ident_type("string")), "Expected before type to be string");
+                assert!(types_equal(after, &ident_type("number")), "Expected after type to be number");
+            }
+            _ => panic!("Expected FieldTypeChanged delta, got: {:?}", deltas[0]),
+        }
+    }
+
+    #[test]
+    fn test_compute_field_deltas_optionality_changed_without_entity_id() {
+        // Test that optionality changes are detected for fields without entity IDs
+        let prev_fields = vec![
+            FieldDefinition {
+                name: "bio".to_string(),
+                field_type: ident_type("string"),
+                optional: false,
+                default: None,
+                config: json!({}),
+                entity_id: None,
+            },
+        ];
+        let curr_fields = vec![
+            FieldDefinition {
+                name: "bio".to_string(),
+                field_type: ident_type("string"),
+                optional: true, // Changed to optional
+                default: None,
+                config: json!({}),
+                entity_id: None,
+            },
+        ];
+
+        let mut deltas = Vec::new();
+        compute_field_deltas("User", &prev_fields, &curr_fields, &mut deltas).unwrap();
+
+        assert_eq!(deltas.len(), 1, "Expected exactly one delta for optionality change");
+        match &deltas[0] {
+            Delta::FieldOptionalityChanged { model, field, before, after } => {
+                assert_eq!(model, "User");
+                assert_eq!(field, "bio");
+                assert_eq!(*before, false);
+                assert_eq!(*after, true);
+            }
+            _ => panic!("Expected FieldOptionalityChanged delta, got: {:?}", deltas[0]),
+        }
+    }
+
+    #[test]
+    fn test_compute_field_deltas_default_changed_without_entity_id() {
+        // Test that default value changes are detected for fields without entity IDs
+        let prev_fields = vec![
+            FieldDefinition {
+                name: "status".to_string(),
+                field_type: ident_type("string"),
+                optional: false,
+                default: Some(Value::String("draft".to_string())),
+                config: json!({}),
+                entity_id: None,
+            },
+        ];
+        let curr_fields = vec![
+            FieldDefinition {
+                name: "status".to_string(),
+                field_type: ident_type("string"),
+                optional: false,
+                default: Some(Value::String("published".to_string())), // Changed default
+                config: json!({}),
+                entity_id: None,
+            },
+        ];
+
+        let mut deltas = Vec::new();
+        compute_field_deltas("User", &prev_fields, &curr_fields, &mut deltas).unwrap();
+
+        assert_eq!(deltas.len(), 1, "Expected exactly one delta for default change");
+        match &deltas[0] {
+            Delta::FieldDefaultChanged { model, field, before, after } => {
+                assert_eq!(model, "User");
+                assert_eq!(field, "status");
+                match (before, after) {
+                    (Some(Value::String(b)), Some(Value::String(a))) => {
+                        assert_eq!(b, "draft");
+                        assert_eq!(a, "published");
+                    }
+                    _ => panic!("Expected string values"),
+                }
+            }
+            _ => panic!("Expected FieldDefaultChanged delta, got: {:?}", deltas[0]),
+        }
+    }
+
+    #[test]
+    fn test_compute_field_deltas_multiple_changes_without_entity_id() {
+        // Test that multiple changes are detected for a field without entity ID
+        let prev_fields = vec![
+            FieldDefinition {
+                name: "score".to_string(),
+                field_type: ident_type("string"), // Was string
+                optional: false,
+                default: None,
+                config: json!({}),
+                entity_id: None,
+            },
+        ];
+        let curr_fields = vec![
+            FieldDefinition {
+                name: "score".to_string(),
+                field_type: ident_type("number"), // Now number
+                optional: true, // Now optional
+                default: Some(Value::Number(0.0)), // Added default
+                config: json!({"indexed": true}), // Changed config
+                entity_id: None,
+            },
+        ];
+
+        let mut deltas = Vec::new();
+        compute_field_deltas("User", &prev_fields, &curr_fields, &mut deltas).unwrap();
+
+        assert_eq!(deltas.len(), 4, "Expected four deltas for type, optionality, default, and config changes");
+
+        // Check that all expected deltas are present
+        let has_type_change = deltas.iter().any(|d| matches!(d, Delta::FieldTypeChanged { .. }));
+        let has_optionality_change = deltas.iter().any(|d| matches!(d, Delta::FieldOptionalityChanged { .. }));
+        let has_default_change = deltas.iter().any(|d| matches!(d, Delta::FieldDefaultChanged { .. }));
+        let has_config_change = deltas.iter().any(|d| matches!(d, Delta::FieldConfigChanged { .. }));
+
+        assert!(has_type_change, "Expected FieldTypeChanged delta");
+        assert!(has_optionality_change, "Expected FieldOptionalityChanged delta");
+        assert!(has_default_change, "Expected FieldDefaultChanged delta");
+        assert!(has_config_change, "Expected FieldConfigChanged delta");
     }
 
     #[test]
