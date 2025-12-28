@@ -154,26 +154,18 @@ jobs:
 
           echo "Registry updated successfully"
 
-      - name: Create Pull Request for registry update
-        uses: peter-evans/create-pull-request@v6
-        with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          commit-message: "Update registry: ${{ steps.tag_info.outputs.plugin_name }} ${{ steps.tag_info.outputs.version }}"
-          branch: registry-update-${{ steps.tag_info.outputs.tag }}
-          base: main
-          delete-branch: true
-          title: "Update registry: ${{ steps.tag_info.outputs.plugin_name }} ${{ steps.tag_info.outputs.version }}"
-          body: |
-            This PR automatically updates the plugin registry for the release of **${{ steps.tag_info.outputs.plugin_name }} ${{ steps.tag_info.outputs.version }}**.
+      - name: Commit registry update to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
 
-            ## Changes
-            - Updated registry.json with new version information
-            - WASM URL: `https://github.com/${{ github.repository }}/releases/download/${{ steps.tag_info.outputs.tag }}/${{ steps.tag_info.outputs.crate_name }}.wasm`
-            - Checksum: `sha256:$(cat crates/${{ steps.tag_info.outputs.plugin_name }}/target/wasm32-wasip1/release/${{ steps.tag_info.outputs.crate_name }}.wasm.sha256)`
+          git checkout main
+          git add registry.json
+          git commit -m "Update registry: ${{ steps.tag_info.outputs.plugin_name }} ${{ steps.tag_info.outputs.version }}
 
-            This PR was automatically created by the plugin release workflow.
+          Automatically updated registry.json for release ${{ steps.tag_info.outputs.tag }}
 
-            Related release: [${{ steps.tag_info.outputs.tag }}](${{ steps.create_release.outputs.url }})
-          labels: |
-            automated
-            registry
+          - WASM URL: https://github.com/${{ github.repository }}/releases/download/${{ steps.tag_info.outputs.tag }}/${{ steps.tag_info.outputs.crate_name }}.wasm
+          - Checksum: sha256:$(cat crates/${{ steps.tag_info.outputs.plugin_name }}/target/wasm32-wasip1/release/${{ steps.tag_info.outputs.crate_name }}.wasm.sha256)"
+
+          git push origin main
