@@ -87,16 +87,32 @@ release-plugin plugin_name version:
   make build
   cd ../..
 
-  # Check for uncommitted changes
+  # Add the built WASM files to git
+  WASM_FILE="$PLUGIN_DIR/target/wasm32-wasip1/release/"*.wasm
+  CHECKSUM_FILE="$PLUGIN_DIR/target/wasm32-wasip1/release/"*.wasm.sha256
+
+  echo ""
+  echo "Staging built artifacts..."
+  git add $WASM_FILE $CHECKSUM_FILE
+
+  # Check if there are other uncommitted changes besides the WASM files
   if ! git diff-index --quiet HEAD --; then
     echo ""
-    echo "Warning: You have uncommitted changes"
+    echo "Warning: You have other uncommitted changes besides the plugin build"
+    git status --short
+    echo ""
     read -p "Continue anyway? (y/N) " -n 1 -r
     echo
     if [[ ! $REPLY =~ ^[Yy]$ ]]; then
       echo "Cancelled"
       exit 0
     fi
+  fi
+
+  # Commit the WASM files
+  if ! git diff --cached --quiet; then
+    echo "Committing built artifacts..."
+    git commit -m "Build {{plugin_name}} v{{version}}"
   fi
 
   # Create tag
@@ -106,11 +122,12 @@ release-plugin plugin_name version:
   echo ""
   echo "✓ Tag created successfully!"
   echo ""
-  echo "To push the tag and trigger the release workflow, run:"
-  echo "  git push origin $TAG"
+  echo "To push the commit and tag to trigger the release workflow, run:"
+  echo "  git push origin main $TAG"
   echo ""
-  echo "To delete the tag if you made a mistake, run:"
+  echo "To undo if you made a mistake, run:"
   echo "  git tag -d $TAG"
+  echo "  git reset --soft HEAD~1"
 
 # List available plugins
 list-plugins:
