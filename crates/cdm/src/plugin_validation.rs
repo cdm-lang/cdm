@@ -22,7 +22,8 @@ pub struct ExtractedPluginConfigs {
 }
 
 #[cfg(test)]
-mod tests;
+#[path = "plugin_validation/plugin_validation_tests.rs"]
+mod plugin_validation_tests;
 
 /// Information about a plugin import (@plugin directive)
 #[derive(Debug, Clone)]
