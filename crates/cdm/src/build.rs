@@ -65,6 +65,21 @@ pub fn build(path: &Path) -> Result<()> {
         // Load the plugin
         let mut runner = load_plugin(plugin_import)?;
 
+        // Check if plugin supports build operation
+        match runner.has_build() {
+            Ok(false) => {
+                println!("  Skipped: Plugin '{}' does not support build", plugin_import.name);
+                continue;
+            }
+            Err(e) => {
+                eprintln!("  Warning: Failed to check build capability for plugin '{}': {}", plugin_import.name, e);
+                continue;
+            }
+            Ok(true) => {
+                // Plugin supports build, proceed
+            }
+        }
+
         // Get the plugin's global config (or empty JSON object)
         let global_config = plugin_import.global_config.clone()
             .unwrap_or(serde_json::json!({}));

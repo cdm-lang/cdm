@@ -120,6 +120,22 @@ pub fn migrate(
             println!("Running plugin: {}", plugin_import.name);
 
             let mut runner = load_plugin(plugin_import)?;
+
+            // Check if plugin supports migrate operation
+            match runner.has_migrate() {
+                Ok(false) => {
+                    println!("  Skipped: Plugin '{}' does not support migrate", plugin_import.name);
+                    continue;
+                }
+                Err(e) => {
+                    eprintln!("  Warning: Failed to check migrate capability for plugin '{}': {}", plugin_import.name, e);
+                    continue;
+                }
+                Ok(true) => {
+                    // Plugin supports migrate, proceed
+                }
+            }
+
             let global_config = plugin_import.global_config.clone()
                 .unwrap_or(serde_json::json!({}));
 
