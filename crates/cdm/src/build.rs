@@ -1,10 +1,8 @@
-use crate::{FileResolver, PluginRunner, ValidationResult};
-use crate::resolved_schema::build_resolved_schema;
+use crate::{FileResolver, PluginRunner, ValidationResult, build_cdm_schema_for_plugin};
 use crate::plugin_validation::{extract_plugin_imports, PluginImport};
 use anyhow::{Result, Context};
-use cdm_plugin_interface::{OutputFile, Schema};
+use cdm_plugin_interface::OutputFile;
 use std::path::{Path, PathBuf};
-use std::collections::HashMap;
 use std::fs;
 
 /// Build output files from a CDM schema using configured plugins
@@ -147,122 +145,6 @@ fn extract_plugin_imports_from_tree(
     Ok(extract_plugin_imports(root, &main_source, main_path))
 }
 
-/// Build the Schema structure from validation result for a specific plugin
-fn build_cdm_schema_for_plugin(
-    validation_result: &ValidationResult,
-    ancestor_paths: &[PathBuf],
-    plugin_name: &str,
-) -> Result<Schema> {
-    // Build ancestors for resolved schema
-    let mut ancestors = Vec::new();
-    for ancestor_path in ancestor_paths {
-        let source = fs::read_to_string(ancestor_path)
-            .with_context(|| format!("Failed to read ancestor file: {}", ancestor_path.display()))?;
-        let ancestor_result = crate::validate(&source, &ancestors);
-        if ancestor_result.has_errors() {
-            anyhow::bail!("Ancestor file has validation errors: {}", ancestor_path.display());
-        }
-        ancestors.push(ancestor_result.into_ancestor(ancestor_path.display().to_string()));
-    }
-
-    // Build resolved schema (merging inheritance)
-    let resolved = build_resolved_schema(
-        &validation_result.symbol_table,
-        &validation_result.model_fields,
-        &ancestors,
-        &[],
-    );
-
-    // Convert to plugin API Schema format
-    let mut models = HashMap::new();
-    for (name, model) in resolved.models {
-        models.insert(name.clone(), cdm_plugin_interface::ModelDefinition {
-            name: name.clone(),
-            parents: model.parents,
-            fields: model.fields.iter().map(|f| {
-                // Parse the type expression
-                let parsed_type = f.parsed_type().unwrap_or_else(|_| {
-                    // Default to string if parsing fails
-                    crate::ParsedType::Primitive(crate::PrimitiveType::String)
-                });
-
-                cdm_plugin_interface::FieldDefinition {
-                    name: f.name.clone(),
-                    field_type: convert_type_expression(&parsed_type),
-                    optional: f.optional,
-                    default: f.default_value.as_ref().map(|v| v.into()),
-                    config: f.plugin_configs.get(plugin_name).cloned().unwrap_or(serde_json::json!({})),
-                    entity_id: f.entity_id,
-                }
-            }).collect(),
-            config: model.plugin_configs.get(plugin_name).cloned().unwrap_or(serde_json::json!({})),
-            entity_id: model.entity_id,
-        });
-    }
-
-    let mut type_aliases = HashMap::new();
-    for (name, alias) in resolved.type_aliases {
-        // Parse the type expression
-        let parsed_type = alias.parsed_type().unwrap_or_else(|_| {
-            // Default to string if parsing fails
-            crate::ParsedType::Primitive(crate::PrimitiveType::String)
-        });
-
-        type_aliases.insert(name.clone(), cdm_plugin_interface::TypeAliasDefinition {
-            name: name.clone(),
-            alias_type: convert_type_expression(&parsed_type),
-            config: alias.plugin_configs.get(plugin_name).cloned().unwrap_or(serde_json::json!({})),
-            entity_id: alias.entity_id,
-        });
-    }
-
-    Ok(Schema {
-        models,
-        type_aliases,
-    })
-}
-
-fn convert_type_expression(parsed_type: &crate::ParsedType) -> cdm_plugin_interface::TypeExpression {
-    use crate::{ParsedType, PrimitiveType};
-
-    match parsed_type {
-        ParsedType::Primitive(prim) => {
-            let name = match prim {
-                PrimitiveType::String => "string",
-                PrimitiveType::Number => "number",
-                PrimitiveType::Boolean => "boolean",
-            };
-            cdm_plugin_interface::TypeExpression::Identifier {
-                name: name.to_string()
-            }
-        }
-        ParsedType::Reference(name) => {
-            cdm_plugin_interface::TypeExpression::Identifier {
-                name: name.clone()
-            }
-        }
-        ParsedType::Array(inner) => {
-            cdm_plugin_interface::TypeExpression::Array {
-                element_type: Box::new(convert_type_expression(inner))
-            }
-        }
-        ParsedType::Union(members) => {
-            cdm_plugin_interface::TypeExpression::Union {
-                types: members.iter().map(convert_type_expression).collect()
-            }
-        }
-        ParsedType::Literal(value) => {
-            cdm_plugin_interface::TypeExpression::StringLiteral {
-                value: value.clone()
-            }
-        }
-        ParsedType::Null => {
-            cdm_plugin_interface::TypeExpression::Identifier {
-                name: "null".to_string()
-            }
-        }
-    }
-}
 
 /// Load a plugin from its import specification
 fn load_plugin(import: &PluginImport) -> Result<PluginRunner> {
@@ -303,7 +185,7 @@ fn write_output_files(files: &[OutputFile], source_dir: &Path) -> Result<()> {
 mod tests {
     use super::*;
     use cdm_plugin_interface::TypeExpression;
-    use crate::{ParsedType, PrimitiveType, PluginImport, PluginSource};
+    use crate::{ParsedType, PrimitiveType, PluginImport, PluginSource, convert_type_expression};
     use std::fs;
     use std::path::PathBuf;
 
