@@ -263,6 +263,29 @@ fn extract_plugin_imports_from_source(source: &str, source_file_path: &Path) -> 
     }
 }
 
+/// Extract plugin imports from a validation result
+///
+/// This is a convenience function that extracts plugin imports from a ValidationResult
+/// by re-reading the source file and extracting imports from the parsed tree.
+/// Used by build.rs and migrate.rs.
+pub fn extract_plugin_imports_from_validation_result(
+    validation_result: &crate::ValidationResult,
+    main_path: &Path,
+) -> anyhow::Result<Vec<PluginImport>> {
+    use anyhow::Context;
+    use std::fs;
+
+    let parsed_tree = validation_result.tree.as_ref()
+        .context("No parsed tree available")?;
+
+    // We need to re-read the source file since tree was consumed
+    let main_source = fs::read_to_string(main_path)
+        .with_context(|| format!("Failed to read source file: {}", main_path.display()))?;
+
+    let root = parsed_tree.root_node();
+    Ok(extract_plugin_imports(root, &main_source, main_path))
+}
+
 /// Extract all plugin imports from AST (public for use in build.rs)
 pub fn extract_plugin_imports(
     root: tree_sitter::Node,

@@ -1,5 +1,5 @@
-use crate::{FileResolver, PluginRunner, ValidationResult, build_cdm_schema_for_plugin};
-use crate::plugin_validation::{extract_plugin_imports, PluginImport};
+use crate::{FileResolver, PluginRunner, build_cdm_schema_for_plugin};
+use crate::plugin_validation::{extract_plugin_imports_from_validation_result, PluginImport};
 use anyhow::{Result, Context};
 use cdm_plugin_interface::OutputFile;
 use std::path::{Path, PathBuf};
@@ -43,7 +43,7 @@ pub fn build(path: &Path) -> Result<()> {
     }
 
     // Step 1: Extract plugin imports
-    let plugin_imports = extract_plugin_imports_from_tree(&validation_result, &main_path)?;
+    let plugin_imports = extract_plugin_imports_from_validation_result(&validation_result, &main_path)?;
 
     if plugin_imports.is_empty() {
         println!("No plugins configured - nothing to build");
@@ -128,23 +128,6 @@ pub fn build(path: &Path) -> Result<()> {
 
     Ok(())
 }
-
-/// Extract plugin imports from the validated tree using the shared function
-fn extract_plugin_imports_from_tree(
-    validation_result: &ValidationResult,
-    main_path: &Path,
-) -> Result<Vec<PluginImport>> {
-    let parsed_tree = validation_result.tree.as_ref()
-        .context("No parsed tree available")?;
-
-    // We need to re-read the source file since tree was consumed
-    let main_source = fs::read_to_string(main_path)
-        .with_context(|| format!("Failed to read source file: {}", main_path.display()))?;
-
-    let root = parsed_tree.root_node();
-    Ok(extract_plugin_imports(root, &main_source, main_path))
-}
-
 
 /// Load a plugin from its import specification
 fn load_plugin(import: &PluginImport) -> Result<PluginRunner> {
