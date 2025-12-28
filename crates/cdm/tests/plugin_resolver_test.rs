@@ -59,8 +59,8 @@ fn test_build_with_registry_plugin() {
     let test_file = root.join("examples/base.cdm");
 
     // Clean up any previous output
-    // Note: Output is written relative to cwd during tests, not relative to source file
-    let output_file = env::current_dir().unwrap().join("types.ts");
+    // Output is now written relative to source file: examples/build/types.ts
+    let output_file = root.join("examples/build/types.ts");
     let _ = fs::remove_file(&output_file);
 
     // This should succeed - the plugin will be downloaded from the registry
@@ -90,7 +90,7 @@ fn test_plugin_cache_reuse() {
     let test_file = root.join("examples/base.cdm");
 
     // Clean up any previous output
-    let output_file = env::current_dir().unwrap().join("types.ts");
+    let output_file = root.join("examples/build/types.ts");
     let _ = fs::remove_file(&output_file);
 
     // First build - will download the plugin
@@ -160,7 +160,7 @@ fn test_validate_build_consistency() {
     let test_file = root.join("examples/base.cdm");
 
     // Clean up any previous output
-    let output_file = env::current_dir().unwrap().join("types.ts");
+    let output_file = root.join("examples/build/types.ts");
     let _ = fs::remove_file(&output_file);
 
     // Validation should succeed

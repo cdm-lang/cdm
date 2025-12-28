@@ -1501,6 +1501,44 @@ Index {
 
 The schema must define at least `GlobalSettings`. `ModelSettings` and `FieldSettings` are optional.
 
+#### Field Optionality and Defaults
+
+Plugin schema fields follow these rules for optionality:
+
+- **Fields marked with `?`**: Optional and may be omitted entirely (e.g., `schema?: string`)
+- **Fields with default values**: Implicitly optional; when omitted, the default value is automatically applied (e.g., `dialect: "postgres" | "mysql" | "sqlite" = "postgres"`)
+- **Fields without `?` or a default value**: Required and must be provided by the user (e.g., `build_output: string`)
+
+When validating user configuration, CDM automatically fills in default values for any omitted fields before passing the configuration to the plugin's `validate_config()` function. This means plugins always receive complete configuration objects with all defaults applied.
+
+**Example:**
+
+```cdm
+// Plugin schema
+GlobalSettings {
+  dialect: "postgres" | "mysql" | "sqlite" = "postgres"  // Optional (has default)
+  schema?: string                                         // Optional (explicitly marked)
+  build_output: string                                    // Required (no default, no ?)
+  max_connections: number = 10                            // Optional (has default)
+}
+
+// User configuration
+@sql {
+  build_output: "./db/schema"       // Required, must provide
+  schema: "public"                  // Optional, explicitly set
+  // dialect omitted - defaults to "postgres"
+  // max_connections omitted - defaults to 10
+}
+
+// Configuration received by plugin (after defaults applied)
+{
+  "dialect": "postgres",
+  "schema": "public",
+  "build_output": "./db/schema",
+  "max_connections": 10
+}
+```
+
 CDM validates user-provided plugin configurations against this schema before calling `validate_config`.
 
 ### 12.4 Plugin API

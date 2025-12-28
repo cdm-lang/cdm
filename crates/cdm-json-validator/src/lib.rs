@@ -8,6 +8,54 @@ use cdm_plugin_interface::{PathSegment, Severity, ValidationError};
 use serde_json::Value as JSON;
 use std::collections::HashSet;
 
+/// Apply default values from schema to JSON object
+///
+/// # Arguments
+/// * `schema` - The resolved schema containing all type definitions
+/// * `json` - The JSON value to apply defaults to
+/// * `model_name` - The name of the model to use for defaults
+///
+/// # Returns
+/// A new JSON value with defaults applied for any missing fields
+///
+/// # Example
+/// ```ignore
+/// let schema = build_resolved_schema(...);
+/// let json = serde_json::json!({"name": "Alice"});
+/// let with_defaults = apply_defaults(&schema, &json, "User");
+/// // If User has a default for "role", it will be included in with_defaults
+/// ```
+pub fn apply_defaults(
+    schema: &ResolvedSchema,
+    json: &JSON,
+    model_name: &str,
+) -> JSON {
+    // Look up the model
+    let model = match schema.models.get(model_name) {
+        Some(m) => m,
+        None => return json.clone(),
+    };
+
+    // JSON must be an object to apply defaults
+    let obj = match json.as_object() {
+        Some(o) => o,
+        None => return json.clone(),
+    };
+
+    let mut result = obj.clone();
+
+    // Apply defaults for missing fields
+    for field in &model.fields {
+        if !result.contains_key(&field.name) {
+            if let Some(default) = &field.default_value {
+                result.insert(field.name.clone(), default.clone());
+            }
+        }
+    }
+
+    JSON::Object(result)
+}
+
 /// Validate a JSON value against a model in the schema
 ///
 /// # Arguments
@@ -68,7 +116,9 @@ pub fn validate_json(
 
         // Check if field is present
         if field_value.is_none() {
-            if !field.optional {
+            // Fields with defaults are implicitly optional
+            let is_optional = field.optional || field.default_value.is_some();
+            if !is_optional {
                 errors.push(ValidationError {
                     path: vec![PathSegment {
                         kind: "field".to_string(),
@@ -248,7 +298,9 @@ fn validate_reference(
             let field_value = obj.get(&field.name);
 
             if field_value.is_none() {
-                if !field.optional {
+                // Fields with defaults are implicitly optional
+                let is_optional = field.optional || field.default_value.is_some();
+                if !is_optional {
                     let mut field_path = path.to_vec();
                     field_path.push(PathSegment {
                         kind: "field".to_string(),

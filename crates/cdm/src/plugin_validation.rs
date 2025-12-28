@@ -718,24 +718,35 @@ fn validate_config_with_plugin(
     cached_plugin: &mut CachedPlugin,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
-    // LEVEL 1: Schema validation (structural)
-    if let Some(ref resolved_schema) = cached_plugin.resolved_schema {
-        let model_name = match &config.level {
-            ConfigLevel::Global => "GlobalSettings",
-            ConfigLevel::Model { .. } => "ModelSettings",
-            ConfigLevel::Field { .. } => "FieldSettings",
-        };
+    let model_name = match &config.level {
+        ConfigLevel::Global => "GlobalSettings",
+        ConfigLevel::Model { .. } => "ModelSettings",
+        ConfigLevel::Field { .. } => "FieldSettings",
+    };
 
-        // Filter out reserved config keys before validation
-        let filtered_config = if matches!(config.level, ConfigLevel::Global) {
-            filter_reserved_config_keys(&config.config)
-        } else {
-            config.config.clone()
-        };
+    // Filter out reserved config keys
+    let filtered_config = if matches!(config.level, ConfigLevel::Global) {
+        filter_reserved_config_keys(&config.config)
+    } else {
+        config.config.clone()
+    };
 
-        let schema_errors = cdm_json_validator::validate_json(
+    // Apply defaults if schema is available
+    let config_with_defaults = if let Some(ref resolved_schema) = cached_plugin.resolved_schema {
+        cdm_json_validator::apply_defaults(
             resolved_schema,
             &filtered_config,
+            model_name,
+        )
+    } else {
+        filtered_config.clone()
+    };
+
+    // LEVEL 1: Schema validation (structural)
+    if let Some(ref resolved_schema) = cached_plugin.resolved_schema {
+        let schema_errors = cdm_json_validator::validate_json(
+            resolved_schema,
+            &config_with_defaults,
             model_name,
         );
 
@@ -779,9 +790,9 @@ fn validate_config_with_plugin(
         }
     };
 
-    // Call plugin's validate function
+    // Call plugin's validate function with defaults applied
     // Returns empty array if plugin doesn't have validate_config
-    match cached_plugin.runner.validate(api_level, config.config.clone()) {
+    match cached_plugin.runner.validate(api_level, config_with_defaults) {
         Ok(errors) => {
             for error in errors {
                 let path_str = error.path.iter()

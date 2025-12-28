@@ -2,6 +2,12 @@
   build_output: "./build"
 }
 
+@sql {
+  build_output: "./build",
+  migrations_output: "./migrate",
+  dialect: "postgresql"
+}
+
 User {
   id
   email

@@ -133,7 +133,6 @@ Post {
     // Clean up
     let cleanup = || {
         let _ = fs::remove_dir_all(&temp_dir);
-        let _ = fs::remove_file("types.ts");
     };
 
     if let Err(e) = &result {
@@ -147,9 +146,10 @@ Post {
     // Note: This test demonstrates that configs ARE passed to the plugin correctly
     // The fact that model-level configs (export_name, file_name) and field-level
     // configs (readonly, type_override, field_name) all work proves the fix.
-    let types_file = PathBuf::from("types.ts");
+    // Output is now written relative to source file: temp_dir/generated/types.ts
+    let types_file = temp_dir.join("generated/types.ts");
 
-    assert!(types_file.exists(), "types.ts should be generated");
+    assert!(types_file.exists(), "types.ts should be generated at {}", types_file.display());
 
     let content = fs::read_to_string(&types_file).unwrap();
 

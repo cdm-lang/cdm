@@ -55,6 +55,10 @@ pub fn build(path: &Path) -> Result<()> {
     // Step 2: Process each plugin
     let mut all_output_files = Vec::new();
 
+    // Get the source file directory for resolving relative output paths
+    let source_dir = path.parent()
+        .ok_or_else(|| anyhow::anyhow!("Source file has no parent directory"))?;
+
     for plugin_import in &plugin_imports {
         println!("Running plugin: {}", plugin_import.name);
 
@@ -72,10 +76,28 @@ pub fn build(path: &Path) -> Result<()> {
             &plugin_import.name
         )?;
 
+        // Extract build_output from config (if specified)
+        let build_output = global_config
+            .get("build_output")
+            .and_then(|v| v.as_str())
+            .map(|s| PathBuf::from(s));
+
         // Call the plugin's build function
         match runner.build(plugin_schema, global_config) {
-            Ok(output_files) => {
+            Ok(mut output_files) => {
                 println!("  Generated {} file(s)", output_files.len());
+
+                // If build_output is specified, prepend it to all output file paths
+                if let Some(ref build_dir) = build_output {
+                    for file in &mut output_files {
+                        let file_path = Path::new(&file.path);
+                        // Only prepend if the path is relative
+                        if file_path.is_relative() {
+                            file.path = build_dir.join(file_path).to_string_lossy().to_string();
+                        }
+                    }
+                }
+
                 all_output_files.extend(output_files);
             }
             Err(e) => {
@@ -84,8 +106,8 @@ pub fn build(path: &Path) -> Result<()> {
         }
     }
 
-    // Step 4: Write all output files
-    write_output_files(&all_output_files)?;
+    // Step 4: Write all output files (resolve relative paths from source directory)
+    write_output_files(&all_output_files, source_dir)?;
 
     println!("\n✓ Build completed successfully");
     println!("  {} plugin(s) executed", plugin_imports.len());
@@ -234,22 +256,29 @@ fn load_plugin(import: &PluginImport) -> Result<PluginRunner> {
         .with_context(|| format!("Failed to load plugin '{}'", import.name))
 }
 
-/// Write output files to disk
-fn write_output_files(files: &[OutputFile]) -> Result<()> {
+/// Write output files to disk, resolving paths relative to source_dir
+fn write_output_files(files: &[OutputFile], source_dir: &Path) -> Result<()> {
     for file in files {
-        let path = Path::new(&file.path);
+        let file_path = Path::new(&file.path);
+
+        // Resolve the path relative to the source directory
+        let resolved_path = if file_path.is_absolute() {
+            file_path.to_path_buf()
+        } else {
+            source_dir.join(file_path)
+        };
 
         // Create parent directories if needed
-        if let Some(parent) = path.parent() {
+        if let Some(parent) = resolved_path.parent() {
             fs::create_dir_all(parent)
                 .with_context(|| format!("Failed to create directory: {}", parent.display()))?;
         }
 
         // Write the file
-        fs::write(path, &file.content)
-            .with_context(|| format!("Failed to write file: {}", path.display()))?;
+        fs::write(&resolved_path, &file.content)
+            .with_context(|| format!("Failed to write file: {}", resolved_path.display()))?;
 
-        println!("  Wrote: {}", path.display());
+        println!("  Wrote: {}", resolved_path.display());
     }
 
     Ok(())
@@ -416,7 +445,8 @@ mod tests {
             content: "test content".to_string(),
         }];
 
-        let result = write_output_files(&files);
+        // Use current dir as source_dir for absolute path test
+        let result = write_output_files(&files, Path::new("."));
         assert!(result.is_ok());
 
         let content = fs::read_to_string(&file_path).unwrap();
@@ -434,7 +464,8 @@ mod tests {
             content: "nested content".to_string(),
         }];
 
-        let result = write_output_files(&files);
+        // Use current dir as source_dir for absolute path test
+        let result = write_output_files(&files, Path::new("."));
         assert!(result.is_ok());
 
         assert!(file_path.exists());
@@ -460,7 +491,8 @@ mod tests {
             },
         ];
 
-        let result = write_output_files(&files);
+        // Use current dir as source_dir for absolute path test
+        let result = write_output_files(&files, Path::new("."));
         assert!(result.is_ok());
 
         assert_eq!(fs::read_to_string(&file1).unwrap(), "content 1");
@@ -470,8 +502,42 @@ mod tests {
     #[test]
     fn test_write_output_files_empty_list() {
         let files: Vec<OutputFile> = vec![];
-        let result = write_output_files(&files);
+        let result = write_output_files(&files, Path::new("."));
         assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_write_output_files_relative_paths() {
+        // Test that relative paths are resolved relative to source_dir
+        let source_dir = test_output_path().join("relative_test");
+        let _ = fs::create_dir_all(&source_dir);
+
+        let files = vec![
+            OutputFile {
+                path: "output.txt".to_string(),  // Relative path
+                content: "relative content".to_string(),
+            },
+            OutputFile {
+                path: "build/types.ts".to_string(),  // Relative path with subdirectory
+                content: "typescript content".to_string(),
+            },
+        ];
+
+        let result = write_output_files(&files, &source_dir);
+        assert!(result.is_ok());
+
+        // Verify files were written relative to source_dir
+        let output_file = source_dir.join("output.txt");
+        let types_file = source_dir.join("build/types.ts");
+
+        assert!(output_file.exists(), "output.txt should exist at {}", output_file.display());
+        assert!(types_file.exists(), "build/types.ts should exist at {}", types_file.display());
+
+        assert_eq!(fs::read_to_string(&output_file).unwrap(), "relative content");
+        assert_eq!(fs::read_to_string(&types_file).unwrap(), "typescript content");
+
+        // Clean up
+        let _ = fs::remove_dir_all(&source_dir);
     }
 
     #[test]
