@@ -1,11 +1,11 @@
 {
-    "name": "docs",
-    "version": "0.1.0",
-    "description": "Generate documentation from CDM schemas",
-    "schema": "schema.cdm",
-    "wasm": {
-        "file": "target/wasm32-wasip1/release/cdm_plugin_docs.wasm",
-        "release_url": "https://github.com/cdm-lang/cdm-plugin-docs/releases/download/v{version}/plugin.wasm"
-    },
-    "capabilities": ["generate"]
+  "name": "docs",
+  "version": "0.1.0",
+  "description": "Generate documentation from CDM schemas",
+  "schema": "schema.cdm",
+  "wasm": {
+    "file": "target/wasm32-wasip1/release/cdm_plugin_docs.wasm",
+    "release_url": "https://github.com/cdm-lang/cdm/releases/download/cdm-plugin-docs-v{version}/cdm_plugin_docs.wasm"
+  },
+  "capabilities": ["generate"]
 }
