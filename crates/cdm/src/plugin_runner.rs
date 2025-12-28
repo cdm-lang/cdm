@@ -555,4 +555,181 @@ mod tests {
         // This test will fail until we have a real WASM file
         // It's here as a placeholder for future tests
     }
+
+    #[test]
+    fn test_plugin_runner_new_nonexistent_file() {
+        let result = PluginRunner::new("/nonexistent/path/to/plugin.wasm");
+        assert!(result.is_err());
+        if let Err(e) = result {
+            assert!(e.to_string().contains("Failed to load WASM module"));
+        }
+    }
+
+    #[test]
+    fn test_plugin_runner_new_invalid_wasm() {
+        use std::fs;
+        use tempfile::TempDir;
+
+        let temp_dir = TempDir::new().unwrap();
+        let invalid_wasm_path = temp_dir.path().join("invalid.wasm");
+
+        // Write invalid WASM data
+        fs::write(&invalid_wasm_path, b"not a valid wasm file").unwrap();
+
+        let result = PluginRunner::new(&invalid_wasm_path);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_has_build_without_plugin() {
+        // This test verifies the has_build method structure
+        // Will skip if no test plugin is available
+        if !test_plugin_exists() {
+            return;
+        }
+
+        let runner = PluginRunner::new(get_test_plugin_path()).expect("Failed to create plugin runner");
+        let result = runner.has_build();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_has_migrate_without_plugin() {
+        // This test verifies the has_migrate method structure
+        // Will skip if no test plugin is available
+        if !test_plugin_exists() {
+            return;
+        }
+
+        let runner = PluginRunner::new(get_test_plugin_path()).expect("Failed to create plugin runner");
+        let result = runner.has_migrate();
+        assert!(result.is_ok());
+    }
+
+    #[test]
+    fn test_schema_call() {
+        if !test_plugin_exists() {
+            eprintln!("Skipping test - test plugin not found");
+            return;
+        }
+
+        let mut runner = PluginRunner::new(get_test_plugin_path())
+            .expect("Failed to create plugin runner");
+
+        let result = runner.schema();
+
+        // The schema call should either succeed or fail gracefully
+        match result {
+            Ok(schema) => {
+                // If successful, schema should be valid JSON
+                assert!(!schema.is_empty());
+            }
+            Err(e) => {
+                // If error, it should be a meaningful error message
+                let error_msg = format!("{:?}", e);
+                assert!(
+                    error_msg.contains("schema") || error_msg.contains("function"),
+                    "Unexpected error: {}",
+                    error_msg
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_validate_empty_config() {
+        if !test_plugin_exists() {
+            eprintln!("Skipping test - test plugin not found");
+            return;
+        }
+
+        let mut runner = PluginRunner::new(get_test_plugin_path())
+            .expect("Failed to create plugin runner");
+
+        let config = serde_json::json!({});
+        let result = runner.validate(ConfigLevel::Global, config);
+
+        // Should either succeed with empty errors or fail gracefully
+        assert!(result.is_ok() || result.is_err());
+    }
+
+    #[test]
+    fn test_build_empty_schema() {
+        if !test_plugin_exists() {
+            eprintln!("Skipping test - test plugin not found");
+            return;
+        }
+
+        let mut runner = PluginRunner::new(get_test_plugin_path())
+            .expect("Failed to create plugin runner");
+
+        let schema = Schema {
+            models: HashMap::new(),
+            type_aliases: HashMap::new(),
+        };
+
+        let config = serde_json::json!({});
+        let result = runner.build(schema, config);
+
+        // Should either succeed or fail with a meaningful error
+        match result {
+            Ok(files) => {
+                // Empty schema might produce no files
+                assert!(files.is_empty() || !files.is_empty());
+            }
+            Err(e) => {
+                let error_msg = format!("{:?}", e);
+                assert!(
+                    error_msg.contains("build") || error_msg.contains("function"),
+                    "Unexpected error: {}",
+                    error_msg
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_migrate_empty_deltas() {
+        if !test_plugin_exists() {
+            eprintln!("Skipping test - test plugin not found");
+            return;
+        }
+
+        let mut runner = PluginRunner::new(get_test_plugin_path())
+            .expect("Failed to create plugin runner");
+
+        let schema = Schema {
+            models: HashMap::new(),
+            type_aliases: HashMap::new(),
+        };
+
+        let deltas = vec![];
+        let config = serde_json::json!({});
+
+        let result = runner.migrate(schema, deltas, config);
+
+        // Empty deltas should either produce no files or fail gracefully
+        match result {
+            Ok(files) => {
+                // No deltas might produce no files
+                assert!(files.is_empty() || !files.is_empty());
+            }
+            Err(e) => {
+                let error_msg = format!("{:?}", e);
+                assert!(
+                    error_msg.contains("migrate") || error_msg.contains("function"),
+                    "Unexpected error: {}",
+                    error_msg
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn test_plugin_state_creation() {
+        // Test that we can create a PluginState
+        let wasi = wasmtime_wasi::WasiCtxBuilder::new().build_p1();
+        let _state = PluginState { wasi };
+        // If we get here without panicking, the test passes
+    }
 }

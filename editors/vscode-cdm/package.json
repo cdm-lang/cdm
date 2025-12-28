@@ -3,7 +3,7 @@
   "displayName": "CDM Language Support",
   "description": "Language support for CDM (Contextual Data Model)",
   "version": "0.1.0",
-  "publisher": "cdm-lang",
+  "publisher": "larner-dev",
   "repository": {
     "type": "git",
     "url": "https://github.com/cdm-lang/cdm"
@@ -81,21 +81,52 @@
       {
         "language": "cdm",
         "scopes": {
-          "comment": ["comment.line.cdm"],
-          "keyword": ["storage.modifier.cdm", "keyword.control.extends"],
-          "string": ["string.quoted.double.cdm"],
-          "number": ["constant.numeric.cdm"],
-          "operator": ["keyword.operator.cdm"],
-          "type": ["support.type.cdm"],
-          "type.readonly": ["support.type.primitive.cdm"],
-          "class": ["entity.name.class.cdm"],
-          "class.definition": ["entity.name.class.cdm"],
-          "property": ["variable.other.property.cdm"],
-          "property.definition": ["variable.other.property.cdm"],
-          "parameter": ["storage.type.entity-id.cdm"],
-          "parameter.readonly": ["storage.type.entity-id.cdm"],
-          "macro": ["entity.name.plugin.cdm"],
-          "enumMember": ["string.quoted.double.cdm"]
+          "comment": [
+            "comment.line.cdm"
+          ],
+          "keyword": [
+            "storage.modifier.cdm",
+            "keyword.control.extends"
+          ],
+          "string": [
+            "string.quoted.double.cdm"
+          ],
+          "number": [
+            "constant.numeric.cdm"
+          ],
+          "operator": [
+            "keyword.operator.cdm"
+          ],
+          "type": [
+            "support.type.cdm"
+          ],
+          "type.readonly": [
+            "support.type.primitive.cdm"
+          ],
+          "class": [
+            "entity.name.class.cdm"
+          ],
+          "class.definition": [
+            "entity.name.class.cdm"
+          ],
+          "property": [
+            "variable.other.property.cdm"
+          ],
+          "property.definition": [
+            "variable.other.property.cdm"
+          ],
+          "parameter": [
+            "storage.type.entity-id.cdm"
+          ],
+          "parameter.readonly": [
+            "storage.type.entity-id.cdm"
+          ],
+          "macro": [
+            "entity.name.plugin.cdm"
+          ],
+          "enumMember": [
+            "string.quoted.double.cdm"
+          ]
         }
       }
     ],

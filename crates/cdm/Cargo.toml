@@ -17,10 +17,14 @@ wasmtime-wasi = "27.0.0"
 serde = { version = "1.0", features = ["derive"] }
 serde_json = "1.0"
 glob = "0.3"
+reqwest = { version = "0.11", features = ["blocking", "rustls-tls"], default-features = false }
+sha2 = "0.10"
+semver = "1.0"
 
 [dev-dependencies]
 tempfile = "3.14.0"
 toml = "0.8.19"
+serial_test = "3.2.0"
 
 [build-dependencies]
 cc="*"

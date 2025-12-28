@@ -43,6 +43,7 @@ pub const LEGEND_MODIFIER: &[SemanticTokenModifier] = &[
 ];
 
 // Modifier bit flags
+#[allow(dead_code)]
 const MODIFIER_DECLARATION: u32 = 1 << 0;
 const MODIFIER_DEFINITION: u32 = 1 << 1;
 const MODIFIER_READONLY: u32 = 1 << 2;
@@ -187,7 +188,7 @@ fn get_token_info(node: &Node, source: &str) -> Option<(u32, u32)> {
         // Model name in definition
         "model_definition" => {
             // The first child named "name" is the model name
-            if let Some(name_node) = node.child_by_field_name("name") {
+            if let Some(_name_node) = node.child_by_field_name("name") {
                 Some((TOKEN_CLASS, MODIFIER_DEFINITION))
             } else {
                 None
@@ -197,7 +198,7 @@ fn get_token_info(node: &Node, source: &str) -> Option<(u32, u32)> {
         // Type alias name in definition
         "type_alias" => {
             // The first child named "name" is the type alias name
-            if let Some(name_node) = node.child_by_field_name("name") {
+            if let Some(_name_node) = node.child_by_field_name("name") {
                 Some((TOKEN_TYPE, MODIFIER_DEFINITION))
             } else {
                 None
@@ -206,7 +207,7 @@ fn get_token_info(node: &Node, source: &str) -> Option<(u32, u32)> {
 
         // Field name in definition
         "field_definition" => {
-            if let Some(name_node) = node.child_by_field_name("name") {
+            if let Some(_name_node) = node.child_by_field_name("name") {
                 Some((TOKEN_PROPERTY, MODIFIER_DEFINITION))
             } else {
                 None

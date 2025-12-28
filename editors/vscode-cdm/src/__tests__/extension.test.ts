@@ -68,6 +68,9 @@ describe("CDM Extension", () => {
     (vscode.workspace.createFileSystemWatcher as jest.Mock) = jest.fn(
       () => mockFileSystemWatcher
     );
+    (vscode.workspace.onWillSaveTextDocument as jest.Mock) = jest.fn(
+      () => ({ dispose: jest.fn() })
+    );
 
     // Mock window
     (vscode.window.createOutputChannel as jest.Mock) = jest.fn(
@@ -318,6 +321,7 @@ describe("CDM Extension", () => {
         "CDM Language Server restarted"
       );
     });
+
   });
 
   describe("document selector", () => {
@@ -335,6 +339,151 @@ describe("CDM Extension", () => {
         { scheme: "file", language: "cdm" },
         { scheme: "untitled", language: "cdm" },
       ]);
+    });
+  });
+
+  describe("onWillSaveTextDocument handler", () => {
+    let onWillSaveHandler: Function;
+    let mockTextDocumentWillSaveEvent: any;
+
+    beforeEach(() => {
+      // Capture the handler function
+      (vscode.workspace.onWillSaveTextDocument as jest.Mock) = jest.fn(
+        (handler: Function) => {
+          onWillSaveHandler = handler;
+          return { dispose: jest.fn() };
+        }
+      );
+
+      // Mock executeCommand
+      (vscode.commands.executeCommand as jest.Mock) = jest.fn().mockResolvedValue(undefined);
+
+      activate(mockContext);
+    });
+
+    it("should register onWillSaveTextDocument handler", () => {
+      expect(vscode.workspace.onWillSaveTextDocument).toHaveBeenCalled();
+      expect(onWillSaveHandler).toBeDefined();
+    });
+
+    it("should do nothing when assignIdsOnSave is false", async () => {
+      mockConfig.get = jest.fn((key: string) => {
+        if (key === "format.assignIdsOnSave") {
+          return false;
+        }
+        return undefined;
+      });
+
+      mockTextDocumentWillSaveEvent = {
+        document: {
+          languageId: "cdm",
+        },
+        waitUntil: jest.fn(),
+      };
+
+      await onWillSaveHandler(mockTextDocumentWillSaveEvent);
+
+      expect(mockTextDocumentWillSaveEvent.waitUntil).not.toHaveBeenCalled();
+    });
+
+    it("should do nothing when document is not CDM", async () => {
+      mockConfig.get = jest.fn((key: string) => {
+        if (key === "format.assignIdsOnSave") {
+          return true;
+        }
+        return undefined;
+      });
+
+      mockTextDocumentWillSaveEvent = {
+        document: {
+          languageId: "javascript",
+        },
+        waitUntil: jest.fn(),
+      };
+
+      await onWillSaveHandler(mockTextDocumentWillSaveEvent);
+
+      expect(mockTextDocumentWillSaveEvent.waitUntil).not.toHaveBeenCalled();
+    });
+
+    it("should format document when assignIdsOnSave is true and document is CDM", async () => {
+      mockConfig.get = jest.fn((key: string) => {
+        if (key === "format.assignIdsOnSave") {
+          return true;
+        }
+        return undefined;
+      });
+
+      mockTextDocumentWillSaveEvent = {
+        document: {
+          languageId: "cdm",
+        },
+        waitUntil: jest.fn(),
+      };
+
+      await onWillSaveHandler(mockTextDocumentWillSaveEvent);
+
+      expect(mockTextDocumentWillSaveEvent.waitUntil).toHaveBeenCalledWith(
+        expect.any(Promise)
+      );
+      expect(vscode.commands.executeCommand).toHaveBeenCalledWith(
+        "editor.action.formatDocument"
+      );
+    });
+
+    it("should include assignIdsOnSave in initialization options", () => {
+      mockConfig.get = jest.fn((key: string) => {
+        if (key === "format.assignIdsOnSave") {
+          return true;
+        }
+        if (key === "validation.checkIds") {
+          return true;
+        }
+        if (key === "format.indentSize") {
+          return 2;
+        }
+        if (key === "server.path") {
+          return "cdm-lsp";
+        }
+        if (key === "trace.server") {
+          return "off";
+        }
+        return undefined;
+      });
+
+      jest.clearAllMocks();
+
+      // eslint-disable-next-line @typescript-eslint/naming-convention
+      const { LanguageClient } = require("vscode-languageclient/node");
+
+      activate(mockContext);
+
+      expect(LanguageClient).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(String),
+        expect.any(Object),
+        expect.objectContaining({
+          initializationOptions: {
+            checkIds: true,
+            indentSize: 2,
+            assignIdsOnSave: true,
+          },
+        })
+      );
+    });
+  });
+
+  describe("deactivate when client is undefined", () => {
+    it("should return undefined when client has not been initialized", () => {
+      // Reset the module to clear the client variable
+      jest.resetModules();
+
+      // Re-import to get fresh module state
+      const { deactivate: freshDeactivate } = require("../extension");
+
+      const result = freshDeactivate();
+
+      expect(result).toBeUndefined();
     });
   });
 });

@@ -88,6 +88,38 @@ enum PluginCommands {
         #[arg(short = 'o', long, value_name = "DIR")]
         output: Option<PathBuf>,
     },
+    /// List available plugins from registry or cache
+    List {
+        /// List cached plugins instead of registry
+        #[arg(long)]
+        cached: bool,
+    },
+    /// Show information about a plugin
+    Info {
+        /// Plugin name
+        #[arg(value_name = "NAME")]
+        name: String,
+
+        /// Show all available versions
+        #[arg(long)]
+        versions: bool,
+    },
+    /// Cache a plugin for offline use
+    Cache {
+        /// Plugin name (or use --all)
+        #[arg(value_name = "NAME", required_unless_present = "all")]
+        name: Option<String>,
+
+        /// Cache all plugins used in current project
+        #[arg(long, conflicts_with = "name")]
+        all: bool,
+    },
+    /// Clear plugin cache
+    ClearCache {
+        /// Clear specific plugin (or all if not specified)
+        #[arg(value_name = "NAME")]
+        name: Option<String>,
+    },
 }
 
 fn main() -> Result<()> {
@@ -140,6 +172,30 @@ fn main() -> Result<()> {
                 PluginCommands::New { name, lang, output } => {
                     if let Err(err) = cdm::plugin_new(&name, &lang, output.as_deref()) {
                         eprintln!("Failed to create plugin: {}", err);
+                        std::process::exit(1);
+                    }
+                }
+                PluginCommands::List { cached } => {
+                    if let Err(err) = cdm::list_plugins(cached) {
+                        eprintln!("Failed to list plugins: {}", err);
+                        std::process::exit(1);
+                    }
+                }
+                PluginCommands::Info { name, versions } => {
+                    if let Err(err) = cdm::plugin_info(&name, versions) {
+                        eprintln!("Failed to get plugin info: {}", err);
+                        std::process::exit(1);
+                    }
+                }
+                PluginCommands::Cache { name, all } => {
+                    if let Err(err) = cdm::cache_plugin_cmd(name.as_deref(), all) {
+                        eprintln!("Failed to cache plugin: {}", err);
+                        std::process::exit(1);
+                    }
+                }
+                PluginCommands::ClearCache { name } => {
+                    if let Err(err) = cdm::clear_cache_cmd(name.as_deref()) {
+                        eprintln!("Failed to clear cache: {}", err);
                         std::process::exit(1);
                     }
                 }

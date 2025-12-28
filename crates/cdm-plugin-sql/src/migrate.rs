@@ -2251,4 +2251,315 @@ DROP TABLE \"document\";
 ";
         assert_eq!(files[1].content, expected_down);
     }
+
+    #[test]
+    fn test_get_schema_prefix_none() {
+        let config = serde_json::json!({ "dialect": "postgresql" });
+        let prefix = get_schema_prefix(&config, Dialect::PostgreSQL);
+        assert_eq!(prefix, None);
+    }
+
+    #[test]
+    fn test_get_schema_prefix_some() {
+        let config = serde_json::json!({ "dialect": "postgresql", "schema": "my_schema" });
+        let prefix = get_schema_prefix(&config, Dialect::PostgreSQL);
+        assert_eq!(prefix, Some("my_schema".to_string()));
+    }
+
+    #[test]
+    fn test_get_schema_prefix_sqlite_ignored() {
+        let config = serde_json::json!({ "dialect": "sqlite", "schema": "my_schema" });
+        let prefix = get_schema_prefix(&config, Dialect::SQLite);
+        assert_eq!(prefix, None);
+    }
+
+    #[test]
+    fn test_migrate_field_removed() {
+        let schema = Schema {
+            type_aliases: HashMap::new(),
+            models: HashMap::new(),
+        };
+
+        use cdm_plugin_interface::TypeExpression;
+
+        let deltas = vec![Delta::FieldRemoved {
+            model: "User".to_string(),
+            field: "email".to_string(),
+            before: FieldDefinition {
+                name: "email".to_string(),
+                field_type: TypeExpression::Identifier { name: "string".to_string() },
+                optional: false,
+                entity_id: Some(2),
+                default: None,
+                config: serde_json::json!({}),
+            },
+        }];
+
+        let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+        let utils = Utils;
+
+        let files = migrate(schema, deltas, config, &utils);
+        assert_eq!(files.len(), 2);
+
+        // Check that up migration drops the column
+        assert!(files[0].content.contains("DROP COLUMN"));
+        assert!(files[0].content.contains("\"email\""));
+
+        // Check that down migration adds the column back
+        assert!(files[1].content.contains("ADD COLUMN"));
+        assert!(files[1].content.contains("\"email\""));
+    }
+
+    #[test]
+    fn test_migrate_field_default_changed_to_some() {
+        use std::collections::HashMap;
+        use cdm_plugin_interface::{ModelDefinition, TypeExpression};
+
+        let mut models = HashMap::new();
+        models.insert(
+            "User".to_string(),
+            ModelDefinition {
+                name: "User".to_string(),
+                entity_id: Some(1),
+                parents: vec![],
+                fields: vec![FieldDefinition {
+                    name: "status".to_string(),
+                    field_type: TypeExpression::Identifier { name: "string".to_string() },
+                    optional: false,
+                    entity_id: Some(2),
+                    default: Some(cdm_plugin_interface::Value::String("active".to_string())),
+                    config: serde_json::json!({}),
+                }],
+                config: serde_json::json!({}),
+            },
+        );
+
+        let schema = Schema {
+            type_aliases: HashMap::new(),
+            models,
+        };
+
+        let deltas = vec![Delta::FieldDefaultChanged {
+            model: "User".to_string(),
+            field: "status".to_string(),
+            before: None,
+            after: Some(cdm_plugin_interface::Value::String("active".to_string())),
+        }];
+
+        let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+        let utils = Utils;
+
+        let files = migrate(schema, deltas, config, &utils);
+        assert_eq!(files.len(), 2);
+
+        // Check that up migration sets default
+        assert!(files[0].content.contains("SET DEFAULT"));
+        assert!(files[0].content.contains("active"));
+
+        // Check that down migration drops default
+        assert!(files[1].content.contains("DROP DEFAULT"));
+    }
+
+    #[test]
+    fn test_migrate_model_config_changed_no_indexes() {
+        use std::collections::HashMap;
+        use cdm_plugin_interface::ModelDefinition;
+
+        let mut models = HashMap::new();
+        models.insert(
+            "User".to_string(),
+            ModelDefinition {
+                name: "User".to_string(),
+                entity_id: Some(1),
+                parents: vec![],
+                fields: vec![],
+                config: serde_json::json!({ "table_name": "users_new" }),
+            },
+        );
+
+        let schema = Schema {
+            type_aliases: HashMap::new(),
+            models,
+        };
+
+        let deltas = vec![Delta::ModelConfigChanged {
+            model: "User".to_string(),
+            before: serde_json::json!({ "table_name": "users_old" }),
+            after: serde_json::json!({ "table_name": "users_new" }),
+        }];
+
+        let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+        let utils = Utils;
+
+        let files = migrate(schema, deltas, config, &utils);
+
+        // Should have files but no index changes since no indexes are defined
+        assert_eq!(files.len(), 2);
+    }
+
+    #[test]
+    fn test_migrate_empty_schema_with_model_added() {
+        let schema = Schema {
+            type_aliases: HashMap::new(),
+            models: HashMap::new(),
+        };
+
+        let deltas = vec![Delta::ModelAdded {
+            name: "EmptyModel".to_string(),
+            after: ModelDefinition {
+                name: "EmptyModel".to_string(),
+                entity_id: Some(1),
+                parents: vec![],
+                fields: vec![],
+                config: serde_json::json!({}),
+            },
+        }];
+
+        let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+        let utils = Utils;
+
+        let files = migrate(schema, deltas, config, &utils);
+        assert_eq!(files.len(), 2);
+
+        // Up migration should create empty table
+        assert!(files[0].content.contains("CREATE TABLE"));
+        // Table name might be pluralized or modified based on config
+        assert!(files[0].content.contains("empty") || files[0].content.contains("Empty"));
+
+        // Down migration should drop table
+        assert!(files[1].content.contains("DROP TABLE"));
+    }
+
+    #[test]
+    fn test_generate_column_definition_with_all_properties() {
+        use cdm_plugin_interface::TypeExpression;
+
+        let field_def = FieldDefinition {
+            name: "email".to_string(),
+            field_type: TypeExpression::Identifier { name: "string".to_string() },
+            optional: false,
+            entity_id: Some(2),
+            default: Some(cdm_plugin_interface::Value::String("user@example.com".to_string())),
+            config: serde_json::json!({ "column_name": "user_email", "max_length": 255 }),
+        };
+
+        let config = serde_json::json!({ "dialect": "postgresql" });
+        let type_mapper = TypeMapper::new(&config);
+
+        let column_def = generate_column_definition(&field_def, "user_email", &config, &type_mapper);
+
+        // Verify basic properties are present
+        assert!(column_def.contains("user_email"));
+        assert!(column_def.contains("VARCHAR(255)"));
+        assert!(column_def.contains("NOT NULL"));
+        // Default value handling depends on the implementation
+    }
+
+    #[test]
+    fn test_migrate_complex_multiple_deltas_mixed() {
+        use std::collections::HashMap;
+        use cdm_plugin_interface::{ModelDefinition, TypeExpression};
+
+        let mut models = HashMap::new();
+        models.insert(
+            "User".to_string(),
+            ModelDefinition {
+                name: "User".to_string(),
+                entity_id: Some(1),
+                parents: vec![],
+                fields: vec![
+                    FieldDefinition {
+                        name: "name".to_string(),
+                        field_type: TypeExpression::Identifier { name: "string".to_string() },
+                        optional: false,
+                        entity_id: Some(2),
+                        default: None,
+                        config: serde_json::json!({}),
+                    },
+                    FieldDefinition {
+                        name: "email".to_string(),
+                        field_type: TypeExpression::Identifier { name: "string".to_string() },
+                        optional: false,
+                        entity_id: Some(3),
+                        default: None,
+                        config: serde_json::json!({}),
+                    },
+                ],
+                config: serde_json::json!({}),
+            },
+        );
+
+        let schema = Schema {
+            type_aliases: HashMap::new(),
+            models,
+        };
+
+        // Mix of different delta types
+        let deltas = vec![
+            Delta::ModelAdded {
+                name: "Product".to_string(),
+                after: ModelDefinition {
+                    name: "Product".to_string(),
+                    entity_id: Some(10),
+                    parents: vec![],
+                    fields: vec![],
+                    config: serde_json::json!({}),
+                },
+            },
+            Delta::FieldAdded {
+                model: "User".to_string(),
+                field: "age".to_string(),
+                after: FieldDefinition {
+                    name: "age".to_string(),
+                    field_type: TypeExpression::Identifier { name: "number".to_string() },
+                    optional: true,
+                    entity_id: Some(4),
+                    default: None,
+                    config: serde_json::json!({}),
+                },
+            },
+            Delta::FieldRenamed {
+                model: "User".to_string(),
+                old_name: "name".to_string(),
+                new_name: "full_name".to_string(),
+                id: Some(2),
+                before: FieldDefinition {
+                    name: "name".to_string(),
+                    field_type: TypeExpression::Identifier { name: "string".to_string() },
+                    optional: false,
+                    entity_id: Some(2),
+                    default: None,
+                    config: serde_json::json!({}),
+                },
+                after: FieldDefinition {
+                    name: "full_name".to_string(),
+                    field_type: TypeExpression::Identifier { name: "string".to_string() },
+                    optional: false,
+                    entity_id: Some(2),
+                    default: None,
+                    config: serde_json::json!({}),
+                },
+            },
+        ];
+
+        let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+        let utils = Utils;
+
+        let files = migrate(schema, deltas, config, &utils);
+        assert_eq!(files.len(), 2);
+
+        // Verify up migration contains all operations
+        assert!(files[0].content.contains("CREATE TABLE"));
+        assert!(files[0].content.contains("\"product\""));
+        assert!(files[0].content.contains("ADD COLUMN"));
+        assert!(files[0].content.contains("\"age\""));
+        assert!(files[0].content.contains("RENAME COLUMN"));
+        assert!(files[0].content.contains("\"name\""));
+        assert!(files[0].content.contains("\"full_name\""));
+
+        // Verify down migration reverses all operations
+        assert!(files[1].content.contains("DROP TABLE"));
+        assert!(files[1].content.contains("DROP COLUMN"));
+        assert!(files[1].content.contains("RENAME COLUMN"));
+    }
 }
