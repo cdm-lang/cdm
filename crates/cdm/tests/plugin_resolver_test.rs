@@ -54,6 +54,7 @@ fn test_validate_with_registry_plugin() {
 
 /// Test that build works with registry plugins
 #[test]
+#[serial_test::serial]
 fn test_build_with_registry_plugin() {
     let root = project_root();
     let test_file = root.join("examples/base.cdm");
@@ -85,6 +86,7 @@ fn test_build_with_registry_plugin() {
 
 /// Test that the plugin cache is used across multiple operations
 #[test]
+#[serial_test::serial]
 fn test_plugin_cache_reuse() {
     let root = project_root();
     let test_file = root.join("examples/base.cdm");
@@ -155,6 +157,7 @@ User {
 
 /// Test that validation and build use the same plugin resolution
 #[test]
+#[serial_test::serial]
 fn test_validate_build_consistency() {
     let root = project_root();
     let test_file = root.join("examples/base.cdm");
