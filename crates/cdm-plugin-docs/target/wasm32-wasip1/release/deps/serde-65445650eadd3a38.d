@@ -1,0 +1,14 @@
+/Users/alarner/projects/cdm/crates/cdm-plugin-docs/target/wasm32-wasip1/release/deps/serde-65445650eadd3a38.d: /Users/alarner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/alarner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/alarner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/alarner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/alarner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/alarner/projects/cdm/crates/cdm-plugin-docs/target/wasm32-wasip1/release/build/serde-b0fda085b074b4b0/out/private.rs
+
+/Users/alarner/projects/cdm/crates/cdm-plugin-docs/target/wasm32-wasip1/release/deps/libserde-65445650eadd3a38.rlib: /Users/alarner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/alarner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/alarner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/alarner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/alarner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/alarner/projects/cdm/crates/cdm-plugin-docs/target/wasm32-wasip1/release/build/serde-b0fda085b074b4b0/out/private.rs
+
+/Users/alarner/projects/cdm/crates/cdm-plugin-docs/target/wasm32-wasip1/release/deps/libserde-65445650eadd3a38.rmeta: /Users/alarner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs /Users/alarner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs /Users/alarner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs /Users/alarner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs /Users/alarner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs /Users/alarner/projects/cdm/crates/cdm-plugin-docs/target/wasm32-wasip1/release/build/serde-b0fda085b074b4b0/out/private.rs
+
+/Users/alarner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/lib.rs:
+/Users/alarner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/integer128.rs:
+/Users/alarner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/mod.rs:
+/Users/alarner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/de.rs:
+/Users/alarner/.cargo/registry/src/index.crates.io-1949cf8c6b5b557f/serde-1.0.228/src/private/ser.rs:
+/Users/alarner/projects/cdm/crates/cdm-plugin-docs/target/wasm32-wasip1/release/build/serde-b0fda085b074b4b0/out/private.rs:
+
+# env-dep:OUT_DIR=/Users/alarner/projects/cdm/crates/cdm-plugin-docs/target/wasm32-wasip1/release/build/serde-b0fda085b074b4b0/out

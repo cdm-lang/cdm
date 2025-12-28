@@ -56,14 +56,14 @@ setup: check-deps
 # Build plugin in release mode (optimized for size)
 build: check-deps
 	@echo "Building plugin (release mode)..."
-	cargo build --release --target $(WASM_TARGET)
+	cargo build --release --target $(WASM_TARGET) --target-dir target
 	@echo "✓ Build complete: $(RELEASE_WASM)"
 	@make size
 
 # Build plugin in debug mode (faster compilation)
 build-debug: check-deps
 	@echo "Building plugin (debug mode)..."
-	cargo build --target $(WASM_TARGET)
+	cargo build --target $(WASM_TARGET) --target-dir target
 	@echo "✓ Build complete: $(DEBUG_WASM)"
 
 # Run all tests
@@ -97,7 +97,7 @@ run-example: build
 # Watch for changes and rebuild (requires cargo-watch)
 watch:
 	@command -v cargo-watch >/dev/null 2>&1 || { echo "Install cargo-watch: cargo install cargo-watch"; exit 1; }
-	cargo watch -x 'build --target $(WASM_TARGET)'
+	cargo watch -x 'build --target $(WASM_TARGET) --target-dir target'
 
 # Clean build artifacts
 clean:
