@@ -159,6 +159,7 @@ jobs:
           token: ${{ secrets.GITHUB_TOKEN }}
           commit-message: "Update registry: ${{ steps.tag_info.outputs.plugin_name }} ${{ steps.tag_info.outputs.version }}"
           branch: registry-update-${{ steps.tag_info.outputs.tag }}
+          base: main
           delete-branch: true
           title: "Update registry: ${{ steps.tag_info.outputs.plugin_name }} ${{ steps.tag_info.outputs.version }}"
           body: |
