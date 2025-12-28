@@ -1,5 +1,5 @@
 use crate::{FileResolver, PluginRunner, build_cdm_schema_for_plugin};
-use crate::plugin_validation::{extract_plugin_imports_from_validation_result, PluginImport, PluginSource};
+use crate::plugin_validation::{extract_plugin_imports_from_validation_result, PluginImport};
 use anyhow::{Result, Context};
 use cdm_plugin_interface::{OutputFile, Schema, Delta};
 use std::path::{Path, PathBuf};
@@ -701,49 +701,7 @@ fn resolve_migration_output_dir(
 
 /// Load a plugin from its import specification
 fn load_plugin(import: &PluginImport) -> Result<PluginRunner> {
-    let wasm_path = resolve_plugin_path(import)?;
-    PluginRunner::new(&wasm_path)
-        .with_context(|| format!("Failed to load plugin '{}'", import.name))
-}
-
-/// Resolve plugin path based on import specification
-///
-/// This uses the shared resolver but adds special handling for local development
-/// where plugins might be in target/wasm32-wasip1/release/
-fn resolve_plugin_path(import: &PluginImport) -> Result<PathBuf> {
-    match &import.source {
-        Some(PluginSource::Path { path }) => {
-            // For local path plugins, check both the standard location and the development build location
-            let base_dir = import.source_file.parent()
-                .ok_or_else(|| anyhow::anyhow!("Could not determine source file directory"))?;
-
-            let resolved_path = base_dir.join(path);
-
-            // Look for WASM in target/wasm32-wasip1/release/ (development)
-            let wasm_name = import.name.replace("-", "_");
-            let wasm_path = resolved_path
-                .join("target/wasm32-wasip1/release")
-                .join(format!("{}.wasm", wasm_name));
-
-            if wasm_path.exists() {
-                return Ok(wasm_path);
-            }
-
-            // Fallback: try direct path
-            let direct_wasm = resolved_path.join(format!("{}.wasm", wasm_name));
-            if direct_wasm.exists() {
-                return Ok(direct_wasm);
-            }
-
-            Err(anyhow::anyhow!(
-                "Could not find WASM file for plugin '{}' at {}",
-                import.name,
-                resolved_path.display()
-            ))
-        }
-        // For git and registry plugins, use the shared resolver
-        _ => crate::plugin_resolver::resolve_plugin_path(import),
-    }
+    PluginRunner::from_import(import)
 }
 
 
@@ -846,7 +804,7 @@ mod tests {
             span: test_span(),
         };
 
-        let result = resolve_plugin_path(&import);
+        let result = crate::plugin_resolver::resolve_plugin_path(&import);
 
         // Should succeed - will download from registry if not cached
         assert!(
@@ -889,12 +847,12 @@ mod tests {
         };
 
         // First resolution
-        let result1 = resolve_plugin_path(&import);
+        let result1 = crate::plugin_resolver::resolve_plugin_path(&import);
         assert!(result1.is_ok(), "First resolution should succeed");
         let path1 = result1.unwrap();
 
         // Second resolution should return the same cached path
-        let result2 = resolve_plugin_path(&import);
+        let result2 = crate::plugin_resolver::resolve_plugin_path(&import);
         assert!(result2.is_ok(), "Second resolution should succeed");
         let path2 = result2.unwrap();
 

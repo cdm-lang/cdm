@@ -1,9 +1,14 @@
+
 @docs from ../../../../crates/cdm-plugin-docs {
   format: "markdown",
-  build_output: "./docs",
-  unknown_field: "value"
+  build_output: "./docs"
 }
 
 User {
+  @docs {
+    description: "A user model",
+    hidden: false
+  }
+
   id: number
 }

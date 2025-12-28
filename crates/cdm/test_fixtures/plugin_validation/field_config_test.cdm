@@ -1,0 +1,14 @@
+
+@docs from ../../../../crates/cdm-plugin-docs {
+  format: "markdown",
+  build_output: "./docs"
+}
+
+User {
+  id: number {
+    @docs {
+      description: "User ID field",
+      deprecated: true
+    }
+  }
+}

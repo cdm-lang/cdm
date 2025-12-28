@@ -51,13 +51,13 @@ fn test_build_with_typescript_plugin_configs() {
 
     // Build the typescript plugin WASM if it doesn't exist
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let plugin_source = manifest_dir
+    let plugin_wasm = manifest_dir
         .parent().unwrap()
         .parent().unwrap()
         .join("target/wasm32-wasip1/release/cdm_plugin_typescript.wasm");
 
     // Build the plugin if it doesn't exist
-    if !plugin_source.exists() {
+    if !plugin_wasm.exists() {
         let project_root = manifest_dir.parent().unwrap().parent().unwrap();
         let build_result = Command::new("cargo")
             .current_dir(project_root)
@@ -82,11 +82,25 @@ fn test_build_with_typescript_plugin_configs() {
         }
     }
 
-    let plugin_dest = temp_dir.join("typescript.wasm");
-    fs::copy(&plugin_source, &plugin_dest).unwrap();
+    // Get the path to the actual plugin directory (not the WASM file)
+    let plugin_dir = manifest_dir
+        .parent().unwrap()
+        .parent().unwrap()
+        .join("crates/cdm-plugin-typescript");
+
+    // Create a symlink to the plugin directory in the temp directory
+    let plugin_link = temp_dir.join("typescript-plugin");
+    #[cfg(unix)]
+    {
+        let _ = std::os::unix::fs::symlink(&plugin_dir, &plugin_link);
+    }
+    #[cfg(windows)]
+    {
+        let _ = std::os::windows::fs::symlink_dir(&plugin_dir, &plugin_link);
+    }
 
     // Create a CDM schema with model and field level configs
-    let schema = r#"@typescript from ./typescript.wasm {
+    let schema = r#"@typescript from ./typescript-plugin {
     build_output: "./generated"
 }
 

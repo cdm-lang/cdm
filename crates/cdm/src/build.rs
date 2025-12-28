@@ -131,9 +131,7 @@ pub fn build(path: &Path) -> Result<()> {
 
 /// Load a plugin from its import specification
 fn load_plugin(import: &PluginImport) -> Result<PluginRunner> {
-    let wasm_path = crate::plugin_resolver::resolve_plugin_path(import)?;
-    PluginRunner::new(&wasm_path)
-        .with_context(|| format!("Failed to load plugin '{}'", import.name))
+    PluginRunner::from_import(import)
 }
 
 /// Write output files to disk, resolving paths relative to source_dir
@@ -421,15 +419,36 @@ mod tests {
     }
 
     #[test]
-    fn test_resolve_plugin_path_with_explicit_path() {
-        let fixtures = fixtures_path();
-        let plugin_file = fixtures.join("test-plugin.wasm");
-        let source_file = fixtures.join("schema.cdm");
+    fn test_resolve_plugin_path_with_cdm_plugin_json() {
+        use tempfile::TempDir;
+
+        // Create a temporary plugin directory with cdm-plugin.json
+        let temp_dir = TempDir::new().unwrap();
+        let plugin_dir = temp_dir.path().join("test-plugin");
+        fs::create_dir(&plugin_dir).unwrap();
+
+        // Create cdm-plugin.json
+        let manifest = serde_json::json!({
+            "name": "test-plugin",
+            "wasm": {
+                "file": "test-plugin.wasm"
+            }
+        });
+        fs::write(
+            plugin_dir.join("cdm-plugin.json"),
+            serde_json::to_string_pretty(&manifest).unwrap()
+        ).unwrap();
+
+        // Create dummy WASM file
+        fs::write(plugin_dir.join("test-plugin.wasm"), b"wasm").unwrap();
+
+        let source_file = temp_dir.path().join("schema.cdm");
+        fs::write(&source_file, "").unwrap();
 
         let import = PluginImport {
             name: "test-plugin".to_string(),
             source: Some(PluginSource::Path {
-                path: "test-plugin.wasm".to_string(),
+                path: "test-plugin".to_string(),
             }),
             source_file: source_file.clone(),
             global_config: None,
@@ -437,20 +456,26 @@ mod tests {
         };
 
         let result = crate::plugin_resolver::resolve_plugin_path(&import);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), plugin_file);
+        assert!(result.is_ok(), "Should resolve plugin path: {:?}", result.err());
+        assert_eq!(result.unwrap(), plugin_dir.join("test-plugin.wasm"));
     }
 
     #[test]
-    fn test_resolve_plugin_path_adds_wasm_extension() {
-        let fixtures = fixtures_path();
-        let plugin_file = fixtures.join("test-plugin.wasm");
-        let source_file = fixtures.join("schema.cdm");
+    fn test_resolve_plugin_path_missing_cdm_plugin_json() {
+        use tempfile::TempDir;
+
+        // Create a temporary plugin directory WITHOUT cdm-plugin.json
+        let temp_dir = TempDir::new().unwrap();
+        let plugin_dir = temp_dir.path().join("test-plugin");
+        fs::create_dir(&plugin_dir).unwrap();
+
+        let source_file = temp_dir.path().join("schema.cdm");
+        fs::write(&source_file, "").unwrap();
 
         let import = PluginImport {
             name: "test-plugin".to_string(),
             source: Some(PluginSource::Path {
-                path: "test-plugin".to_string(), // No .wasm extension
+                path: "test-plugin".to_string(),
             }),
             source_file: source_file.clone(),
             global_config: None,
@@ -458,8 +483,8 @@ mod tests {
         };
 
         let result = crate::plugin_resolver::resolve_plugin_path(&import);
-        assert!(result.is_ok());
-        assert_eq!(result.unwrap(), plugin_file);
+        assert!(result.is_err());
+        assert!(result.unwrap_err().to_string().contains("cdm-plugin.json"));
     }
 
     #[test]
@@ -470,7 +495,7 @@ mod tests {
         let import = PluginImport {
             name: "nonexistent".to_string(),
             source: Some(PluginSource::Path {
-                path: "nonexistent.wasm".to_string(),
+                path: "nonexistent".to_string(),
             }),
             source_file: source_file.clone(),
             global_config: None,
@@ -479,7 +504,7 @@ mod tests {
 
         let result = crate::plugin_resolver::resolve_plugin_path(&import);
         assert!(result.is_err());
-        assert!(result.unwrap_err().to_string().contains("not found"));
+        assert!(result.unwrap_err().to_string().contains("cdm-plugin.json"));
     }
 
     #[test]

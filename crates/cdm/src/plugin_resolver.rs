@@ -9,11 +9,12 @@ use crate::plugin_validation::{PluginImport, PluginSource};
 use anyhow::{Result, Context};
 use cdm_plugin_interface::JSON;
 use std::path::PathBuf;
+use std::fs;
 
 /// Resolve plugin path based on import specification
 ///
 /// This function handles all three plugin source types:
-/// 1. Local path plugins - resolved relative to source file
+/// 1. Local path plugins - resolved from cdm-plugin.json manifest
 /// 2. Git plugins - cloned and cached
 /// 3. Registry plugins - downloaded and cached from CDM registry
 pub fn resolve_plugin_path(import: &PluginImport) -> Result<PathBuf> {
@@ -21,17 +22,47 @@ pub fn resolve_plugin_path(import: &PluginImport) -> Result<PathBuf> {
         Some(PluginSource::Path { path }) => {
             let source_dir = import.source_file.parent()
                 .context("Failed to get source file directory")?;
-            let mut wasm_path = source_dir.join(path);
+            let plugin_dir = source_dir.join(path);
 
-            if !wasm_path.extension().map_or(false, |e| e == "wasm") {
-                wasm_path.set_extension("wasm");
+            // Read cdm-plugin.json manifest
+            let manifest_path = plugin_dir.join("cdm-plugin.json");
+            if !manifest_path.exists() {
+                anyhow::bail!(
+                    "No cdm-plugin.json found in plugin directory: {}\n\
+                    Local plugins must have a cdm-plugin.json file with a 'wasm.file' field",
+                    plugin_dir.display()
+                );
             }
 
-            if wasm_path.exists() {
-                Ok(wasm_path)
-            } else {
-                anyhow::bail!("Plugin WASM file not found: {}", wasm_path.display())
+            let manifest_content = fs::read_to_string(&manifest_path)
+                .with_context(|| format!("Failed to read cdm-plugin.json at {}", manifest_path.display()))?;
+
+            let manifest: serde_json::Value = serde_json::from_str(&manifest_content)
+                .with_context(|| format!("Failed to parse cdm-plugin.json at {}", manifest_path.display()))?;
+
+            // Get WASM file path from manifest
+            let wasm_file = manifest
+                .get("wasm")
+                .and_then(|w| w.get("file"))
+                .and_then(|f| f.as_str())
+                .ok_or_else(|| anyhow::anyhow!(
+                    "No 'wasm.file' field found in cdm-plugin.json at {}",
+                    manifest_path.display()
+                ))?;
+
+            let wasm_path = plugin_dir.join(wasm_file);
+            if !wasm_path.exists() {
+                anyhow::bail!(
+                    "WASM file not found: {}\n\
+                    Specified in cdm-plugin.json as: {}\n\
+                    Manifest location: {}",
+                    wasm_path.display(),
+                    wasm_file,
+                    manifest_path.display()
+                );
             }
+
+            Ok(wasm_path)
         }
         Some(PluginSource::Git { url }) => {
             resolve_git_plugin(url, &import.name, &import.global_config)

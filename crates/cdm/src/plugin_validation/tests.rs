@@ -228,28 +228,7 @@ fn test_model_level_plugin_config() {
         return;
     }
 
-    let cdm_content = r#"
-@docs from ../../../../target/wasm32-wasip1/release/cdm_plugin_docs.wasm {
-  format: "markdown",
-  build_output: "./docs"
-}
-
-User {
-  @docs {
-    description: "A user model",
-    hidden: false
-  }
-
-  id: number
-}
-"#;
-
-    let test_fixtures_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("test_fixtures/plugin_validation");
-    let temp_file = test_fixtures_dir.join("model_config_test.cdm");
-    std::fs::write(&temp_file, cdm_content).unwrap();
-
-    let tree = FileResolver::load(&temp_file).expect("Failed to load file");
+    let tree = load_fixture("model_config_test.cdm").expect("Failed to load fixture");
     let result = validate_tree(tree);
 
     assert!(
@@ -257,9 +236,6 @@ User {
         "Expected valid model-level config to pass, got: {:?}",
         result.err()
     );
-
-    // Cleanup
-    std::fs::remove_file(&temp_file).ok();
 }
 
 #[test]
@@ -269,28 +245,7 @@ fn test_field_level_plugin_config() {
         return;
     }
 
-    let cdm_content = r#"
-@docs from ../../../../target/wasm32-wasip1/release/cdm_plugin_docs.wasm {
-  format: "markdown",
-  build_output: "./docs"
-}
-
-User {
-  id: number {
-    @docs {
-      description: "User ID field",
-      deprecated: true
-    }
-  }
-}
-"#;
-
-    let test_fixtures_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("test_fixtures/plugin_validation");
-    let temp_file = test_fixtures_dir.join("field_config_test.cdm");
-    std::fs::write(&temp_file, cdm_content).unwrap();
-
-    let tree = FileResolver::load(&temp_file).expect("Failed to load file");
+    let tree = load_fixture("field_config_test.cdm").expect("Failed to load fixture");
     let result = validate_tree(tree);
 
     assert!(
@@ -298,9 +253,6 @@ User {
         "Expected valid field-level config to pass, got: {:?}",
         result.err()
     );
-
-    // Cleanup
-    std::fs::remove_file(&temp_file).ok();
 }
 
 #[test]

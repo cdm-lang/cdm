@@ -1,4 +1,4 @@
-@docs from ../../../../target/wasm32-wasip1/release/cdm_plugin_docs.wasm {
+@docs from ../../../../crates/cdm-plugin-docs {
   format: "markdown",
   title: "My Schema",
   build_output: "./docs"

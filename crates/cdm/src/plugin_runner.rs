@@ -4,6 +4,7 @@ use serde_json::Value as JSON;
 use std::path::Path;
 use wasmtime::*;
 use wasmtime_wasi::preview1::WasiP1Ctx;
+use crate::plugin_validation::PluginImport;
 struct PluginState {
     wasi: WasiP1Ctx,
 }
@@ -28,6 +29,13 @@ impl PluginRunner {
             engine,
             module,
         })
+    }
+
+    /// Create a new plugin runner from a plugin import specification
+    pub fn from_import(import: &PluginImport) -> Result<Self> {
+        let wasm_path = crate::plugin_resolver::resolve_plugin_path(import)?;
+        Self::new(&wasm_path)
+            .with_context(|| format!("Failed to load plugin '{}'", import.name))
     }
 
     /// Get the plugin's schema definition
