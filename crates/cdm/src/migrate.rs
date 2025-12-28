@@ -43,6 +43,10 @@ pub fn migrate(
     let main_path = tree.main.path.clone();
     let ancestors: Vec<_> = tree.ancestors.iter().map(|a| a.path.clone()).collect();
 
+    // Get the source file directory for resolving relative output paths
+    let source_dir = path.parent()
+        .ok_or_else(|| anyhow::anyhow!("Source file has no parent directory"))?;
+
     let validation_result = crate::validate_tree(tree).map_err(|diagnostics| {
         for diagnostic in &diagnostics {
             eprintln!("{}", diagnostic);
@@ -134,7 +138,8 @@ pub fn migrate(
                         let output_base = resolve_migration_output_dir(
                             &output_dir,
                             &global_config,
-                            &plugin_import.name
+                            &plugin_import.name,
+                            source_dir
                         );
                         write_migration_files(&migration_files, &output_base)?;
                     } else {
@@ -613,20 +618,30 @@ fn resolve_migration_output_dir(
     cli_override: &Option<PathBuf>,
     plugin_config: &serde_json::Value,
     plugin_name: &str,
+    source_dir: &Path,
 ) -> PathBuf {
     // Priority 1: CLI flag
     if let Some(path) = cli_override {
-        return path.clone();
+        return if path.is_absolute() {
+            path.clone()
+        } else {
+            source_dir.join(path)
+        };
     }
 
     // Priority 2: Plugin config migrations_output field
     if let Some(dir) = plugin_config.get("migrations_output")
         .and_then(|v| v.as_str()) {
-        return PathBuf::from(dir);
+        let dir_path = PathBuf::from(dir);
+        return if dir_path.is_absolute() {
+            dir_path
+        } else {
+            source_dir.join(dir_path)
+        };
     }
 
-    // Priority 3: Default
-    PathBuf::from("./migrations").join(plugin_name)
+    // Priority 3: Default (relative to source directory)
+    source_dir.join("migrations").join(plugin_name)
 }
 
 /// Extract plugin imports from the validated tree
