@@ -123,7 +123,7 @@ fn fetch_and_cache_registry() -> Result<Registry> {
 /// Get registry URL from environment or default
 pub fn get_registry_url() -> String {
     std::env::var("CDM_REGISTRY_URL").unwrap_or_else(|_| {
-        "https://raw.githubusercontent.com/cdm-lang/cdm/main/registry.json".to_string()
+        "https://raw.githubusercontent.com/cdm-lang/cdm/refs/heads/main/registry.json".to_string()
     })
 }
 
