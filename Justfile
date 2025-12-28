@@ -78,6 +78,16 @@ release-plugin plugin_name version:
   # Check if tag already exists
   if git rev-parse "$TAG" >/dev/null 2>&1; then
     echo "Error: Tag $TAG already exists"
+    echo ""
+    echo "To remove the existing tag and try again:"
+    echo "  # Delete local tag"
+    echo "  git tag -d $TAG"
+    echo ""
+    echo "  # If already pushed, delete remote tag"
+    echo "  git push --delete origin $TAG"
+    echo ""
+    echo "  # Then run this command again"
+    echo "  just release-plugin {{plugin_name}} {{version}}"
     exit 1
   fi
 
