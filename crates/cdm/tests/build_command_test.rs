@@ -133,6 +133,7 @@ Post {
     // Clean up
     let cleanup = || {
         let _ = fs::remove_dir_all(&temp_dir);
+        let _ = fs::remove_file("types.ts");
     };
 
     if let Err(e) = &result {
