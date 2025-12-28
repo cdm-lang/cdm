@@ -57,7 +57,10 @@ setup: check-deps
 build: check-deps
 	@echo "Building plugin (release mode)..."
 	cargo build --release --target $(WASM_TARGET) --target-dir target
+	@echo "Generating checksum..."
+	@shasum -a 256 $(RELEASE_WASM) | awk '{print $$1}' > $(RELEASE_WASM).sha256
 	@echo "✓ Build complete: $(RELEASE_WASM)"
+	@echo "✓ Checksum: $$(cat $(RELEASE_WASM).sha256)"
 	@make size
 
 # Build plugin in debug mode (faster compilation)
