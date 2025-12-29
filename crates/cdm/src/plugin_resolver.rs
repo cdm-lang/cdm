@@ -179,3 +179,7 @@ pub fn resolve_git_plugin(url: &str, plugin_name: &str, config: &Option<JSON>) -
 
     Ok(wasm_path)
 }
+
+#[cfg(test)]
+#[path = "plugin_resolver/plugin_resolver_tests.rs"]
+mod plugin_resolver_tests;
