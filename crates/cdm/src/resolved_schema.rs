@@ -310,3 +310,7 @@ pub fn convert_type_expression(parsed_type: &crate::ParsedType) -> cdm_plugin_in
         }
     }
 }
+
+#[cfg(test)]
+#[path = "resolved_schema/resolved_schema_tests.rs"]
+mod resolved_schema_tests;

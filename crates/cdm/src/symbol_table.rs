@@ -304,3 +304,7 @@ impl fmt::Display for SymbolTable {
         Ok(())
     }
 }
+
+#[cfg(test)]
+#[path = "symbol_table/symbol_table_tests.rs"]
+mod symbol_table_tests;
