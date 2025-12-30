@@ -163,7 +163,7 @@ release-cli version:
   fi
 
   # Create tag name
-  TAG="v{{version}}"
+  TAG="cdm-cli-v{{version}}"
 
   echo "Creating release for CDM CLI version {{version}}"
   echo "Tag: $TAG"
