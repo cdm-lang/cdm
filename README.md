@@ -1,4 +1,4 @@
-# CDM (Common Data Model)
+# CDM (Contextual Data Models)
 
 **CDM** is a language for defining data models and generating code across multiple platforms.
 
