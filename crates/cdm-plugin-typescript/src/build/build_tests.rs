@@ -195,16 +195,21 @@ fn test_no_exports() {
 #[test]
 fn test_field_name_format_camel() {
     let mut schema = create_test_schema();
-    schema.models.get_mut("User").unwrap().fields.push(FieldDefinition {
-        name: "created_at".to_string(),
-        field_type: TypeExpression::Identifier {
-            name: "string".to_string(),
-        },
-        optional: false,
-        default: None,
-        config: json!({}),
-        entity_id: Some(4),
-    });
+    schema
+        .models
+        .get_mut("User")
+        .unwrap()
+        .fields
+        .push(FieldDefinition {
+            name: "created_at".to_string(),
+            field_type: TypeExpression::Identifier {
+                name: "string".to_string(),
+            },
+            optional: false,
+            default: None,
+            config: json!({}),
+            entity_id: Some(4),
+        });
 
     let config = json!({ "field_name_format": "camel" });
     let utils = Utils;
@@ -480,7 +485,10 @@ fn test_custom_single_file_name() {
 #[test]
 fn test_format_name_preserve() {
     let utils = Utils;
-    assert_eq!(format_name("UserProfile", "preserve", &utils), "UserProfile");
+    assert_eq!(
+        format_name("UserProfile", "preserve", &utils),
+        "UserProfile"
+    );
 }
 
 #[test]
