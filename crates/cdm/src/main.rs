@@ -70,6 +70,15 @@ enum Commands {
         #[arg(long, default_value = "2")]
         indent: usize,
     },
+    /// Update CDM CLI to a different version
+    Update {
+        #[command(subcommand)]
+        command: Option<cdm::UpdateCommands>,
+
+        /// Skip confirmation prompt (only when updating to latest without subcommand)
+        #[arg(short = 'y', long)]
+        yes: bool,
+    },
 }
 
 #[derive(Subcommand)]
@@ -299,6 +308,23 @@ fn main() -> Result<()> {
                         eprintln!("{}", diagnostic);
                     }
                     std::process::exit(1);
+                }
+            }
+        }
+        Commands::Update { command, yes } => {
+            match command {
+                Some(subcommand) => {
+                    if let Err(err) = cdm::handle_update_subcommand(subcommand) {
+                        eprintln!("Update failed: {}", err);
+                        std::process::exit(1);
+                    }
+                }
+                None => {
+                    // Update to latest
+                    if let Err(err) = cdm::update_latest(yes) {
+                        eprintln!("Update failed: {}", err);
+                        std::process::exit(1);
+                    }
                 }
             }
         }

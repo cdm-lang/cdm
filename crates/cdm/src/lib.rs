@@ -16,6 +16,8 @@ mod plugin_cache;
 mod version_resolver;
 mod git_plugin;
 mod plugin_commands;
+mod self_update;
+mod update_command;
 
 pub use diagnostics::{Diagnostic, Severity};
 pub use cdm_utils::{Position, Span};
@@ -31,3 +33,4 @@ pub use migrate::migrate;
 pub use plugin_new::plugin_new;
 pub use format::{format_file, format_files, FormatOptions, FormatResult, IdAssignment, EntityType};
 pub use plugin_commands::{list_plugins, plugin_info, cache_plugin_cmd, clear_cache_cmd};
+pub use update_command::{UpdateCommands, update_latest, handle_update_subcommand};

@@ -1,0 +1,11 @@
+{
+  "version": 1,
+  "updated_at": "2025-12-29T00:00:00Z",
+  "latest": "0.1.0",
+  "releases": {
+    "0.1.0": {
+      "release_date": "2025-12-29",
+      "platforms": {}
+    }
+  }
+}

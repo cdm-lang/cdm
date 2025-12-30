@@ -148,3 +148,81 @@ list-plugins:
       basename "$dir"
     fi
   done
+
+# Release the CLI (creates and optionally pushes a version tag)
+# Usage: just release-cli <version>
+# Example: just release-cli 0.2.0
+release-cli version:
+  #!/usr/bin/env bash
+  set -e
+
+  # Validate version format
+  if ! [[ {{version}} =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "Error: Version must be in format X.Y.Z (e.g., 0.2.0)"
+    exit 1
+  fi
+
+  # Create tag name
+  TAG="v{{version}}"
+
+  echo "Creating release for CDM CLI version {{version}}"
+  echo "Tag: $TAG"
+  echo ""
+
+  # Check if tag already exists
+  if git rev-parse "$TAG" >/dev/null 2>&1; then
+    echo "Error: Tag $TAG already exists"
+    echo ""
+    echo "To remove the existing tag and try again:"
+    echo "  # Delete local tag"
+    echo "  git tag -d $TAG"
+    echo ""
+    echo "  # If already pushed, delete remote tag"
+    echo "  git push --delete origin $TAG"
+    echo ""
+    echo "  # Then run this command again"
+    echo "  just release-cli {{version}}"
+    exit 1
+  fi
+
+  # Update version in Cargo.toml
+  echo "Updating version in Cargo.toml..."
+  sed -i.bak 's/^version = ".*"/version = "{{version}}"/' crates/cdm/Cargo.toml
+  rm crates/cdm/Cargo.toml.bak
+
+  # Update Cargo.lock
+  echo "Updating Cargo.lock..."
+  cargo check --manifest-path crates/cdm/Cargo.toml
+
+  # Check if there are other uncommitted changes
+  if ! git diff-index --quiet HEAD --; then
+    echo ""
+    echo "Warning: You have uncommitted changes"
+    git status --short
+    echo ""
+    read -p "Continue anyway? (y/N) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+      echo "Cancelled"
+      exit 0
+    fi
+  fi
+
+  # Commit the version update
+  echo "Committing version update..."
+  git add crates/cdm/Cargo.toml Cargo.lock
+  git commit -m "Bump version to {{version}}"
+
+  # Create tag
+  echo "Creating tag $TAG..."
+  git tag -a "$TAG" -m "Release CDM CLI v{{version}}"
+
+  echo ""
+  echo "✓ Tag created successfully!"
+  echo ""
+  echo "To push the commit and tag to trigger the release workflow, run:"
+  echo "  git push origin main $TAG"
+  echo ""
+  echo "To undo if you made a mistake, run:"
+  echo "  git tag -d $TAG"
+  echo "  git reset --soft HEAD~1"

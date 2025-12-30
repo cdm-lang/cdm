@@ -1,0 +1,281 @@
+name: CLI Release
+
+on:
+  push:
+    tags:
+      - 'v*.*.*'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  build-binaries:
+    name: Build ${{ matrix.platform }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        include:
+          - platform: x86_64-apple-darwin
+            os: macos-13
+            target: x86_64-apple-darwin
+            binary_name: cdm
+          - platform: aarch64-apple-darwin
+            os: macos-14
+            target: aarch64-apple-darwin
+            binary_name: cdm
+          - platform: x86_64-unknown-linux-gnu
+            os: ubuntu-latest
+            target: x86_64-unknown-linux-gnu
+            binary_name: cdm
+          - platform: aarch64-unknown-linux-gnu
+            os: ubuntu-latest
+            target: aarch64-unknown-linux-gnu
+            binary_name: cdm
+          - platform: x86_64-pc-windows-msvc
+            os: windows-latest
+            target: x86_64-pc-windows-msvc
+            binary_name: cdm.exe
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          VERSION=${TAG#v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+        shell: bash
+
+      - name: Set up Rust
+        uses: actions-rust-lang/setup-rust-toolchain@v1
+        with:
+          toolchain: stable
+          target: ${{ matrix.target }}
+
+      - name: Install cross-compilation tools (Linux ARM64)
+        if: matrix.platform == 'aarch64-unknown-linux-gnu'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-aarch64-linux-gnu
+
+      - name: Build binary
+        working-directory: crates/cdm
+        run: |
+          cargo build --release --target ${{ matrix.target }}
+        env:
+          CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
+
+      - name: Strip binary (Unix)
+        if: runner.os != 'Windows'
+        run: |
+          strip crates/cdm/target/${{ matrix.target }}/release/${{ matrix.binary_name }}
+
+      - name: Generate checksum
+        run: |
+          cd crates/cdm/target/${{ matrix.target }}/release
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            certutil -hashfile ${{ matrix.binary_name }} SHA256 | findstr /v "hash" | findstr /v "CertUtil" > ${{ matrix.binary_name }}.sha256
+          else
+            shasum -a 256 ${{ matrix.binary_name }} | awk '{print $1}' > ${{ matrix.binary_name }}.sha256
+          fi
+        shell: bash
+
+      - name: Rename binary for release
+        run: |
+          cd crates/cdm/target/${{ matrix.target }}/release
+          if [ "${{ runner.os }}" = "Windows" ]; then
+            mv ${{ matrix.binary_name }} cdm-${{ matrix.platform }}.exe
+            mv ${{ matrix.binary_name }}.sha256 cdm-${{ matrix.platform }}.exe.sha256
+          else
+            mv ${{ matrix.binary_name }} cdm-${{ matrix.platform }}
+            mv ${{ matrix.binary_name }}.sha256 cdm-${{ matrix.platform }}.sha256
+          fi
+        shell: bash
+
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: cdm-${{ matrix.platform }}
+          path: |
+            crates/cdm/target/${{ matrix.target }}/release/cdm-${{ matrix.platform }}*
+          retention-days: 1
+
+  create-release:
+    name: Create Release
+    needs: build-binaries
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          VERSION=${TAG#v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: ./artifacts
+
+      - name: Display structure of downloaded files
+        run: ls -R ./artifacts
+
+      - name: Organize binaries
+        run: |
+          mkdir -p ./binaries
+          find ./artifacts -type f -name "cdm-*" -exec mv {} ./binaries/ \;
+          ls -lh ./binaries
+
+      - name: Create release notes
+        id: release_notes
+        run: |
+          cat > release_notes.md << 'EOF'
+          # CDM CLI ${{ steps.version.outputs.tag }}
+
+          ## Installation
+
+          Download the appropriate binary for your platform and verify its integrity:
+
+          ### macOS (Intel)
+          ```bash
+          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.tag }}/cdm-x86_64-apple-darwin
+          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.tag }}/cdm-x86_64-apple-darwin.sha256
+          echo "$(cat cdm-x86_64-apple-darwin.sha256)  cdm-x86_64-apple-darwin" | shasum -a 256 -c
+          chmod +x cdm-x86_64-apple-darwin
+          sudo mv cdm-x86_64-apple-darwin /usr/local/bin/cdm
+          ```
+
+          ### macOS (Apple Silicon)
+          ```bash
+          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.tag }}/cdm-aarch64-apple-darwin
+          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.tag }}/cdm-aarch64-apple-darwin.sha256
+          echo "$(cat cdm-aarch64-apple-darwin.sha256)  cdm-aarch64-apple-darwin" | shasum -a 256 -c
+          chmod +x cdm-aarch64-apple-darwin
+          sudo mv cdm-aarch64-apple-darwin /usr/local/bin/cdm
+          ```
+
+          ### Linux (x86_64)
+          ```bash
+          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.tag }}/cdm-x86_64-unknown-linux-gnu
+          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.tag }}/cdm-x86_64-unknown-linux-gnu.sha256
+          echo "$(cat cdm-x86_64-unknown-linux-gnu.sha256)  cdm-x86_64-unknown-linux-gnu" | sha256sum -c
+          chmod +x cdm-x86_64-unknown-linux-gnu
+          sudo mv cdm-x86_64-unknown-linux-gnu /usr/local/bin/cdm
+          ```
+
+          ### Linux (ARM64)
+          ```bash
+          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.tag }}/cdm-aarch64-unknown-linux-gnu
+          curl -LO https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.tag }}/cdm-aarch64-unknown-linux-gnu.sha256
+          echo "$(cat cdm-aarch64-unknown-linux-gnu.sha256)  cdm-aarch64-unknown-linux-gnu" | sha256sum -c
+          chmod +x cdm-aarch64-unknown-linux-gnu
+          sudo mv cdm-aarch64-unknown-linux-gnu /usr/local/bin/cdm
+          ```
+
+          ### Windows (x86_64)
+          ```powershell
+          Invoke-WebRequest -Uri "https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.tag }}/cdm-x86_64-pc-windows-msvc.exe" -OutFile "cdm.exe"
+          Invoke-WebRequest -Uri "https://github.com/${{ github.repository }}/releases/download/${{ steps.version.outputs.tag }}/cdm-x86_64-pc-windows-msvc.exe.sha256" -OutFile "cdm.exe.sha256"
+          # Move to a directory in your PATH
+          ```
+
+          ## Checksums
+
+          EOF
+
+          # Add checksums for each platform
+          for checksum_file in ./binaries/*.sha256; do
+            platform=$(basename $checksum_file .sha256)
+            platform=${platform#cdm-}
+            checksum=$(cat $checksum_file)
+            echo "- **$platform**: \`$checksum\`" >> release_notes.md
+          done
+
+      - name: Create GitHub Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: CDM CLI ${{ steps.version.outputs.tag }}
+          body_path: release_notes.md
+          files: ./binaries/*
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update cli-releases.json
+        id: update_manifest
+        run: |
+          VERSION="${{ steps.version.outputs.version }}"
+          TAG="${{ steps.version.outputs.tag }}"
+
+          echo "Updating CLI release manifest for version: $VERSION"
+
+          # Create platform entries
+          PLATFORMS_JSON="{"
+          FIRST=true
+
+          for checksum_file in ./binaries/*.sha256; do
+            filename=$(basename $checksum_file .sha256)
+            platform=${filename#cdm-}
+            checksum=$(cat $checksum_file)
+            url="https://github.com/${{ github.repository }}/releases/download/$TAG/$filename"
+
+            if [ "$FIRST" = true ]; then
+              FIRST=false
+            else
+              PLATFORMS_JSON="$PLATFORMS_JSON,"
+            fi
+
+            PLATFORMS_JSON="$PLATFORMS_JSON\"$platform\":{\"url\":\"$url\",\"checksum\":\"sha256:$checksum\"}"
+          done
+
+          PLATFORMS_JSON="$PLATFORMS_JSON}"
+
+          # Update cli-releases.json using jq
+          jq --arg version "$VERSION" \
+             --argjson platforms "$PLATFORMS_JSON" \
+             --arg date "$(date -u +%Y-%m-%d)" \
+             --arg updated "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+             '
+             .updated_at = $updated |
+             .latest = $version |
+             .releases[$version] = {
+               release_date: $date,
+               platforms: $platforms
+             }
+             ' cli-releases.json > cli-releases.json.tmp
+
+          mv cli-releases.json.tmp cli-releases.json
+
+          echo "CLI release manifest updated successfully"
+
+      - name: Commit manifest update to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Fetch and checkout main branch
+          git fetch origin main
+          git checkout -B main origin/main
+
+          # Add and commit the updated manifest
+          git add cli-releases.json
+          git commit -m "Update CLI release manifest: ${{ steps.version.outputs.tag }}
+
+          Automatically updated cli-releases.json for release ${{ steps.version.outputs.tag }}
+
+          Released binaries for all supported platforms."
+
+          # Push to main
+          git push origin main
