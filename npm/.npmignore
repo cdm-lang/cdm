@@ -1,0 +1,61 @@
+# Source files
+crates/
+examples/
+specs/
+editors/
+target/
+.github/
+
+# Development files
+Cargo.toml
+Cargo.lock
+Justfile
+install.sh
+cli-releases.json
+registry.json
+
+# Git files
+.git/
+.gitignore
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Claude
+.claude/
+
+# Build artifacts (except bin/cdm.js wrapper)
+*.o
+*.so
+*.dylib
+*.dll
+
+# Downloaded binaries (will be fetched during postinstall)
+bin/cdm
+bin/cdm.exe
+
+# npm package artifacts
+*.tgz
+node_modules/
+
+# Test files
+tests/
+
+# Documentation (except README.npm.md)
+*.md
+!README.npm.md
+
+# Keep only necessary npm files
+# bin/ - included (wrapper script)
+# scripts/ - included (install script)
+# index.js - included (module entry)
+# package.json - automatically included
+# README.npm.md - included

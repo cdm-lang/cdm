@@ -5,3 +5,9 @@
 /editors/vscode-cdm/coverage
 /examples/build
 .DS_Store
+
+# npm package artifacts
+/npm/node_modules
+/npm/bin/cdm
+/npm/bin/cdm.exe
+/npm/*.tgz
