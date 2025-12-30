@@ -1,0 +1,35 @@
+{
+  "models": {
+    "Product": {
+      "name": "Product",
+      "parents": [],
+      "fields": [
+        {
+          "name": "id",
+          "field_type": {
+            "type": "identifier",
+            "name": "number"
+          },
+          "optional": false,
+          "default": null,
+          "config": {},
+          "entity_id": null
+        },
+        {
+          "name": "active",
+          "field_type": {
+            "type": "identifier",
+            "name": "boolean"
+          },
+          "optional": false,
+          "default": true,
+          "config": {},
+          "entity_id": null
+        }
+      ],
+      "config": {},
+      "entity_id": null
+    }
+  },
+  "type_aliases": {}
+}

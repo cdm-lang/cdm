@@ -1,0 +1,10 @@
+// Basic test schema with User model and type aliases
+Email: string
+
+Status: "active" | "inactive"
+
+User {
+  id: string
+  name: string
+  email?: Email
+}

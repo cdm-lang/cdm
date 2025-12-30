@@ -1,0 +1,12 @@
+// Schema for JSON validation tests
+User {
+  id: string
+  name: string
+  email: string
+}
+
+Post {
+  id: string
+  title: string
+  authorId: string
+}

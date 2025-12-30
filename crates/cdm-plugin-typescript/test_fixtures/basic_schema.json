@@ -1,0 +1,74 @@
+{
+  "models": {
+    "User": {
+      "name": "User",
+      "parents": [],
+      "fields": [
+        {
+          "name": "id",
+          "field_type": {
+            "type": "identifier",
+            "name": "string"
+          },
+          "optional": false,
+          "default": null,
+          "config": {},
+          "entity_id": 1
+        },
+        {
+          "name": "name",
+          "field_type": {
+            "type": "identifier",
+            "name": "string"
+          },
+          "optional": false,
+          "default": null,
+          "config": {},
+          "entity_id": 2
+        },
+        {
+          "name": "email",
+          "field_type": {
+            "type": "identifier",
+            "name": "Email"
+          },
+          "optional": true,
+          "default": null,
+          "config": {},
+          "entity_id": 3
+        }
+      ],
+      "config": {},
+      "entity_id": 10
+    }
+  },
+  "type_aliases": {
+    "Email": {
+      "name": "Email",
+      "alias_type": {
+        "type": "identifier",
+        "name": "string"
+      },
+      "config": {},
+      "entity_id": 1
+    },
+    "Status": {
+      "name": "Status",
+      "alias_type": {
+        "type": "union",
+        "types": [
+          {
+            "type": "string_literal",
+            "value": "active"
+          },
+          {
+            "type": "string_literal",
+            "value": "inactive"
+          }
+        ]
+      },
+      "config": {},
+      "entity_id": 2
+    }
+  }
+}

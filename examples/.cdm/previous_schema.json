@@ -1,112 +1,5 @@
 {
   "models": {
-    "User": {
-      "name": "User",
-      "parents": [],
-      "fields": [
-        {
-          "name": "id",
-          "field_type": {
-            "type": "identifier",
-            "name": "number"
-          },
-          "optional": false,
-          "default": null,
-          "config": {}
-        },
-        {
-          "name": "email",
-          "field_type": {
-            "type": "identifier",
-            "name": "string"
-          },
-          "optional": false,
-          "default": null,
-          "config": {}
-        },
-        {
-          "name": "password_hash",
-          "field_type": {
-            "type": "identifier",
-            "name": "string"
-          },
-          "optional": false,
-          "default": null,
-          "config": {}
-        },
-        {
-          "name": "salt",
-          "field_type": {
-            "type": "identifier",
-            "name": "string"
-          },
-          "optional": false,
-          "default": null,
-          "config": {}
-        },
-        {
-          "name": "name",
-          "field_type": {
-            "type": "identifier",
-            "name": "string"
-          },
-          "optional": false,
-          "default": null,
-          "config": {}
-        },
-        {
-          "name": "bio",
-          "field_type": {
-            "type": "identifier",
-            "name": "string"
-          },
-          "optional": true,
-          "default": null,
-          "config": {}
-        },
-        {
-          "name": "role",
-          "field_type": {
-            "type": "identifier",
-            "name": "string"
-          },
-          "optional": false,
-          "default": null,
-          "config": {}
-        },
-        {
-          "name": "created_at",
-          "field_type": {
-            "type": "identifier",
-            "name": "string"
-          },
-          "optional": false,
-          "default": null,
-          "config": {}
-        },
-        {
-          "name": "last_login",
-          "field_type": {
-            "type": "identifier",
-            "name": "string"
-          },
-          "optional": true,
-          "default": null,
-          "config": {}
-        },
-        {
-          "name": "foo",
-          "field_type": {
-            "type": "identifier",
-            "name": "number"
-          },
-          "optional": false,
-          "default": null,
-          "config": {}
-        }
-      ],
-      "config": {}
-    },
     "Post": {
       "name": "Post",
       "parents": [],
@@ -193,6 +86,103 @@
         },
         {
           "name": "published_at",
+          "field_type": {
+            "type": "identifier",
+            "name": "string"
+          },
+          "optional": true,
+          "default": null,
+          "config": {}
+        }
+      ],
+      "config": {}
+    },
+    "User": {
+      "name": "User",
+      "parents": [],
+      "fields": [
+        {
+          "name": "id",
+          "field_type": {
+            "type": "identifier",
+            "name": "string"
+          },
+          "optional": false,
+          "default": null,
+          "config": {}
+        },
+        {
+          "name": "email",
+          "field_type": {
+            "type": "identifier",
+            "name": "string"
+          },
+          "optional": false,
+          "default": null,
+          "config": {}
+        },
+        {
+          "name": "password_hash",
+          "field_type": {
+            "type": "identifier",
+            "name": "string"
+          },
+          "optional": false,
+          "default": null,
+          "config": {}
+        },
+        {
+          "name": "salt",
+          "field_type": {
+            "type": "identifier",
+            "name": "string"
+          },
+          "optional": false,
+          "default": null,
+          "config": {}
+        },
+        {
+          "name": "name",
+          "field_type": {
+            "type": "identifier",
+            "name": "string"
+          },
+          "optional": false,
+          "default": null,
+          "config": {}
+        },
+        {
+          "name": "bio",
+          "field_type": {
+            "type": "identifier",
+            "name": "string"
+          },
+          "optional": true,
+          "default": null,
+          "config": {}
+        },
+        {
+          "name": "role",
+          "field_type": {
+            "type": "identifier",
+            "name": "string"
+          },
+          "optional": false,
+          "default": null,
+          "config": {}
+        },
+        {
+          "name": "created_at",
+          "field_type": {
+            "type": "identifier",
+            "name": "string"
+          },
+          "optional": false,
+          "default": null,
+          "config": {}
+        },
+        {
+          "name": "last_login",
           "field_type": {
             "type": "identifier",
             "name": "string"

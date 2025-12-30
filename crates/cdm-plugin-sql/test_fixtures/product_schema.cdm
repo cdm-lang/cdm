@@ -1,0 +1,5 @@
+// Product schema with default values
+Product {
+  id: number
+  active: boolean = true
+}

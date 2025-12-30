@@ -1,0 +1,4 @@
+// Minimal schema for docs plugin
+User {
+  id: string
+}

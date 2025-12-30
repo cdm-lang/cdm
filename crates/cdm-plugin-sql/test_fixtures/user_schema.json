@@ -1,0 +1,46 @@
+{
+  "models": {
+    "User": {
+      "name": "User",
+      "parents": [],
+      "fields": [
+        {
+          "name": "id",
+          "field_type": {
+            "type": "identifier",
+            "name": "number"
+          },
+          "optional": false,
+          "default": null,
+          "config": {},
+          "entity_id": null
+        },
+        {
+          "name": "name",
+          "field_type": {
+            "type": "identifier",
+            "name": "string"
+          },
+          "optional": false,
+          "default": null,
+          "config": {},
+          "entity_id": null
+        },
+        {
+          "name": "email",
+          "field_type": {
+            "type": "identifier",
+            "name": "string"
+          },
+          "optional": true,
+          "default": null,
+          "config": {},
+          "entity_id": null
+        }
+      ],
+      "config": {},
+      "entity_id": null
+    }
+  },
+  "type_aliases": {}
+}

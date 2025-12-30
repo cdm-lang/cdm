@@ -1,8 +1,21 @@
 use super::*;
 use crate::utils::apply_name_format;
-use cdm_plugin_interface::{FieldDefinition, ModelDefinition, TypeExpression, Value};
+use cdm_plugin_interface::{FieldDefinition, ModelDefinition, TypeExpression};
 use serde_json::json;
 use std::collections::HashMap;
+use std::path::PathBuf;
+
+fn fixtures_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("test_fixtures")
+}
+
+fn load_test_schema(fixture_name: &str) -> Schema {
+    let path = fixtures_path().join(fixture_name);
+    let content = std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("Failed to load fixture {}: {}", path.display(), e));
+    serde_json::from_str(&content)
+        .unwrap_or_else(|e| panic!("Failed to parse fixture {}: {}", path.display(), e))
+}
 
 #[test]
 fn test_build_empty_schema() {
@@ -25,53 +38,7 @@ fn test_build_empty_schema() {
 
 #[test]
 fn test_build_simple_model_postgresql() {
-    let mut models = HashMap::new();
-    models.insert(
-        "User".to_string(),
-        ModelDefinition {
-            name: String::new(),
-            parents: vec![],
-            entity_id: None,
-            fields: vec![
-                FieldDefinition {
-                    name: "id".to_string(),
-                    field_type: TypeExpression::Identifier {
-                        name: "number".to_string(),
-                    },
-                    optional: false,
-                    default: None,
-                    entity_id: None,
-                    config: json!({}),
-                },
-                FieldDefinition {
-                    name: "name".to_string(),
-                    field_type: TypeExpression::Identifier {
-                        name: "string".to_string(),
-                    },
-                    optional: false,
-                    default: None,
-                    entity_id: None,
-                    config: json!({}),
-                },
-                FieldDefinition {
-                    name: "email".to_string(),
-                    field_type: TypeExpression::Identifier {
-                        name: "string".to_string(),
-                    },
-                    optional: true,
-                    default: None,
-                    entity_id: None,
-                    config: json!({}),
-                },
-            ],
-            config: json!({}),
-        },
-    );
-
-    let schema = Schema {
-        type_aliases: HashMap::new(),
-        models,
-    };
+    let schema = load_test_schema("user_schema.json");
 
     let config = json!({
         "dialect": "postgresql",
@@ -92,43 +59,7 @@ fn test_build_simple_model_postgresql() {
 
 #[test]
 fn test_build_simple_model_sqlite() {
-    let mut models = HashMap::new();
-    models.insert(
-        "Product".to_string(),
-        ModelDefinition {
-            name: String::new(),
-            parents: vec![],
-            entity_id: None,
-            fields: vec![
-                FieldDefinition {
-                    name: "id".to_string(),
-                    field_type: TypeExpression::Identifier {
-                        name: "number".to_string(),
-                    },
-                    optional: false,
-                    default: None,
-                    entity_id: None,
-                    config: json!({}),
-                },
-                FieldDefinition {
-                    name: "active".to_string(),
-                    field_type: TypeExpression::Identifier {
-                        name: "boolean".to_string(),
-                    },
-                    optional: false,
-                    default: Some(Value::Boolean(true)),
-                    entity_id: None,
-                    config: json!({}),
-                },
-            ],
-            config: json!({}),
-        },
-    );
-
-    let schema = Schema {
-        type_aliases: HashMap::new(),
-        models,
-    };
+    let schema = load_test_schema("product_schema.json");
 
     let config = json!({
         "dialect": "sqlite",

@@ -1,0 +1,6 @@
+// Basic test schema for SQL plugin
+User {
+  id: number
+  name: string
+  email?: string
+}

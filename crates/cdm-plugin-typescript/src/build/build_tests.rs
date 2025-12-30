@@ -1,91 +1,23 @@
 use super::*;
 use cdm_plugin_interface::{FieldDefinition, ModelDefinition, TypeAliasDefinition, TypeExpression};
 use serde_json::json;
+use std::path::PathBuf;
+
+fn fixtures_path() -> PathBuf {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("test_fixtures")
+}
+
+fn load_test_schema(fixture_name: &str) -> Schema {
+    let path = fixtures_path().join(fixture_name);
+    let content = std::fs::read_to_string(&path)
+        .unwrap_or_else(|e| panic!("Failed to load fixture {}: {}", path.display(), e));
+    serde_json::from_str(&content)
+        .unwrap_or_else(|e| panic!("Failed to parse fixture {}: {}", path.display(), e))
+}
 
 fn create_test_schema() -> Schema {
-    let mut models = HashMap::new();
-    let mut type_aliases = HashMap::new();
-
-    // Create a simple type alias
-    type_aliases.insert(
-        "Email".to_string(),
-        TypeAliasDefinition {
-            name: "Email".to_string(),
-            alias_type: TypeExpression::Identifier {
-                name: "string".to_string(),
-            },
-            config: json!({}),
-            entity_id: Some(1),
-        },
-    );
-
-    // Create a Status union type
-    type_aliases.insert(
-        "Status".to_string(),
-        TypeAliasDefinition {
-            name: "Status".to_string(),
-            alias_type: TypeExpression::Union {
-                types: vec![
-                    TypeExpression::StringLiteral {
-                        value: "active".to_string(),
-                    },
-                    TypeExpression::StringLiteral {
-                        value: "inactive".to_string(),
-                    },
-                ],
-            },
-            config: json!({}),
-            entity_id: Some(2),
-        },
-    );
-
-    // Create User model
-    models.insert(
-        "User".to_string(),
-        ModelDefinition {
-            name: "User".to_string(),
-            parents: vec![],
-            fields: vec![
-                FieldDefinition {
-                    name: "id".to_string(),
-                    field_type: TypeExpression::Identifier {
-                        name: "string".to_string(),
-                    },
-                    optional: false,
-                    default: None,
-                    config: json!({}),
-                    entity_id: Some(1),
-                },
-                FieldDefinition {
-                    name: "name".to_string(),
-                    field_type: TypeExpression::Identifier {
-                        name: "string".to_string(),
-                    },
-                    optional: false,
-                    default: None,
-                    config: json!({}),
-                    entity_id: Some(2),
-                },
-                FieldDefinition {
-                    name: "email".to_string(),
-                    field_type: TypeExpression::Identifier {
-                        name: "Email".to_string(),
-                    },
-                    optional: true,
-                    default: None,
-                    config: json!({}),
-                    entity_id: Some(3),
-                },
-            ],
-            config: json!({}),
-            entity_id: Some(10),
-        },
-    );
-
-    Schema {
-        models,
-        type_aliases,
-    }
+    load_test_schema("basic_schema.json")
 }
 
 #[test]
