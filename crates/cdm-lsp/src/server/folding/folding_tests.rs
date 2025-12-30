@@ -13,7 +13,7 @@ fn test_model_folding() {
     // Should have one folding range for the model body
     assert_eq!(ranges.len(), 1);
     assert_eq!(ranges[0].start_line, 0); // Line with opening brace
-    assert_eq!(ranges[0].end_line, 4);   // Line with closing brace
+    assert_eq!(ranges[0].end_line, 4); // Line with closing brace
     assert_eq!(ranges[0].kind, Some(FoldingRangeKind::Region));
 }
 

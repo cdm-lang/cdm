@@ -17,11 +17,13 @@ fn test_extract_plugin_imports_from_file_valid() {
     let file_path = temp_dir.path().join("test.cdm");
 
     let content = r#"
-@plugin "test-plugin"
-@plugin "another-plugin" from "https://github.com/user/repo.git"
+@test_plugin
+@another_plugin from git:https://github.com/user/repo.git
 
-User { name: string #1 } #2
-        "#;
+User {
+    name: string #1
+} #2
+"#;
 
     fs::write(&file_path, content).unwrap();
 

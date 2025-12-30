@@ -18,12 +18,16 @@
  * - Context extensions: @extends ./base.cdm
  * - Model removal: -ModelName
  * - Entity IDs: User { name: string #1 } #10
+ *
+ * Note: Model members (fields, plugin configs) must be on separate lines.
+ * Single-line model definitions are not supported.
  */
 
 module.exports = grammar({
   name: "cdm",
 
-  extras: ($) => [/\s/, $.comment],
+  // Only horizontal whitespace is ignored; newlines are significant
+  extras: ($) => [/[ \t]+/, $.comment],
 
   word: ($) => $.identifier,
 
@@ -31,22 +35,24 @@ module.exports = grammar({
 
   rules: {
     // Enforce ordering: @extends directives → plugin imports → definitions
+    // Newlines separate top-level items
     source_file: ($) =>
       seq(
-        repeat($.extends_directive),
-        repeat($.plugin_import),
-        repeat($._definition)
+        optional($._nls),
+        repeat(seq($.extends_directive, $._nls)),
+        repeat(seq($.plugin_import, $._nls)),
+        repeat(seq($._definition, optional($._nls)))
       ),
 
     _definition: ($) =>
-      choice(
-        $.model_removal,
-        $.type_alias,
-        $.model_definition
-      ),
+      choice($.model_removal, $.type_alias, $.model_definition),
 
     // Comments: // single line
     comment: ($) => /\/\/[^\n]*/,
+
+    // Newline handling
+    // _nls: one or more newlines (required separator between model members)
+    _nls: ($) => repeat1(/\r?\n/),
 
     // =========================================================================
     // PLUGIN IMPORTS (must appear before definitions)
@@ -126,10 +132,17 @@ module.exports = grammar({
 
     // Model: Name [extends Parents] { members } [#id]
     // Examples:
-    //   User { name: string }
-    //   User { name: string } #10
-    //   Article extends Timestamped { title: string } #11
-    //   AdminUser extends BaseUser, Timestamped { level: number } #12
+    //   User {
+    //     name: string
+    //   }
+    //   User {
+    //     name: string #1
+    //   } #10
+    //   Article extends Timestamped {
+    //     title: string
+    //   } #11
+    //
+    // Note: Model members must be on separate lines
     model_definition: ($) =>
       seq(
         field("name", $.identifier),
@@ -141,7 +154,26 @@ module.exports = grammar({
     extends_clause: ($) =>
       seq("extends", sep1(",", field("parent", $.identifier))),
 
-    model_body: ($) => seq("{", repeat($._model_member), "}"),
+    // Model body requires newlines between members
+    // Empty models are allowed: User {}
+    // Models with members require each on its own line:
+    //   User {
+    //     id: string #1
+    //     name: string #2
+    //   }
+    model_body: ($) =>
+      seq(
+        "{",
+        optional($._nls),
+        optional(
+          seq(
+            $._model_member,
+            repeat(seq($._nls, $._model_member)),
+            optional($._nls)
+          )
+        ),
+        "}"
+      ),
 
     _model_member: ($) =>
       choice(
@@ -262,20 +294,36 @@ module.exports = grammar({
       ),
 
     // Array literal: [value, value, ...]
+    // Allows optional newlines for multi-line arrays
     array_literal: ($) =>
       seq(
         "[",
-        optional(seq($._value, repeat(seq(",", $._value)), optional(","))),
+        optional($._nls),
+        optional(
+          seq(
+            $._value,
+            repeat(seq(",", optional($._nls), $._value)),
+            optional(","),
+            optional($._nls)
+          )
+        ),
         "]"
       ),
 
     // Object literal: { key: value, ... }
     // JSON/JS style with commas between entries
+    // Allows optional newlines for multi-line objects
     object_literal: ($) =>
       seq(
         "{",
+        optional($._nls),
         optional(
-          seq($.object_entry, repeat(seq(",", $.object_entry)), optional(","))
+          seq(
+            $.object_entry,
+            repeat(seq(",", optional($._nls), $.object_entry)),
+            optional(","),
+            optional($._nls)
+          )
         ),
         "}"
       ),
@@ -292,7 +340,20 @@ module.exports = grammar({
     // =========================================================================
 
     // Plugin block: { @plugin1 {} @plugin2 {} }
-    plugin_block: ($) => seq("{", repeat($.plugin_config), "}"),
+    // Allows newlines between plugin configs
+    plugin_block: ($) =>
+      seq(
+        "{",
+        optional($._nls),
+        optional(
+          seq(
+            $.plugin_config,
+            repeat(seq(optional($._nls), $.plugin_config)),
+            optional($._nls)
+          )
+        ),
+        "}"
+      ),
 
     // Plugin config: @name { json_config }
     // Examples:

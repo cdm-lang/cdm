@@ -115,7 +115,29 @@ CDM source files are encoded in UTF-8.
 
 ### 2.2 Whitespace
 
-Whitespace (spaces, tabs, newlines) is ignored except as a token separator. Indentation is not significant.
+Horizontal whitespace (spaces, tabs) is ignored except as a token separator. Indentation is not significant.
+
+**Newlines** are significant in the following contexts:
+
+- **Model bodies**: Each field, field removal, or plugin configuration must appear on its own line. Single-line model definitions are not supported (except for empty models).
+- **Top-level definitions**: Each type alias, model, or directive should appear on its own line.
+
+Within object literals, array literals, and plugin configuration blocks, newlines are optional since these constructs use commas as separators.
+
+```cdm
+// Valid: fields on separate lines
+User {
+  id: string #1
+  name: string #2
+  email: string #3
+}
+
+// Valid: empty model on one line
+EmptyModel {}
+
+// Invalid: fields on same line (will not parse)
+User { id: string #1 name: string #2 }
+```
 
 ### 2.3 Comments
 
@@ -445,6 +467,8 @@ User {
   email: string #3
 } #10
 ```
+
+**Syntax Note**: Each model member (field definition, field removal, or plugin configuration) must appear on its own line. Single-line model definitions like `User { id: string, name: string }` are not supported. Empty models may appear on a single line: `EmptyModel {}`.
 
 ### 5.2 Field Definitions
 
@@ -1154,7 +1178,7 @@ User {
 } #11
 ```
 
-Forward references across files are resolved through the ancestor chain—a child context can reference types from ancestors, but not vice versa.
+Forward references across files are resolved through the ancestor chainâ€”a child context can reference types from ancestors, but not vice versa.
 
 ### 9.4 Circular Model References
 
@@ -1207,21 +1231,21 @@ A typical CDM project structure:
 
 ```
 my-project/
-├── cdm/
-│   ├── base.cdm           # Base schema
-│   ├── api.cdm            # API context
-│   ├── client.cdm         # Client context
-│   └── admin.cdm          # Admin context
-├── .cdm/
-│   ├── cache/
-│   │   └── plugins/       # Downloaded plugin WASM files
-│   ├── previous_schema.json
-│   └── registry.json      # Cached plugin registry
-├── db/
-│   ├── schema/            # Generated SQL
-│   └── migrations/        # Generated migrations
-└── src/
-    └── types/             # Generated TypeScript
+â”œâ”€â”€ cdm/
+â”‚   â”œâ”€â”€ base.cdm           # Base schema
+â”‚   â”œâ”€â”€ api.cdm            # API context
+â”‚   â”œâ”€â”€ client.cdm         # Client context
+â”‚   â””â”€â”€ admin.cdm          # Admin context
+â”œâ”€â”€ .cdm/
+â”‚   â”œâ”€â”€ cache/
+â”‚   â”‚   â””â”€â”€ plugins/       # Downloaded plugin WASM files
+â”‚   â”œâ”€â”€ previous_schema.json
+â”‚   â””â”€â”€ registry.json      # Cached plugin registry
+â”œâ”€â”€ db/
+â”‚   â”œâ”€â”€ schema/            # Generated SQL
+â”‚   â””â”€â”€ migrations/        # Generated migrations
+â””â”€â”€ src/
+    â””â”€â”€ types/             # Generated TypeScript
 ```
 
 ### 10.4 Path Resolution
@@ -1424,16 +1448,16 @@ A CDM plugin repository contains:
 
 ```
 cdm-plugin-example/
-├── cdm-plugin.json       # Manifest (required)
-├── schema.cdm            # Settings schema (required)
-├── Cargo.toml            # Rust project config
-├── src/
-│   ├── lib.rs            # Plugin entry point
-│   ├── validate.rs       # Config validation
-│   ├── build.rs          # Code generation
-│   └── migrate.rs        # Migration generation
-├── .gitignore
-└── README.md
+â”œâ”€â”€ cdm-plugin.json       # Manifest (required)
+â”œâ”€â”€ schema.cdm            # Settings schema (required)
+â”œâ”€â”€ Cargo.toml            # Rust project config
+â”œâ”€â”€ src/
+â”‚   â”œâ”€â”€ lib.rs            # Plugin entry point
+â”‚   â”œâ”€â”€ validate.rs       # Config validation
+â”‚   â”œâ”€â”€ build.rs          # Code generation
+â”‚   â””â”€â”€ migrate.rs        # Migration generation
+â”œâ”€â”€ .gitignore
+â””â”€â”€ README.md
 ```
 
 ### 12.2 Manifest Format
@@ -1794,15 +1818,15 @@ utils.pluralize("leaf")      // "leaves"
 
 **Pluralization Rules:**
 
-1. **Regular plurals**: Adds 's' (cat → cats)
-2. **Sibilants** (s, x, z, ch, sh): Adds 'es' (box → boxes)
-3. **Consonant + y**: Changes to 'ies' (city → cities)
-4. **Vowel + y**: Adds 's' (boy → boys)
-5. **Words ending in f/fe**: Changes to 'ves' (leaf → leaves)
-6. **Consonant + o**: Adds 'es' (hero → heroes)
-7. **Irregular plurals**: Handles common irregular forms (person → people, child → children, etc.)
-8. **Unchanging words**: Returns original (sheep → sheep, fish → fish)
-9. **Case preservation**: Maintains capitalization (Person → People)
+1. **Regular plurals**: Adds 's' (cat â†’ cats)
+2. **Sibilants** (s, x, z, ch, sh): Adds 'es' (box â†’ boxes)
+3. **Consonant + y**: Changes to 'ies' (city â†’ cities)
+4. **Vowel + y**: Adds 's' (boy â†’ boys)
+5. **Words ending in f/fe**: Changes to 'ves' (leaf â†’ leaves)
+6. **Consonant + o**: Adds 'es' (hero â†’ heroes)
+7. **Irregular plurals**: Handles common irregular forms (person â†’ people, child â†’ children, etc.)
+8. **Unchanging words**: Returns original (sheep â†’ sheep, fish â†’ fish)
+9. **Case preservation**: Maintains capitalization (Person â†’ People)
 
 ### 12.8 Building Plugins
 
@@ -1849,8 +1873,12 @@ Plugins run with resource limits:
 
 ```ebnf
 (* Top-level structure *)
-source_file = { extends_directive }, { plugin_import }, { definition } ;
+source_file = { newlines }, { extends_directive , newlines }, { plugin_import , newlines }, { definition , [ newlines ] } ;
 definition = model_removal | type_alias | model_definition ;
+
+(* Whitespace *)
+newline = "\r\n" | "\n" ;
+newlines = newline , { newline } ;
 
 (* Comments *)
 comment = "//" , { any_char - newline } ;
@@ -1876,7 +1904,8 @@ type_alias = identifier , ":" , type_expression , [ plugin_block ] , [ entity_id
 (* Models *)
 model_definition = identifier , [ extends_clause ] , model_body , [ entity_id ] ;
 extends_clause = "extends" , identifier , { "," , identifier } ;
-model_body = "{" , { model_member } , "}" ;
+(* Note: model members are separated by newlines, not commas *)
+model_body = "{" , [ newlines ] , [ model_member , { newlines , model_member } , [ newlines ] ] , "}" ;
 model_member = field_removal | plugin_config | field_override | field_definition ;
 
 (* Fields *)
@@ -1892,13 +1921,13 @@ array_type = type_identifier , "[" , "]" ;
 type_identifier = identifier ;
 
 (* Plugins *)
-plugin_block = "{" , { plugin_config } , "}" ;
+plugin_block = "{" , [ newlines ] , [ plugin_config , { [ newlines ] , plugin_config } , [ newlines ] ] , "}" ;
 plugin_config = "@" , identifier , object_literal ;
 
-(* Values *)
+(* Values - commas separate elements, newlines optional *)
 value = string_literal | number_literal | boolean_literal | array_literal | object_literal ;
-array_literal = "[" , [ value , { "," , value } , [ "," ] ] , "]" ;
-object_literal = "{" , [ object_entry , { "," , object_entry } , [ "," ] ] , "}" ;
+array_literal = "[" , [ newlines ] , [ value , { "," , [ newlines ] , value } , [ "," ] , [ newlines ] ] , "]" ;
+object_literal = "{" , [ newlines ] , [ object_entry , { "," , [ newlines ] , object_entry } , [ "," ] , [ newlines ] ] , "}" ;
 object_entry = ( identifier | string_literal ) , ":" , value ;
 
 (* Literals *)
