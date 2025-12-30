@@ -11,6 +11,9 @@ pub fn validate_config(
         ConfigLevel::Global => {
             validate_global_config(&config, &mut errors);
         }
+        ConfigLevel::TypeAlias { name } => {
+            validate_type_alias_config(&config, &name, &mut errors);
+        }
         ConfigLevel::Model { name } => {
             validate_model_config(&config, &name, &mut errors);
         }
@@ -118,6 +121,37 @@ fn validate_global_config(config: &JSON, errors: &mut Vec<ValidationError>) {
             }
         }
     }
+}
+
+fn validate_type_alias_config(
+    config: &JSON,
+    alias_name: &str,
+    errors: &mut Vec<ValidationError>,
+) {
+    // Validate export_name is a valid TypeScript identifier
+    if let Some(export_name) = config.get("export_name") {
+        if let Some(export_name_str) = export_name.as_str() {
+            if !is_valid_typescript_identifier(export_name_str) {
+                errors.push(ValidationError {
+                    path: vec![
+                        PathSegment {
+                            kind: "type_alias".to_string(),
+                            name: alias_name.to_string(),
+                        },
+                        PathSegment {
+                            kind: "config".to_string(),
+                            name: "export_name".to_string(),
+                        },
+                    ],
+                    message: format!("'{}' is not a valid TypeScript identifier", export_name_str),
+                    severity: Severity::Error,
+                });
+            }
+        }
+    }
+
+    // Note: We don't validate type_override syntax as it could be complex TypeScript types
+    // The TypeScript compiler will catch any invalid types
 }
 
 fn validate_model_config(config: &JSON, model_name: &str, errors: &mut Vec<ValidationError>) {

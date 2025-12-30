@@ -12,6 +12,9 @@ pub fn validate_config(
         ConfigLevel::Global => {
             validate_global_config(&config, &mut errors);
         }
+        ConfigLevel::TypeAlias { ref name } => {
+            validate_type_alias_config(&config, name, &mut errors);
+        }
         ConfigLevel::Model { ref name } => {
             validate_model_config(&config, name, &mut errors);
         }
@@ -124,6 +127,36 @@ fn validate_global_config(config: &JSON, errors: &mut Vec<ValidationError>) {
                     }
                 }
             }
+        }
+    }
+}
+
+fn validate_type_alias_config(
+    config: &JSON,
+    alias_name: &str,
+    errors: &mut Vec<ValidationError>,
+) {
+    // Type alias configs for SQL plugin typically just define custom SQL types
+    // No specific validation needed beyond schema validation, but we could add
+    // checks for valid SQL type syntax in the future if needed
+
+    // For now, we just ensure comment is a string if present
+    if let Some(comment) = config.get("comment") {
+        if !comment.is_string() {
+            errors.push(ValidationError {
+                path: vec![
+                    PathSegment {
+                        kind: "type_alias".to_string(),
+                        name: alias_name.to_string(),
+                    },
+                    PathSegment {
+                        kind: "config".to_string(),
+                        name: "comment".to_string(),
+                    },
+                ],
+                message: "comment must be a string".to_string(),
+                severity: Severity::Error,
+            });
         }
     }
 }

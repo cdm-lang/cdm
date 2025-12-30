@@ -1060,13 +1060,14 @@ CDM extracts these keys before passing config to plugins:
 
 ### 8.5 Configuration Levels
 
-Plugins receive configuration at three levels:
+Plugins receive configuration at four levels:
 
-| Level  | Location      | Example                                           |
-| ------ | ------------- | ------------------------------------------------- |
-| Global | Plugin import | `@sql { dialect: "postgres" }`                    |
-| Model  | Model block   | `User { @sql { table: "users" } }`                |
-| Field  | Field block   | `email: string { @sql { type: "VARCHAR(320)" } }` |
+| Level      | Location         | Example                                           |
+| ---------- | ---------------- | ------------------------------------------------- |
+| Global     | Plugin import    | `@sql { dialect: "postgres" }`                    |
+| TypeAlias  | Type alias block | `Email: string { @sql { type: "VARCHAR(320)" } }` |
+| Model      | Model block      | `User { @sql { table: "users" } }`                |
+| Field      | Field block      | `name: string { @sql { type: "TEXT" } }`          |
 
 ### 8.6 Plugin Execution Order
 
@@ -1501,6 +1502,12 @@ GlobalSettings {
   naming_convention: "snake_case" | "camelCase" = "snake_case"
 }
 
+TypeAliasSettings {
+  type?: string
+  default?: string
+  comment?: string
+}
+
 ModelSettings {
   table?: string
   indexes?: Index[]
@@ -1523,7 +1530,7 @@ Index {
 }
 ```
 
-The schema must define at least `GlobalSettings`. `ModelSettings` and `FieldSettings` are optional.
+The schema must define at least `GlobalSettings`. `TypeAliasSettings`, `ModelSettings`, and `FieldSettings` are optional.
 
 #### Field Optionality and Defaults
 

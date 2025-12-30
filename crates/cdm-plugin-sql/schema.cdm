@@ -27,6 +27,17 @@ GlobalSettings {
   apply_cdm_defaults: boolean = true
 }
 
+TypeAliasSettings {
+  // SQL type override for this type alias (e.g., "VARCHAR(320)", "UUID", "TEXT")
+  type?: string
+
+  // Default value SQL expression (e.g., "gen_random_uuid()", "CURRENT_TIMESTAMP")
+  default?: string
+
+  // Comment/description for this type alias
+  comment?: string
+}
+
 ModelSettings {
   // Table name override (default: model name with table_name_format applied)
   table_name?: string

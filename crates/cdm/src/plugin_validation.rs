@@ -56,6 +56,7 @@ pub struct PluginConfig {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ConfigLevel {
     Global,
+    TypeAlias { name: String },
     Model { name: String },
     Field { model: String, field: String },
 }
@@ -556,6 +557,22 @@ fn extract_plugin_configs(
 
     for node in root.children(&mut cursor) {
         match node.kind() {
+            "type_alias" => {
+                let alias_name = node.child_by_field_name("name")
+                    .map(|n| node_text(n, source))
+                    .unwrap_or("");
+
+                if let Some(plugins) = node.child_by_field_name("plugins") {
+                    extract_plugin_block(
+                        plugins,
+                        source,
+                        ConfigLevel::TypeAlias {
+                            name: alias_name.to_string(),
+                        },
+                        &mut configs,
+                    );
+                }
+            }
             "model_definition" => {
                 let model_name = node.child_by_field_name("name")
                     .map(|n| node_text(n, source))
@@ -744,6 +761,7 @@ fn validate_config_with_plugin(
 ) {
     let model_name = match &config.level {
         ConfigLevel::Global => "GlobalSettings",
+        ConfigLevel::TypeAlias { .. } => "TypeAliasSettings",
         ConfigLevel::Model { .. } => "ModelSettings",
         ConfigLevel::Field { .. } => "FieldSettings",
     };
@@ -803,6 +821,9 @@ fn validate_config_with_plugin(
     // LEVEL 2: Plugin semantic validation (if plugin has _validate_config)
     let api_level = match &config.level {
         ConfigLevel::Global => cdm_plugin_interface::ConfigLevel::Global,
+        ConfigLevel::TypeAlias { name } => {
+            cdm_plugin_interface::ConfigLevel::TypeAlias { name: name.clone() }
+        }
         ConfigLevel::Model { name } => {
             cdm_plugin_interface::ConfigLevel::Model { name: name.clone() }
         }

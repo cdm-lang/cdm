@@ -10,6 +10,7 @@ pub type JSON = serde_json::Value;
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ConfigLevel {
     Global,
+    TypeAlias { name: String },
     Model { name: String },
     Field { model: String, field: String },
 }

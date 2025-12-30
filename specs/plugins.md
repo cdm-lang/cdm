@@ -72,7 +72,7 @@ Filesystem paths for development:
 
 ## Configuration Levels
 
-Plugins receive configuration at three levels:
+Plugins receive configuration at four levels:
 
 ### Global Configuration
 
@@ -85,9 +85,24 @@ Applied at the plugin import:
 }
 ```
 
+### Type Alias Configuration
+
+Applied to specific type aliases:
+
+```cdm
+Email: string {
+    @sql { type: "VARCHAR(320)" }
+    @validation { format: "email", max_length: 320 }
+}
+
+UUID: string {
+    @sql { type: "UUID", default: "gen_random_uuid()" }
+}
+```
+
 ### Model Configuration
 
-Applied to specific models or type aliases:
+Applied to specific models:
 
 ```cdm
 User {
@@ -165,6 +180,11 @@ GlobalSettings {
     include_comments: boolean = true
 }
 
+TypeAliasSettings {
+    override_type?: string
+    skip: boolean = false
+}
+
 ModelSettings {
     custom_name?: string
     skip: boolean = false
@@ -212,6 +232,10 @@ pub extern "C" fn schema() -> *const u8 {
     let schema_content = r#"
 GlobalSettings {
     output_format: "json" | "yaml" = "json"
+}
+
+TypeAliasSettings {
+    skip: boolean = false
 }
 
 ModelSettings {

@@ -42,3 +42,5 @@ Code completion when you've extended from another model and you are about to cre
 ### command line completions
 
 ### TypeAliasSettings for plugins
+
+### Visual distinction when you're overriding an inherited model vs defining a new model in the syntax highlighter functionality

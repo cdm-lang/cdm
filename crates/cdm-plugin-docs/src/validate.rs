@@ -12,6 +12,9 @@ pub fn validate_config(
         ConfigLevel::Global => {
             validate_global_config(&config, &mut errors);
         }
+        ConfigLevel::TypeAlias { ref name } => {
+            validate_type_alias_config(&config, name, &mut errors);
+        }
         ConfigLevel::Model { ref name } => {
             validate_model_config(&config, name, &mut errors);
         }
@@ -71,6 +74,72 @@ fn validate_global_config(config: &JSON, errors: &mut Vec<ValidationError>) {
                     name: "title".to_string(),
                 }],
                 message: "Field 'title' must be a string".to_string(),
+                severity: Severity::Error,
+            });
+        }
+    }
+}
+
+fn validate_type_alias_config(
+    config: &JSON,
+    alias_name: &str,
+    errors: &mut Vec<ValidationError>,
+) {
+    // Validate description field
+    if let Some(description) = config.get("description") {
+        if !description.is_string() {
+            errors.push(ValidationError {
+                path: vec![
+                    PathSegment {
+                        kind: "type_alias".to_string(),
+                        name: alias_name.to_string(),
+                    },
+                    PathSegment {
+                        kind: "config".to_string(),
+                        name: "description".to_string(),
+                    },
+                ],
+                message: "Field 'description' must be a string".to_string(),
+                severity: Severity::Error,
+            });
+        }
+    }
+
+    // Validate example field
+    if let Some(example) = config.get("example") {
+        if !example.is_string() {
+            errors.push(ValidationError {
+                path: vec![
+                    PathSegment {
+                        kind: "type_alias".to_string(),
+                        name: alias_name.to_string(),
+                    },
+                    PathSegment {
+                        kind: "config".to_string(),
+                        name: "example".to_string(),
+                    },
+                ],
+                message: "Field 'example' must be a string".to_string(),
+                severity: Severity::Error,
+            });
+        }
+    }
+
+    // Validate hidden field
+    if let Some(hidden) = config.get("hidden") {
+        if !hidden.is_boolean() {
+            errors.push(ValidationError {
+                path: vec![
+                    PathSegment {
+                        kind: "type_alias".to_string(),
+                        name: alias_name.to_string(),
+                    },
+                    PathSegment {
+                        kind: "config".to_string(),
+                        name: "hidden".to_string(),
+                    },
+                ],
+                message: "Field 'hidden' must be a boolean".to_string(),
                 severity: Severity::Error,
             });
         }
