@@ -64,11 +64,7 @@ jobs:
 
       - name: Build binary
         run: |
-          cd crates/cdm
-          cargo build --release --target ${{ matrix.target }}
-          # Copy binary to a known location
-          mkdir -p ../../dist
-          cp target/${{ matrix.target }}/release/${{ matrix.binary_name }} ../../dist/${{ matrix.binary_name }}
+          cargo build --release --target ${{ matrix.target }} --manifest-path crates/cdm/Cargo.toml --target-dir dist/build
         env:
           CARGO_TARGET_AARCH64_UNKNOWN_LINUX_GNU_LINKER: aarch64-linux-gnu-gcc
 
@@ -76,14 +72,14 @@ jobs:
         if: runner.os != 'Windows'
         run: |
           if [ "${{ matrix.platform }}" = "aarch64-unknown-linux-gnu" ]; then
-            aarch64-linux-gnu-strip dist/${{ matrix.binary_name }}
+            aarch64-linux-gnu-strip dist/build/${{ matrix.target }}/release/${{ matrix.binary_name }}
           else
-            strip dist/${{ matrix.binary_name }}
+            strip dist/build/${{ matrix.target }}/release/${{ matrix.binary_name }}
           fi
 
       - name: Generate checksum
         run: |
-          cd dist
+          cd dist/build/${{ matrix.target }}/release
           if [ "${{ runner.os }}" = "Windows" ]; then
             certutil -hashfile ${{ matrix.binary_name }} SHA256 | findstr /v "hash" | findstr /v "CertUtil" > ${{ matrix.binary_name }}.sha256
           else
@@ -93,7 +89,7 @@ jobs:
 
       - name: Rename binary for release
         run: |
-          cd dist
+          cd dist/build/${{ matrix.target }}/release
           if [ "${{ runner.os }}" = "Windows" ]; then
             mv ${{ matrix.binary_name }} cdm-${{ matrix.platform }}.exe
             mv ${{ matrix.binary_name }}.sha256 cdm-${{ matrix.platform }}.exe.sha256
@@ -108,7 +104,7 @@ jobs:
         with:
           name: cdm-${{ matrix.platform }}
           path: |
-            dist/cdm-${{ matrix.platform }}*
+            dist/build/${{ matrix.target }}/release/cdm-${{ matrix.platform }}*
           retention-days: 1
 
   create-release:
