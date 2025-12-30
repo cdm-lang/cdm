@@ -271,11 +271,18 @@ jobs:
           git config user.name "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
+          # Stash the updated manifest
+          git add cli-releases.json
+          git stash
+
           # Fetch and checkout main branch
           git fetch origin main
           git checkout -B main origin/main
 
-          # Add and commit the updated manifest
+          # Apply the stashed changes
+          git stash pop
+
+          # Commit the updated manifest
           git add cli-releases.json
           git commit -m "Update CLI release manifest: ${{ steps.version.outputs.tag }}
 
