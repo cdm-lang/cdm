@@ -221,3 +221,7 @@ fn format_type_expression(type_expr: &TypeExpression) -> String {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "build/build_tests.rs"]
+mod build_tests;

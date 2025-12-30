@@ -217,3 +217,7 @@ fn validate_field_config(
         }
     }
 }
+
+#[cfg(test)]
+#[path = "validate/validate_tests.rs"]
+mod validate_tests;
