@@ -185,16 +185,7 @@ release-cli version:
     exit 1
   fi
 
-  # Update version in Cargo.toml
-  echo "Updating version in Cargo.toml..."
-  sed -i.bak 's/^version = ".*"/version = "{{version}}"/' crates/cdm/Cargo.toml
-  rm crates/cdm/Cargo.toml.bak
-
-  # Update Cargo.lock
-  echo "Updating Cargo.lock..."
-  cargo check --manifest-path crates/cdm/Cargo.toml
-
-  # Check if there are other uncommitted changes
+  # Check for uncommitted changes BEFORE making any modifications
   if ! git diff-index --quiet HEAD --; then
     echo ""
     echo "Warning: You have uncommitted changes"
@@ -207,6 +198,15 @@ release-cli version:
       exit 0
     fi
   fi
+
+  # Update version in Cargo.toml
+  echo "Updating version in Cargo.toml..."
+  sed -i.bak 's/^version = ".*"/version = "{{version}}"/' crates/cdm/Cargo.toml
+  rm crates/cdm/Cargo.toml.bak
+
+  # Update Cargo.lock
+  echo "Updating Cargo.lock..."
+  cargo check --manifest-path crates/cdm/Cargo.toml
 
   # Commit the version update
   echo "Committing version update..."
