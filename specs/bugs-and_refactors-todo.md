@@ -39,5 +39,6 @@ I'd like to update testing to a common format. Tests should not live in source c
 ### Code completion on overrides
 Code completion when you've extended from another model and you are about to create a new model or type alias in the extended file should suggest other models from the ancestors that you might want to override.
 
-### Cli versioning
-Allow CLI to upgrade or downgrade itself to a specific version
+### command line completions
+
+### TypeAliasSettings for plugins

@@ -1,7 +1,9 @@
 // src/main.rs
 
-use clap::{Parser, Subcommand};
+use clap::{Parser, Subcommand, CommandFactory};
+use clap_complete::{generate, Shell};
 use std::path::PathBuf;
+use std::io;
 use anyhow::Result;
 
 #[derive(Parser)]
@@ -76,6 +78,41 @@ enum Commands {
         command: Option<cdm::UpdateCommands>,
 
         /// Skip confirmation prompt (only when updating to latest without subcommand)
+        #[arg(short = 'y', long)]
+        yes: bool,
+    },
+    /// Generate shell completions
+    #[command(long_about = "Generate shell completions
+
+INSTALLATION:
+
+Bash:
+    cdm completions bash > ~/.local/share/bash-completion/completions/cdm
+
+Zsh:
+    mkdir -p ~/.zsh/completions && cdm completions zsh > ~/.zsh/completions/_cdm
+    Then add to ~/.zshrc:
+      fpath=(~/.zsh/completions $fpath)
+      autoload -Uz compinit && compinit
+
+Fish:
+    cdm completions fish > ~/.config/fish/completions/cdm.fish
+
+PowerShell:
+    cdm completions powershell | Out-File -FilePath \"$HOME\\Documents\\PowerShell\\cdm-completion.ps1\"
+    Then add to your profile:
+      . \"$HOME\\Documents\\PowerShell\\cdm-completion.ps1\"
+
+Elvish:
+    cdm completions elvish > ~/.elvish/lib/cdm-completions.elv")]
+    Completions {
+        /// The shell to generate completions for
+        #[arg(value_enum)]
+        shell: Shell,
+    },
+    /// Uninstall CDM CLI
+    Uninstall {
+        /// Skip confirmation prompt
         #[arg(short = 'y', long)]
         yes: bool,
     },
@@ -326,6 +363,16 @@ fn main() -> Result<()> {
                         std::process::exit(1);
                     }
                 }
+            }
+        }
+        Commands::Completions { shell } => {
+            let mut cmd = Cli::command();
+            generate(shell, &mut cmd, "cdm", &mut io::stdout());
+        }
+        Commands::Uninstall { yes } => {
+            if let Err(err) = cdm::uninstall(yes) {
+                eprintln!("Uninstall failed: {}", err);
+                std::process::exit(1);
             }
         }
     }

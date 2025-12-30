@@ -178,6 +178,9 @@ main() {
     info "Binary location: ${install_path}"
     printf "\n"
 
+    # Install shell completions
+    install_completions "$install_path"
+
     # Check if install directory is in PATH
     case ":$PATH:" in
         *":$INSTALL_DIR:"*)
@@ -199,6 +202,101 @@ main() {
             printf "    ${install_path} --help\n"
             ;;
     esac
+}
+
+# Install shell completions
+install_completions() {
+    local binary="$1"
+    local shell_name
+    local completion_dir
+    local completion_file
+
+    # Detect current shell
+    if [ -n "$BASH_VERSION" ]; then
+        shell_name="bash"
+    elif [ -n "$ZSH_VERSION" ]; then
+        shell_name="zsh"
+    else
+        # Try to detect from SHELL environment variable
+        case "$SHELL" in
+            */bash)
+                shell_name="bash"
+                ;;
+            */zsh)
+                shell_name="zsh"
+                ;;
+            */fish)
+                shell_name="fish"
+                ;;
+            *)
+                # Shell not detected, skip completion installation
+                return 0
+                ;;
+        esac
+    fi
+
+    # Determine completion directory based on shell
+    case "$shell_name" in
+        bash)
+            # Try common bash completion directories
+            if [ -d "$HOME/.local/share/bash-completion/completions" ]; then
+                completion_dir="$HOME/.local/share/bash-completion/completions"
+            elif [ -d "$HOME/.bash_completion.d" ]; then
+                completion_dir="$HOME/.bash_completion.d"
+            else
+                completion_dir="$HOME/.bash_completion.d"
+                mkdir -p "$completion_dir"
+            fi
+            completion_file="${completion_dir}/cdm"
+            ;;
+        zsh)
+            # Use user's zsh completion directory
+            if [ -d "$HOME/.zsh/completions" ]; then
+                completion_dir="$HOME/.zsh/completions"
+            else
+                completion_dir="$HOME/.zsh/completions"
+                mkdir -p "$completion_dir"
+            fi
+            completion_file="${completion_dir}/_cdm"
+            ;;
+        fish)
+            completion_dir="$HOME/.config/fish/completions"
+            mkdir -p "$completion_dir"
+            completion_file="${completion_dir}/cdm.fish"
+            ;;
+        *)
+            return 0
+            ;;
+    esac
+
+    # Generate and install completion
+    if "$binary" completions "$shell_name" > "$completion_file" 2>/dev/null; then
+        info "Installed ${shell_name} completions to ${completion_file}"
+
+        # Add fpath setup for zsh if needed
+        if [ "$shell_name" = "zsh" ]; then
+            local zshrc="$HOME/.zshrc"
+            if [ -f "$zshrc" ]; then
+                if ! grep -q "fpath=(~/.zsh/completions" "$zshrc" 2>/dev/null; then
+                    printf "\n"
+                    printf "To enable completions, add this to your ~/.zshrc:\n"
+                    printf "\n"
+                    printf "    fpath=(~/.zsh/completions \$fpath)\n"
+                    printf "    autoload -Uz compinit && compinit\n"
+                    printf "\n"
+                fi
+            fi
+        fi
+
+        # Note for bash users
+        if [ "$shell_name" = "bash" ] && [ "$completion_dir" = "$HOME/.bash_completion.d" ]; then
+            printf "\n"
+            printf "To enable completions, add this to your ~/.bashrc:\n"
+            printf "\n"
+            printf "    for f in ~/.bash_completion.d/*; do source \$f; done\n"
+            printf "\n"
+        fi
+    fi
 }
 
 main "$@"

@@ -179,6 +179,9 @@ function Install-CDM {
         Write-Info "Binary location: $installPath"
         Write-Host ""
 
+        # Install shell completions
+        Install-Completions -BinaryPath $installPath
+
         # Add to PATH
         $addedToPath = Add-ToPath -Directory $InstallDir
 
@@ -197,6 +200,44 @@ function Install-CDM {
         if (Test-Path $tmpDir) {
             Remove-Item $tmpDir -Recurse -Force
         }
+    }
+}
+
+# Install PowerShell completions
+function Install-Completions {
+    param([string]$BinaryPath)
+
+    try {
+        # Generate PowerShell completion script
+        $completionScript = & $BinaryPath completions powershell 2>$null
+
+        if ($LASTEXITCODE -eq 0 -and $completionScript) {
+            # Determine PowerShell profile directory
+            $profileDir = Split-Path -Parent $PROFILE
+            $completionFile = Join-Path $profileDir "cdm-completion.ps1"
+
+            # Create profile directory if it doesn't exist
+            if (-not (Test-Path $profileDir)) {
+                New-Item -ItemType Directory -Path $profileDir -Force | Out-Null
+            }
+
+            # Save completion script
+            $completionScript | Out-File -FilePath $completionFile -Encoding UTF8 -Force
+
+            Write-Info "Installed PowerShell completions to $completionFile"
+            Write-Host ""
+            Write-Info "To enable completions, add this to your PowerShell profile ($PROFILE):"
+            Write-Host ""
+            Write-Host "    . `"$completionFile`"" -ForegroundColor Cyan
+            Write-Host ""
+            Write-Info "Or run this command to add it automatically:"
+            Write-Host ""
+            Write-Host "    Add-Content -Path `$PROFILE -Value `". \`"$completionFile\`"`"" -ForegroundColor Cyan
+            Write-Host ""
+        }
+    }
+    catch {
+        # Silently ignore completion installation errors
     }
 }
 

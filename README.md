@@ -118,13 +118,63 @@ cdm --help
 cdm <COMMAND>
 
 Commands:
-  validate  Validate a CDM file
-  build     Build output files from a CDM schema using configured plugins
-  migrate   Generate migration files from schema changes
-  plugin    Plugin management commands
-  format    Format CDM files and optionally assign entity IDs
-  update    Update CDM CLI to a different version
-  help      Print this message or the help of the given subcommand(s)
+  validate     Validate a CDM file
+  build        Build output files from a CDM schema using configured plugins
+  migrate      Generate migration files from schema changes
+  plugin       Plugin management commands
+  format       Format CDM files and optionally assign entity IDs
+  update       Update CDM CLI to a different version
+  completions  Generate shell completions
+  help         Print this message or the help of the given subcommand(s)
+```
+
+### Shell Completions
+
+CDM supports tab completion for bash, zsh, fish, PowerShell, and elvish.
+
+#### Automatic Installation
+
+Shell completions are automatically installed when using the install scripts:
+- Unix/Linux/macOS: `curl -fsSL https://raw.githubusercontent.com/cdm-lang/cdm/main/install.sh | sh`
+- Windows: `irm https://raw.githubusercontent.com/cdm-lang/cdm/main/install.ps1 | iex`
+
+#### Manual Installation
+
+If you installed via npm or manual download, you can generate completions manually:
+
+**Bash:**
+```bash
+cdm completions bash > ~/.local/share/bash-completion/completions/cdm
+# Or for older systems:
+cdm completions bash > ~/.bash_completion.d/cdm
+```
+
+**Zsh:**
+```bash
+mkdir -p ~/.zsh/completions
+cdm completions zsh > ~/.zsh/completions/_cdm
+
+# Add to ~/.zshrc:
+fpath=(~/.zsh/completions $fpath)
+autoload -Uz compinit && compinit
+```
+
+**Fish:**
+```bash
+cdm completions fish > ~/.config/fish/completions/cdm.fish
+```
+
+**PowerShell:**
+```powershell
+cdm completions powershell | Out-File -FilePath "$HOME\Documents\PowerShell\cdm-completion.ps1"
+
+# Add to your PowerShell profile:
+. "$HOME\Documents\PowerShell\cdm-completion.ps1"
+```
+
+**Elvish:**
+```bash
+cdm completions elvish > ~/.elvish/lib/cdm-completions.elv
 ```
 
 ## Updating
@@ -150,6 +200,66 @@ npm update @cdm-lang/cli
 ```
 
 See the [npm package documentation](npm/README.md#updating) for more details.
+
+## Uninstalling
+
+### If installed via install script
+
+**Using the uninstall command:**
+```bash
+cdm uninstall
+```
+
+**Or using the uninstall script:**
+
+Unix/Linux/macOS:
+```bash
+curl -fsSL https://raw.githubusercontent.com/cdm-lang/cdm/main/uninstall.sh | sh
+```
+
+Windows (PowerShell):
+```powershell
+irm https://raw.githubusercontent.com/cdm-lang/cdm/main/uninstall.ps1 | iex
+```
+
+### If installed via npm
+
+```bash
+# Global installation
+npm uninstall -g @cdm-lang/cli
+
+# Local installation
+npm uninstall @cdm-lang/cli
+```
+
+### Manual Uninstallation
+
+If you need to manually uninstall:
+
+**Unix/Linux/macOS:**
+```bash
+# Remove the binary
+rm -rf ~/.cdm
+
+# Remove completions (choose your shell)
+rm -f ~/.local/share/bash-completion/completions/cdm  # Bash
+rm -f ~/.zsh/completions/_cdm                          # Zsh
+rm -f ~/.config/fish/completions/cdm.fish              # Fish
+
+# Remove PATH modification from your shell profile (~/.bashrc, ~/.zshrc, etc.)
+# Then restart your shell
+```
+
+**Windows:**
+```powershell
+# Remove the binary
+Remove-Item -Recurse -Force "$env:LOCALAPPDATA\cdm"
+
+# Remove completions
+Remove-Item "$HOME\Documents\PowerShell\cdm-completion.ps1"
+
+# Remove from PATH via System Settings
+```
 
 ## Supported Platforms
 
