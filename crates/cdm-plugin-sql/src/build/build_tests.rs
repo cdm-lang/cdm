@@ -161,7 +161,7 @@ fn test_build_with_primary_key() {
                 },
                 optional: false,
                 default: None,
-                    entity_id: None,
+                entity_id: None,
                 config: json!({}),
             }],
             entity_id: None,
@@ -260,18 +260,16 @@ fn test_build_with_regular_index() {
         ModelDefinition {
             name: String::new(),
             parents: vec![],
-            fields: vec![
-                FieldDefinition {
-                    name: "name".to_string(),
-                    field_type: TypeExpression::Identifier {
-                        name: "string".to_string(),
-                    },
-                    optional: false,
-                    default: None,
-                    entity_id: None,
-                    config: json!({}),
+            fields: vec![FieldDefinition {
+                name: "name".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
                 },
-            ],
+                optional: false,
+                default: None,
+                entity_id: None,
+                config: json!({}),
+            }],
             entity_id: None,
             config: json!({
                 "indexes": [
@@ -316,7 +314,7 @@ fn test_build_with_type_override() {
                 },
                 optional: false,
                 default: None,
-                    entity_id: None,
+                entity_id: None,
                 config: json!({
                     "type": "TEXT"
                 }),
@@ -376,8 +374,17 @@ fn test_build_skip_model() {
 
 #[test]
 fn test_apply_name_format() {
-    assert_eq!(apply_name_format("UserProfile", "snake_case"), "user_profile");
+    assert_eq!(
+        apply_name_format("UserProfile", "snake_case"),
+        "user_profile"
+    );
     assert_eq!(apply_name_format("UserProfile", "preserve"), "UserProfile");
-    assert_eq!(apply_name_format("user_profile", "pascal_case"), "UserProfile");
-    assert_eq!(apply_name_format("user_profile", "camel_case"), "userProfile");
+    assert_eq!(
+        apply_name_format("user_profile", "pascal_case"),
+        "UserProfile"
+    );
+    assert_eq!(
+        apply_name_format("user_profile", "camel_case"),
+        "userProfile"
+    );
 }
