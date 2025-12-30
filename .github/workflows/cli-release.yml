@@ -17,7 +17,7 @@ jobs:
       matrix:
         include:
           - platform: x86_64-apple-darwin
-            os: macos-13-xlarge
+            os: macos-15-intel
             target: x86_64-apple-darwin
             binary_name: cdm
           - platform: aarch64-apple-darwin
