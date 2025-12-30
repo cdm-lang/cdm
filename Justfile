@@ -211,7 +211,7 @@ release-cli version:
   # Commit the version update
   echo "Committing version update..."
   git add crates/cdm/Cargo.toml Cargo.lock
-  git commit -m "Bump version to {{version}}"
+  git commit -m "Release CDM CLI {{version}}"
 
   # Create tag
   echo "Creating tag $TAG..."

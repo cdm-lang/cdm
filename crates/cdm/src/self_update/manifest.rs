@@ -50,7 +50,8 @@ pub fn fetch_manifest() -> Result<CliReleaseManifest, UpdateError> {
 /// Get the manifest URL from environment or use default
 fn get_manifest_url() -> String {
     std::env::var("CDM_CLI_REGISTRY_URL").unwrap_or_else(|_| {
-        "https://raw.githubusercontent.com/anthropics/cdm/main/cli-releases.json".to_string()
+        "https://raw.githubusercontent.com/cdm-lang/cdm/refs/heads/main/cli-releases.json"
+            .to_string()
     })
 }
 
