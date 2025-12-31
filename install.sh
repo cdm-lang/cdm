@@ -325,13 +325,19 @@ setup_shell() {
     printf "\n"
     if [ $modified -eq 1 ]; then
         info "Shell configuration updated!"
+
+        # Clear zsh completion cache for fresh installs
+        if [ "$shell_name" = "zsh" ]; then
+            rm -f "$HOME/.zcompdump"* 2>/dev/null
+        fi
+
         printf "\n"
-        printf "To apply changes, restart your shell or run:\n"
-        printf "\n"
-        printf "    source $config_file\n"
+        printf "To use cdm immediately:\n"
+        printf "  - Open a new terminal window, or\n"
+        printf "  - Run: exec %s\n" "$shell_name"
         printf "\n"
     fi
-    info "You can now run: cdm --help"
+    info "Installation complete! Run: cdm --help"
 }
 
 # Install shell completions
@@ -369,6 +375,19 @@ install_completions() {
             ;;
     esac
 
+    # Clean up any old completion files from other shells to prevent conflicts
+    case "$shell_name" in
+        zsh)
+            # Remove bash completion if it exists (can conflict via bash_completion sourcing)
+            rm -f "$HOME/.bash_completion.d/cdm" 2>/dev/null
+            rm -f "$HOME/.local/share/bash-completion/completions/cdm" 2>/dev/null
+            ;;
+        bash)
+            # Remove zsh completion if it exists
+            rm -f "$HOME/.zsh/completions/_cdm" 2>/dev/null
+            ;;
+    esac
+
     # Generate and install completion
     if ! "$binary" completions "$shell_name" > "$completion_file" 2>/dev/null; then
         warn "Failed to generate completions for $shell_name"
@@ -381,6 +400,7 @@ install_completions() {
     if [ "$shell_name" = "zsh" ]; then
         local needs_fpath=0
         local needs_compinit=0
+        local has_compinit_line=0
 
         # Check if fpath setup exists
         if ! grep -q "fpath=.*\.zsh/completions" "$config_file" 2>/dev/null; then
@@ -388,16 +408,37 @@ install_completions() {
         fi
 
         # Check if compinit exists
-        if ! grep -q "compinit" "$config_file" 2>/dev/null; then
+        if grep -q "compinit" "$config_file" 2>/dev/null; then
+            has_compinit_line=1
+        else
             needs_compinit=1
         fi
 
         # Add fpath if needed
+        # Important: fpath must be set BEFORE compinit is called
         if [ $needs_fpath -eq 1 ]; then
-            add_to_config "$config_file" "fpath=(~/.zsh/completions \$fpath)" "CDM CLI completions - added by install script"
+            if [ $has_compinit_line -eq 1 ]; then
+                # Insert fpath before the first compinit line
+                local compinit_line
+                compinit_line=$(grep -n "compinit" "$config_file" | head -1 | cut -d: -f1)
+                # Use a temporary file to insert before compinit
+                local tmp_file
+                tmp_file=$(mktemp)
+                {
+                    head -n $((compinit_line - 1)) "$config_file"
+                    echo ""
+                    echo "# CDM CLI completions - added by install script"
+                    echo "fpath=(~/.zsh/completions \$fpath)"
+                    tail -n +$compinit_line "$config_file"
+                } > "$tmp_file"
+                mv "$tmp_file" "$config_file"
+            else
+                # No compinit yet, just add it normally
+                add_to_config "$config_file" "fpath=(~/.zsh/completions \$fpath)" "CDM CLI completions - added by install script"
+            fi
         fi
 
-        # Add compinit if needed
+        # Add compinit if needed (only if it doesn't exist at all)
         if [ $needs_compinit -eq 1 ]; then
             add_to_config "$config_file" "autoload -Uz compinit && compinit" "Initialize zsh completions - added by install script"
         fi

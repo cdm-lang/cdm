@@ -19,6 +19,12 @@ The install script will automatically:
 - Install shell completions for your shell (bash, zsh, or fish)
 - Configure your shell profile automatically
 
+After installation, restart your terminal:
+```bash
+exec zsh    # for zsh
+exec bash   # for bash
+```
+
 To skip automatic shell configuration:
 ```bash
 curl -fsSL https://raw.githubusercontent.com/cdm-lang/cdm/main/install.sh | CDM_NO_MODIFY_PATH=1 sh
