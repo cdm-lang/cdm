@@ -101,10 +101,6 @@ release-plugin plugin_name version:
   WASM_FILE="$PLUGIN_DIR/target/wasm32-wasip1/release/"*.wasm
   CHECKSUM_FILE="$PLUGIN_DIR/target/wasm32-wasip1/release/"*.wasm.sha256
 
-  echo ""
-  echo "Staging built artifacts..."
-  git add $WASM_FILE $CHECKSUM_FILE
-
   # Check if there are other uncommitted changes besides the WASM files
   if ! git diff-index --quiet HEAD --; then
     echo ""
