@@ -83,9 +83,14 @@ pub fn validate_json(
     let model = match schema.models.get(model_name) {
         Some(m) => m,
         None => {
+            let message = if schema.type_aliases.contains_key(model_name) {
+                format!("'{}' is a type alias, not a model. Only models can be validated directly.", model_name)
+            } else {
+                format!("'{}' not found in schema", model_name)
+            };
             errors.push(ValidationError {
                 path: vec![],
-                message: format!("Model '{}' not found in schema", model_name),
+                message,
                 severity: Severity::Error,
             });
             return errors;

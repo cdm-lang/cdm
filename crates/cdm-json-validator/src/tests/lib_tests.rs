@@ -286,7 +286,7 @@ fn test_validate_json_model_not_found() {
     let json = serde_json::json!({});
     let errors = validate_json(&schema, &json, "NonExistent");
     assert_eq!(errors.len(), 1);
-    assert_eq!(errors[0].message, "Model 'NonExistent' not found in schema");
+    assert_eq!(errors[0].message, "'NonExistent' not found in schema");
 }
 
 #[test]
