@@ -11,3 +11,7 @@
 /npm/bin/cdm
 /npm/bin/cdm.exe
 /npm/*.tgz
+
+# Git worktrees (Crystal)
+/worktrees/
+/worktree-*/
