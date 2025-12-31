@@ -173,8 +173,10 @@ pub fn clear_plugin_cache(name: &str) -> Result<()> {
 
 /// Clear entire plugin cache
 pub fn clear_all_cache() -> Result<()> {
-    let plugins_dir = registry::get_cache_path()?.join("plugins");
+    let cache_path = registry::get_cache_path()?;
+    let plugins_dir = cache_path.join("plugins");
 
+    // Clear plugin WASM files
     if plugins_dir.exists() {
         fs::remove_dir_all(&plugins_dir)
             .context("Failed to remove plugins cache directory")?;
@@ -182,6 +184,20 @@ pub fn clear_all_cache() -> Result<()> {
 
     // Recreate the directory
     fs::create_dir_all(&plugins_dir)?;
+
+    // Clear registry cache
+    let registry_file = cache_path.join("registry.json");
+    let registry_meta = cache_path.join("registry.meta.json");
+
+    if registry_file.exists() {
+        fs::remove_file(&registry_file)
+            .context("Failed to remove registry cache")?;
+    }
+
+    if registry_meta.exists() {
+        fs::remove_file(&registry_meta)
+            .context("Failed to remove registry metadata")?;
+    }
 
     Ok(())
 }

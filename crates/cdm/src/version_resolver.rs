@@ -69,10 +69,17 @@ pub fn parse_version_constraint(s: &str) -> Result<VersionConstraint> {
 pub fn resolve_version(
     constraint: &VersionConstraint,
     available_versions: &HashMap<String, RegistryVersion>,
+    latest_version: Option<&str>,
 ) -> Option<String> {
     match constraint {
         VersionConstraint::Latest => {
-            // Return highest version
+            // Use the latest version from registry if provided, otherwise calculate highest
+            if let Some(latest) = latest_version {
+                if available_versions.contains_key(latest) {
+                    return Some(latest.to_string());
+                }
+            }
+            // Fallback to calculating highest version
             find_highest_version(available_versions)
         }
 

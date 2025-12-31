@@ -125,7 +125,7 @@ pub fn resolve_from_registry(plugin_name: &str, config: &Option<JSON>) -> Result
     })?;
 
     // Resolve version
-    let version = version_resolver::resolve_version(&version_constraint, &plugin.versions)
+    let version = version_resolver::resolve_version(&version_constraint, &plugin.versions, Some(&plugin.latest))
         .ok_or_else(|| {
             format!(
                 "No version matching '{}' found for plugin '{}'.\nAvailable versions: {}",

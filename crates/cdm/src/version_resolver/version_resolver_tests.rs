@@ -65,7 +65,7 @@ fn test_parse_version_constraint_latest() {
 fn test_resolve_exact_version() {
     let versions = make_versions(&["1.0.0", "1.1.0", "2.0.0"]);
     let constraint = VersionConstraint::Exact("1.1.0".to_string());
-    let result = resolve_version(&constraint, &versions);
+    let result = resolve_version(&constraint, &versions, None);
     assert_eq!(result, Some("1.1.0".to_string()));
 }
 
@@ -73,7 +73,7 @@ fn test_resolve_exact_version() {
 fn test_resolve_exact_version_not_found() {
     let versions = make_versions(&["1.0.0", "1.1.0"]);
     let constraint = VersionConstraint::Exact("2.0.0".to_string());
-    let result = resolve_version(&constraint, &versions);
+    let result = resolve_version(&constraint, &versions, None);
     assert_eq!(result, None);
 }
 
@@ -81,7 +81,25 @@ fn test_resolve_exact_version_not_found() {
 fn test_resolve_latest_version() {
     let versions = make_versions(&["1.0.0", "1.1.0", "2.0.0"]);
     let constraint = VersionConstraint::Latest;
-    let result = resolve_version(&constraint, &versions);
+    let result = resolve_version(&constraint, &versions, None);
+    assert_eq!(result, Some("2.0.0".to_string()));
+}
+
+#[test]
+fn test_resolve_latest_version_from_registry() {
+    let versions = make_versions(&["1.0.0", "1.1.0", "2.0.0"]);
+    let constraint = VersionConstraint::Latest;
+    // When latest is specified from registry, use that instead of calculating
+    let result = resolve_version(&constraint, &versions, Some("1.1.0"));
+    assert_eq!(result, Some("1.1.0".to_string()));
+}
+
+#[test]
+fn test_resolve_latest_version_fallback_when_invalid() {
+    let versions = make_versions(&["1.0.0", "1.1.0", "2.0.0"]);
+    let constraint = VersionConstraint::Latest;
+    // If latest points to non-existent version, fall back to calculating highest
+    let result = resolve_version(&constraint, &versions, Some("9.9.9"));
     assert_eq!(result, Some("2.0.0".to_string()));
 }
 
@@ -89,7 +107,7 @@ fn test_resolve_latest_version() {
 fn test_resolve_caret_constraint() {
     let versions = make_versions(&["1.0.0", "1.1.0", "1.2.0", "2.0.0"]);
     let constraint = VersionConstraint::Caret("1.0.0".to_string());
-    let result = resolve_version(&constraint, &versions);
+    let result = resolve_version(&constraint, &versions, None);
     // ^1.0.0 should match highest 1.x
     assert_eq!(result, Some("1.2.0".to_string()));
 }
@@ -98,7 +116,7 @@ fn test_resolve_caret_constraint() {
 fn test_resolve_tilde_constraint() {
     let versions = make_versions(&["1.0.0", "1.0.1", "1.0.2", "1.1.0"]);
     let constraint = VersionConstraint::Tilde("1.0.0".to_string());
-    let result = resolve_version(&constraint, &versions);
+    let result = resolve_version(&constraint, &versions, None);
     // ~1.0.0 should match highest 1.0.x
     assert_eq!(result, Some("1.0.2".to_string()));
 }
@@ -107,7 +125,7 @@ fn test_resolve_tilde_constraint() {
 fn test_resolve_range_constraint() {
     let versions = make_versions(&["0.9.0", "1.0.0", "1.5.0", "2.0.0", "3.0.0"]);
     let constraint = VersionConstraint::Range("1.0.0".to_string(), "2.0.0".to_string());
-    let result = resolve_version(&constraint, &versions);
+    let result = resolve_version(&constraint, &versions, None);
     // >=1.0.0 <2.0.0 should match 1.5.0
     assert_eq!(result, Some("1.5.0".to_string()));
 }
@@ -122,4 +140,43 @@ fn test_display_constraint() {
         ">=1.0.0 <2.0.0"
     );
     assert_eq!(VersionConstraint::Latest.to_string(), "latest");
+}
+
+#[test]
+fn test_resolve_sql_plugin_versions() {
+    // Test with actual SQL plugin versions from registry.json
+    let versions = make_versions(&["0.1.0", "0.1.1"]);
+    let constraint = VersionConstraint::Latest;
+
+    // Without latest hint, should calculate highest (0.1.1)
+    let result = resolve_version(&constraint, &versions, None);
+    assert_eq!(result, Some("0.1.1".to_string()), "Should calculate 0.1.1 as highest version");
+
+    // With latest hint to 0.1.1, should use that
+    let result = resolve_version(&constraint, &versions, Some("0.1.1"));
+    assert_eq!(result, Some("0.1.1".to_string()), "Should use registry's latest field (0.1.1)");
+
+    // With latest hint to 0.1.0 (hypothetical older latest), should use that
+    let result = resolve_version(&constraint, &versions, Some("0.1.0"));
+    assert_eq!(result, Some("0.1.0".to_string()), "Should respect registry's latest field even if not highest");
+}
+
+#[test]
+fn test_find_highest_version_with_patch_versions() {
+    use super::find_highest_version;
+
+    // Test that 0.1.1 > 0.1.0
+    let versions = make_versions(&["0.1.0", "0.1.1"]);
+    let result = find_highest_version(&versions);
+    assert_eq!(result, Some("0.1.1".to_string()));
+
+    // Test with more complex versions
+    let versions = make_versions(&["0.1.0", "0.1.1", "0.2.0", "1.0.0"]);
+    let result = find_highest_version(&versions);
+    assert_eq!(result, Some("1.0.0".to_string()));
+
+    // Test with unsorted input
+    let versions = make_versions(&["0.2.0", "0.1.0", "0.1.1", "1.0.0"]);
+    let result = find_highest_version(&versions);
+    assert_eq!(result, Some("1.0.0".to_string()));
 }

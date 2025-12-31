@@ -260,16 +260,16 @@ pub fn clear_cache_cmd(name: Option<&str>) -> Result<()> {
         plugin_cache::clear_plugin_cache(plugin_name)?;
         println!("✓ Cleared cache for '{}'", plugin_name);
     } else {
-        println!("Clearing all plugin caches...");
+        println!("Clearing all plugin caches and registry...");
 
         // Ask for confirmation
-        println!("This will remove all cached plugins. Continue? (y/N): ");
+        println!("This will remove all cached plugins and registry data. Continue? (y/N): ");
         let mut input = String::new();
         std::io::stdin().read_line(&mut input)?;
 
         if input.trim().to_lowercase() == "y" {
             plugin_cache::clear_all_cache()?;
-            println!("✓ Cleared all plugin caches");
+            println!("✓ Cleared all plugin caches and registry");
         } else {
             println!("Cancelled");
         }
