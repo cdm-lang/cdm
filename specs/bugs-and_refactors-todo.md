@@ -24,6 +24,29 @@ pub fn get_node_text<'a>(node: tree_sitter::Node, source: &'a str) -> &'a str
 
 ## Bugs
 
+### SQL migration error
+
+```
+User {
+    id: number
+}
+```
+
+to 
+
+```
+ID: number {
+    @sql {
+        type: "INTEGER"
+    }
+}
+User {
+    id: ID
+}
+```
+
+For some reason migration sets the new field to JSONB???
+
 ## Features
 
 ### Code completion on overrides
