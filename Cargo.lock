@@ -370,6 +370,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "cdm-plugin-json-schema"
+version = "0.1.0"
+dependencies = [
+ "cdm-plugin-interface",
+ "regex",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "cdm-plugin-sql"
 version = "0.1.0"
 dependencies = [

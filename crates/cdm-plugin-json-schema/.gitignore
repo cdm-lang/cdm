@@ -1,0 +1,8 @@
+/target/*
+!/target/wasm32-wasip1/
+/target/wasm32-wasip1/*
+!/target/wasm32-wasip1/release/
+/target/wasm32-wasip1/release/*
+!/target/wasm32-wasip1/release/*.wasm
+!/target/wasm32-wasip1/release/*.wasm.sha256
+Cargo.lock

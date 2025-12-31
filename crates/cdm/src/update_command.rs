@@ -99,8 +99,6 @@ pub fn handle_update_subcommand(command: UpdateCommands) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::*;
-
     #[test]
     fn test_update_commands_structure() {
         // This test just verifies the command structure compiles

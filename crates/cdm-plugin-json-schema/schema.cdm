@@ -1,0 +1,96 @@
+// JSON Schema Plugin Configuration Schema
+
+GlobalSettings {
+  // JSON Schema specification version
+  draft: "draft4" | "draft6" | "draft7" | "draft2019-09" | "draft2020-12" = "draft7"
+
+  // Include $schema property in output
+  include_schema_property: boolean = true
+
+  // Include examples in schemas
+  include_examples: boolean = false
+
+  // Bundle all schemas into single file with $defs, or output separate files
+  output_mode: "single-file" | "multi-file" = "single-file"
+
+  // Root schema ID (for referencing)
+  schema_id?: string
+
+  // Include description fields from CDM
+  include_descriptions: boolean = true
+
+  // Default relationship handling for model references
+  relationship_mode: "reference" | "inline" = "reference"
+
+  // Default union representation
+  union_mode: "enum" | "oneOf" = "enum"
+
+  // For single-file mode, which model is the root schema (others go in $defs)
+  root_model?: string
+}
+
+TypeAliasSettings {
+  // Description for the type alias
+  description?: string
+
+  // Override union representation for this type
+  union_mode?: "enum" | "oneOf"
+
+  // Skip this type alias from output
+  skip: boolean = false
+}
+
+ModelSettings {
+  // Custom title for the schema
+  title?: string
+
+  // Description for the schema
+  description?: string
+
+  // Additional properties behavior
+  additional_properties?: boolean
+
+  // Skip this model from output
+  skip: boolean = false
+
+  // Override relationship behavior for this model's references
+  relationship_mode?: "reference" | "inline"
+
+  // In single-file mode, mark this as the root schema instead of going in $defs
+  is_root: boolean = false
+}
+
+FieldSettings {
+  // Description for the field
+  description?: string
+
+  // Regex pattern for string validation
+  pattern?: string
+
+  // Min/max constraints for strings
+  min_length?: number
+  max_length?: number
+
+  // Min/max for numbers
+  minimum?: number
+  maximum?: number
+
+  // Exclusive min/max
+  exclusive_minimum?: number
+  exclusive_maximum?: number
+
+  // Format hint (email, uri, uuid, date-time, etc.)
+  format?: string
+
+  // Custom JSON Schema type override
+  custom_type?: string
+
+  // Example values
+  examples?: JSON[]
+
+  // Override relationship behavior for this specific field
+  relationship_mode?: "reference" | "inline"
+
+  // Skip this field from output
+  skip: boolean = false
+}

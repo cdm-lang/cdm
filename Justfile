@@ -22,7 +22,7 @@ clean:
   cargo clean
 
 test *args:
-  cargo llvm-cov -- {{args}}
+  cargo test -- {{args}}
   cd editors/vscode-cdm && npm test
 
 testcoverage:
