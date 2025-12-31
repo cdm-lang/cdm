@@ -6,6 +6,11 @@ GlobalSettings {
     // Example: output_format: "json" | "yaml" = "json"
 }
 
+TypeAliasSettings {
+    // Add type alias-level configuration options here
+    // Example: custom_type?: string
+}
+
 ModelSettings {
     // Add model-level configuration options here
     // Example: table_name?: string

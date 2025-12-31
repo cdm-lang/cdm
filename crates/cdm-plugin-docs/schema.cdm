@@ -7,6 +7,12 @@ GlobalSettings {
     title?: string
 }
 
+TypeAliasSettings {
+    description?: string
+    example?: string
+    hidden?: boolean
+}
+
 ModelSettings {
     description?: string
     example?: string

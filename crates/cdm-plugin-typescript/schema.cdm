@@ -9,6 +9,12 @@ GlobalSettings {
   field_name_format?: "preserve" | "pascal" | "camel" | "snake" | "kebab" | "constant"
 }
 
+TypeAliasSettings {
+  type_override?: string
+  export_name?: string
+  skip?: boolean
+}
+
 ModelSettings {
   output_format?: "interface" | "class" | "type"
   file_name?: string
