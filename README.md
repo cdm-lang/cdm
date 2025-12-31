@@ -19,11 +19,7 @@ The install script will automatically:
 - Install shell completions for your shell (bash, zsh, or fish)
 - Configure your shell profile automatically
 
-After installation, restart your terminal:
-```bash
-exec zsh    # for zsh
-exec bash   # for bash
-```
+After installation completes, copy and paste the command shown to reload your shell.
 
 To skip automatic shell configuration:
 ```bash

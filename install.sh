@@ -332,9 +332,9 @@ setup_shell() {
         fi
 
         printf "\n"
-        printf "To use cdm immediately:\n"
-        printf "  - Open a new terminal window, or\n"
-        printf "  - Run: exec %s\n" "$shell_name"
+        info "To reload your shell and activate cdm, copy and paste this command:"
+        printf "\n"
+        printf "  exec %s\n" "$shell_name"
         printf "\n"
     fi
     info "Installation complete! Run: cdm --help"
