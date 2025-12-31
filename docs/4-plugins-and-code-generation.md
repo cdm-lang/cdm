@@ -1,0 +1,290 @@
+# 4. Plugins & Code Generation
+
+CDM itself does not generate SQL, TypeScript, documentation, or schemas.
+
+All output in CDM is produced by **plugins**.
+
+Plugins are responsible for transforming a fully resolved CDM schema into concrete artifacts such as code, schemas, migrations, or documentation.
+
+---
+
+## 4.1 What Is a Plugin?
+
+A plugin is a sandboxed module that:
+
+* Receives a fully resolved CDM schema
+* Validates plugin-specific configuration
+* Generates output files
+* Optionally generates migration files
+
+Plugins run only after CDM has:
+
+1. Parsed the schema
+2. Resolved all contexts
+3. Validated structural correctness
+
+This guarantees that plugins always operate on a complete and consistent model.
+
+---
+
+## 4.2 Why Plugins Are Separate from the Language
+
+CDM is intentionally focused on **data modeling**, not code generation.
+
+Separating plugins from the language allows CDM to:
+
+* Keep the core language small and stable
+* Support many output targets without coupling
+* Allow independent evolution of generators
+* Enable third-party and internal tooling
+
+As a result, CDM schemas remain portable and long-lived, while plugins can change as tooling needs evolve.
+
+---
+
+## 4.3 Plugin Capabilities
+
+Plugins may support one or more of the following capabilities:
+
+* **Validation** — enforce additional schema rules
+* **Build** — generate output files
+* **Migrate** — generate migration files
+
+CDM enforces required configuration based on a plugin’s declared capabilities.
+
+For example:
+
+* Plugins with **build** capability require `build_output`
+* Plugins with **migrate** capability require `migrations_output`
+
+If required configuration is missing, CDM fails validation before generation begins.
+
+---
+
+## 4.4 Plugin Sources
+
+Plugins can be loaded from multiple sources.
+
+### Registry Plugins
+
+Plugins without a `from` clause are resolved from the CDM registry:
+
+```cdm
+@typescript
+@sql
+@docs
+@json-schema
+```
+
+These are the officially supported plugins maintained by the CDM project.
+
+---
+
+### Git Plugins
+
+Plugins can be loaded directly from Git repositories:
+
+```cdm
+@analytics from git:https://github.com/my-org/cdm-analytics.git
+```
+
+This supports private repositories, pinned versions, and custom tooling.
+
+---
+
+### Local Plugins
+
+Plugins can be loaded from the local filesystem:
+
+```cdm
+@custom from ./plugins/my-plugin
+```
+
+This is useful for development, experimentation, and internal generators.
+
+---
+
+## 4.5 Configuring Plugins
+
+Plugins are configured using JSON-like configuration blocks:
+
+```cdm
+@typescript {
+  build_output: "./generated"
+}
+```
+
+Configuration can appear at four levels:
+
+| Level      | Applies To       |
+| ---------- | ---------------- |
+| Global     | Entire schema    |
+| Type Alias | A specific type  |
+| Model      | A specific model |
+| Field      | A specific field |
+
+Lower-level configuration overrides or extends higher-level configuration.
+
+---
+
+## 4.6 Configuration Inheritance and Contexts
+
+When a context extends another schema, plugin configuration merges across context boundaries.
+
+Merge rules:
+
+* Objects are deep-merged
+* Arrays are replaced entirely
+* Primitive values override parent values
+
+```cdm
+// base.cdm
+@typescript {
+  strict_nulls: true
+}
+```
+
+```cdm
+// api.cdm
+@extends ./base.cdm
+
+@typescript {
+  strict_nulls: false
+}
+```
+
+The API context inherits all TypeScript settings except where explicitly overridden.
+
+---
+
+## 4.7 Plugin Execution Order
+
+Plugins execute in the order they appear in the schema:
+
+```cdm
+@validation
+@sql
+@typescript
+```
+
+This allows validation plugins to fail early and generation plugins to operate on validated input.
+
+Plugins run independently and do not share state.
+
+---
+
+## 4.8 Build vs Migrate
+
+CDM distinguishes between **building** and **migrating** schemas.
+
+### Build
+
+`cdm build`:
+
+* Validates the schema
+* Executes each plugin’s build step
+* Writes generated files to disk
+
+Build output is derived solely from the current schema.
+
+---
+
+### Migrate
+
+`cdm migrate`:
+
+* Compares the current schema to a previously saved version
+* Computes structural differences (deltas)
+* Uses entity IDs to reliably detect renames
+* Invokes plugins’ migration steps
+
+Migration output describes how to evolve an existing system to match the new schema.
+
+---
+
+## 4.9 Official Plugins
+
+CDM currently provides the following official plugins:
+
+* **TypeScript** — generate TypeScript types and models
+* **SQL** — generate database schemas and migrations
+* **Docs** — generate human-readable documentation
+* **JSON Schema** — generate JSON Schema definitions
+
+Additional official plugins may be added in the future.
+
+Each plugin is documented independently and may be configured at global, model, or field level.
+
+---
+
+## 4.10 Plugin Safety and Isolation
+
+Plugins run in a sandboxed environment with strict limits:
+
+* No network access
+* No filesystem access outside configured output directories
+* Execution time and memory limits
+* Maximum output size limits
+
+These constraints ensure plugins are safe to run in local and CI environments.
+
+---
+
+## 4.11 Using Multiple Plugins Together
+
+It is common to enable multiple plugins in a single schema:
+
+```cdm
+@sql {
+  build_output: "./db/schema"
+  migrations_output: "./db/migrations"
+}
+
+@typescript {
+  build_output: "./types"
+}
+
+@json-schema {
+  build_output: "./schemas"
+}
+```
+
+All plugins operate on the same resolved schema and generate independent outputs.
+
+---
+
+## 4.12 What Plugins Cannot Do
+
+Plugins cannot:
+
+* Modify the schema
+* Affect type resolution
+* Change context behavior
+* Communicate with other plugins
+* Perform runtime logic
+
+Plugins are pure transformations from schema to artifacts.
+
+---
+
+## 4.13 Plugin Development
+
+Writing custom plugins is a first-class use case in CDM, but it is intentionally documented separately.
+
+A dedicated section covers:
+
+* When to write a plugin
+* Plugin architecture and lifecycle
+* Configuration schemas
+* Build and migration APIs
+* Testing and publishing plugins
+
+If you’re interested in extending CDM itself, see **Section 8: Plugin Development**.
+
+---
+
+## What’s Next?
+
+With plugins understood, the next section focuses on **day-to-day usage**.
+
+Proceed to **Section 5: CLI Usage & Workflows** to learn how validation, builds, migrations, and formatting fit into real-world development workflows.
