@@ -178,62 +178,169 @@ main() {
     info "Binary location: ${install_path}"
     printf "\n"
 
-    # Install shell completions
-    install_completions "$install_path"
+    # Setup shell configuration (PATH and completions)
+    setup_shell "$install_path"
+}
 
-    # Check if install directory is in PATH
-    case ":$PATH:" in
-        *":$INSTALL_DIR:"*)
-            info "You can now run: cdm --help"
+# Detect the user's shell and config file
+detect_shell_config() {
+    local shell_name=""
+    local config_file=""
+
+    # Detect user's preferred shell
+    # When run via curl | sh, we're executing in sh/bash, not the user's interactive shell
+    # So prioritize SHELL environment variable over VERSION variables
+    case "$SHELL" in
+        */bash)
+            shell_name="bash"
+            ;;
+        */zsh)
+            shell_name="zsh"
+            ;;
+        */fish)
+            shell_name="fish"
             ;;
         *)
-            warn "Installation directory is not in your PATH"
-            printf "\n"
-            printf "Add the following line to your shell profile (~/.bashrc, ~/.zshrc, etc.):\n"
-            printf "\n"
-            printf "    export PATH=\"\$PATH:${INSTALL_DIR}\"\n"
-            printf "\n"
-            printf "Then restart your shell or run:\n"
-            printf "\n"
-            printf "    source ~/.bashrc  # or ~/.zshrc\n"
-            printf "\n"
-            printf "Alternatively, run CDM with the full path:\n"
-            printf "\n"
-            printf "    ${install_path} --help\n"
+            # Fallback to checking version variables if SHELL is not set or unrecognized
+            if [ -n "$ZSH_VERSION" ]; then
+                shell_name="zsh"
+            elif [ -n "$BASH_VERSION" ]; then
+                shell_name="bash"
+            else
+                # Shell not detected
+                return 1
+            fi
             ;;
     esac
+
+    # Determine config file
+    case "$shell_name" in
+        bash)
+            # Check common bash config files in order of preference
+            if [ -f "$HOME/.bashrc" ]; then
+                config_file="$HOME/.bashrc"
+            elif [ -f "$HOME/.bash_profile" ]; then
+                config_file="$HOME/.bash_profile"
+            elif [ -f "$HOME/.profile" ]; then
+                config_file="$HOME/.profile"
+            else
+                config_file="$HOME/.bashrc"
+            fi
+            ;;
+        zsh)
+            if [ -f "$HOME/.zshrc" ]; then
+                config_file="$HOME/.zshrc"
+            else
+                config_file="$HOME/.zshrc"
+            fi
+            ;;
+        fish)
+            config_file="$HOME/.config/fish/config.fish"
+            ;;
+        *)
+            return 1
+            ;;
+    esac
+
+    # Return shell name and config file (using a convention: shell:config)
+    echo "${shell_name}:${config_file}"
+    return 0
+}
+
+# Add a line to a config file if it doesn't already exist
+add_to_config() {
+    local config_file="$1"
+    local line="$2"
+    local comment="$3"
+
+    # Create config file if it doesn't exist
+    if [ ! -f "$config_file" ]; then
+        mkdir -p "$(dirname "$config_file")"
+        touch "$config_file"
+    fi
+
+    # Check if line already exists (with some flexibility for whitespace)
+    if grep -qF "$line" "$config_file" 2>/dev/null; then
+        return 0
+    fi
+
+    # Add the line with a comment
+    {
+        echo ""
+        echo "# $comment"
+        echo "$line"
+    } >> "$config_file"
+
+    return 0
+}
+
+# Setup shell configuration (PATH and completions)
+setup_shell() {
+    local binary="$1"
+    local shell_config
+    local shell_name
+    local config_file
+    local modified=0
+
+    # Check if user wants to skip automatic modifications
+    if [ -n "$CDM_NO_MODIFY_PATH" ]; then
+        info "Skipping automatic shell configuration (CDM_NO_MODIFY_PATH is set)"
+        print_manual_instructions
+        return 0
+    fi
+
+    # Detect shell and config file
+    shell_config="$(detect_shell_config)"
+    if [ $? -ne 0 ] || [ -z "$shell_config" ]; then
+        warn "Could not detect shell configuration file"
+        print_manual_instructions
+        return 0
+    fi
+
+    shell_name="${shell_config%%:*}"
+    config_file="${shell_config#*:}"
+
+    info "Detected shell: $shell_name (config: $config_file)"
+
+    # Add PATH if not already in PATH
+    case ":$PATH:" in
+        *":$INSTALL_DIR:"*)
+            info "Installation directory already in PATH"
+            ;;
+        *)
+            if add_to_config "$config_file" "export PATH=\"\$PATH:${INSTALL_DIR}\"" "CDM CLI - added by install script"; then
+                info "Added $INSTALL_DIR to PATH in $config_file"
+                modified=1
+            fi
+            ;;
+    esac
+
+    # Install completions and setup
+    install_completions "$binary" "$shell_name" "$config_file"
+    if [ $? -eq 0 ]; then
+        modified=1
+    fi
+
+    # Print next steps
+    printf "\n"
+    if [ $modified -eq 1 ]; then
+        info "Shell configuration updated!"
+        printf "\n"
+        printf "To apply changes, restart your shell or run:\n"
+        printf "\n"
+        printf "    source $config_file\n"
+        printf "\n"
+    fi
+    info "You can now run: cdm --help"
 }
 
 # Install shell completions
 install_completions() {
     local binary="$1"
-    local shell_name
+    local shell_name="$2"
+    local config_file="$3"
     local completion_dir
     local completion_file
-
-    # Detect current shell
-    if [ -n "$BASH_VERSION" ]; then
-        shell_name="bash"
-    elif [ -n "$ZSH_VERSION" ]; then
-        shell_name="zsh"
-    else
-        # Try to detect from SHELL environment variable
-        case "$SHELL" in
-            */bash)
-                shell_name="bash"
-                ;;
-            */zsh)
-                shell_name="zsh"
-                ;;
-            */fish)
-                shell_name="fish"
-                ;;
-            *)
-                # Shell not detected, skip completion installation
-                return 0
-                ;;
-        esac
-    fi
 
     # Determine completion directory based on shell
     case "$shell_name" in
@@ -241,8 +348,6 @@ install_completions() {
             # Try common bash completion directories
             if [ -d "$HOME/.local/share/bash-completion/completions" ]; then
                 completion_dir="$HOME/.local/share/bash-completion/completions"
-            elif [ -d "$HOME/.bash_completion.d" ]; then
-                completion_dir="$HOME/.bash_completion.d"
             else
                 completion_dir="$HOME/.bash_completion.d"
                 mkdir -p "$completion_dir"
@@ -250,13 +355,8 @@ install_completions() {
             completion_file="${completion_dir}/cdm"
             ;;
         zsh)
-            # Use user's zsh completion directory
-            if [ -d "$HOME/.zsh/completions" ]; then
-                completion_dir="$HOME/.zsh/completions"
-            else
-                completion_dir="$HOME/.zsh/completions"
-                mkdir -p "$completion_dir"
-            fi
+            completion_dir="$HOME/.zsh/completions"
+            mkdir -p "$completion_dir"
             completion_file="${completion_dir}/_cdm"
             ;;
         fish)
@@ -265,38 +365,70 @@ install_completions() {
             completion_file="${completion_dir}/cdm.fish"
             ;;
         *)
-            return 0
+            return 1
             ;;
     esac
 
     # Generate and install completion
-    if "$binary" completions "$shell_name" > "$completion_file" 2>/dev/null; then
-        info "Installed ${shell_name} completions to ${completion_file}"
+    if ! "$binary" completions "$shell_name" > "$completion_file" 2>/dev/null; then
+        warn "Failed to generate completions for $shell_name"
+        return 1
+    fi
 
-        # Add fpath setup for zsh if needed
-        if [ "$shell_name" = "zsh" ]; then
-            local zshrc="$HOME/.zshrc"
-            if [ -f "$zshrc" ]; then
-                if ! grep -q "fpath=(~/.zsh/completions" "$zshrc" 2>/dev/null; then
-                    printf "\n"
-                    printf "To enable completions, add this to your ~/.zshrc:\n"
-                    printf "\n"
-                    printf "    fpath=(~/.zsh/completions \$fpath)\n"
-                    printf "    autoload -Uz compinit && compinit\n"
-                    printf "\n"
-                fi
-            fi
+    info "Installed ${shell_name} completions to ${completion_file}"
+
+    # Setup completion loading for zsh
+    if [ "$shell_name" = "zsh" ]; then
+        local needs_fpath=0
+        local needs_compinit=0
+
+        # Check if fpath setup exists
+        if ! grep -q "fpath=.*\.zsh/completions" "$config_file" 2>/dev/null; then
+            needs_fpath=1
         fi
 
-        # Note for bash users
-        if [ "$shell_name" = "bash" ] && [ "$completion_dir" = "$HOME/.bash_completion.d" ]; then
-            printf "\n"
-            printf "To enable completions, add this to your ~/.bashrc:\n"
-            printf "\n"
-            printf "    for f in ~/.bash_completion.d/*; do source \$f; done\n"
-            printf "\n"
+        # Check if compinit exists
+        if ! grep -q "compinit" "$config_file" 2>/dev/null; then
+            needs_compinit=1
+        fi
+
+        # Add fpath if needed
+        if [ $needs_fpath -eq 1 ]; then
+            add_to_config "$config_file" "fpath=(~/.zsh/completions \$fpath)" "CDM CLI completions - added by install script"
+        fi
+
+        # Add compinit if needed
+        if [ $needs_compinit -eq 1 ]; then
+            add_to_config "$config_file" "autoload -Uz compinit && compinit" "Initialize zsh completions - added by install script"
         fi
     fi
+
+    # Setup completion loading for bash
+    if [ "$shell_name" = "bash" ] && [ "$completion_dir" = "$HOME/.bash_completion.d" ]; then
+        # Check if bash completion loading exists
+        if ! grep -q "\.bash_completion\.d" "$config_file" 2>/dev/null; then
+            add_to_config "$config_file" "for f in ~/.bash_completion.d/*; do source \$f; done" "Load bash completions - added by install script"
+        fi
+    fi
+
+    return 0
+}
+
+# Print manual installation instructions
+print_manual_instructions() {
+    printf "\n"
+    printf "Manual setup required:\n"
+    printf "\n"
+    printf "1. Add CDM to your PATH by adding this to your shell profile:\n"
+    printf "   export PATH=\"\$PATH:${INSTALL_DIR}\"\n"
+    printf "\n"
+    printf "2. For completions, run the appropriate command:\n"
+    printf "   cdm completions bash > ~/.bash_completion.d/cdm  # bash\n"
+    printf "   cdm completions zsh > ~/.zsh/completions/_cdm    # zsh\n"
+    printf "   cdm completions fish > ~/.config/fish/completions/cdm.fish  # fish\n"
+    printf "\n"
+    printf "3. Restart your shell or source your config file\n"
+    printf "\n"
 }
 
 main "$@"

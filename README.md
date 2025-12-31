@@ -12,6 +12,18 @@
 curl -fsSL https://raw.githubusercontent.com/cdm-lang/cdm/main/install.sh | sh
 ```
 
+The install script will automatically:
+- Download and verify the latest CDM binary
+- Install it to `~/.cdm/bin`
+- Add the binary to your PATH
+- Install shell completions for your shell (bash, zsh, or fish)
+- Configure your shell profile automatically
+
+To skip automatic shell configuration:
+```bash
+curl -fsSL https://raw.githubusercontent.com/cdm-lang/cdm/main/install.sh | CDM_NO_MODIFY_PATH=1 sh
+```
+
 #### Windows (PowerShell)
 
 ```powershell
