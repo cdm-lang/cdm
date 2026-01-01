@@ -14,3 +14,5 @@
 
 # Git worktrees (Crystal)
 /worktrees/*
+.claude
+.env

@@ -1,0 +1,35 @@
+FROM node:20-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Rust (needed for your Rust project and just)
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Install just command runner
+RUN cargo install just
+
+# Install Codex CLI
+RUN npm install -g @openai/codex
+
+# Set up working directory
+WORKDIR /workspace
+
+# Copy entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod +x /usr/local/bin/docker-entrypoint.sh
+
+# Set up git to allow the workspace directory
+RUN git config --global --add safe.directory /workspace
+RUN git config --global --add safe.directory '/workspace/worktrees/*'
+
+# Set entrypoint to fix git worktree paths
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+
+# Default command opens Codex CLI in interactive mode
+CMD ["codex"]

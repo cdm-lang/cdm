@@ -10,24 +10,44 @@ RED='\033[0;31m'
 YELLOW='\033[0;33m'
 NC='\033[0m' # No Color
 
-echo -e "${BLUE}Claude Code Cleanup Utility${NC}"
+echo -e "${BLUE}AI Coding Assistant Cleanup Utility${NC}"
 echo ""
 
-# Show running containers
-echo -e "${YELLOW}Running containers:${NC}"
-RUNNING=$(docker ps --filter "name=cdm-claude-" --format "{{.Names}}" | wc -l)
-if [ "$RUNNING" -gt 0 ]; then
+# Show running Claude containers
+echo -e "${YELLOW}Running Claude Code containers:${NC}"
+RUNNING_CLAUDE=$(docker ps --filter "name=cdm-claude-" --format "{{.Names}}" | wc -l)
+if [ "$RUNNING_CLAUDE" -gt 0 ]; then
     docker ps --filter "name=cdm-claude-" --format "table {{.Names}}\t{{.Status}}\t{{.RunningFor}}"
 else
     echo "None"
 fi
 echo ""
 
-# Show stopped containers
-echo -e "${YELLOW}Stopped containers:${NC}"
-STOPPED=$(docker ps -a --filter "name=cdm-claude-" --filter "status=exited" --format "{{.Names}}" | wc -l)
-if [ "$STOPPED" -gt 0 ]; then
+# Show running Codex containers
+echo -e "${YELLOW}Running Codex containers:${NC}"
+RUNNING_CODEX=$(docker ps --filter "name=cdm-codex-" --format "{{.Names}}" | wc -l)
+if [ "$RUNNING_CODEX" -gt 0 ]; then
+    docker ps --filter "name=cdm-codex-" --format "table {{.Names}}\t{{.Status}}\t{{.RunningFor}}"
+else
+    echo "None"
+fi
+echo ""
+
+# Show stopped Claude containers
+echo -e "${YELLOW}Stopped Claude Code containers:${NC}"
+STOPPED_CLAUDE=$(docker ps -a --filter "name=cdm-claude-" --filter "status=exited" --format "{{.Names}}" | wc -l)
+if [ "$STOPPED_CLAUDE" -gt 0 ]; then
     docker ps -a --filter "name=cdm-claude-" --filter "status=exited" --format "table {{.Names}}\t{{.Status}}"
+else
+    echo "None"
+fi
+echo ""
+
+# Show stopped Codex containers
+echo -e "${YELLOW}Stopped Codex containers:${NC}"
+STOPPED_CODEX=$(docker ps -a --filter "name=cdm-codex-" --filter "status=exited" --format "{{.Names}}" | wc -l)
+if [ "$STOPPED_CODEX" -gt 0 ]; then
+    docker ps -a --filter "name=cdm-codex-" --filter "status=exited" --format "table {{.Names}}\t{{.Status}}"
 else
     echo "None"
 fi
@@ -60,9 +80,11 @@ read -p "Enter your choice (1-4): " choice
 
 case $choice in
     1)
-        if [ "$STOPPED" -gt 0 ]; then
+        TOTAL_STOPPED=$((STOPPED_CLAUDE + STOPPED_CODEX))
+        if [ "$TOTAL_STOPPED" -gt 0 ]; then
             echo -e "${GREEN}Removing stopped containers...${NC}"
             docker ps -a --filter "name=cdm-claude-" --filter "status=exited" --format "{{.Names}}" | xargs -r docker rm
+            docker ps -a --filter "name=cdm-codex-" --filter "status=exited" --format "{{.Names}}" | xargs -r docker rm
             echo -e "${GREEN}Done!${NC}"
         else
             echo -e "${YELLOW}No stopped containers to remove${NC}"
@@ -85,9 +107,11 @@ case $choice in
         ;;
     3)
         # Remove stopped containers
-        if [ "$STOPPED" -gt 0 ]; then
+        TOTAL_STOPPED=$((STOPPED_CLAUDE + STOPPED_CODEX))
+        if [ "$TOTAL_STOPPED" -gt 0 ]; then
             echo -e "${GREEN}Removing stopped containers...${NC}"
-            docker ps -a --filter "name=cdm-claude-" --filter "status=exited" --format "{{.Names}}" | xargs -r docker rm
+            docker ps -a --filter "name=cdm-claude-" --filter "status=exited" --format "{{.Names}}" | xargs -r docker rm 2>/dev/null || true
+            docker ps -a --filter "name=cdm-codex-" --filter "status=exited" --format "{{.Names}}" | xargs -r docker rm 2>/dev/null || true
         fi
 
         # Remove orphaned worktrees
@@ -104,8 +128,12 @@ case $choice in
 
         # Clean up session files
         if [ -d ".claude/sessions" ]; then
-            echo -e "${GREEN}Cleaning up session files...${NC}"
+            echo -e "${GREEN}Cleaning up Claude session files...${NC}"
             rm -rf .claude/sessions/*
+        fi
+        if [ -d ".codex/sessions" ]; then
+            echo -e "${GREEN}Cleaning up Codex session files...${NC}"
+            rm -rf .codex/sessions/*
         fi
 
         echo -e "${GREEN}All cleanup complete!${NC}"

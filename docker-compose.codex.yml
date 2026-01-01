@@ -1,0 +1,40 @@
+version: '3.8'
+
+services:
+  codex:
+    build:
+      context: .
+      dockerfile: Dockerfile.codex
+    container_name: ${CONTAINER_NAME:-cdm-codex}
+    volumes:
+      # Mount the entire project
+      - .:/workspace
+      # Mount git config to preserve user identity
+      - ~/.gitconfig:/root/.gitconfig:ro
+      # Mount Codex config and credentials (persists authentication)
+      - ~/.config/openai:/root/.config/openai
+      # Persist cargo cache for faster builds
+      - cargo-cache-codex:/root/.cargo/registry
+      - cargo-git-cache-codex:/root/.cargo/git
+      # Persist Rust build artifacts
+      - target-cache-codex:/workspace/target
+    working_dir: ${WORKING_DIR:-/workspace}
+    environment:
+      # Optional: Set API key if needed
+      - OPENAI_API_KEY=${OPENAI_API_KEY:-}
+    ports:
+      # Expose OAuth callback port for Codex authentication
+      - "1455:1455"
+    stdin_open: true
+    tty: true
+    # Security: Run with limited privileges
+    security_opt:
+      - no-new-privileges:true
+    # Optional: limit resources
+    # mem_limit: 4g
+    # cpus: 2
+
+volumes:
+  cargo-cache-codex:
+  cargo-git-cache-codex:
+  target-cache-codex:

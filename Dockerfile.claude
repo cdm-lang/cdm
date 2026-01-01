@@ -5,24 +5,52 @@ RUN apt-get update && apt-get install -y \
     git \
     curl \
     build-essential \
+    sudo \
     && rm -rf /var/lib/apt/lists/*
 
-# Install Rust (needed for your Rust project)
+# The node user already exists with UID 1000, so we'll use that
+# Just rename it to claude and ensure it has sudo access
+RUN usermod -l claude node && \
+    groupmod -n claude node && \
+    usermod -d /home/claude -m claude && \
+    echo "claude ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
+
+# Install Rust for root (for system-wide tools)
 RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
 ENV PATH="/root/.cargo/bin:${PATH}"
 
-# Install Claude Code CLI
+# Install just command runner (as root for system-wide availability)
+RUN cargo install just && \
+    cp /root/.cargo/bin/just /usr/local/bin/
+
+# Install Claude Code CLI (system-wide)
 RUN npm install -g @anthropic-ai/claude-code
+
+# Install Rust for claude user
+USER claude
+WORKDIR /home/claude
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/home/claude/.cargo/bin:${PATH}"
+
+# Switch back to root for remaining setup
+USER root
 
 # Set up working directory
 WORKDIR /workspace
 
-# Copy git config from host (will be mounted at runtime)
-# This ensures git worktrees work properly
+# Copy entrypoint script
+COPY docker-entrypoint.sh /usr/local/bin/
+RUN chmod 755 /usr/local/bin/docker-entrypoint.sh
 
-# Set up git to allow the workspace directory
-RUN git config --global --add safe.directory /workspace
-RUN git config --global --add safe.directory '/workspace/worktrees/*'
+# Set up git to allow the workspace directory (system-wide)
+RUN git config --system --add safe.directory /workspace && \
+    git config --system --add safe.directory '/workspace/worktrees/*'
 
-# Default command opens Claude Code CLI
-CMD ["claude"]
+# Set entrypoint to fix git worktree paths and set up session storage
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
+
+# Switch to non-root user
+USER claude
+
+# Default command opens Claude Code CLI with no permissions prompts
+CMD ["claude", "--dangerously-skip-permissions"]

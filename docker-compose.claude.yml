@@ -10,15 +10,9 @@ services:
       # Mount the entire project
       - .:/workspace
       # Mount git config to preserve user identity
-      - ~/.gitconfig:/root/.gitconfig:ro
-      # Mount Claude Code config and credentials (persists authentication)
-      - ~/.claude:/root/.claude
-      - ~/.claude.json:/root/.claude.json
-      # Persist cargo cache for faster builds
-      - cargo-cache:/root/.cargo/registry
-      - cargo-git-cache:/root/.cargo/git
-      # Persist Rust build artifacts
-      - target-cache:/workspace/target
+      - ~/.gitconfig:/home/claude/.gitconfig:ro
+      # Mount only authentication credentials (shared across all worktrees)
+      - ~/.claude.json:/home/claude/.claude.json
     working_dir: ${WORKING_DIR:-/workspace}
     environment:
       # Optional: Set API key if using console.anthropic.com (not needed for claude.ai accounts)
@@ -27,17 +21,15 @@ services:
       - CLAUDE_DISABLE_SANDBOX=true
       # Store worktree info for shell access
       - WORKTREE_PATH=${WORKTREE_PATH:-}
+      # Build in container-local directory to avoid Docker Desktop filesystem issues
+      - CARGO_TARGET_DIR=/var/tmp/rust-build
+      # Reduce parallel jobs to avoid OOM
+      - CARGO_BUILD_JOBS=1
     stdin_open: true
     tty: true
     # Security: Run with limited privileges
     # Remove these if you need more permissions
     security_opt:
       - no-new-privileges:true
-    # Optional: limit resources
-    # mem_limit: 4g
-    # cpus: 2
-
-volumes:
-  cargo-cache:
-  cargo-git-cache:
-  target-cache:
+    # Increase memory for Rust compilation (wasmtime is memory-intensive)
+    mem_limit: 8g

@@ -1,5 +1,5 @@
 #!/bin/bash
-# Helper script to open a shell in a running Claude Code container
+# Helper script to open a shell in a running Codex container
 
 set -e
 
@@ -10,15 +10,15 @@ RED='\033[0;31m'
 YELLOW='\033[0;33m'
 NC='\033[0m' # No Color
 
-# Function to list all running Claude containers
+# Function to list all running Codex containers
 list_sessions() {
-    echo -e "${BLUE}Active Claude Code sessions:${NC}"
-    docker ps --filter "name=cdm-claude-" --format "table {{.Names}}\t{{.Status}}\t{{.RunningFor}}"
+    echo -e "${BLUE}Active Codex sessions:${NC}"
+    docker ps --filter "name=cdm-codex-" --format "table {{.Names}}\t{{.Status}}\t{{.RunningFor}}"
 }
 
 # If session ID provided, use it
 if [ -n "$1" ]; then
-    # Build session ID from arguments (same logic as claude-docker.sh)
+    # Build session ID from arguments (same logic as codex-docker.sh)
     CUSTOM_NAME=""
     for arg in "$@"; do
         if [ -z "$CUSTOM_NAME" ]; then
@@ -28,14 +28,14 @@ if [ -n "$1" ]; then
         fi
     done
 
-    # Sanitize the name (same as claude-docker.sh)
+    # Sanitize the name (same as codex-docker.sh)
     SANITIZED_NAME=$(echo "$CUSTOM_NAME" | tr '[:upper:]' '[:lower:]' | sed 's/[^a-z0-9-]/-/g' | sed 's/--*/-/g' | sed 's/^-//' | sed 's/-$//')
 
     # Try to find container with this prefix
-    MATCHING_CONTAINERS=$(docker ps --filter "name=cdm-claude-${SANITIZED_NAME}-" --format "{{.Names}}")
+    MATCHING_CONTAINERS=$(docker ps --filter "name=cdm-codex-${SANITIZED_NAME}-" --format "{{.Names}}")
 
     if [ -z "$MATCHING_CONTAINERS" ]; then
-        echo -e "${RED}Error: No container found matching 'cdm-claude-${SANITIZED_NAME}-*'${NC}"
+        echo -e "${RED}Error: No container found matching 'cdm-codex-${SANITIZED_NAME}-*'${NC}"
         echo ""
         list_sessions
         exit 1
@@ -50,7 +50,7 @@ if [ -n "$1" ]; then
         docker exec -it "$CONTAINER_NAME" /bin/bash
         exit 0
     else
-        echo -e "${YELLOW}Multiple containers found matching 'cdm-claude-${SANITIZED_NAME}-*':${NC}"
+        echo -e "${YELLOW}Multiple containers found matching 'cdm-codex-${SANITIZED_NAME}-*':${NC}"
         echo ""
         echo "$MATCHING_CONTAINERS" | while read -r name; do
             docker ps --filter "name=$name" --format "table {{.Names}}\t{{.Status}}\t{{.RunningFor}}"
@@ -62,24 +62,24 @@ if [ -n "$1" ]; then
 fi
 
 # No session ID provided - check how many containers are running
-CONTAINER_COUNT=$(docker ps --filter "name=cdm-claude-" --format "{{.Names}}" | wc -l)
+CONTAINER_COUNT=$(docker ps --filter "name=cdm-codex-" --format "{{.Names}}" | wc -l)
 
 if [ "$CONTAINER_COUNT" -eq 0 ]; then
-    echo -e "${RED}Error: No Claude Code containers are running${NC}"
-    echo -e "${BLUE}Start one first with: ./claude-docker.sh${NC}"
+    echo -e "${RED}Error: No Codex containers are running${NC}"
+    echo -e "${BLUE}Start one first with: ./codex-docker.sh${NC}"
     exit 1
 elif [ "$CONTAINER_COUNT" -eq 1 ]; then
     # Only one container, use it
-    CONTAINER_NAME=$(docker ps --filter "name=cdm-claude-" --format "{{.Names}}")
+    CONTAINER_NAME=$(docker ps --filter "name=cdm-codex-" --format "{{.Names}}")
     echo -e "${GREEN}Opening shell in container: ${CONTAINER_NAME}${NC}"
     docker exec -it "$CONTAINER_NAME" /bin/bash
 else
     # Multiple containers - show list and ask user to specify
-    echo -e "${YELLOW}Multiple Claude Code sessions are running:${NC}"
+    echo -e "${YELLOW}Multiple Codex sessions are running:${NC}"
     echo ""
     list_sessions
     echo ""
-    echo -e "${BLUE}Usage: ./claude-shell.sh <session-id>${NC}"
-    echo -e "${BLUE}Example: ./claude-shell.sh 20251231-120000${NC}"
+    echo -e "${BLUE}Usage: ./codex-shell.sh <session-id>${NC}"
+    echo -e "${BLUE}Example: ./codex-shell.sh 20251231-120000${NC}"
     exit 1
 fi
