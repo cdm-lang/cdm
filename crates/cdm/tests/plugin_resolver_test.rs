@@ -6,7 +6,7 @@
 use std::fs;
 use std::path::PathBuf;
 use std::env;
-use cdm::{build, FileResolver, validate_tree_with_options, Severity};
+use cdm::{build, FileResolver, validate_tree_with_options, Severity, get_cache_path};
 
 /// Get the path to the project root
 fn project_root() -> PathBuf {
@@ -101,10 +101,10 @@ fn test_plugin_cache_reuse() {
     let _ = fs::remove_file(&output_file);
 
     // Check that the plugin was cached
-    // Cache is created relative to current working directory (crates/cdm during tests)
-    let cache_path = env::current_dir()
+    // Cache is created using get_cache_path() which uses platform-specific directories
+    let cache_path = get_cache_path()
         .unwrap()
-        .join(".cdm/cache/plugins/typescript@0.1.0/plugin.wasm");
+        .join("plugins/typescript@0.1.0/plugin.wasm");
     assert!(
         cache_path.exists(),
         "Plugin should be cached after first build at {}",
