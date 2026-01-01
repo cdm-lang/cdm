@@ -17,6 +17,107 @@ fn test_migrate_empty() {
 }
 
 #[test]
+fn test_migrate_first_time_migration_with_models() {
+    // BUG TEST: When this is the first migration (no previous schema),
+    // the deltas should contain ModelAdded for all current models,
+    // and the SQL plugin should generate CREATE TABLE statements.
+
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            entity_id: Some(1),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    field_type: cdm_plugin_interface::TypeExpression::Identifier {
+                        name: "number".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({}),
+                    entity_id: Some(2),
+                },
+                FieldDefinition {
+                    name: "email".to_string(),
+                    field_type: cdm_plugin_interface::TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({}),
+                    entity_id: Some(3),
+                },
+            ],
+            config: serde_json::json!({}),
+        },
+    );
+    models.insert(
+        "Post".to_string(),
+        ModelDefinition {
+            name: "Post".to_string(),
+            entity_id: Some(10),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "title".to_string(),
+                    field_type: cdm_plugin_interface::TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({}),
+                    entity_id: Some(11),
+                },
+            ],
+            config: serde_json::json!({}),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models: models.clone(),
+    };
+
+    // Simulate first-time migration: deltas should have ModelAdded for both models
+    let deltas = vec![
+        Delta::ModelAdded {
+            name: "User".to_string(),
+            after: models.get("User").unwrap().clone(),
+        },
+        Delta::ModelAdded {
+            name: "Post".to_string(),
+            after: models.get("Post").unwrap().clone(),
+        },
+    ];
+
+    let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+
+    // Should generate migration files (not empty!)
+    assert_eq!(files.len(), 2, "Expected 2 migration files (up and down) for first-time migration");
+
+    // Check up migration contains CREATE TABLE for both models
+    assert!(files[0].path.contains("up"));
+    assert!(files[0].content.contains("CREATE TABLE"));
+    assert!(files[0].content.contains("\"user\""));
+    assert!(files[0].content.contains("\"post\""));
+    assert!(files[0].content.contains("\"id\""));
+    assert!(files[0].content.contains("\"email\""));
+    assert!(files[0].content.contains("\"title\""));
+
+    // Check down migration contains DROP TABLE for both models
+    assert!(files[1].path.contains("down"));
+    assert!(files[1].content.contains("DROP TABLE"));
+    assert!(files[1].content.contains("\"user\""));
+    assert!(files[1].content.contains("\"post\""));
+}
+
+#[test]
 fn test_migrate_with_deltas() {
     let schema = Schema {
         type_aliases: HashMap::new(),

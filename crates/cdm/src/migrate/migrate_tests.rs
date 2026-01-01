@@ -1221,3 +1221,104 @@ fn test_compute_deltas_comprehensive() {
     assert!(has_field_rename, "Expected FieldRenamed delta");
     assert!(has_field_added, "Expected FieldAdded delta");
 }
+
+#[test]
+fn test_compute_deltas_first_migration_no_previous_schema() {
+    // BUG TEST: When there's no previous schema (first migration),
+    // compute_deltas should generate ModelAdded deltas for all models
+    // in the current schema, not return an empty vector.
+
+    // No previous schema
+    let previous = Schema {
+        models: HashMap::new(),
+        type_aliases: HashMap::new(),
+    };
+
+    // Current schema has models
+    let mut curr_models = HashMap::new();
+    curr_models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    field_type: ident_type("number"),
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: Some(1),
+                },
+                FieldDefinition {
+                    name: "email".to_string(),
+                    field_type: ident_type("string"),
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: Some(2),
+                },
+            ],
+            config: json!({}),
+            entity_id: Some(10),
+        },
+    );
+    curr_models.insert(
+        "Post".to_string(),
+        ModelDefinition {
+            name: "Post".to_string(),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "title".to_string(),
+                    field_type: ident_type("string"),
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: Some(3),
+                },
+            ],
+            config: json!({}),
+            entity_id: Some(20),
+        },
+    );
+
+    let mut curr_aliases = HashMap::new();
+    curr_aliases.insert(
+        "Email".to_string(),
+        TypeAliasDefinition {
+            name: "Email".to_string(),
+            alias_type: ident_type("string"),
+            config: json!({}),
+            entity_id: Some(30),
+        },
+    );
+
+    let current = Schema {
+        models: curr_models,
+        type_aliases: curr_aliases,
+    };
+
+    let deltas = compute_deltas(&previous, &current).unwrap();
+
+    // Should have deltas for adding all models and type aliases
+    assert!(
+        !deltas.is_empty(),
+        "Expected deltas for first migration, but got empty vector"
+    );
+
+    // Check that we have ModelAdded for both models
+    let user_added = deltas.iter().any(|d| {
+        matches!(d, Delta::ModelAdded { name, .. } if name == "User")
+    });
+    let post_added = deltas.iter().any(|d| {
+        matches!(d, Delta::ModelAdded { name, .. } if name == "Post")
+    });
+    let email_alias_added = deltas.iter().any(|d| {
+        matches!(d, Delta::TypeAliasAdded { name, .. } if name == "Email")
+    });
+
+    assert!(user_added, "Expected ModelAdded delta for User model");
+    assert!(post_added, "Expected ModelAdded delta for Post model");
+    assert!(email_alias_added, "Expected TypeAliasAdded delta for Email type alias");
+}

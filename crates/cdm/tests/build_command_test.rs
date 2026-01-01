@@ -99,6 +99,12 @@ fn test_build_with_typescript_plugin_configs() {
         let _ = std::os::windows::fs::symlink_dir(&plugin_dir, &plugin_link);
     }
 
+    // Copy the WASM file to the expected location within the symlinked plugin directory
+    let wasm_dest_dir = plugin_link.join("target/wasm32-wasip1/release");
+    fs::create_dir_all(&wasm_dest_dir).unwrap();
+    let wasm_dest = wasm_dest_dir.join("cdm_plugin_typescript.wasm");
+    fs::copy(&plugin_wasm, &wasm_dest).unwrap();
+
     // Create a CDM schema with model and field level configs
     let schema = r#"@typescript from ./typescript-plugin {
     build_output: "./generated"

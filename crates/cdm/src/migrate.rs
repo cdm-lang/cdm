@@ -84,34 +84,39 @@ pub fn migrate(
         return Ok(());
     }
 
-    // Step 3: Compute deltas (if we have a previous schema)
-    let deltas = if let Some(ref prev) = previous_schema {
-        println!("Computing schema changes...");
+    // Step 3: Compute deltas
+    println!("Computing schema changes...");
 
-        // For now, build current schema without plugin filtering to compare structure
-        let current_schema = build_cdm_schema_for_plugin(
-            &validation_result,
-            &ancestors,
-            ""
-        )?;
+    // Build current schema without plugin filtering to compare structure
+    let current_schema = build_cdm_schema_for_plugin(
+        &validation_result,
+        &ancestors,
+        ""
+    )?;
 
-        let computed_deltas = compute_deltas(prev, &current_schema)?;
-        println!("Found {} change(s)", computed_deltas.len());
-
-        if dry_run {
-            println!("\nDeltas:");
-            for delta in &computed_deltas {
-                println!("  {:?}", delta);
-            }
-        }
-
-        computed_deltas
-    } else {
-        Vec::new()
+    // Use empty schema as previous if this is the first migration
+    let empty_schema = Schema {
+        models: std::collections::HashMap::new(),
+        type_aliases: std::collections::HashMap::new(),
     };
+    let prev = previous_schema.as_ref().unwrap_or(&empty_schema);
+
+    let deltas = compute_deltas(prev, &current_schema)?;
+
+    if previous_schema.is_none() {
+        println!("First migration - generating initial schema");
+    }
+    println!("Found {} change(s)", deltas.len());
+
+    if dry_run {
+        println!("\nDeltas:");
+        for delta in &deltas {
+            println!("  {:?}", delta);
+        }
+    }
 
     // Step 4 & 5: Call plugin migrate and write files
-    if !deltas.is_empty() || previous_schema.is_none() {
+    if !deltas.is_empty() {
         let mut any_success = false;
 
         for plugin_import in &plugin_imports {
