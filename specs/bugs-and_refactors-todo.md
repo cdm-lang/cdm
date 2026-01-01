@@ -24,37 +24,10 @@ pub fn get_node_text<'a>(node: tree_sitter::Node, source: &'a str) -> &'a str
 
 ## Bugs
 
-### SQL migration error
-
-```
-User {
-    id: number
-}
-```
-
-to 
-
-```
-ID: number {
-    @sql {
-        type: "INTEGER"
-    }
-}
-User {
-    id: ID
-}
-```
-
-For some reason migration sets the new field to JSONB???
-
 ## Features
 
 ### Code completion on overrides
 Code completion when you've extended from another model and you are about to create a new model or type alias in the extended file should suggest other models from the ancestors that you might want to override.
-
-### command line completions
-
-### TypeAliasSettings for plugins
 
 ### Visual distinction when you're overriding an inherited model vs defining a new model in the syntax highlighter functionality
 
