@@ -1520,3 +1520,269 @@ fn test_transform_deltas_for_plugin_transforms_nested_fields() {
         panic!("Expected ModelAdded delta");
     }
 }
+
+// ============================================================================
+// Context isolation tests
+// ============================================================================
+
+#[test]
+fn test_context_isolation_different_contexts_have_separate_schema_files() {
+    // BUG TEST: Different CDM contexts (e.g., base.cdm vs client.cdm) should have
+    // separate migration history. When we save a schema for "base" context, it should
+    // NOT be loaded when we later migrate "client" context.
+    //
+    // The current bug is that all contexts share a single "previous_schema.json" file,
+    // which causes incorrect delta computation when switching between contexts.
+
+    use tempfile::TempDir;
+
+    // Create a temporary directory to simulate the .cdm directory
+    let temp_dir = TempDir::new().expect("Failed to create temp directory");
+    let cdm_dir = temp_dir.path();
+
+    // Create a schema for the "base" context
+    let mut base_models = HashMap::new();
+    base_models.insert(
+        "BaseUser".to_string(),
+        ModelDefinition {
+            name: "BaseUser".to_string(),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    field_type: ident_type("number"),
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: Some(1),
+                },
+                FieldDefinition {
+                    name: "password_hash".to_string(),
+                    field_type: ident_type("string"),
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: Some(2),
+                },
+            ],
+            config: json!({}),
+            entity_id: Some(100),
+        },
+    );
+
+    let base_schema = Schema {
+        models: base_models,
+        type_aliases: HashMap::new(),
+    };
+
+    // Save schema for "base" context
+    save_current_schema(&base_schema, cdm_dir, "base").expect("Failed to save base schema");
+
+    // Now try to load schema for "client" context - should be None since we never saved it
+    let client_schema = load_previous_schema(cdm_dir, "client").expect("Failed to load client schema");
+
+    assert!(
+        client_schema.is_none(),
+        "Loading 'client' context should return None when only 'base' context was saved. \
+         This fails if contexts are not properly isolated."
+    );
+
+    // Verify that loading "base" context still works
+    let base_loaded = load_previous_schema(cdm_dir, "base").expect("Failed to load base schema");
+    assert!(
+        base_loaded.is_some(),
+        "Loading 'base' context should return the saved schema"
+    );
+
+    // Verify the loaded base schema matches what we saved
+    let base_loaded = base_loaded.unwrap();
+    assert!(
+        base_loaded.models.contains_key("BaseUser"),
+        "Loaded base schema should contain BaseUser model"
+    );
+}
+
+#[test]
+fn test_context_isolation_saves_to_context_specific_files() {
+    // Test that saving schemas for different contexts creates separate files
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().expect("Failed to create temp directory");
+    let cdm_dir = temp_dir.path();
+
+    // Create and save schema for "base" context
+    let base_schema = Schema {
+        models: HashMap::new(),
+        type_aliases: HashMap::new(),
+    };
+    save_current_schema(&base_schema, cdm_dir, "base").expect("Failed to save base schema");
+
+    // Create and save schema for "client" context
+    let mut client_models = HashMap::new();
+    client_models.insert(
+        "ClientUser".to_string(),
+        ModelDefinition {
+            name: "ClientUser".to_string(),
+            parents: vec![],
+            fields: vec![],
+            config: json!({}),
+            entity_id: Some(200),
+        },
+    );
+    let client_schema = Schema {
+        models: client_models,
+        type_aliases: HashMap::new(),
+    };
+    save_current_schema(&client_schema, cdm_dir, "client").expect("Failed to save client schema");
+
+    // Verify both files exist separately
+    let base_file = cdm_dir.join("previous_schema_base.json");
+    let client_file = cdm_dir.join("previous_schema_client.json");
+
+    assert!(
+        base_file.exists(),
+        "Expected context-specific file 'previous_schema_base.json' to exist"
+    );
+    assert!(
+        client_file.exists(),
+        "Expected context-specific file 'previous_schema_client.json' to exist"
+    );
+
+    // Verify loading each context returns the correct schema
+    let base_loaded = load_previous_schema(cdm_dir, "base")
+        .expect("Failed to load base")
+        .expect("Base schema should exist");
+    let client_loaded = load_previous_schema(cdm_dir, "client")
+        .expect("Failed to load client")
+        .expect("Client schema should exist");
+
+    assert!(
+        base_loaded.models.is_empty(),
+        "Base schema should have no models"
+    );
+    assert!(
+        client_loaded.models.contains_key("ClientUser"),
+        "Client schema should have ClientUser model"
+    );
+}
+
+#[test]
+fn test_context_isolation_prevents_cross_context_delta_pollution() {
+    // BUG TEST: This test demonstrates the real-world impact of the context isolation bug.
+    //
+    // Scenario:
+    // 1. base.cdm defines BaseModel with fields: id, secret_field
+    // 2. client.cdm extends base.cdm but removes secret_field (not exposed to clients)
+    // 3. First, we migrate base.cdm - saves schema with secret_field
+    // 4. Then, we migrate client.cdm - should compute deltas from empty (first migration for client)
+    //
+    // BUG: Without context isolation, client.cdm will load base.cdm's schema,
+    // and incorrectly compute a FieldRemoved delta for secret_field.
+
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().expect("Failed to create temp directory");
+    let cdm_dir = temp_dir.path();
+
+    // Step 1: Schema for base.cdm (has secret_field)
+    let mut base_models = HashMap::new();
+    base_models.insert(
+        "BaseModel".to_string(),
+        ModelDefinition {
+            name: "BaseModel".to_string(),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    field_type: ident_type("number"),
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: Some(1),
+                },
+                FieldDefinition {
+                    name: "secret_field".to_string(),
+                    field_type: ident_type("string"),
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: Some(2),
+                },
+            ],
+            config: json!({}),
+            entity_id: Some(100),
+        },
+    );
+    let base_schema = Schema {
+        models: base_models,
+        type_aliases: HashMap::new(),
+    };
+
+    // Step 2: Save base.cdm schema (simulating running `cdm migrate base.cdm`)
+    save_current_schema(&base_schema, cdm_dir, "base").expect("Failed to save base schema");
+
+    // Step 3: Schema for client.cdm (does NOT have secret_field)
+    let mut client_models = HashMap::new();
+    client_models.insert(
+        "BaseModel".to_string(),
+        ModelDefinition {
+            name: "BaseModel".to_string(),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    field_type: ident_type("number"),
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: Some(1),
+                },
+                // secret_field is intentionally NOT here - it's not exposed in client context
+            ],
+            config: json!({}),
+            entity_id: Some(100),
+        },
+    );
+    let client_schema = Schema {
+        models: client_models,
+        type_aliases: HashMap::new(),
+    };
+
+    // Step 4: Load previous schema for client.cdm context
+    let client_previous = load_previous_schema(cdm_dir, "client")
+        .expect("Failed to load client previous schema");
+
+    // This is the first migration for client.cdm, so there should be NO previous schema
+    assert!(
+        client_previous.is_none(),
+        "First migration for 'client' context should have no previous schema. \
+         If this fails, it means the context isolation is broken and 'client' is \
+         incorrectly loading 'base' context's schema."
+    );
+
+    // Step 5: Compute deltas for client.cdm's first migration
+    let empty_schema = Schema {
+        models: HashMap::new(),
+        type_aliases: HashMap::new(),
+    };
+    let previous = client_previous.as_ref().unwrap_or(&empty_schema);
+    let deltas = compute_deltas(previous, &client_schema).expect("Failed to compute deltas");
+
+    // For first migration, we should see ModelAdded (not FieldRemoved!)
+    let has_model_added = deltas.iter().any(|d| {
+        matches!(d, Delta::ModelAdded { name, .. } if name == "BaseModel")
+    });
+    let has_field_removed = deltas.iter().any(|d| {
+        matches!(d, Delta::FieldRemoved { field, .. } if field == "secret_field")
+    });
+
+    assert!(
+        has_model_added,
+        "First migration for client context should have ModelAdded delta for BaseModel"
+    );
+    assert!(
+        !has_field_removed,
+        "First migration for client context should NOT have FieldRemoved delta for secret_field. \
+         This indicates context isolation is broken - client is loading base's schema."
+    );
+}

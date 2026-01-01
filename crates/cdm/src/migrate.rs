@@ -18,12 +18,18 @@ pub fn migrate(
         println!("Dry-run mode: no files will be written");
     }
 
-    // Step 1: Load previous schema from .cdm/previous_schema.json
+    // Derive context name from source file (e.g., "base" from "base.cdm")
+    // This ensures each CDM context has its own migration history
+    let context_name = path.file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("default");
+
+    // Step 1: Load previous schema from .cdm/previous_schema_{context}.json
     let cdm_dir = path.parent()
         .unwrap_or_else(|| Path::new("."))
         .join(".cdm");
 
-    let previous_schema = load_previous_schema(&cdm_dir)?;
+    let previous_schema = load_previous_schema(&cdm_dir, context_name)?;
 
     if previous_schema.is_none() {
         println!("No previous schema found - this is the first run");
@@ -78,7 +84,7 @@ pub fn migrate(
                 &ancestors,
                 "" // No plugin filtering for storage
             )?;
-            save_current_schema(&current_schema, &cdm_dir)?;
+            save_current_schema(&current_schema, &cdm_dir, context_name)?;
             println!("✓ Schema saved successfully");
         }
         return Ok(());
@@ -183,9 +189,9 @@ pub fn migrate(
                 &ancestors,
                 ""
             )?;
-            save_current_schema(&current_schema, &cdm_dir)?;
+            save_current_schema(&current_schema, &cdm_dir, context_name)?;
             println!("\n✓ Migration completed successfully");
-            println!("  Schema saved to {}", cdm_dir.join("previous_schema.json").display());
+            println!("  Schema saved to {}", cdm_dir.join(format!("previous_schema_{}.json", context_name)).display());
         }
     } else {
         println!("No changes detected - skipping migration");
@@ -194,36 +200,44 @@ pub fn migrate(
     Ok(())
 }
 
-/// Load previous schema from .cdm/previous_schema.json
-fn load_previous_schema(cdm_dir: &Path) -> Result<Option<Schema>> {
-    let schema_path = cdm_dir.join("previous_schema.json");
+/// Load previous schema from .cdm/previous_schema_{context}.json
+///
+/// Each CDM context (source file) has its own migration history to prevent
+/// cross-context pollution. For example, `base.cdm` and `client.cdm` will have
+/// separate schema files: `previous_schema_base.json` and `previous_schema_client.json`.
+fn load_previous_schema(cdm_dir: &Path, context_name: &str) -> Result<Option<Schema>> {
+    let schema_path = cdm_dir.join(format!("previous_schema_{}.json", context_name));
 
     if !schema_path.exists() {
         return Ok(None);
     }
 
     let json = fs::read_to_string(&schema_path)
-        .context("Failed to read previous_schema.json")?;
+        .with_context(|| format!("Failed to read previous_schema_{}.json", context_name))?;
 
     let schema: Schema = serde_json::from_str(&json)
-        .context("Failed to parse previous_schema.json")?;
+        .with_context(|| format!("Failed to parse previous_schema_{}.json", context_name))?;
 
     Ok(Some(schema))
 }
 
-/// Save current schema to .cdm/previous_schema.json
-fn save_current_schema(schema: &Schema, cdm_dir: &Path) -> Result<()> {
+/// Save current schema to .cdm/previous_schema_{context}.json
+///
+/// Each CDM context (source file) has its own migration history to prevent
+/// cross-context pollution. For example, `base.cdm` and `client.cdm` will have
+/// separate schema files: `previous_schema_base.json` and `previous_schema_client.json`.
+fn save_current_schema(schema: &Schema, cdm_dir: &Path, context_name: &str) -> Result<()> {
     // Create .cdm directory if it doesn't exist
     fs::create_dir_all(cdm_dir)
         .context("Failed to create .cdm directory")?;
 
-    let schema_path = cdm_dir.join("previous_schema.json");
+    let schema_path = cdm_dir.join(format!("previous_schema_{}.json", context_name));
 
     let json = serde_json::to_string_pretty(schema)
         .context("Failed to serialize schema")?;
 
-    fs::write(&schema_path, json)
-        .context("Failed to write previous_schema.json")?;
+    fs::write(&schema_path, &json)
+        .with_context(|| format!("Failed to write previous_schema_{}.json", context_name))?;
 
     Ok(())
 }
