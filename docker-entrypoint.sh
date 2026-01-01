@@ -3,17 +3,16 @@
 
 set -e
 
-# Fix ownership of /workspace/target if running as non-root
-if [ -d "/workspace/target" ] && [ "$(id -u)" != "0" ]; then
-    sudo chown -R "$(id -u):$(id -g)" /workspace/target 2>/dev/null || true
-fi
-
-# Fix ownership of Rust build cache directory (Docker volume may be owned by root)
+# Fix ownership of Rust build cache directory (only top-level, not recursive)
+# This is fast and sufficient - Rust will create subdirs with correct ownership
 if [ -d "/var/tmp/rust-build" ]; then
-    sudo chown -R "$(id -u):$(id -g)" /var/tmp/rust-build 2>/dev/null || true
+    # Only fix if not already owned by current user
+    if [ "$(stat -c '%u' /var/tmp/rust-build 2>/dev/null || stat -f '%u' /var/tmp/rust-build)" != "$(id -u)" ]; then
+        sudo chown "$(id -u):$(id -g)" /var/tmp/rust-build 2>/dev/null || true
+    fi
 else
     sudo mkdir -p /var/tmp/rust-build
-    sudo chown -R "$(id -u):$(id -g)" /var/tmp/rust-build
+    sudo chown "$(id -u):$(id -g)" /var/tmp/rust-build
 fi
 
 # Fix git worktree paths if we're in a worktree
