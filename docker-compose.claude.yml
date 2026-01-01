@@ -11,6 +11,8 @@ services:
       - .:/workspace
       # Mount git config to preserve user identity
       - ~/.gitconfig:/home/claude/.gitconfig:ro
+      # Mount Claude config directory (contains credentials and settings)
+      - ~/.claude:/home/claude/.claude
       # Mount only authentication credentials (shared across all worktrees)
       - ~/.claude.json:/home/claude/.claude.json
     working_dir: ${WORKING_DIR:-/workspace}
