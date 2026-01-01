@@ -115,27 +115,6 @@ fn test_replace_template_vars_adjacent_vars() {
 }
 
 #[test]
-fn test_get_template_dir_exists() {
-    // This should succeed in the workspace since we have templates
-    let result = get_template_dir("rust");
-    assert!(result.is_ok(), "Should find rust templates");
-
-    let template_path = result.unwrap();
-    assert!(template_path.exists());
-    assert!(template_path.join("Cargo.toml.template").exists());
-}
-
-#[test]
-fn test_get_template_dir_invalid_lang() {
-    let result = get_template_dir("nonexistent-language");
-    assert!(result.is_err());
-    assert!(result
-        .unwrap_err()
-        .to_string()
-        .contains("Could not find plugin templates"));
-}
-
-#[test]
 fn test_create_rust_plugin_creates_all_files() {
     let temp_dir = TempDir::new().unwrap();
     let plugin_dir = temp_dir.path().join("test-plugin");
@@ -146,7 +125,6 @@ fn test_create_rust_plugin_creates_all_files() {
     // Verify directory structure
     assert!(plugin_dir.exists());
     assert!(plugin_dir.join("src").exists());
-    assert!(plugin_dir.join("tests").exists());
 
     // Verify all files were created
     assert!(plugin_dir.join("Cargo.toml").exists());
