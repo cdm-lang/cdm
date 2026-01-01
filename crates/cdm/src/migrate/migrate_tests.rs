@@ -1322,3 +1322,201 @@ fn test_compute_deltas_first_migration_no_previous_schema() {
     assert!(post_added, "Expected ModelAdded delta for Post model");
     assert!(email_alias_added, "Expected TypeAliasAdded delta for Email type alias");
 }
+
+// ============================================================================
+// Tests for transform_deltas_for_plugin
+// ============================================================================
+
+#[test]
+fn test_transform_deltas_for_plugin_unwraps_model_config() {
+    // When deltas are computed, configs are wrapped like: {"sql": {"indexes": [...]}}
+    // But plugins expect unwrapped configs like: {"indexes": [...]}
+
+    let wrapped_delta = Delta::ModelAdded {
+        name: "User".to_string(),
+        after: ModelDefinition {
+            name: "User".to_string(),
+            entity_id: Some(100),
+            parents: vec![],
+            fields: vec![],
+            config: json!({
+                "sql": {
+                    "table_name": "users",
+                    "indexes": [
+                        { "fields": ["id"], "unique": true }
+                    ]
+                }
+            }),
+        },
+    };
+
+    let transformed = super::transform_deltas_for_plugin(&[wrapped_delta], "sql");
+
+    assert_eq!(transformed.len(), 1);
+
+    if let Delta::ModelAdded { after, .. } = &transformed[0] {
+        // Config should be unwrapped - directly contain table_name and indexes
+        assert_eq!(after.config.get("table_name").and_then(|v| v.as_str()), Some("users"));
+        assert!(after.config.get("indexes").is_some());
+        // Should NOT have "sql" wrapper
+        assert!(after.config.get("sql").is_none());
+    } else {
+        panic!("Expected ModelAdded delta");
+    }
+}
+
+#[test]
+fn test_transform_deltas_for_plugin_unwraps_field_config() {
+    let wrapped_delta = Delta::FieldAdded {
+        model: "User".to_string(),
+        field: "email".to_string(),
+        after: FieldDefinition {
+            name: "email".to_string(),
+            field_type: ident_type("string"),
+            optional: false,
+            default: None,
+            config: json!({
+                "sql": {
+                    "column_name": "user_email",
+                    "type": "VARCHAR(320)"
+                }
+            }),
+            entity_id: Some(2),
+        },
+    };
+
+    let transformed = super::transform_deltas_for_plugin(&[wrapped_delta], "sql");
+
+    assert_eq!(transformed.len(), 1);
+
+    if let Delta::FieldAdded { after, .. } = &transformed[0] {
+        // Config should be unwrapped
+        assert_eq!(after.config.get("column_name").and_then(|v| v.as_str()), Some("user_email"));
+        assert_eq!(after.config.get("type").and_then(|v| v.as_str()), Some("VARCHAR(320)"));
+        // Should NOT have "sql" wrapper
+        assert!(after.config.get("sql").is_none());
+    } else {
+        panic!("Expected FieldAdded delta");
+    }
+}
+
+#[test]
+fn test_transform_deltas_for_plugin_handles_missing_plugin_config() {
+    // When a model has no config for the requested plugin, should return empty object
+    let wrapped_delta = Delta::ModelAdded {
+        name: "User".to_string(),
+        after: ModelDefinition {
+            name: "User".to_string(),
+            entity_id: Some(100),
+            parents: vec![],
+            fields: vec![],
+            config: json!({
+                "typescript": {
+                    "interface_name": "IUser"
+                }
+            }),
+        },
+    };
+
+    let transformed = super::transform_deltas_for_plugin(&[wrapped_delta], "sql");
+
+    assert_eq!(transformed.len(), 1);
+
+    if let Delta::ModelAdded { after, .. } = &transformed[0] {
+        // Config should be empty object since there's no "sql" config
+        assert!(after.config.is_object());
+        assert!(after.config.as_object().unwrap().is_empty());
+    } else {
+        panic!("Expected ModelAdded delta");
+    }
+}
+
+#[test]
+fn test_transform_deltas_for_plugin_handles_model_config_changed() {
+    let wrapped_delta = Delta::ModelConfigChanged {
+        model: "User".to_string(),
+        before: json!({
+            "sql": { "table_name": "users" }
+        }),
+        after: json!({
+            "sql": {
+                "table_name": "users",
+                "indexes": [{ "fields": ["email"] }]
+            }
+        }),
+    };
+
+    let transformed = super::transform_deltas_for_plugin(&[wrapped_delta], "sql");
+
+    assert_eq!(transformed.len(), 1);
+
+    if let Delta::ModelConfigChanged { before, after, .. } = &transformed[0] {
+        // Before should be unwrapped
+        assert_eq!(before.get("table_name").and_then(|v| v.as_str()), Some("users"));
+        assert!(before.get("sql").is_none());
+
+        // After should be unwrapped
+        assert_eq!(after.get("table_name").and_then(|v| v.as_str()), Some("users"));
+        assert!(after.get("indexes").is_some());
+        assert!(after.get("sql").is_none());
+    } else {
+        panic!("Expected ModelConfigChanged delta");
+    }
+}
+
+#[test]
+fn test_transform_deltas_for_plugin_transforms_nested_fields() {
+    // When a model is added, its fields should also have their configs unwrapped
+    let wrapped_delta = Delta::ModelAdded {
+        name: "User".to_string(),
+        after: ModelDefinition {
+            name: "User".to_string(),
+            entity_id: Some(100),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    field_type: ident_type("number"),
+                    optional: false,
+                    default: None,
+                    config: json!({
+                        "sql": { "type": "INTEGER" }
+                    }),
+                    entity_id: Some(1),
+                },
+                FieldDefinition {
+                    name: "email".to_string(),
+                    field_type: ident_type("string"),
+                    optional: false,
+                    default: None,
+                    config: json!({
+                        "sql": { "type": "VARCHAR(320)" }
+                    }),
+                    entity_id: Some(2),
+                },
+            ],
+            config: json!({
+                "sql": {
+                    "table_name": "users",
+                    "indexes": [{ "fields": ["id"], "primary": true }]
+                }
+            }),
+        },
+    };
+
+    let transformed = super::transform_deltas_for_plugin(&[wrapped_delta], "sql");
+
+    assert_eq!(transformed.len(), 1);
+
+    if let Delta::ModelAdded { after, .. } = &transformed[0] {
+        // Model config should be unwrapped
+        assert_eq!(after.config.get("table_name").and_then(|v| v.as_str()), Some("users"));
+
+        // Field configs should also be unwrapped
+        assert_eq!(after.fields.len(), 2);
+        assert_eq!(after.fields[0].config.get("type").and_then(|v| v.as_str()), Some("INTEGER"));
+        assert_eq!(after.fields[1].config.get("type").and_then(|v| v.as_str()), Some("VARCHAR(320)"));
+    } else {
+        panic!("Expected ModelAdded delta");
+    }
+}
