@@ -1486,9 +1486,16 @@ fn test_migrate_model_config_changed_indexes() {
     let files = migrate(schema, deltas, config, &utils);
     assert_eq!(files.len(), 2);
 
-    // Check that config changes generate migration files
+    // Check that index creation generates proper SQL
     let up_content = &files[0].content;
-    assert!(up_content.contains("-- Model config changed: User"));
+    assert!(up_content.contains("CREATE UNIQUE INDEX"), "Expected CREATE UNIQUE INDEX in up migration, got: {}", up_content);
+    assert!(up_content.contains("\"user\""), "Expected table name in up migration, got: {}", up_content);
+    assert!(up_content.contains("\"email\""), "Expected field name in up migration, got: {}", up_content);
+
+    // Check that down migration has DROP INDEX
+    let down_content = &files[1].content;
+    assert!(down_content.contains("DROP INDEX"), "Expected DROP INDEX in down migration, got: {}", down_content);
+    assert!(down_content.contains("idx_user_0"), "Expected index name in down migration, got: {}", down_content);
 }
 
 #[test]
@@ -2127,4 +2134,438 @@ fn test_migrate_complex_multiple_deltas_mixed() {
     assert!(files[1].content.contains("DROP TABLE"));
     assert!(files[1].content.contains("DROP COLUMN"));
     assert!(files[1].content.contains("RENAME COLUMN"));
+}
+
+// ============================================================================
+// indexes_equal tests
+// ============================================================================
+
+#[test]
+fn test_indexes_equal_same_index() {
+    use crate::utils::IndexInfo;
+
+    let a = IndexInfo {
+        name: "idx_a".to_string(),
+        fields: vec!["email".to_string()],
+        is_unique: false,
+        is_primary: false,
+        method: None,
+        where_clause: None,
+    };
+
+    let b = IndexInfo {
+        name: "idx_b".to_string(), // Different name should not matter
+        fields: vec!["email".to_string()],
+        is_unique: false,
+        is_primary: false,
+        method: None,
+        where_clause: None,
+    };
+
+    assert!(super::indexes_equal(&a, &b));
+}
+
+#[test]
+fn test_indexes_equal_different_fields() {
+    use crate::utils::IndexInfo;
+
+    let a = IndexInfo {
+        name: "idx_a".to_string(),
+        fields: vec!["email".to_string()],
+        is_unique: false,
+        is_primary: false,
+        method: None,
+        where_clause: None,
+    };
+
+    let b = IndexInfo {
+        name: "idx_a".to_string(),
+        fields: vec!["name".to_string()],
+        is_unique: false,
+        is_primary: false,
+        method: None,
+        where_clause: None,
+    };
+
+    assert!(!super::indexes_equal(&a, &b));
+}
+
+#[test]
+fn test_indexes_equal_different_field_order() {
+    use crate::utils::IndexInfo;
+
+    let a = IndexInfo {
+        name: "idx_a".to_string(),
+        fields: vec!["email".to_string(), "name".to_string()],
+        is_unique: false,
+        is_primary: false,
+        method: None,
+        where_clause: None,
+    };
+
+    let b = IndexInfo {
+        name: "idx_a".to_string(),
+        fields: vec!["name".to_string(), "email".to_string()],
+        is_unique: false,
+        is_primary: false,
+        method: None,
+        where_clause: None,
+    };
+
+    assert!(!super::indexes_equal(&a, &b));
+}
+
+#[test]
+fn test_indexes_equal_different_unique() {
+    use crate::utils::IndexInfo;
+
+    let a = IndexInfo {
+        name: "idx_a".to_string(),
+        fields: vec!["email".to_string()],
+        is_unique: true,
+        is_primary: false,
+        method: None,
+        where_clause: None,
+    };
+
+    let b = IndexInfo {
+        name: "idx_a".to_string(),
+        fields: vec!["email".to_string()],
+        is_unique: false,
+        is_primary: false,
+        method: None,
+        where_clause: None,
+    };
+
+    assert!(!super::indexes_equal(&a, &b));
+}
+
+#[test]
+fn test_indexes_equal_different_method() {
+    use crate::utils::IndexInfo;
+
+    let a = IndexInfo {
+        name: "idx_a".to_string(),
+        fields: vec!["email".to_string()],
+        is_unique: false,
+        is_primary: false,
+        method: Some("btree".to_string()),
+        where_clause: None,
+    };
+
+    let b = IndexInfo {
+        name: "idx_a".to_string(),
+        fields: vec!["email".to_string()],
+        is_unique: false,
+        is_primary: false,
+        method: Some("hash".to_string()),
+        where_clause: None,
+    };
+
+    assert!(!super::indexes_equal(&a, &b));
+}
+
+// ============================================================================
+// ModelConfigChanged index removal tests
+// ============================================================================
+
+#[test]
+fn test_migrate_model_config_changed_index_removed() {
+    use cdm_plugin_interface::TypeExpression;
+
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            entity_id: Some(1),
+            parents: vec![],
+            fields: vec![FieldDefinition {
+                name: "email".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({}),
+                entity_id: Some(2),
+            }],
+            config: serde_json::json!({}), // Current state has no indexes
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models,
+    };
+
+    // Simulate removing an index
+    let deltas = vec![Delta::ModelConfigChanged {
+        model: "User".to_string(),
+        before: serde_json::json!({
+            "indexes": [
+                { "fields": ["email"] }
+            ]
+        }),
+        after: serde_json::json!({}),
+    }];
+
+    let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+    assert_eq!(files.len(), 2);
+
+    // Up migration should DROP INDEX
+    let up_content = &files[0].content;
+    assert!(up_content.contains("DROP INDEX"), "Expected DROP INDEX in up migration, got: {}", up_content);
+
+    // Down migration should CREATE INDEX
+    let down_content = &files[1].content;
+    assert!(down_content.contains("CREATE INDEX"), "Expected CREATE INDEX in down migration, got: {}", down_content);
+}
+
+#[test]
+fn test_migrate_model_config_changed_primary_key_added() {
+    use cdm_plugin_interface::TypeExpression;
+
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            entity_id: Some(1),
+            parents: vec![],
+            fields: vec![FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "number".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({}),
+                entity_id: Some(2),
+            }],
+            config: serde_json::json!({
+                "indexes": [
+                    { "fields": ["id"], "primary": true }
+                ]
+            }),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models,
+    };
+
+    // Simulate adding a primary key
+    let deltas = vec![Delta::ModelConfigChanged {
+        model: "User".to_string(),
+        before: serde_json::json!({}),
+        after: serde_json::json!({
+            "indexes": [
+                { "fields": ["id"], "primary": true }
+            ]
+        }),
+    }];
+
+    let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+    assert_eq!(files.len(), 2);
+
+    // Primary key changes should show manual migration comment
+    let up_content = &files[0].content;
+    assert!(up_content.contains("Primary key change requires manual migration"),
+        "Expected manual migration comment, got: {}", up_content);
+}
+
+#[test]
+fn test_migrate_model_config_changed_multiple_index_changes() {
+    use cdm_plugin_interface::TypeExpression;
+
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            entity_id: Some(1),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "email".to_string(),
+                    field_type: TypeExpression::Identifier { name: "string".to_string() },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({}),
+                    entity_id: Some(2),
+                },
+                FieldDefinition {
+                    name: "name".to_string(),
+                    field_type: TypeExpression::Identifier { name: "string".to_string() },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({}),
+                    entity_id: Some(3),
+                },
+            ],
+            config: serde_json::json!({
+                "indexes": [
+                    { "fields": ["name"] }
+                ]
+            }),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models,
+    };
+
+    // Simulate: remove email index, keep name index (which exists in both)
+    // before: email index only
+    // after: name index only
+    let deltas = vec![Delta::ModelConfigChanged {
+        model: "User".to_string(),
+        before: serde_json::json!({
+            "indexes": [
+                { "fields": ["email"] }
+            ]
+        }),
+        after: serde_json::json!({
+            "indexes": [
+                { "fields": ["name"] }
+            ]
+        }),
+    }];
+
+    let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+    assert_eq!(files.len(), 2);
+
+    let up_content = &files[0].content;
+    // Should drop the email index
+    assert!(up_content.contains("DROP INDEX"), "Expected DROP INDEX in up migration");
+    // Should create the name index
+    assert!(up_content.contains("CREATE INDEX"), "Expected CREATE INDEX in up migration");
+}
+
+#[test]
+fn test_migrate_model_config_changed_index_with_schema_prefix() {
+    use cdm_plugin_interface::TypeExpression;
+
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            entity_id: Some(1),
+            parents: vec![],
+            fields: vec![FieldDefinition {
+                name: "email".to_string(),
+                field_type: TypeExpression::Identifier { name: "string".to_string() },
+                optional: false,
+                default: None,
+                config: serde_json::json!({}),
+                entity_id: Some(2),
+            }],
+            config: serde_json::json!({
+                "indexes": [
+                    { "fields": ["email"] }
+                ]
+            }),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models,
+    };
+
+    let deltas = vec![Delta::ModelConfigChanged {
+        model: "User".to_string(),
+        before: serde_json::json!({}),
+        after: serde_json::json!({
+            "indexes": [
+                { "fields": ["email"] }
+            ]
+        }),
+    }];
+
+    let config = serde_json::json!({
+        "dialect": "postgresql",
+        "schema": "public",
+        "pluralize_table_names": false
+    });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+
+    let up_content = &files[0].content;
+    assert!(up_content.contains("\"public\".\"user\""),
+        "Expected schema prefix in CREATE INDEX, got: {}", up_content);
+
+    let down_content = &files[1].content;
+    assert!(down_content.contains("\"public\"."),
+        "Expected schema prefix in DROP INDEX, got: {}", down_content);
+}
+
+#[test]
+fn test_migrate_model_config_changed_sqlite_index() {
+    use cdm_plugin_interface::TypeExpression;
+
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            entity_id: Some(1),
+            parents: vec![],
+            fields: vec![FieldDefinition {
+                name: "email".to_string(),
+                field_type: TypeExpression::Identifier { name: "string".to_string() },
+                optional: false,
+                default: None,
+                config: serde_json::json!({}),
+                entity_id: Some(2),
+            }],
+            config: serde_json::json!({
+                "indexes": [
+                    { "fields": ["email"] }
+                ]
+            }),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models,
+    };
+
+    let deltas = vec![Delta::ModelConfigChanged {
+        model: "User".to_string(),
+        before: serde_json::json!({}),
+        after: serde_json::json!({
+            "indexes": [
+                { "fields": ["email"] }
+            ]
+        }),
+    }];
+
+    let config = serde_json::json!({ "dialect": "sqlite", "pluralize_table_names": false });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+
+    let up_content = &files[0].content;
+    assert!(up_content.contains("CREATE INDEX"),
+        "Expected CREATE INDEX for SQLite, got: {}", up_content);
+
+    let down_content = &files[1].content;
+    assert!(down_content.contains("DROP INDEX"),
+        "Expected DROP INDEX for SQLite, got: {}", down_content);
 }

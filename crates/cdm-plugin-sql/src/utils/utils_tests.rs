@@ -126,3 +126,307 @@ fn test_format_default_value() {
     assert_eq!(format_default_value(&Value::Boolean(false)), "FALSE");
     assert_eq!(format_default_value(&Value::Null), "NULL");
 }
+
+// ============================================================================
+// extract_indexes tests
+// ============================================================================
+
+#[test]
+fn test_extract_indexes_empty_config() {
+    let config = json!({});
+    let indexes = extract_indexes(&config, "users");
+    assert!(indexes.is_empty());
+}
+
+#[test]
+fn test_extract_indexes_single_regular_index() {
+    let config = json!({
+        "indexes": [
+            { "fields": ["email"] }
+        ]
+    });
+    let indexes = extract_indexes(&config, "users");
+
+    assert_eq!(indexes.len(), 1);
+    assert_eq!(indexes[0].name, "idx_users_0");
+    assert_eq!(indexes[0].fields, vec!["email"]);
+    assert!(!indexes[0].is_unique);
+    assert!(!indexes[0].is_primary);
+}
+
+#[test]
+fn test_extract_indexes_unique_index() {
+    let config = json!({
+        "indexes": [
+            { "fields": ["email"], "unique": true }
+        ]
+    });
+    let indexes = extract_indexes(&config, "users");
+
+    assert_eq!(indexes.len(), 1);
+    assert!(indexes[0].is_unique);
+    assert!(!indexes[0].is_primary);
+}
+
+#[test]
+fn test_extract_indexes_primary_key() {
+    let config = json!({
+        "indexes": [
+            { "fields": ["id"], "primary": true }
+        ]
+    });
+    let indexes = extract_indexes(&config, "users");
+
+    assert_eq!(indexes.len(), 1);
+    assert!(indexes[0].is_primary);
+    assert!(!indexes[0].is_unique);
+}
+
+#[test]
+fn test_extract_indexes_composite_index() {
+    let config = json!({
+        "indexes": [
+            { "fields": ["first_name", "last_name"] }
+        ]
+    });
+    let indexes = extract_indexes(&config, "users");
+
+    assert_eq!(indexes.len(), 1);
+    assert_eq!(indexes[0].fields, vec!["first_name", "last_name"]);
+}
+
+#[test]
+fn test_extract_indexes_with_custom_name() {
+    let config = json!({
+        "indexes": [
+            { "fields": ["email"], "name": "custom_email_idx" }
+        ]
+    });
+    let indexes = extract_indexes(&config, "users");
+
+    assert_eq!(indexes[0].name, "custom_email_idx");
+}
+
+#[test]
+fn test_extract_indexes_with_method_and_where() {
+    let config = json!({
+        "indexes": [
+            {
+                "fields": ["email"],
+                "method": "btree",
+                "where": "deleted_at IS NULL"
+            }
+        ]
+    });
+    let indexes = extract_indexes(&config, "users");
+
+    assert_eq!(indexes[0].method, Some("btree".to_string()));
+    assert_eq!(indexes[0].where_clause, Some("deleted_at IS NULL".to_string()));
+}
+
+#[test]
+fn test_extract_indexes_multiple() {
+    let config = json!({
+        "indexes": [
+            { "fields": ["id"], "primary": true },
+            { "fields": ["email"], "unique": true },
+            { "fields": ["created_at"] }
+        ]
+    });
+    let indexes = extract_indexes(&config, "users");
+
+    assert_eq!(indexes.len(), 3);
+    assert!(indexes[0].is_primary);
+    assert!(indexes[1].is_unique);
+    assert!(!indexes[2].is_primary);
+    assert!(!indexes[2].is_unique);
+}
+
+#[test]
+fn test_extract_indexes_skips_empty_fields() {
+    let config = json!({
+        "indexes": [
+            { "fields": [] },
+            { "fields": ["email"] }
+        ]
+    });
+    let indexes = extract_indexes(&config, "users");
+
+    assert_eq!(indexes.len(), 1);
+    assert_eq!(indexes[0].fields, vec!["email"]);
+}
+
+// ============================================================================
+// generate_create_index_sql tests
+// ============================================================================
+
+#[test]
+fn test_generate_create_index_sql_regular_postgres() {
+    let index = IndexInfo {
+        name: "idx_users_0".to_string(),
+        fields: vec!["email".to_string()],
+        is_unique: false,
+        is_primary: false,
+        method: None,
+        where_clause: None,
+    };
+
+    let sql = generate_create_index_sql(&index, "users", "", Dialect::PostgreSQL);
+    assert_eq!(sql, "CREATE INDEX \"idx_users_0\" ON \"users\" (\"email\");\n");
+}
+
+#[test]
+fn test_generate_create_index_sql_unique_postgres() {
+    let index = IndexInfo {
+        name: "idx_users_email".to_string(),
+        fields: vec!["email".to_string()],
+        is_unique: true,
+        is_primary: false,
+        method: None,
+        where_clause: None,
+    };
+
+    let sql = generate_create_index_sql(&index, "users", "", Dialect::PostgreSQL);
+    assert_eq!(sql, "CREATE UNIQUE INDEX \"idx_users_email\" ON \"users\" (\"email\");\n");
+}
+
+#[test]
+fn test_generate_create_index_sql_with_schema_prefix() {
+    let index = IndexInfo {
+        name: "idx_users_0".to_string(),
+        fields: vec!["email".to_string()],
+        is_unique: false,
+        is_primary: false,
+        method: None,
+        where_clause: None,
+    };
+
+    let sql = generate_create_index_sql(&index, "users", "\"public\".", Dialect::PostgreSQL);
+    assert!(sql.contains("\"public\".\"users\""));
+}
+
+#[test]
+fn test_generate_create_index_sql_composite() {
+    let index = IndexInfo {
+        name: "idx_users_name".to_string(),
+        fields: vec!["first_name".to_string(), "last_name".to_string()],
+        is_unique: false,
+        is_primary: false,
+        method: None,
+        where_clause: None,
+    };
+
+    let sql = generate_create_index_sql(&index, "users", "", Dialect::PostgreSQL);
+    assert!(sql.contains("(\"first_name\", \"last_name\")"));
+}
+
+#[test]
+fn test_generate_create_index_sql_with_method() {
+    let index = IndexInfo {
+        name: "idx_users_0".to_string(),
+        fields: vec!["email".to_string()],
+        is_unique: false,
+        is_primary: false,
+        method: Some("btree".to_string()),
+        where_clause: None,
+    };
+
+    let sql = generate_create_index_sql(&index, "users", "", Dialect::PostgreSQL);
+    assert!(sql.contains("USING BTREE"));
+}
+
+#[test]
+fn test_generate_create_index_sql_with_where_clause() {
+    let index = IndexInfo {
+        name: "idx_users_active".to_string(),
+        fields: vec!["email".to_string()],
+        is_unique: false,
+        is_primary: false,
+        method: None,
+        where_clause: Some("deleted_at IS NULL".to_string()),
+    };
+
+    let sql = generate_create_index_sql(&index, "users", "", Dialect::PostgreSQL);
+    assert!(sql.contains("WHERE deleted_at IS NULL"));
+}
+
+#[test]
+fn test_generate_create_index_sql_sqlite() {
+    let index = IndexInfo {
+        name: "idx_users_0".to_string(),
+        fields: vec!["email".to_string()],
+        is_unique: false,
+        is_primary: false,
+        method: Some("btree".to_string()), // Should be ignored for SQLite
+        where_clause: Some("active = 1".to_string()), // Should be ignored for SQLite
+    };
+
+    let sql = generate_create_index_sql(&index, "users", "", Dialect::SQLite);
+    assert!(!sql.contains("USING"));
+    assert!(!sql.contains("WHERE"));
+    assert_eq!(sql, "CREATE INDEX \"idx_users_0\" ON \"users\" (\"email\");\n");
+}
+
+// ============================================================================
+// generate_drop_index_sql tests
+// ============================================================================
+
+#[test]
+fn test_generate_drop_index_sql_postgres() {
+    let index = IndexInfo {
+        name: "idx_users_0".to_string(),
+        fields: vec!["email".to_string()],
+        is_unique: false,
+        is_primary: false,
+        method: None,
+        where_clause: None,
+    };
+
+    let sql = generate_drop_index_sql(&index, "", Dialect::PostgreSQL);
+    assert_eq!(sql, "DROP INDEX \"idx_users_0\";\n");
+}
+
+#[test]
+fn test_generate_drop_index_sql_postgres_with_schema() {
+    let index = IndexInfo {
+        name: "idx_users_0".to_string(),
+        fields: vec!["email".to_string()],
+        is_unique: false,
+        is_primary: false,
+        method: None,
+        where_clause: None,
+    };
+
+    let sql = generate_drop_index_sql(&index, "\"public\".", Dialect::PostgreSQL);
+    assert_eq!(sql, "DROP INDEX \"public\".\"idx_users_0\";\n");
+}
+
+#[test]
+fn test_generate_drop_index_sql_sqlite() {
+    let index = IndexInfo {
+        name: "idx_users_0".to_string(),
+        fields: vec!["email".to_string()],
+        is_unique: false,
+        is_primary: false,
+        method: None,
+        where_clause: None,
+    };
+
+    let sql = generate_drop_index_sql(&index, "", Dialect::SQLite);
+    assert_eq!(sql, "DROP INDEX \"idx_users_0\";\n");
+}
+
+#[test]
+fn test_generate_drop_index_sql_unique() {
+    let index = IndexInfo {
+        name: "idx_users_email".to_string(),
+        fields: vec!["email".to_string()],
+        is_unique: true,
+        is_primary: false,
+        method: None,
+        where_clause: None,
+    };
+
+    let sql = generate_drop_index_sql(&index, "", Dialect::PostgreSQL);
+    assert_eq!(sql, "DROP INDEX \"idx_users_email\";\n");
+}

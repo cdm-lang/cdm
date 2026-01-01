@@ -1,7 +1,7 @@
 use cdm_plugin_interface::{Delta, FieldDefinition, OutputFile, Schema, Utils, JSON};
 use crate::utils::{
-    format_default_value, generate_create_table, get_column_name,
-    get_table_name, quote_identifier,
+    extract_indexes, format_default_value, generate_create_index_sql, generate_create_table,
+    generate_drop_index_sql, get_column_name, get_table_name, quote_identifier, IndexInfo,
 };
 use crate::type_mapper::{Dialect, TypeMapper};
 
@@ -443,9 +443,76 @@ pub fn migrate(
                 down_content.push_str("-- Global config changed\n\n");
             }
 
-            Delta::ModelConfigChanged { model, before: _, after: _ } => {
-                up_content.push_str(&format!("-- Model config changed: {}\n\n", model));
-                down_content.push_str(&format!("-- Model config changed: {}\n\n", model));
+            Delta::ModelConfigChanged { model, before, after } => {
+                // Get table info for this model
+                if let Some(model_def) = current_schema.models.get(model) {
+                    let table_name = get_table_name(model, &model_def.config, &config);
+                    let schema_prefix = get_schema_prefix(&config, dialect);
+                    let schema_prefix_str = if let Some(prefix) = &schema_prefix {
+                        format!("{}.", quote_identifier(prefix, dialect))
+                    } else {
+                        String::new()
+                    };
+
+                    // Extract indexes from before/after configs
+                    let before_indexes = extract_indexes(before, &table_name);
+                    let after_indexes = extract_indexes(after, &table_name);
+
+                    // Find added indexes (in after but not in before)
+                    for after_idx in &after_indexes {
+                        let exists_in_before = before_indexes.iter().any(|b| indexes_equal(b, after_idx));
+                        if !exists_in_before {
+                            if after_idx.is_primary {
+                                // Primary key changes require manual migration
+                                up_content.push_str(&format!(
+                                    "-- Primary key change requires manual migration: {}\n\n",
+                                    after_idx.name
+                                ));
+                                down_content.push_str(&format!(
+                                    "-- Primary key change requires manual migration: {}\n\n",
+                                    after_idx.name
+                                ));
+                            } else {
+                                // Generate CREATE INDEX for up migration
+                                up_content.push_str(&generate_create_index_sql(after_idx, &table_name, &schema_prefix_str, dialect));
+                                up_content.push('\n');
+
+                                // Generate DROP INDEX for down migration
+                                down_content.push_str(&generate_drop_index_sql(after_idx, &schema_prefix_str, dialect));
+                                down_content.push('\n');
+                            }
+                        }
+                    }
+
+                    // Find removed indexes (in before but not in after)
+                    for before_idx in &before_indexes {
+                        let exists_in_after = after_indexes.iter().any(|a| indexes_equal(before_idx, a));
+                        if !exists_in_after {
+                            if before_idx.is_primary {
+                                // Primary key changes require manual migration
+                                up_content.push_str(&format!(
+                                    "-- Primary key change requires manual migration: {}\n\n",
+                                    before_idx.name
+                                ));
+                                down_content.push_str(&format!(
+                                    "-- Primary key change requires manual migration: {}\n\n",
+                                    before_idx.name
+                                ));
+                            } else {
+                                // Generate DROP INDEX for up migration
+                                up_content.push_str(&generate_drop_index_sql(before_idx, &schema_prefix_str, dialect));
+                                up_content.push('\n');
+
+                                // Generate CREATE INDEX for down migration
+                                down_content.push_str(&generate_create_index_sql(before_idx, &table_name, &schema_prefix_str, dialect));
+                                down_content.push('\n');
+                            }
+                        }
+                    }
+                } else {
+                    up_content.push_str(&format!("-- Model config changed: {}\n\n", model));
+                    down_content.push_str(&format!("-- Model config changed: {}\n\n", model));
+                }
             }
 
             Delta::FieldConfigChanged { model, field, before: _, after: _ } => {
@@ -531,6 +598,14 @@ fn generate_column_definition(
     parts.join(" ")
 }
 
+/// Compare two indexes for equality (by fields and type, not name)
+fn indexes_equal(a: &IndexInfo, b: &IndexInfo) -> bool {
+    a.fields == b.fields
+        && a.is_unique == b.is_unique
+        && a.is_primary == b.is_primary
+        && a.method == b.method
+        && a.where_clause == b.where_clause
+}
 
 #[cfg(test)]
 #[path = "migrate/migrate_tests.rs"]
