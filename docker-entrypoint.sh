@@ -8,6 +8,14 @@ if [ -d "/workspace/target" ] && [ "$(id -u)" != "0" ]; then
     sudo chown -R "$(id -u):$(id -g)" /workspace/target 2>/dev/null || true
 fi
 
+# Fix ownership of Rust build cache directory (Docker volume may be owned by root)
+if [ -d "/var/tmp/rust-build" ]; then
+    sudo chown -R "$(id -u):$(id -g)" /var/tmp/rust-build 2>/dev/null || true
+else
+    sudo mkdir -p /var/tmp/rust-build
+    sudo chown -R "$(id -u):$(id -g)" /var/tmp/rust-build
+fi
+
 # Fix git worktree paths if we're in a worktree
 if [ -d "/workspace/worktrees" ]; then
     for worktree in /workspace/worktrees/*/; do
@@ -29,28 +37,15 @@ if [ -d "/workspace/worktrees" ]; then
     done
 fi
 
-# Set up worktree-specific .claude directory
-# Get the current working directory (will be set to the worktree path)
-CURRENT_DIR=$(pwd)
-
-# Remove existing /home/claude/.claude if it exists (could be from previous container)
-if [ -e "/home/claude/.claude" ] && [ ! -L "/home/claude/.claude" ]; then
-    rm -rf /home/claude/.claude
+# The ~/.claude directory is now mounted from the host via docker-compose
+# This preserves credentials and settings across container restarts
+if [ -d "/home/claude/.claude" ]; then
+    echo "Using host ~/.claude directory for credentials and settings"
+else
+    # Fallback: create local .claude directory if not mounted
+    mkdir -p /home/claude/.claude
+    echo "Created local ~/.claude directory"
 fi
-
-# Create .claude directory in the worktree if it doesn't exist
-if [ ! -d "${CURRENT_DIR}/.claude" ]; then
-    mkdir -p "${CURRENT_DIR}/.claude"
-    chown -R $(id -u):$(id -g) "${CURRENT_DIR}/.claude"
-fi
-
-# Create symlink from /home/claude/.claude to worktree-specific .claude
-if [ -L "/home/claude/.claude" ]; then
-    rm /home/claude/.claude
-fi
-ln -s "${CURRENT_DIR}/.claude" /home/claude/.claude
-
-echo "Using worktree-specific session storage: ${CURRENT_DIR}/.claude"
 
 # Execute the main command
 exec "$@"

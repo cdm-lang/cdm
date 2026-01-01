@@ -5,6 +5,9 @@ services:
     build:
       context: .
       dockerfile: Dockerfile.claude
+      args:
+        HOST_UID: ${HOST_UID:-501}
+        HOST_GID: ${HOST_GID:-20}
     container_name: ${CONTAINER_NAME:-cdm-claude}
     volumes:
       # Mount the entire project
@@ -15,6 +18,8 @@ services:
       - ~/.claude:/home/claude/.claude
       # Mount only authentication credentials (shared across all worktrees)
       - ~/.claude.json:/home/claude/.claude.json
+      # Persistent volume for Rust build cache (avoids filling container disk)
+      - cargo-build-cache:/var/tmp/rust-build
     working_dir: ${WORKING_DIR:-/workspace}
     environment:
       # Optional: Set API key if using console.anthropic.com (not needed for claude.ai accounts)
@@ -29,9 +34,10 @@ services:
       - CARGO_BUILD_JOBS=1
     stdin_open: true
     tty: true
-    # Security: Run with limited privileges
-    # Remove these if you need more permissions
-    security_opt:
-      - no-new-privileges:true
+    # Note: no-new-privileges is disabled to allow sudo in entrypoint
+    # This is acceptable since the container itself provides isolation
     # Increase memory for Rust compilation (wasmtime is memory-intensive)
     mem_limit: 8g
+
+volumes:
+  cargo-build-cache:

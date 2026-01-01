@@ -8,11 +8,12 @@ RUN apt-get update && apt-get install -y \
     sudo \
     && rm -rf /var/lib/apt/lists/*
 
-# The node user already exists with UID 1000, so we'll use that
-# Just rename it to claude and ensure it has sudo access
-RUN usermod -l claude node && \
-    groupmod -n claude node && \
-    usermod -d /home/claude -m claude && \
+# Create claude user with configurable UID/GID (defaults to 501 for macOS compatibility)
+ARG HOST_UID=501
+ARG HOST_GID=20
+RUN userdel -r node && \
+    groupadd -g ${HOST_GID} claude || true && \
+    useradd -m -u ${HOST_UID} -g ${HOST_GID} -s /bin/bash claude && \
     echo "claude ALL=(ALL) NOPASSWD:ALL" >> /etc/sudoers
 
 # Install Rust for root (for system-wide tools)
@@ -29,7 +30,8 @@ RUN npm install -g @anthropic-ai/claude-code
 # Install Rust for claude user
 USER claude
 WORKDIR /home/claude
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y && \
+    /home/claude/.cargo/bin/rustup target add wasm32-wasip1
 ENV PATH="/home/claude/.cargo/bin:${PATH}"
 
 # Switch back to root for remaining setup
