@@ -1,18 +1,3 @@
-Absolutely — below is a **proposed full rewrite of the main README** that front-loads *why CDM exists, who it’s for, and what problems it solves*, before moving into installation and usage.
-
-I’ve intentionally:
-
-* Optimized the **first 60–90 seconds** of reading
-* Anchored benefits in **concrete developer pain points**
-* Used language that’s accessible to *first-time readers* without dumbing it down
-* Deferred mechanics and CLI details until after value is clear
-* Aligned terminology precisely with the **CDM spec** 
-* Preserved and reorganized content from the existing README 
-
-You can drop this in as a replacement README, or cherry-pick sections.
-
----
-
 # CDM — Contextual Data Models
 
 **CDM** is a schema language for defining your application’s data model **once** and generating **everything else** from it.
