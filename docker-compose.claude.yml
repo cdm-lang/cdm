@@ -1,0 +1,43 @@
+version: '3.8'
+
+services:
+  claude:
+    build:
+      context: .
+      dockerfile: Dockerfile.claude
+    container_name: ${CONTAINER_NAME:-cdm-claude}
+    volumes:
+      # Mount the entire project
+      - .:/workspace
+      # Mount git config to preserve user identity
+      - ~/.gitconfig:/root/.gitconfig:ro
+      # Mount Claude Code config and credentials (persists authentication)
+      - ~/.claude:/root/.claude
+      - ~/.claude.json:/root/.claude.json
+      # Persist cargo cache for faster builds
+      - cargo-cache:/root/.cargo/registry
+      - cargo-git-cache:/root/.cargo/git
+      # Persist Rust build artifacts
+      - target-cache:/workspace/target
+    working_dir: ${WORKING_DIR:-/workspace}
+    environment:
+      # Optional: Set API key if using console.anthropic.com (not needed for claude.ai accounts)
+      - ANTHROPIC_API_KEY=${ANTHROPIC_API_KEY:-}
+      # Disable sandboxing since we're already in a container
+      - CLAUDE_DISABLE_SANDBOX=true
+      # Store worktree info for shell access
+      - WORKTREE_PATH=${WORKTREE_PATH:-}
+    stdin_open: true
+    tty: true
+    # Security: Run with limited privileges
+    # Remove these if you need more permissions
+    security_opt:
+      - no-new-privileges:true
+    # Optional: limit resources
+    # mem_limit: 4g
+    # cpus: 2
+
+volumes:
+  cargo-cache:
+  cargo-git-cache:
+  target-cache:

@@ -1,0 +1,36 @@
+# Rust build artifacts
+target/
+**/*.rs.bk
+
+# Cargo lock file (will be in the image)
+# Cargo.lock
+
+# Git
+.git/
+.gitignore
+
+# Claude Code
+.claude/
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+
+# Temporary files
+tmp/
+temp/
+
+# Node modules (if any)
+node_modules/
+
+# Worktrees
+worktrees/

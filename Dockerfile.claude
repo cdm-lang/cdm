@@ -1,0 +1,28 @@
+FROM node:20-slim
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    git \
+    curl \
+    build-essential \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Rust (needed for your Rust project)
+RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+# Install Claude Code CLI
+RUN npm install -g @anthropic-ai/claude-code
+
+# Set up working directory
+WORKDIR /workspace
+
+# Copy git config from host (will be mounted at runtime)
+# This ensures git worktrees work properly
+
+# Set up git to allow the workspace directory
+RUN git config --global --add safe.directory /workspace
+RUN git config --global --add safe.directory '/workspace/worktrees/*'
+
+# Default command opens Claude Code CLI
+CMD ["claude"]
