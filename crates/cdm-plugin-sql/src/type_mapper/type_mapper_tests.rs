@@ -1,5 +1,11 @@
 use super::*;
+use cdm_plugin_interface::TypeAliasDefinition;
 use serde_json::json;
+use std::collections::HashMap;
+
+fn empty_type_aliases() -> HashMap<String, TypeAliasDefinition> {
+    HashMap::new()
+}
 
 #[test]
 fn test_dialect_from_config() {
@@ -15,8 +21,9 @@ fn test_dialect_from_config() {
 
 #[test]
 fn test_type_mapper_postgresql_string() {
+    let type_aliases = empty_type_aliases();
     let config = json!({ "dialect": "postgresql" });
-    let mapper = TypeMapper::new(&config);
+    let mapper = TypeMapper::new(&config, &type_aliases);
 
     let sql_type = mapper.map_type(&TypeExpression::Identifier { name: "string".to_string() }, false);
     assert_eq!(sql_type, "VARCHAR(255)");
@@ -25,15 +32,16 @@ fn test_type_mapper_postgresql_string() {
         "dialect": "postgresql",
         "default_string_length": 500
     });
-    let mapper = TypeMapper::new(&config);
+    let mapper = TypeMapper::new(&config, &type_aliases);
     let sql_type = mapper.map_type(&TypeExpression::Identifier { name: "string".to_string() }, false);
     assert_eq!(sql_type, "VARCHAR(500)");
 }
 
 #[test]
 fn test_type_mapper_sqlite_string() {
+    let type_aliases = empty_type_aliases();
     let config = json!({ "dialect": "sqlite" });
-    let mapper = TypeMapper::new(&config);
+    let mapper = TypeMapper::new(&config, &type_aliases);
 
     let sql_type = mapper.map_type(&TypeExpression::Identifier { name: "string".to_string() }, false);
     assert_eq!(sql_type, "TEXT");
@@ -41,8 +49,9 @@ fn test_type_mapper_sqlite_string() {
 
 #[test]
 fn test_type_mapper_postgresql_number() {
+    let type_aliases = empty_type_aliases();
     let config = json!({ "dialect": "postgresql" });
-    let mapper = TypeMapper::new(&config);
+    let mapper = TypeMapper::new(&config, &type_aliases);
     let sql_type = mapper.map_type(&TypeExpression::Identifier { name: "number".to_string() }, false);
     assert_eq!(sql_type, "DOUBLE PRECISION");
 
@@ -50,7 +59,7 @@ fn test_type_mapper_postgresql_number() {
         "dialect": "postgresql",
         "number_type": "real"
     });
-    let mapper = TypeMapper::new(&config);
+    let mapper = TypeMapper::new(&config, &type_aliases);
     let sql_type = mapper.map_type(&TypeExpression::Identifier { name: "number".to_string() }, false);
     assert_eq!(sql_type, "REAL");
 
@@ -58,15 +67,16 @@ fn test_type_mapper_postgresql_number() {
         "dialect": "postgresql",
         "number_type": "numeric"
     });
-    let mapper = TypeMapper::new(&config);
+    let mapper = TypeMapper::new(&config, &type_aliases);
     let sql_type = mapper.map_type(&TypeExpression::Identifier { name: "number".to_string() }, false);
     assert_eq!(sql_type, "NUMERIC");
 }
 
 #[test]
 fn test_type_mapper_sqlite_number() {
+    let type_aliases = empty_type_aliases();
     let config = json!({ "dialect": "sqlite" });
-    let mapper = TypeMapper::new(&config);
+    let mapper = TypeMapper::new(&config, &type_aliases);
     let sql_type = mapper.map_type(&TypeExpression::Identifier { name: "number".to_string() }, false);
     assert_eq!(sql_type, "REAL");
 
@@ -74,41 +84,44 @@ fn test_type_mapper_sqlite_number() {
         "dialect": "sqlite",
         "number_type": "numeric"
     });
-    let mapper = TypeMapper::new(&config);
+    let mapper = TypeMapper::new(&config, &type_aliases);
     let sql_type = mapper.map_type(&TypeExpression::Identifier { name: "number".to_string() }, false);
     assert_eq!(sql_type, "NUMERIC");
 }
 
 #[test]
 fn test_type_mapper_boolean() {
+    let type_aliases = empty_type_aliases();
     let config = json!({ "dialect": "postgresql" });
-    let mapper = TypeMapper::new(&config);
+    let mapper = TypeMapper::new(&config, &type_aliases);
     let sql_type = mapper.map_type(&TypeExpression::Identifier { name: "boolean".to_string() }, false);
     assert_eq!(sql_type, "BOOLEAN");
 
     let config = json!({ "dialect": "sqlite" });
-    let mapper = TypeMapper::new(&config);
+    let mapper = TypeMapper::new(&config, &type_aliases);
     let sql_type = mapper.map_type(&TypeExpression::Identifier { name: "boolean".to_string() }, false);
     assert_eq!(sql_type, "INTEGER");
 }
 
 #[test]
 fn test_type_mapper_json() {
+    let type_aliases = empty_type_aliases();
     let config = json!({ "dialect": "postgresql" });
-    let mapper = TypeMapper::new(&config);
+    let mapper = TypeMapper::new(&config, &type_aliases);
     let sql_type = mapper.map_type(&TypeExpression::Identifier { name: "JSON".to_string() }, false);
     assert_eq!(sql_type, "JSONB");
 
     let config = json!({ "dialect": "sqlite" });
-    let mapper = TypeMapper::new(&config);
+    let mapper = TypeMapper::new(&config, &type_aliases);
     let sql_type = mapper.map_type(&TypeExpression::Identifier { name: "JSON".to_string() }, false);
     assert_eq!(sql_type, "TEXT");
 }
 
 #[test]
 fn test_type_mapper_array_postgresql() {
+    let type_aliases = empty_type_aliases();
     let config = json!({ "dialect": "postgresql" });
-    let mapper = TypeMapper::new(&config);
+    let mapper = TypeMapper::new(&config, &type_aliases);
 
     let sql_type = mapper.map_type(
         &TypeExpression::Array {
@@ -129,8 +142,9 @@ fn test_type_mapper_array_postgresql() {
 
 #[test]
 fn test_type_mapper_array_sqlite() {
+    let type_aliases = empty_type_aliases();
     let config = json!({ "dialect": "sqlite" });
-    let mapper = TypeMapper::new(&config);
+    let mapper = TypeMapper::new(&config, &type_aliases);
 
     let sql_type = mapper.map_type(
         &TypeExpression::Array {
@@ -143,8 +157,9 @@ fn test_type_mapper_array_sqlite() {
 
 #[test]
 fn test_type_mapper_model_reference() {
+    let type_aliases = empty_type_aliases();
     let config = json!({ "dialect": "postgresql" });
-    let mapper = TypeMapper::new(&config);
+    let mapper = TypeMapper::new(&config, &type_aliases);
 
     let sql_type = mapper.map_type(
         &TypeExpression::Identifier { name: "User".to_string() },
@@ -153,7 +168,7 @@ fn test_type_mapper_model_reference() {
     assert_eq!(sql_type, "JSONB");
 
     let config = json!({ "dialect": "sqlite" });
-    let mapper = TypeMapper::new(&config);
+    let mapper = TypeMapper::new(&config, &type_aliases);
     let sql_type = mapper.map_type(
         &TypeExpression::Identifier { name: "User".to_string() },
         false,
@@ -163,8 +178,9 @@ fn test_type_mapper_model_reference() {
 
 #[test]
 fn test_type_mapper_union() {
+    let type_aliases = empty_type_aliases();
     let config = json!({ "dialect": "postgresql" });
-    let mapper = TypeMapper::new(&config);
+    let mapper = TypeMapper::new(&config, &type_aliases);
 
     let sql_type = mapper.map_type(
         &TypeExpression::Union {
@@ -176,4 +192,93 @@ fn test_type_mapper_union() {
         false,
     );
     assert_eq!(sql_type, "VARCHAR(255)");
+}
+
+#[test]
+fn test_type_mapper_type_alias_with_sql_type_override() {
+    // Test that a type alias with @sql { type: "INTEGER" } uses the override
+    let mut type_aliases = HashMap::new();
+    type_aliases.insert(
+        "ID".to_string(),
+        TypeAliasDefinition {
+            name: "ID".to_string(),
+            alias_type: TypeExpression::Identifier { name: "number".to_string() },
+            config: json!({ "type": "INTEGER" }),
+            entity_id: None,
+        },
+    );
+
+    let config = json!({ "dialect": "postgresql" });
+    let mapper = TypeMapper::new(&config, &type_aliases);
+
+    let sql_type = mapper.map_type(
+        &TypeExpression::Identifier { name: "ID".to_string() },
+        false,
+    );
+    assert_eq!(sql_type, "INTEGER");
+}
+
+#[test]
+fn test_type_mapper_type_alias_without_sql_type_override() {
+    // Test that a type alias without @sql { type } falls back to underlying type
+    let mut type_aliases = HashMap::new();
+    type_aliases.insert(
+        "UserName".to_string(),
+        TypeAliasDefinition {
+            name: "UserName".to_string(),
+            alias_type: TypeExpression::Identifier { name: "string".to_string() },
+            config: json!({}),
+            entity_id: None,
+        },
+    );
+
+    let config = json!({ "dialect": "postgresql" });
+    let mapper = TypeMapper::new(&config, &type_aliases);
+
+    let sql_type = mapper.map_type(
+        &TypeExpression::Identifier { name: "UserName".to_string() },
+        false,
+    );
+    assert_eq!(sql_type, "VARCHAR(255)");
+}
+
+#[test]
+fn test_type_mapper_nested_type_alias() {
+    // Test that nested type aliases are resolved correctly
+    let mut type_aliases = HashMap::new();
+    type_aliases.insert(
+        "BaseID".to_string(),
+        TypeAliasDefinition {
+            name: "BaseID".to_string(),
+            alias_type: TypeExpression::Identifier { name: "number".to_string() },
+            config: json!({ "type": "BIGINT" }),
+            entity_id: None,
+        },
+    );
+    type_aliases.insert(
+        "UserID".to_string(),
+        TypeAliasDefinition {
+            name: "UserID".to_string(),
+            alias_type: TypeExpression::Identifier { name: "BaseID".to_string() },
+            config: json!({}),  // No override, should inherit from BaseID
+            entity_id: None,
+        },
+    );
+
+    let config = json!({ "dialect": "postgresql" });
+    let mapper = TypeMapper::new(&config, &type_aliases);
+
+    // BaseID should use its explicit type
+    let sql_type = mapper.map_type(
+        &TypeExpression::Identifier { name: "BaseID".to_string() },
+        false,
+    );
+    assert_eq!(sql_type, "BIGINT");
+
+    // UserID should resolve through BaseID
+    let sql_type = mapper.map_type(
+        &TypeExpression::Identifier { name: "UserID".to_string() },
+        false,
+    );
+    assert_eq!(sql_type, "BIGINT");
 }

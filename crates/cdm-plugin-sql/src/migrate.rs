@@ -18,7 +18,7 @@ pub fn migrate(
         return files;
     }
 
-    let type_mapper = TypeMapper::new(&config);
+    let type_mapper = TypeMapper::new(&config, &current_schema.type_aliases);
     let dialect = type_mapper.dialect();
 
     // Generate a simple migration number (would need to be tracked externally)

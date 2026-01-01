@@ -319,3 +319,74 @@ fn test_apply_name_format() {
         "userProfile"
     );
 }
+
+#[test]
+fn test_build_with_type_alias_sql_type_override() {
+    // This test verifies that a type alias with @sql { type: "INTEGER" } annotation
+    // is correctly used when a field references that type alias.
+    // Bug: numeric type aliases with explicit SQL type were incorrectly built as JSONB.
+
+    use cdm_plugin_interface::TypeAliasDefinition;
+
+    let mut type_aliases = HashMap::new();
+    type_aliases.insert(
+        "ID".to_string(),
+        TypeAliasDefinition {
+            name: "ID".to_string(),
+            alias_type: TypeExpression::Identifier {
+                name: "number".to_string(),
+            },
+            config: json!({
+                "type": "INTEGER"
+            }),
+            entity_id: None,
+        },
+    );
+
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: String::new(),
+            parents: vec![],
+            fields: vec![FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "ID".to_string(),
+                },
+                optional: false,
+                default: None,
+                entity_id: None,
+                config: json!({}),
+            }],
+            entity_id: None,
+            config: json!({}),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases,
+        models,
+    };
+
+    let config = json!({
+        "dialect": "postgresql",
+        "pluralize_table_names": false
+    });
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+    let sql = &files[0].content;
+
+    // The field should use INTEGER (from type alias config), not JSONB
+    assert!(
+        sql.contains("\"id\" INTEGER NOT NULL"),
+        "Expected 'id' column to be INTEGER, but got:\n{}",
+        sql
+    );
+    assert!(
+        !sql.contains("JSONB"),
+        "Should not contain JSONB, but got:\n{}",
+        sql
+    );
+}

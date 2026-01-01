@@ -2005,7 +2005,7 @@ fn test_migrate_empty_schema_with_model_added() {
 
 #[test]
 fn test_generate_column_definition_with_all_properties() {
-    use cdm_plugin_interface::TypeExpression;
+    use cdm_plugin_interface::{TypeAliasDefinition, TypeExpression};
 
     let field_def = FieldDefinition {
         name: "email".to_string(),
@@ -2017,7 +2017,8 @@ fn test_generate_column_definition_with_all_properties() {
     };
 
     let config = serde_json::json!({ "dialect": "postgresql" });
-    let type_mapper = TypeMapper::new(&config);
+    let type_aliases: HashMap<String, TypeAliasDefinition> = HashMap::new();
+    let type_mapper = TypeMapper::new(&config, &type_aliases);
 
     let column_def = generate_column_definition(&field_def, "user_email", &config, &type_mapper);
 
@@ -2134,6 +2135,85 @@ fn test_migrate_complex_multiple_deltas_mixed() {
     assert!(files[1].content.contains("DROP TABLE"));
     assert!(files[1].content.contains("DROP COLUMN"));
     assert!(files[1].content.contains("RENAME COLUMN"));
+}
+
+#[test]
+fn test_migrate_with_type_alias_sql_type_override() {
+    // This test verifies that a type alias with @sql { type: "INTEGER" } annotation
+    // is correctly used in migrations when a field references that type alias.
+    // Bug: numeric type aliases with explicit SQL type were incorrectly built as JSONB.
+
+    use cdm_plugin_interface::{Delta, TypeAliasDefinition, TypeExpression};
+
+    let mut type_aliases = HashMap::new();
+    type_aliases.insert(
+        "ID".to_string(),
+        TypeAliasDefinition {
+            name: "ID".to_string(),
+            alias_type: TypeExpression::Identifier {
+                name: "number".to_string(),
+            },
+            config: serde_json::json!({
+                "type": "INTEGER"
+            }),
+            entity_id: None,
+        },
+    );
+
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            parents: vec![],
+            fields: vec![FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "ID".to_string(),
+                },
+                optional: false,
+                default: None,
+                entity_id: None,
+                config: serde_json::json!({}),
+            }],
+            entity_id: None,
+            config: serde_json::json!({}),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases,
+        models: models.clone(),
+    };
+
+    // Simulate adding the User model
+    let deltas = vec![Delta::ModelAdded {
+        name: "User".to_string(),
+        after: models.get("User").unwrap().clone(),
+    }];
+
+    let config = serde_json::json!({
+        "dialect": "postgresql",
+        "pluralize_table_names": false
+    });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+    assert_eq!(files.len(), 2);
+
+    let up_sql = &files[0].content;
+
+    // The field should use INTEGER (from type alias config), not JSONB
+    assert!(
+        up_sql.contains("\"id\" INTEGER NOT NULL"),
+        "Expected 'id' column to be INTEGER in migration, but got:\n{}",
+        up_sql
+    );
+    assert!(
+        !up_sql.contains("JSONB"),
+        "Should not contain JSONB in migration, but got:\n{}",
+        up_sql
+    );
 }
 
 // ============================================================================

@@ -1,4 +1,5 @@
-use cdm_plugin_interface::{TypeExpression, JSON};
+use cdm_plugin_interface::{TypeAliasDefinition, TypeExpression, JSON};
+use std::collections::HashMap;
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Dialect {
@@ -19,14 +20,15 @@ impl Dialect {
     }
 }
 
-pub struct TypeMapper {
+pub struct TypeMapper<'a> {
     dialect: Dialect,
     default_string_length: i64,
     number_type: String,
+    type_aliases: &'a HashMap<String, TypeAliasDefinition>,
 }
 
-impl TypeMapper {
-    pub fn new(config: &JSON) -> Self {
+impl<'a> TypeMapper<'a> {
+    pub fn new(config: &JSON, type_aliases: &'a HashMap<String, TypeAliasDefinition>) -> Self {
         let dialect = Dialect::from_config(config);
 
         let default_string_length = config
@@ -44,6 +46,7 @@ impl TypeMapper {
             dialect,
             default_string_length,
             number_type,
+            type_aliases,
         }
     }
 
@@ -59,7 +62,7 @@ impl TypeMapper {
     fn map_base_type(&self, type_expr: &TypeExpression) -> String {
         match type_expr {
             TypeExpression::Identifier { name } => {
-                // Check for built-in types
+                // Check for built-in types first
                 match name.as_str() {
                     "string" => match self.dialect {
                         Dialect::PostgreSQL => format!("VARCHAR({})", self.default_string_length),
@@ -84,11 +87,23 @@ impl TypeMapper {
                         Dialect::PostgreSQL => "JSONB".to_string(),
                         Dialect::SQLite => "TEXT".to_string(),
                     },
-                    // Model references or type aliases
-                    _ => match self.dialect {
-                        Dialect::PostgreSQL => "JSONB".to_string(),
-                        Dialect::SQLite => "TEXT".to_string(),
-                    },
+                    // Check if it's a type alias
+                    _ => {
+                        if let Some(type_alias) = self.type_aliases.get(name) {
+                            // First check if the type alias has an explicit SQL type override
+                            if let Some(sql_type) = type_alias.config.get("type").and_then(|t| t.as_str()) {
+                                return sql_type.to_string();
+                            }
+                            // Otherwise, recursively resolve the underlying type
+                            self.map_base_type(&type_alias.alias_type)
+                        } else {
+                            // Model references or unknown types default to JSON
+                            match self.dialect {
+                                Dialect::PostgreSQL => "JSONB".to_string(),
+                                Dialect::SQLite => "TEXT".to_string(),
+                            }
+                        }
+                    }
                 }
             }
 

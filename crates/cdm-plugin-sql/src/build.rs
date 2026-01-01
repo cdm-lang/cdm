@@ -5,7 +5,7 @@ use crate::utils::generate_create_table;
 /// Generates SQL DDL from the schema
 pub fn build(schema: Schema, config: JSON, _utils: &Utils) -> Vec<OutputFile> {
     let mut files = Vec::new();
-    let type_mapper = TypeMapper::new(&config);
+    let type_mapper = TypeMapper::new(&config, &schema.type_aliases);
     let dialect = type_mapper.dialect();
 
     // Generate schema file
