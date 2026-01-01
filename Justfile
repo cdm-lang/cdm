@@ -12,6 +12,20 @@ generate:
 build: generate
   cargo build
 
+# Build all plugins
+build-plugins:
+  #!/usr/bin/env bash
+  set -e
+  for dir in crates/cdm-plugin-*; do
+    if [ -f "$dir/cdm-plugin.json" ]; then
+      echo "Building $(basename "$dir")..."
+      cd "$dir"
+      make build
+      cd ../..
+    fi
+  done
+  echo "✓ All plugins built successfully"
+
 # Run
 run *args: generate
   cargo run -- {{args}}
@@ -21,11 +35,11 @@ clean:
   rm -rf crates/grammar/src
   cargo clean
 
-test *args:
+test *args: build-plugins
   cargo test -- {{args}}
   cd editors/vscode-cdm && npm test
 
-testcoverage:
+testcoverage: build-plugins
   cargo llvm-cov --html --open
   cd editors/vscode-cdm && npm run test:coverage
 

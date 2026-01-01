@@ -64,8 +64,15 @@ pub fn resolve_plugin_path(import: &PluginImport) -> Result<PathBuf> {
 
             Ok(wasm_path)
         }
-        Some(PluginSource::Git { url }) => {
-            resolve_git_plugin(url, &import.name, &import.global_config)
+        Some(PluginSource::Git { url, path }) => {
+            // Extract git_path from global config if provided, otherwise use path from source
+            let git_path = import.global_config.as_ref()
+                .and_then(|c| c.get("git_path"))
+                .and_then(|p| p.as_str())
+                .map(|s| s.to_string())
+                .or_else(|| path.clone());
+
+            resolve_git_plugin(url, &import.global_config, git_path.as_deref())
                 .map_err(|e| anyhow::anyhow!("{}", e))
         }
         None => {
@@ -157,9 +164,9 @@ pub fn resolve_from_registry(plugin_name: &str, config: &Option<JSON>) -> Result
 ///
 /// This function:
 /// 1. Clones or updates the git repository
-/// 2. Extracts the WASM file from the repository
+/// 2. Extracts the WASM file from the repository (optionally from a subdirectory)
 /// 3. Returns the path to the WASM file
-pub fn resolve_git_plugin(url: &str, plugin_name: &str, config: &Option<JSON>) -> Result<PathBuf, String> {
+pub fn resolve_git_plugin(url: &str, config: &Option<JSON>, git_path: Option<&str>) -> Result<PathBuf, String> {
     use crate::git_plugin;
 
     // Extract git ref from config (branch, tag, or commit)
@@ -173,8 +180,8 @@ pub fn resolve_git_plugin(url: &str, plugin_name: &str, config: &Option<JSON>) -
     let repo_path = git_plugin::clone_git_plugin(url, git_ref)
         .map_err(|e| format!("Failed to clone git repository '{}': {}", url, e))?;
 
-    // Extract WASM file
-    let wasm_path = git_plugin::extract_wasm_from_repo(&repo_path, plugin_name)
+    // Extract WASM file (optionally from subdirectory)
+    let wasm_path = git_plugin::extract_wasm_from_repo(&repo_path, git_path)
         .map_err(|e| format!("Failed to extract WASM from git repository: {}", e))?;
 
     Ok(wasm_path)

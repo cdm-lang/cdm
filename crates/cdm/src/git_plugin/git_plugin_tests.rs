@@ -49,7 +49,7 @@ fn test_extract_wasm_from_repo_no_manifest() {
     let temp_dir = TempDir::new().unwrap();
     let repo_path = temp_dir.path();
 
-    let result = extract_wasm_from_repo(repo_path, "test-plugin");
+    let result = extract_wasm_from_repo(repo_path, None);
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("No cdm-plugin.json found"));
 }
@@ -66,7 +66,7 @@ fn test_extract_wasm_from_repo_invalid_json() {
     let manifest_path = repo_path.join("cdm-plugin.json");
     fs::write(&manifest_path, "invalid json").unwrap();
 
-    let result = extract_wasm_from_repo(repo_path, "test-plugin");
+    let result = extract_wasm_from_repo(repo_path, None);
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("Failed to parse"));
 }
@@ -87,7 +87,7 @@ fn test_extract_wasm_from_repo_no_wasm_field() {
     });
     fs::write(&manifest_path, serde_json::to_string(&manifest_content).unwrap()).unwrap();
 
-    let result = extract_wasm_from_repo(repo_path, "test-plugin");
+    let result = extract_wasm_from_repo(repo_path, None);
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("No wasm.file specified"));
 }
@@ -111,7 +111,7 @@ fn test_extract_wasm_from_repo_wasm_file_not_found() {
     });
     fs::write(&manifest_path, serde_json::to_string(&manifest_content).unwrap()).unwrap();
 
-    let result = extract_wasm_from_repo(repo_path, "test-plugin");
+    let result = extract_wasm_from_repo(repo_path, None);
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("WASM file not found"));
 }
@@ -139,7 +139,7 @@ fn test_extract_wasm_from_repo_success() {
     let wasm_path = repo_path.join("plugin.wasm");
     fs::write(&wasm_path, b"wasm content").unwrap();
 
-    let result = extract_wasm_from_repo(repo_path, "test-plugin");
+    let result = extract_wasm_from_repo(repo_path, None);
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), wasm_path);
 }
@@ -168,9 +168,53 @@ fn test_extract_wasm_from_repo_nested_path() {
     let wasm_path = repo_path.join("target/release/plugin.wasm");
     fs::write(&wasm_path, b"wasm content").unwrap();
 
-    let result = extract_wasm_from_repo(repo_path, "test-plugin");
+    let result = extract_wasm_from_repo(repo_path, None);
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), wasm_path);
+}
+
+#[test]
+fn test_extract_wasm_from_repo_with_subdir() {
+    use std::fs;
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let repo_path = temp_dir.path();
+
+    // Create subdirectory structure
+    let subdir = "crates/my-plugin";
+    fs::create_dir_all(repo_path.join(subdir)).unwrap();
+
+    // Create manifest in subdirectory
+    let manifest_path = repo_path.join(subdir).join("cdm-plugin.json");
+    let manifest_content = serde_json::json!({
+        "name": "my-plugin",
+        "version": "1.0.0",
+        "wasm": {
+            "file": "plugin.wasm"
+        }
+    });
+    fs::write(&manifest_path, serde_json::to_string(&manifest_content).unwrap()).unwrap();
+
+    // Create wasm file in subdirectory
+    let wasm_path = repo_path.join(subdir).join("plugin.wasm");
+    fs::write(&wasm_path, b"wasm content").unwrap();
+
+    let result = extract_wasm_from_repo(repo_path, Some(subdir));
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), wasm_path);
+}
+
+#[test]
+fn test_extract_wasm_from_repo_subdir_not_found() {
+    use tempfile::TempDir;
+
+    let temp_dir = TempDir::new().unwrap();
+    let repo_path = temp_dir.path();
+
+    let result = extract_wasm_from_repo(repo_path, Some("nonexistent/path"));
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("No cdm-plugin.json found in repository subdirectory"));
 }
 
 #[test]

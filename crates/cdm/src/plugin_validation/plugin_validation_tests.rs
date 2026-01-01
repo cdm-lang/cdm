@@ -17,8 +17,11 @@ fn load_fixture(name: &str) -> Result<LoadedFileTree, Vec<Diagnostic>> {
 
 // Helper to check if the docs plugin WASM exists
 fn docs_plugin_exists() -> bool {
+    // The test fixtures use "../../../../crates/cdm-plugin-docs" as the plugin path
+    // relative to the test_fixtures/plugin_validation directory.
+    // So from CARGO_MANIFEST_DIR (crates/cdm), we need to go to ../../crates/cdm-plugin-docs
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
-        .join("../../target/wasm32-wasip1/release/cdm_plugin_docs.wasm")
+        .join("../../crates/cdm-plugin-docs/target/wasm32-wasip1/release/cdm_plugin_docs.wasm")
         .exists()
 }
 

@@ -27,14 +27,32 @@ pub fn clone_git_plugin(url: &str, git_ref: &str) -> Result<PathBuf> {
 }
 
 /// Extract WASM file path from a cloned plugin repository
-pub fn extract_wasm_from_repo(repo_path: &Path, _plugin_name: &str) -> Result<PathBuf> {
+///
+/// If `subdir` is provided, looks for cdm-plugin.json in that subdirectory.
+/// Otherwise, looks in the repository root.
+pub fn extract_wasm_from_repo(repo_path: &Path, subdir: Option<&str>) -> Result<PathBuf> {
+    // Determine the base path (repo root or subdirectory)
+    let base_path = if let Some(sub) = subdir {
+        repo_path.join(sub)
+    } else {
+        repo_path.to_path_buf()
+    };
+
     // Read cdm-plugin.json manifest
-    let manifest_path = repo_path.join("cdm-plugin.json");
+    let manifest_path = base_path.join("cdm-plugin.json");
     if !manifest_path.exists() {
-        anyhow::bail!(
-            "No cdm-plugin.json found in repository at {}",
-            repo_path.display()
-        );
+        if let Some(sub) = subdir {
+            anyhow::bail!(
+                "No cdm-plugin.json found in repository subdirectory: {}\nFull path: {}",
+                sub,
+                manifest_path.display()
+            );
+        } else {
+            anyhow::bail!(
+                "No cdm-plugin.json found in repository at {}",
+                repo_path.display()
+            );
+        }
     }
 
     let manifest_content = fs::read_to_string(&manifest_path)
@@ -50,7 +68,7 @@ pub fn extract_wasm_from_repo(repo_path: &Path, _plugin_name: &str) -> Result<Pa
         .and_then(|f| f.as_str())
         .ok_or_else(|| anyhow::anyhow!("No wasm.file specified in cdm-plugin.json"))?;
 
-    let wasm_path = repo_path.join(wasm_file);
+    let wasm_path = base_path.join(wasm_file);
     if !wasm_path.exists() {
         anyhow::bail!(
             "WASM file not found: {}\nSpecified in cdm-plugin.json as: {}",

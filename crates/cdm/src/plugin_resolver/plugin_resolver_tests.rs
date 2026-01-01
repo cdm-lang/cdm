@@ -274,40 +274,64 @@ fn test_resolve_from_registry_no_version() {
 #[test]
 fn test_resolve_git_plugin_default_ref() {
     // Test that default git ref is "main"
+    let temp_dir = TempDir::new().unwrap();
+    unsafe {
+        std::env::set_var("CDM_CACHE_DIR", temp_dir.path());
+    }
+
     let config = None;
 
     let result = resolve_git_plugin(
-        "https://github.com/test/repo.git",
-        "test-plugin",
+        "https://github.com/cdm-lang/cdm.git",
         &config,
+        None,
     );
 
-    // Will fail because no git repository, but validates ref parsing
+    // Will fail because no cdm-plugin.json in root, but validates ref parsing and cloning
     assert!(result.is_err());
+
+    unsafe {
+        std::env::remove_var("CDM_CACHE_DIR");
+    }
 }
 
 #[test]
 fn test_resolve_git_plugin_custom_ref() {
+    let temp_dir = TempDir::new().unwrap();
+    unsafe {
+        std::env::set_var("CDM_CACHE_DIR", temp_dir.path());
+    }
+
     let config = Some(serde_json::json!({
         "git_ref": "develop"
     }));
 
     let result = resolve_git_plugin(
-        "https://github.com/test/repo.git",
-        "test-plugin",
+        "https://github.com/cdm-lang/cdm.git",
         &config,
+        None,
     );
 
-    // Will fail because no git repository
+    // Will fail because develop branch doesn't exist or no cdm-plugin.json
     assert!(result.is_err());
+
+    unsafe {
+        std::env::remove_var("CDM_CACHE_DIR");
+    }
 }
 
 #[test]
 fn test_resolve_plugin_path_git_source() {
+    let temp_dir = TempDir::new().unwrap();
+    unsafe {
+        std::env::set_var("CDM_CACHE_DIR", temp_dir.path());
+    }
+
     let import = PluginImport {
         name: "test-plugin".to_string(),
         source: Some(PluginSource::Git {
-            url: "https://github.com/test/repo.git".to_string(),
+            url: "https://github.com/cdm-lang/cdm.git".to_string(),
+            path: None,
         }),
         global_config: None,
         span: test_span(),
@@ -315,8 +339,85 @@ fn test_resolve_plugin_path_git_source() {
     };
 
     let result = resolve_plugin_path(&import);
-    // Will fail because no git repository
+    // Will fail because no cdm-plugin.json in root
     assert!(result.is_err());
+
+    unsafe {
+        std::env::remove_var("CDM_CACHE_DIR");
+    }
+}
+
+#[test]
+fn test_resolve_git_plugin_with_git_path() {
+    // Test that git_path config is used to find plugin in subdirectory
+    let temp_dir = TempDir::new().unwrap();
+    unsafe {
+        std::env::set_var("CDM_CACHE_DIR", temp_dir.path());
+    }
+
+    let import = PluginImport {
+        name: "test-plugin".to_string(),
+        source: Some(PluginSource::Git {
+            url: "https://github.com/cdm-lang/cdm.git".to_string(),
+            path: None,
+        }),
+        global_config: Some(serde_json::json!({
+            "git_path": "crates/nonexistent-plugin"
+        })),
+        span: test_span(),
+        source_file: PathBuf::from("/test/schema.cdm"),
+    };
+
+    let result = resolve_plugin_path(&import);
+
+    // Will fail because the subdirectory doesn't have a cdm-plugin.json
+    assert!(result.is_err());
+    let err = result.unwrap_err().to_string();
+    // Check that the error mentions the subdirectory
+    assert!(err.contains("crates/nonexistent-plugin"), "Error was: {}", err);
+
+    unsafe {
+        std::env::remove_var("CDM_CACHE_DIR");
+    }
+}
+
+#[test]
+fn test_resolve_git_plugin_with_git_path_success() {
+    // Test that git_path correctly finds the manifest in a subdirectory
+    // Note: This will fail on WASM file lookup since WASM files aren't checked into git
+    let temp_dir = TempDir::new().unwrap();
+    unsafe {
+        std::env::set_var("CDM_CACHE_DIR", temp_dir.path());
+    }
+
+    let import = PluginImport {
+        name: "sql".to_string(),
+        source: Some(PluginSource::Git {
+            url: "https://github.com/cdm-lang/cdm.git".to_string(),
+            path: None,
+        }),
+        global_config: Some(serde_json::json!({
+            "git_path": "crates/cdm-plugin-sql"
+        })),
+        span: test_span(),
+        source_file: PathBuf::from("/test/schema.cdm"),
+    };
+
+    let result = resolve_plugin_path(&import);
+
+    // Will fail either because:
+    // 1. Git clone fails (transient network/filesystem issues)
+    // 2. WASM file doesn't exist (it's a build artifact, not in git)
+    // Either way, we verify it attempted to use the git_path
+    assert!(result.is_err());
+    let err = result.unwrap_err().to_string();
+    // Verify it tried to use the subdirectory path (either in success path or error)
+    assert!(err.contains("cdm-plugin-sql"),
+            "Expected error to mention the subdirectory 'cdm-plugin-sql', got: {}", err);
+
+    unsafe {
+        std::env::remove_var("CDM_CACHE_DIR");
+    }
 }
 
 #[test]

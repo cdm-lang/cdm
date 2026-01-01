@@ -39,7 +39,7 @@ pub struct PluginImport {
 /// Source location for a plugin
 #[derive(Debug, Clone)]
 pub enum PluginSource {
-    Git { url: String },
+    Git { url: String, path: Option<String> },
     Path { path: String },
 }
 
@@ -329,7 +329,8 @@ fn parse_plugin_source(node: tree_sitter::Node, source: &str) -> PluginSource {
             "git_reference" => {
                 if let Some(url_node) = child.child_by_field_name("url") {
                     return PluginSource::Git {
-                        url: node_text(url_node, source).to_string()
+                        url: node_text(url_node, source).to_string(),
+                        path: None, // Will be extracted from global config
                     };
                 }
             }
