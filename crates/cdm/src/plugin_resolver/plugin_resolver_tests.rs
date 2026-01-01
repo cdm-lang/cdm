@@ -494,3 +494,34 @@ fn test_resolve_from_registry_with_version_constraint() {
     // Should not be a version constraint error
     assert!(!err.contains("Invalid version constraint"));
 }
+
+#[test]
+fn test_resolve_git_plugin_from_repo_root_success() {
+    // Test successfully loading a plugin from the root of a GitHub repository
+    // This test uses a dedicated test repository with a proper plugin structure
+    let temp_dir = TempDir::new().unwrap();
+    unsafe {
+        std::env::set_var("CDM_CACHE_DIR", temp_dir.path());
+    }
+
+    let import = PluginImport {
+        name: "cdm-plugin-test".to_string(),
+        source: Some(PluginSource::Git {
+            url: "https://github.com/cdm-lang/cdm-plugin-test.git".to_string(),
+            path: None,
+        }),
+        global_config: None,
+        span: test_span(),
+        source_file: PathBuf::from("/test/schema.cdm"),
+    };
+
+    let result = resolve_plugin_path(&import);
+
+    unsafe {
+        std::env::remove_var("CDM_CACHE_DIR");
+    }
+
+    assert!(result.is_ok(), "Failed to resolve plugin from GitHub repo root: {:?}", result.err());
+    let wasm_path = result.unwrap();
+    assert!(wasm_path.exists(), "WASM file does not exist at {:?}", wasm_path);
+}
