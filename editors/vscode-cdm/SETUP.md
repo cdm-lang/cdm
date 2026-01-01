@@ -1,11 +1,11 @@
-# VS Code Extension Setup Guide
+# Editor Extension Setup Guide
 
-This guide will help you set up and test the CDM VS Code extension.
+This guide will help you set up and test the CDM editor extension. This extension works with VS Code, Cursor, and other editors supporting the VS Code extension API.
 
 ## Prerequisites
 
 - Node.js 18+ and npm
-- VS Code 1.75+
+- VS Code, Cursor, or another compatible editor
 - Rust and Cargo (for building the LSP server)
 
 ## Step 1: Build the LSP Server
@@ -51,9 +51,9 @@ This compiles TypeScript to JavaScript in the `out/` directory.
 
 ### Option A: Using F5 (Recommended for Development)
 
-1. Open the extension directory in VS Code:
+1. Open the extension directory in your editor:
    ```bash
-   code editors/vscode-cdm
+   code editors/vscode-cdm  # or: cursor editors/vscode-cdm
    ```
 
 2. Press `F5` (or Run → Start Debugging)
@@ -75,16 +75,19 @@ This compiles TypeScript to JavaScript in the `out/` directory.
 
 2. Install the VSIX:
    ```bash
+   # VS Code
    code --install-extension cdm-0.1.0.vsix
+   # Cursor
+   cursor --install-extension cdm-0.1.0.vsix
    ```
 
-3. Reload VS Code and open a `.cdm` file
+3. Reload your editor and open a `.cdm` file
 
 ## Step 5: Configure LSP Server Path (If Needed)
 
 If you didn't install `cdm-lsp` globally, you need to tell the extension where to find it:
 
-1. Open VS Code settings (Cmd+, or Ctrl+,)
+1. Open your editor's settings (Cmd+, or Ctrl+,)
 2. Search for "cdm server path"
 3. Set `cdm.server.path` to the absolute path of your LSP server:
    ```
@@ -191,11 +194,11 @@ User {
 - [ ] File has `.cdm` extension
 - [ ] Language mode shows "CDM" in bottom right
 - [ ] LSP server is running (check Output channel)
-- [ ] Try: Cmd+Shift+P → "CDM: Restart Language Server"
+- [ ] Try: Cmd+Shift+P (or Ctrl+Shift+P) → "CDM: Restart Language Server"
 
 #### "Extension not activating"
 
-**Solution**: Check VS Code's developer console:
+**Solution**: Check your editor's developer console:
 - Help → Toggle Developer Tools
 - Look for errors in the Console tab
 
@@ -213,20 +216,30 @@ User {
 1. Edit Rust code in `crates/cdm-lsp/`
 2. Rebuild: `cargo build -p cdm-lsp --release`
 3. Restart the language server:
-   - In VS Code: Cmd+Shift+P → "CDM: Restart Language Server"
+   - Press Cmd+Shift+P (or Ctrl+Shift+P) → "CDM: Restart Language Server"
 
-## Publishing (Future)
+## Publishing
 
-When ready to publish to the VS Code marketplace:
+When ready to publish to the marketplaces:
 
 ```bash
 # Build and package
 npm run vscode:prepublish
 npm run package
 
-# Publish (requires marketplace account)
+# Publish to VS Code Marketplace only
+npm run publish:vscode
+
+# Publish to Open VSX Registry only (for Cursor, VSCodium, etc.)
+npm run publish:openvsx
+
+# Publish to both marketplaces
 npm run publish
 ```
+
+Note: Publishing requires accounts on the respective marketplaces:
+- [VS Code Marketplace](https://marketplace.visualstudio.com/manage)
+- [Open VSX Registry](https://open-vsx.org/)
 
 ## Next Steps
 

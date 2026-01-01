@@ -1,6 +1,6 @@
-# CDM Language Support for VS Code
+# CDM Language Support
 
-Official Visual Studio Code extension for the CDM (Contextual Data Model) language.
+Editor extension for the CDM (Contextual Data Model) language. Works with VS Code, Cursor, and other editors supporting the VS Code extension API.
 
 ## Features
 
@@ -29,7 +29,7 @@ Or, if you're developing the extension:
 # Build the LSP server
 cargo build -p cdm-lsp --release
 
-# Add to PATH or configure the path in VS Code settings
+# Add to PATH or configure the path in your editor settings
 ```
 
 ## Installation
@@ -46,12 +46,16 @@ cargo build -p cdm-lsp --release
 
 2. Install the generated `.vsix` file:
    ```bash
+   # VS Code
    code --install-extension cdm-0.1.0.vsix
+   # Cursor
+   cursor --install-extension cdm-0.1.0.vsix
    ```
 
-### From VS Code Marketplace (Coming Soon)
+### From Marketplace
 
-Search for "CDM Language Support" in the VS Code extensions marketplace.
+- **VS Code**: Search for "CDM Language Support" in the VS Code extensions marketplace
+- **Open VSX** (Cursor, VSCodium, etc.): Search for "CDM Language Support" in the Open VSX Registry
 
 ## Extension Settings
 
@@ -120,17 +124,17 @@ The extension will:
 ### Errors not showing up
 
 1. Ensure the file has a `.cdm` extension
-2. Check if the language mode is set to "CDM" (bottom right of VS Code)
-3. Try restarting the language server with the command palette (Ctrl+Shift+P): "CDM: Restart Language Server"
+2. Check if the language mode is set to "CDM" (bottom right of the editor)
+3. Try restarting the language server with the command palette (Ctrl+Shift+P / Cmd+Shift+P): "CDM: Restart Language Server"
 
 ## Development
 
 ### Running the Extension in Development Mode
 
-1. Open the extension directory in VS Code:
+1. Open the extension directory in your editor:
    ```bash
    cd editors/vscode-cdm
-   code .
+   code .  # or: cursor .
    ```
 
 2. Install dependencies:
@@ -149,7 +153,20 @@ npm run compile
 npm run package
 ```
 
-This creates a `.vsix` file that can be installed in VS Code.
+This creates a `.vsix` file that can be installed in any compatible editor.
+
+### Publishing
+
+```bash
+# Publish to VS Code Marketplace only
+npm run publish:vscode
+
+# Publish to Open VSX Registry only
+npm run publish:openvsx
+
+# Publish to both
+npm run publish
+```
 
 ## Known Issues
 
