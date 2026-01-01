@@ -67,6 +67,7 @@ fn clone_git_repo(url: &str, dest: &Path, git_ref: &str) -> Result<()> {
     println!("Cloning git repository {} (ref: {})...", url, git_ref);
 
     let output = Command::new("git")
+        .env("GIT_TERMINAL_PROMPT", "0")
         .arg("clone")
         .arg("--depth=1")
         .arg("--branch")
@@ -96,6 +97,7 @@ fn update_git_repo(repo_path: &Path, git_ref: &str) -> Result<()> {
 
     // Fetch latest changes
     let fetch_output = Command::new("git")
+        .env("GIT_TERMINAL_PROMPT", "0")
         .arg("-C")
         .arg(repo_path)
         .arg("fetch")
@@ -111,6 +113,7 @@ fn update_git_repo(repo_path: &Path, git_ref: &str) -> Result<()> {
 
     // Checkout the ref
     let checkout_output = Command::new("git")
+        .env("GIT_TERMINAL_PROMPT", "0")
         .arg("-C")
         .arg(repo_path)
         .arg("checkout")
@@ -125,6 +128,7 @@ fn update_git_repo(repo_path: &Path, git_ref: &str) -> Result<()> {
 
     // Pull latest changes
     let pull_output = Command::new("git")
+        .env("GIT_TERMINAL_PROMPT", "0")
         .arg("-C")
         .arg(repo_path)
         .arg("pull")
