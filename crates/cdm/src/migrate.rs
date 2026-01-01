@@ -148,7 +148,10 @@ pub fn migrate(
                 &plugin_import.name
             )?;
 
-            match runner.migrate(plugin_schema, deltas.clone(), global_config.clone()) {
+            // Transform deltas to unwrap configs for this specific plugin
+            let plugin_deltas = transform_deltas_for_plugin(&deltas, &plugin_import.name);
+
+            match runner.migrate(plugin_schema, plugin_deltas, global_config.clone()) {
                 Ok(migration_files) => {
                     println!("  Generated {} migration file(s)", migration_files.len());
                     any_success = true;
@@ -755,6 +758,130 @@ fn values_equal(a: &Option<cdm_plugin_interface::Value>, b: &Option<cdm_plugin_i
 fn configs_equal(a: &serde_json::Value, b: &serde_json::Value) -> bool {
     // Use serde_json's built-in equality
     a == b
+}
+
+/// Transform deltas to unwrap plugin-specific configs.
+///
+/// When deltas are computed, they use schemas built with empty plugin_name,
+/// which results in configs wrapped like: `{"sql": {"table_name": "...", "indexes": [...]}}`
+///
+/// But plugins expect configs in unwrapped format: `{"table_name": "...", "indexes": [...]}`
+///
+/// This function transforms all deltas to unwrap the config for a specific plugin.
+fn transform_deltas_for_plugin(deltas: &[Delta], plugin_name: &str) -> Vec<Delta> {
+    deltas.iter().map(|delta| {
+        match delta {
+            Delta::ModelAdded { name, after } => Delta::ModelAdded {
+                name: name.clone(),
+                after: transform_model_definition(after, plugin_name),
+            },
+            Delta::ModelRemoved { name, before } => Delta::ModelRemoved {
+                name: name.clone(),
+                before: transform_model_definition(before, plugin_name),
+            },
+            Delta::ModelRenamed { old_name, new_name, id, before, after } => Delta::ModelRenamed {
+                old_name: old_name.clone(),
+                new_name: new_name.clone(),
+                id: *id,
+                before: transform_model_definition(before, plugin_name),
+                after: transform_model_definition(after, plugin_name),
+            },
+            Delta::FieldAdded { model, field, after } => Delta::FieldAdded {
+                model: model.clone(),
+                field: field.clone(),
+                after: transform_field_definition(after, plugin_name),
+            },
+            Delta::FieldRemoved { model, field, before } => Delta::FieldRemoved {
+                model: model.clone(),
+                field: field.clone(),
+                before: transform_field_definition(before, plugin_name),
+            },
+            Delta::FieldRenamed { model, old_name, new_name, id, before, after } => Delta::FieldRenamed {
+                model: model.clone(),
+                old_name: old_name.clone(),
+                new_name: new_name.clone(),
+                id: *id,
+                before: transform_field_definition(before, plugin_name),
+                after: transform_field_definition(after, plugin_name),
+            },
+            Delta::ModelConfigChanged { model, before, after } => Delta::ModelConfigChanged {
+                model: model.clone(),
+                before: unwrap_config(before, plugin_name),
+                after: unwrap_config(after, plugin_name),
+            },
+            Delta::FieldConfigChanged { model, field, before, after } => Delta::FieldConfigChanged {
+                model: model.clone(),
+                field: field.clone(),
+                before: unwrap_config(before, plugin_name),
+                after: unwrap_config(after, plugin_name),
+            },
+            Delta::TypeAliasAdded { name, after } => Delta::TypeAliasAdded {
+                name: name.clone(),
+                after: transform_type_alias_definition(after, plugin_name),
+            },
+            Delta::TypeAliasRemoved { name, before } => Delta::TypeAliasRemoved {
+                name: name.clone(),
+                before: transform_type_alias_definition(before, plugin_name),
+            },
+            Delta::TypeAliasRenamed { old_name, new_name, id, before, after } => Delta::TypeAliasRenamed {
+                old_name: old_name.clone(),
+                new_name: new_name.clone(),
+                id: *id,
+                before: transform_type_alias_definition(before, plugin_name),
+                after: transform_type_alias_definition(after, plugin_name),
+            },
+            // These deltas don't have configs to transform
+            other => other.clone(),
+        }
+    }).collect()
+}
+
+/// Transform a ModelDefinition to unwrap the plugin-specific config
+fn transform_model_definition(model: &cdm_plugin_interface::ModelDefinition, plugin_name: &str) -> cdm_plugin_interface::ModelDefinition {
+    cdm_plugin_interface::ModelDefinition {
+        name: model.name.clone(),
+        parents: model.parents.clone(),
+        fields: model.fields.iter().map(|f| transform_field_definition(f, plugin_name)).collect(),
+        config: unwrap_config(&model.config, plugin_name),
+        entity_id: model.entity_id,
+    }
+}
+
+/// Transform a FieldDefinition to unwrap the plugin-specific config
+fn transform_field_definition(field: &cdm_plugin_interface::FieldDefinition, plugin_name: &str) -> cdm_plugin_interface::FieldDefinition {
+    cdm_plugin_interface::FieldDefinition {
+        name: field.name.clone(),
+        field_type: field.field_type.clone(),
+        optional: field.optional,
+        default: field.default.clone(),
+        config: unwrap_config(&field.config, plugin_name),
+        entity_id: field.entity_id,
+    }
+}
+
+/// Transform a TypeAliasDefinition to unwrap the plugin-specific config
+fn transform_type_alias_definition(alias: &cdm_plugin_interface::TypeAliasDefinition, plugin_name: &str) -> cdm_plugin_interface::TypeAliasDefinition {
+    cdm_plugin_interface::TypeAliasDefinition {
+        name: alias.name.clone(),
+        alias_type: alias.alias_type.clone(),
+        config: unwrap_config(&alias.config, plugin_name),
+        entity_id: alias.entity_id,
+    }
+}
+
+/// Unwrap a config that may be wrapped in plugin names.
+///
+/// Input format (wrapped): `{"sql": {"table_name": "...", "indexes": [...]}}`
+/// Output format (unwrapped): `{"table_name": "...", "indexes": [...]}`
+fn unwrap_config(config: &serde_json::Value, plugin_name: &str) -> serde_json::Value {
+    // If the config has the plugin name as a key with an object value, extract it
+    if let Some(plugin_config) = config.get(plugin_name) {
+        if plugin_config.is_object() {
+            return plugin_config.clone();
+        }
+    }
+    // Otherwise return an empty object (plugin has no config)
+    serde_json::json!({})
 }
 
 #[cfg(test)]
