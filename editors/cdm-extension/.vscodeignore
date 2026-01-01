@@ -8,3 +8,4 @@ coverage/**
 **/*.ts
 tsconfig.json
 node_modules/**/.bin/**
+coverage

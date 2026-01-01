@@ -1,6 +1,6 @@
 {
   "name": "cdm",
-  "displayName": "CDM Language Support",
+  "displayName": "Contextual Data Models (CDM) Language Support",
   "description": "Language support for CDM (Contextual Data Model)",
   "version": "0.1.0",
   "publisher": "larner-dev",
