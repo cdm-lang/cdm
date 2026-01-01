@@ -260,6 +260,127 @@ fn generate_constraints_and_indexes(config: &JSON, dialect: Dialect) -> String {
     sql
 }
 
+/// Represents an index extracted from config for comparison and SQL generation
+#[derive(Debug, Clone)]
+pub struct IndexInfo {
+    pub name: String,
+    pub fields: Vec<String>,
+    pub is_unique: bool,
+    pub is_primary: bool,
+    pub method: Option<String>,
+    pub where_clause: Option<String>,
+}
+
+/// Extract indexes from a model config JSON
+pub fn extract_indexes(config: &JSON, table_name: &str) -> Vec<IndexInfo> {
+    let mut indexes = Vec::new();
+
+    if let Some(index_array) = config.get("indexes").and_then(|v| v.as_array()) {
+        for (i, index) in index_array.iter().enumerate() {
+            let fields: Vec<String> = index
+                .get("fields")
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter().filter_map(|f| f.as_str().map(String::from)).collect())
+                .unwrap_or_default();
+
+            if fields.is_empty() {
+                continue;
+            }
+
+            let is_primary = index.get("primary").and_then(|v| v.as_bool()).unwrap_or(false);
+            let is_unique = index.get("unique").and_then(|v| v.as_bool()).unwrap_or(false);
+
+            let name = index
+                .get("name")
+                .and_then(|v| v.as_str())
+                .map(String::from)
+                .unwrap_or_else(|| format!("idx_{}_{}", table_name, i));
+
+            let method = index.get("method").and_then(|v| v.as_str()).map(String::from);
+            let where_clause = index.get("where").and_then(|v| v.as_str()).map(String::from);
+
+            indexes.push(IndexInfo {
+                name,
+                fields,
+                is_unique,
+                is_primary,
+                method,
+                where_clause,
+            });
+        }
+    }
+
+    indexes
+}
+
+/// Generate CREATE INDEX SQL for a single index
+pub fn generate_create_index_sql(
+    index: &IndexInfo,
+    table_name: &str,
+    schema_prefix: &str,
+    dialect: Dialect,
+) -> String {
+    let mut sql = String::new();
+
+    let field_names: Vec<String> = index
+        .fields
+        .iter()
+        .map(|f| quote_identifier(f, dialect))
+        .collect();
+
+    if index.is_unique {
+        sql.push_str(&format!(
+            "CREATE UNIQUE INDEX {} ON {}{} ({});\n",
+            quote_identifier(&index.name, dialect),
+            schema_prefix,
+            quote_identifier(table_name, dialect),
+            field_names.join(", ")
+        ));
+    } else {
+        sql.push_str(&format!(
+            "CREATE INDEX {} ON {}{} ({})",
+            quote_identifier(&index.name, dialect),
+            schema_prefix,
+            quote_identifier(table_name, dialect),
+            field_names.join(", ")
+        ));
+
+        // Add index method (PostgreSQL only)
+        if dialect == Dialect::PostgreSQL {
+            if let Some(method) = &index.method {
+                sql.push_str(&format!(" USING {}", method.to_uppercase()));
+            }
+        }
+
+        // Add WHERE clause (PostgreSQL only)
+        if dialect == Dialect::PostgreSQL {
+            if let Some(where_clause) = &index.where_clause {
+                sql.push_str(&format!(" WHERE {}", where_clause));
+            }
+        }
+
+        sql.push_str(";\n");
+    }
+
+    sql
+}
+
+/// Generate DROP INDEX SQL for a single index
+pub fn generate_drop_index_sql(
+    index: &IndexInfo,
+    schema_prefix: &str,
+    dialect: Dialect,
+) -> String {
+    match dialect {
+        Dialect::PostgreSQL => {
+            format!("DROP INDEX {}{};\n", schema_prefix, quote_identifier(&index.name, dialect))
+        }
+        Dialect::SQLite => {
+            format!("DROP INDEX {};\n", quote_identifier(&index.name, dialect))
+        }
+    }
+}
+
 fn generate_standalone_indexes(
     table_name: &str,
     schema_prefix: &str,
@@ -267,56 +388,15 @@ fn generate_standalone_indexes(
     dialect: Dialect,
 ) -> String {
     let mut sql = String::new();
+    let indexes = extract_indexes(config, table_name);
 
-    if let Some(indexes) = config.get("indexes").and_then(|v| v.as_array()) {
-        for (i, index) in indexes.iter().enumerate() {
-            // Skip primary keys and unique constraints (already handled)
-            if index.get("primary").and_then(|v| v.as_bool()).unwrap_or(false) {
-                continue;
-            }
-            if index.get("unique").and_then(|v| v.as_bool()).unwrap_or(false) {
-                continue;
-            }
-
-            if let Some(fields) = index.get("fields").and_then(|v| v.as_array()) {
-                let field_names: Vec<String> = fields
-                    .iter()
-                    .filter_map(|f| f.as_str())
-                    .map(|f| quote_identifier(f, dialect))
-                    .collect();
-
-                // Generate index name
-                let index_name = if let Some(name) = index.get("name").and_then(|v| v.as_str()) {
-                    name.to_string()
-                } else {
-                    format!("idx_{}_{}", table_name, i)
-                };
-
-                sql.push_str(&format!("CREATE INDEX {} ON {}{} (",
-                    quote_identifier(&index_name, dialect),
-                    schema_prefix,
-                    quote_identifier(table_name, dialect)
-                ));
-                sql.push_str(&field_names.join(", "));
-                sql.push(')');
-
-                // Add index method (PostgreSQL only)
-                if dialect == Dialect::PostgreSQL {
-                    if let Some(method) = index.get("method").and_then(|v| v.as_str()) {
-                        sql.push_str(&format!(" USING {}", method.to_uppercase()));
-                    }
-                }
-
-                // Add WHERE clause (PostgreSQL only)
-                if dialect == Dialect::PostgreSQL {
-                    if let Some(where_clause) = index.get("where").and_then(|v| v.as_str()) {
-                        sql.push_str(&format!(" WHERE {}", where_clause));
-                    }
-                }
-
-                sql.push_str(";\n");
-            }
+    for index in indexes {
+        // Skip primary keys and unique constraints (handled as table constraints in CREATE TABLE)
+        if index.is_primary || index.is_unique {
+            continue;
         }
+
+        sql.push_str(&generate_create_index_sql(&index, table_name, schema_prefix, dialect));
     }
 
     sql
