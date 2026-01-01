@@ -13,5 +13,4 @@
 /npm/*.tgz
 
 # Git worktrees (Crystal)
-/worktrees/
-/worktree-*/
+/worktrees/*
