@@ -1,6 +1,32 @@
 {
   "version": 1,
-  "updated_at": "2026-01-01T00:00:00Z",
-  "latest": null,
-  "releases": {}
+  "updated_at": "2026-01-02T06:39:26Z",
+  "latest": "0.1.1",
+  "releases": {
+    "0.1.1": {
+      "release_date": "2026-01-02",
+      "platforms": {
+        "aarch64-apple-darwin": {
+          "url": "https://github.com/cdm-lang/cdm/releases/download/cdm-lsp-v0.1.1/cdm-lsp-aarch64-apple-darwin",
+          "checksum": "sha256:7e58c2ccde4297ff07be6ab460ce79c7fe19369901699e381a11a289709a0399"
+        },
+        "aarch64-unknown-linux-gnu": {
+          "url": "https://github.com/cdm-lang/cdm/releases/download/cdm-lsp-v0.1.1/cdm-lsp-aarch64-unknown-linux-gnu",
+          "checksum": "sha256:ae2b0635230a696c02ae75acef00bafe6fabf6b56fc2874491f87053bd7b2cfc"
+        },
+        "x86_64-apple-darwin": {
+          "url": "https://github.com/cdm-lang/cdm/releases/download/cdm-lsp-v0.1.1/cdm-lsp-x86_64-apple-darwin",
+          "checksum": "sha256:1bdba15fc3ad75af1b8a5c344ad3eeeae639415d5c9bdbb4540153f4dff39d42"
+        },
+        "x86_64-pc-windows-msvc.exe": {
+          "url": "https://github.com/cdm-lang/cdm/releases/download/cdm-lsp-v0.1.1/cdm-lsp-x86_64-pc-windows-msvc.exe",
+          "checksum": "sha256:eb185c03505454441389377aa48fc9614f8ac6783a30555e2715231767800f55"
+        },
+        "x86_64-unknown-linux-gnu": {
+          "url": "https://github.com/cdm-lang/cdm/releases/download/cdm-lsp-v0.1.1/cdm-lsp-x86_64-unknown-linux-gnu",
+          "checksum": "sha256:b6808748e112f627e371e21f56bf76eb6dcf2ca54a52daf02189528082545d5d"
+        }
+      }
+    }
+  }
 }
