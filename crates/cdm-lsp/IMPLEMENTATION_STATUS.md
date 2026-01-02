@@ -181,17 +181,17 @@ cargo test -p cdm-lsp
 **Status**: Complete and ready for testing
 
 **Files Created:**
-- `editors/vscode-cdm/package.json` - Extension manifest with configuration
-- `editors/vscode-cdm/src/extension.ts` (95 lines) - LSP client implementation
-- `editors/vscode-cdm/tsconfig.json` - TypeScript configuration
-- `editors/vscode-cdm/language-configuration.json` - CDM language features (brackets, comments)
-- `editors/vscode-cdm/.vscode/launch.json` - Debug configuration
-- `editors/vscode-cdm/.vscode/tasks.json` - Build tasks
-- `editors/vscode-cdm/.gitignore` - Git ignore rules
-- `editors/vscode-cdm/.vscodeignore` - Extension packaging exclusions
-- `editors/vscode-cdm/.eslintrc.json` - Linting configuration
-- `editors/vscode-cdm/README.md` - User documentation
-- `editors/vscode-cdm/SETUP.md` - Development and testing guide
+- `editors/cdm-extension/package.json` - Extension manifest with configuration
+- `editors/cdm-extension/src/extension.ts` (95 lines) - LSP client implementation
+- `editors/cdm-extension/tsconfig.json` - TypeScript configuration
+- `editors/cdm-extension/language-configuration.json` - CDM language features (brackets, comments)
+- `editors/cdm-extension/.vscode/launch.json` - Debug configuration
+- `editors/cdm-extension/.vscode/tasks.json` - Build tasks
+- `editors/cdm-extension/.gitignore` - Git ignore rules
+- `editors/cdm-extension/.vscodeignore` - Extension packaging exclusions
+- `editors/cdm-extension/.eslintrc.json` - Linting configuration
+- `editors/cdm-extension/README.md` - User documentation
+- `editors/cdm-extension/SETUP.md` - Development and testing guide
 
 **Extension Features:**
 - Activates on `.cdm` file extension

@@ -174,7 +174,7 @@ cdm/
 │       └── ...                     # Reuse: validate, format, symbol_table, etc.
 │
 ├── editors/
-│   └── vscode-cdm/                 # NEW: VS Code extension
+│   └── cdm-extension/              # Editor extension (VS Code, Cursor, etc.)
 │       ├── src/
 │       │   ├── extension.ts       # Client initialization (150 lines)
 │       │   ├── commands.ts        # Command implementations (200 lines)
@@ -450,7 +450,7 @@ cdm/
 #### Step 1.5: VS Code Extension Skeleton (Day 3-4)
 
 **Tasks:**
-1. Create `editors/vscode-cdm/` directory
+1. Create `editors/cdm-extension/` directory
 2. Initialize NPM project: `npm init`
 3. Install dependencies:
    ```bash

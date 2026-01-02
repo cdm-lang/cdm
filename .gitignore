@@ -2,7 +2,7 @@
 /crates/cdm/target
 /crates/cdm/.cdm
 /crates/cdm/types.ts
-/editors/vscode-cdm/coverage
+/editors/cdm-extension/coverage
 /examples/build
 .DS_Store
 

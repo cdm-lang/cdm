@@ -37,11 +37,11 @@ clean:
 
 test *args: build-plugins
   cargo test -- {{args}}
-  cd editors/vscode-cdm && npm test
+  cd editors/cdm-extension && npm test
 
 testcoverage: build-plugins
   cargo llvm-cov --html --open
-  cd editors/vscode-cdm && npm run test:coverage
+  cd editors/cdm-extension && npm run test:coverage
 
 # Release a plugin (creates and optionally pushes a version tag)
 # Usage: just release-plugin <plugin-name> <version>
@@ -158,6 +158,84 @@ list-plugins:
       basename "$dir"
     fi
   done
+
+# Release the LSP server (creates and optionally pushes a version tag)
+# Usage: just release-lsp <version>
+# Example: just release-lsp 0.1.0
+release-lsp version:
+  #!/usr/bin/env bash
+  set -e
+
+  # Validate version format
+  if ! [[ {{version}} =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "Error: Version must be in format X.Y.Z (e.g., 0.1.0)"
+    exit 1
+  fi
+
+  # Create tag name
+  TAG="cdm-lsp-v{{version}}"
+
+  echo "Creating release for CDM LSP version {{version}}"
+  echo "Tag: $TAG"
+  echo ""
+
+  # Check if tag already exists
+  if git rev-parse "$TAG" >/dev/null 2>&1; then
+    echo "Error: Tag $TAG already exists"
+    echo ""
+    echo "To remove the existing tag and try again:"
+    echo "  # Delete local tag"
+    echo "  git tag -d $TAG"
+    echo ""
+    echo "  # If already pushed, delete remote tag"
+    echo "  git push --delete origin $TAG"
+    echo ""
+    echo "  # Then run this command again"
+    echo "  just release-lsp {{version}}"
+    exit 1
+  fi
+
+  # Check for uncommitted changes
+  if ! git diff-index --quiet HEAD --; then
+    echo ""
+    echo "Warning: You have uncommitted changes"
+    git status --short
+    echo ""
+    read -p "Continue anyway? (y/N) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+      echo "Cancelled"
+      exit 0
+    fi
+  fi
+
+  # Update version in Cargo.toml
+  echo "Updating version in crates/cdm-lsp/Cargo.toml..."
+  sed -i.bak 's/^version = ".*"/version = "{{version}}"/' crates/cdm-lsp/Cargo.toml
+  rm crates/cdm-lsp/Cargo.toml.bak
+
+  # Update Cargo.lock
+  echo "Updating Cargo.lock..."
+  cargo check --manifest-path crates/cdm-lsp/Cargo.toml
+
+  # Commit the version update
+  echo "Committing version update..."
+  git add crates/cdm-lsp/Cargo.toml Cargo.lock
+  git commit -m "Release CDM LSP {{version}}"
+
+  # Create tag
+  echo "Creating tag $TAG..."
+  git tag -a "$TAG" -m "Release CDM LSP v{{version}}"
+
+  echo ""
+  echo "✓ Tag created successfully!"
+  echo ""
+  echo "To push the commit and tag to trigger the release workflow, run:"
+  echo "  git push origin main $TAG"
+  echo ""
+  echo "To undo if you made a mistake, run:"
+  echo "  git tag -d $TAG"
+  echo "  git reset --soft HEAD~1"
 
 # Release the CLI (creates and optionally pushes a version tag)
 # Usage: just release-cli <version>

@@ -11,7 +11,7 @@ CDM (Contextual Data Models) is a schema language and toolchain for defining a s
 - **JSON validator**: `crates/cdm-json-validator/`
 - **Utilities**: `crates/cdm-utils/`
 - **LSP**: `crates/cdm-lsp/`
-- **Editor tooling**: `editors/` (VS Code extension in `editors/vscode-cdm/`)
+- **Editor tooling**: `editors/` (Editor extension in `editors/cdm-extension/`)
 - **Docs & specs**: `docs/`, `specs/`
 - **Examples**: `examples/`
 

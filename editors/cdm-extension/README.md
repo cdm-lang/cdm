@@ -14,23 +14,25 @@ Editor extension for the CDM (Contextual Data Model) language. Works with VS Cod
 
 ## Requirements
 
-The extension requires the `cdm-lsp` language server to be installed and available in your PATH.
+The extension requires the `cdm-lsp` language server. **It will be downloaded automatically** on first activation if not already installed.
 
-### Installing the Language Server
+### Automatic Installation
+
+When you first open a `.cdm` file, the extension will:
+1. Check if `cdm-lsp` is already in your PATH
+2. If not found, automatically download the appropriate binary for your platform
+3. Store it in the extension's global storage directory
+
+### Manual Installation (Optional)
+
+If you prefer to install the language server manually:
 
 ```bash
 # From the CDM repository root
 cargo install --path crates/cdm-lsp
 ```
 
-Or, if you're developing the extension:
-
-```bash
-# Build the LSP server
-cargo build -p cdm-lsp --release
-
-# Add to PATH or configure the path in your editor settings
-```
+Or download a pre-built binary from the [releases page](https://github.com/cdm-lang/cdm/releases).
 
 ## Installation
 
@@ -38,7 +40,7 @@ cargo build -p cdm-lsp --release
 
 1. Build the extension:
    ```bash
-   cd editors/vscode-cdm
+   cd editors/cdm-extension
    npm install
    npm run compile
    npm run package
@@ -133,7 +135,7 @@ The extension will:
 
 1. Open the extension directory in your editor:
    ```bash
-   cd editors/vscode-cdm
+   cd editors/cdm-extension
    code .  # or: cursor .
    ```
 

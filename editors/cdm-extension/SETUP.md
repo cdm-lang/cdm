@@ -8,29 +8,13 @@ This guide will help you set up and test the CDM editor extension. This extensio
 - VS Code, Cursor, or another compatible editor
 - Rust and Cargo (for building the LSP server)
 
-## Step 1: Build the LSP Server
+## Step 1: Install Extension Dependencies
 
-First, build the CDM language server:
+> **Note**: The extension will automatically download the LSP server binary on first activation. You only need to build it manually if you're developing the LSP server itself.
 
-```bash
-# From the CDM repository root
-cargo build -p cdm-lsp --release
-
-# The binary will be at: target/release/cdm-lsp
-```
-
-**Optional**: Install the LSP server globally:
 
 ```bash
-cargo install --path crates/cdm-lsp
-```
-
-If you install globally, `cdm-lsp` will be in your PATH and the extension will find it automatically.
-
-## Step 2: Install Extension Dependencies
-
-```bash
-cd editors/vscode-cdm
+cd editors/cdm-extension
 npm install
 ```
 
@@ -53,7 +37,7 @@ This compiles TypeScript to JavaScript in the `out/` directory.
 
 1. Open the extension directory in your editor:
    ```bash
-   code editors/vscode-cdm  # or: cursor editors/vscode-cdm
+   code editors/cdm-extension  # or: cursor editors/cdm-extension
    ```
 
 2. Press `F5` (or Run → Start Debugging)
@@ -83,9 +67,9 @@ This compiles TypeScript to JavaScript in the `out/` directory.
 
 3. Reload your editor and open a `.cdm` file
 
-## Step 5: Configure LSP Server Path (If Needed)
+## Step 5: Configure LSP Server Path (Optional)
 
-If you didn't install `cdm-lsp` globally, you need to tell the extension where to find it:
+The extension will automatically download and use the LSP server. However, if you want to use a custom build:
 
 1. Open your editor's settings (Cmd+, or Ctrl+,)
 2. Search for "cdm server path"
@@ -93,6 +77,16 @@ If you didn't install `cdm-lsp` globally, you need to tell the extension where t
    ```
    /Users/yourname/projects/cdm/target/release/cdm-lsp
    ```
+
+### Building the LSP Server Manually
+
+If you're developing the LSP server or want to build from source:
+
+```bash
+# From the CDM repository root
+cargo build -p cdm-lsp --release
+# The binary will be at: target/release/cdm-lsp
+```
 
 ## Testing
 

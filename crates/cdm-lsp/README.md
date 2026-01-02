@@ -49,7 +49,7 @@ cdm-lsp
 
 ### VS Code
 
-See the `editors/vscode-cdm` directory for the VS Code extension.
+See the `editors/cdm-extension` directory for the editor extension.
 
 ### Neovim
 
