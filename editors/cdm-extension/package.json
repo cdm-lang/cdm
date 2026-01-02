@@ -2,7 +2,7 @@
   "name": "cdm",
   "displayName": "Contextual Data Models (CDM) Language Support",
   "description": "Language support for CDM (Contextual Data Model)",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "publisher": "larner-dev",
   "icon": "./logo-128-128.png",
   "license": "MPL-2.0",
