@@ -164,15 +164,38 @@ This creates a `.vsix` file that can be installed in any compatible editor.
 
 ### Publishing
 
+Publishing is automated via GitHub Actions. To release a new version:
+
 ```bash
-# Publish to VS Code Marketplace only
-npm run publish:vscode
+# From the repository root, use the just command:
+just release-extension 0.2.0
+```
 
-# Publish to Open VSX Registry only
-npm run publish:openvsx
+This will:
+1. Update the version in `package.json`
+2. Commit the version change
+3. Create a git tag (`cdm-extension-v0.2.0`)
 
-# Publish to both
-npm run publish
+Then push to trigger the release workflow:
+```bash
+git push origin main cdm-extension-v0.2.0
+```
+
+The workflow automatically:
+- Builds and packages the extension
+- Publishes to VS Code Marketplace
+- Publishes to Open VSX Registry
+- Creates a GitHub Release with the `.vsix` file
+
+**Required secrets**: `VSCE_PAT` and `OVSX_PAT` must be configured in GitHub repository settings.
+
+#### Manual Publishing
+
+For local development or manual releases:
+```bash
+npm run publish:vscode   # VS Code Marketplace only
+npm run publish:openvsx  # Open VSX Registry only
+npm run publish          # Both marketplaces
 ```
 
 ## Known Issues

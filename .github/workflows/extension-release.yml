@@ -1,0 +1,111 @@
+name: Extension Release
+
+on:
+  push:
+    tags:
+      - 'cdm-extension-v*.*.*'
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    name: Build and Publish Extension
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+          # Extract version from cdm-extension-vX.Y.Z format
+          VERSION=${TAG#cdm-extension-v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: editors/cdm-extension/package-lock.json
+
+      - name: Install dependencies
+        working-directory: editors/cdm-extension
+        run: npm ci
+
+      - name: Verify version matches tag
+        working-directory: editors/cdm-extension
+        run: |
+          PACKAGE_VERSION=$(node -p "require('./package.json').version")
+          TAG_VERSION="${{ steps.version.outputs.version }}"
+          if [ "$PACKAGE_VERSION" != "$TAG_VERSION" ]; then
+            echo "Error: package.json version ($PACKAGE_VERSION) does not match tag version ($TAG_VERSION)"
+            exit 1
+          fi
+          echo "Version verified: $PACKAGE_VERSION"
+
+      - name: Package extension
+        working-directory: editors/cdm-extension
+        run: npx vsce package -o cdm-${{ steps.version.outputs.version }}.vsix
+
+      - name: Generate checksum
+        working-directory: editors/cdm-extension
+        run: |
+          shasum -a 256 cdm-${{ steps.version.outputs.version }}.vsix | awk '{print $1}' > cdm-${{ steps.version.outputs.version }}.vsix.sha256
+          echo "Checksum: $(cat cdm-${{ steps.version.outputs.version }}.vsix.sha256)"
+
+      - name: Publish to VS Code Marketplace
+        working-directory: editors/cdm-extension
+        run: npx vsce publish --packagePath cdm-${{ steps.version.outputs.version }}.vsix
+        env:
+          VSCE_PAT: ${{ secrets.VSCE_PAT }}
+
+      - name: Publish to Open VSX Registry
+        working-directory: editors/cdm-extension
+        run: npx ovsx publish cdm-${{ steps.version.outputs.version }}.vsix
+        env:
+          OVSX_PAT: ${{ secrets.OVSX_PAT }}
+
+      - name: Create release notes
+        working-directory: editors/cdm-extension
+        run: |
+          CHECKSUM=$(cat cdm-${{ steps.version.outputs.version }}.vsix.sha256)
+          cat > release_notes.md << EOF
+          # CDM Extension ${{ steps.version.outputs.tag }}
+
+          ## Installation
+
+          ### VS Code Marketplace
+          Install directly from the [VS Code Marketplace](https://marketplace.visualstudio.com/items?itemName=larner-dev.cdm)
+
+          ### Open VSX Registry
+          Install from [Open VSX](https://open-vsx.org/extension/larner-dev/cdm)
+
+          ### Manual Installation
+          Download the .vsix file and install via:
+          \`\`\`bash
+          code --install-extension cdm-${{ steps.version.outputs.version }}.vsix
+          \`\`\`
+
+          ## Checksum
+
+          SHA256: \`$CHECKSUM\`
+          EOF
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.version.outputs.tag }}
+          name: CDM Extension ${{ steps.version.outputs.tag }}
+          body_path: editors/cdm-extension/release_notes.md
+          files: |
+            editors/cdm-extension/cdm-${{ steps.version.outputs.version }}.vsix
+            editors/cdm-extension/cdm-${{ steps.version.outputs.version }}.vsix.sha256
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

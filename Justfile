@@ -237,6 +237,91 @@ release-lsp version:
   echo "  git tag -d $TAG"
   echo "  git reset --soft HEAD~1"
 
+# Release the VS Code extension (creates and optionally pushes a version tag)
+# Usage: just release-extension <version>
+# Example: just release-extension 0.2.0
+release-extension version:
+  #!/usr/bin/env bash
+  set -e
+
+  # Validate version format
+  if ! [[ {{version}} =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "Error: Version must be in format X.Y.Z (e.g., 0.2.0)"
+    exit 1
+  fi
+
+  # Create tag name
+  TAG="cdm-extension-v{{version}}"
+  EXTENSION_DIR="editors/cdm-extension"
+
+  echo "Creating release for CDM Extension version {{version}}"
+  echo "Tag: $TAG"
+  echo ""
+
+  # Check if tag already exists
+  if git rev-parse "$TAG" >/dev/null 2>&1; then
+    echo "Error: Tag $TAG already exists"
+    echo ""
+    echo "To remove the existing tag and try again:"
+    echo "  # Delete local tag"
+    echo "  git tag -d $TAG"
+    echo ""
+    echo "  # If already pushed, delete remote tag"
+    echo "  git push --delete origin $TAG"
+    echo ""
+    echo "  # Then run this command again"
+    echo "  just release-extension {{version}}"
+    exit 1
+  fi
+
+  # Check for uncommitted changes BEFORE making any modifications
+  if ! git diff-index --quiet HEAD --; then
+    echo ""
+    echo "Warning: You have uncommitted changes"
+    git status --short
+    echo ""
+    read -p "Continue anyway? (y/N) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+      echo "Cancelled"
+      exit 0
+    fi
+  fi
+
+  # Check current version in package.json
+  CURRENT_VERSION=$(node -p "require('./$EXTENSION_DIR/package.json').version")
+  if [ "$CURRENT_VERSION" != "{{version}}" ]; then
+    echo "Updating version in package.json from $CURRENT_VERSION to {{version}}..."
+    cd "$EXTENSION_DIR"
+    npm version {{version}} --no-git-tag-version
+    cd ../..
+  fi
+
+  # Commit the version update if there are changes
+  if ! git diff --quiet "$EXTENSION_DIR/package.json"; then
+    echo "Committing version update..."
+    git add "$EXTENSION_DIR/package.json" "$EXTENSION_DIR/package-lock.json"
+    git commit -m "Release CDM Extension {{version}}"
+  fi
+
+  # Create tag
+  echo "Creating tag $TAG..."
+  git tag -a "$TAG" -m "Release CDM Extension v{{version}}"
+
+  echo ""
+  echo "✓ Tag created successfully!"
+  echo ""
+  echo "To push the commit and tag to trigger the release workflow, run:"
+  echo "  git push origin main $TAG"
+  echo ""
+  echo "Note: The release workflow requires these secrets to be configured:"
+  echo "  - VSCE_PAT: Personal Access Token for VS Code Marketplace"
+  echo "  - OVSX_PAT: Personal Access Token for Open VSX Registry"
+  echo ""
+  echo "To undo if you made a mistake, run:"
+  echo "  git tag -d $TAG"
+  echo "  git reset --soft HEAD~1"
+
 # Release the CLI (creates and optionally pushes a version tag)
 # Usage: just release-cli <version>
 # Example: just release-cli 0.2.0
