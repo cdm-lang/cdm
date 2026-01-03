@@ -15,21 +15,27 @@ else
     sudo chown "$(id -u):$(id -g)" /var/tmp/rust-build
 fi
 
-# Fix git worktree paths if we're in a worktree
+# Fix git worktree paths and add safe.directory for each worktree
 if [ -d "/workspace/worktrees" ]; then
     for worktree in /workspace/worktrees/*/; do
+        # Remove trailing slash for clean path
+        worktree_path="${worktree%/}"
+
+        # Add safe.directory for this worktree (using system config since user config is read-only)
+        sudo git config --system --add safe.directory "$worktree_path" 2>/dev/null || true
+
         if [ -f "${worktree}.git" ]; then
-            # Read the current gitdir path
-            GITDIR=$(cat "${worktree}.git" | sed 's/gitdir: //')
+            # Extract worktree name
+            WORKTREE_NAME=$(basename "$worktree_path")
 
-            # If it contains the host path, fix it
-            if echo "$GITDIR" | grep -q "/Users/"; then
-                # Extract just the worktree name
-                WORKTREE_NAME=$(basename "$worktree")
+            # Use relative path that works on both host and container
+            # From worktrees/foo/, the relative path to .git/worktrees/foo is ../../.git/worktrees/foo
+            RELATIVE_GITDIR="../../.git/worktrees/${WORKTREE_NAME}"
 
-                # Update to container path
-                echo "gitdir: /workspace/.git/worktrees/${WORKTREE_NAME}" > "${worktree}.git"
-
+            # Only update if not already using relative path
+            CURRENT_GITDIR=$(cat "${worktree}.git" | sed 's/gitdir: //')
+            if [ "$CURRENT_GITDIR" != "$RELATIVE_GITDIR" ]; then
+                echo "gitdir: ${RELATIVE_GITDIR}" > "${worktree}.git"
                 echo "Fixed git path for worktree: ${WORKTREE_NAME}"
             fi
         fi
