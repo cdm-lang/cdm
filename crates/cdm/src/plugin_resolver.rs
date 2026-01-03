@@ -167,21 +167,6 @@ pub fn resolve_from_registry(plugin_name: &str, config: &Option<JSON>) -> Result
     Ok(wasm_path)
 }
 
-/// Resolve a git plugin
-///
-/// This function:
-/// 1. Clones or updates the git repository
-/// 2. Extracts the WASM file from the repository (optionally from a subdirectory)
-/// 3. Returns the path to the WASM file
-pub fn resolve_git_plugin(url: &str, config: &Option<JSON>, git_path: Option<&str>) -> Result<PathBuf, String> {
-    use crate::registry;
-
-    let cache_path = registry::get_cache_path()
-        .map_err(|e| format!("Failed to get cache path: {}", e))?;
-
-    resolve_git_plugin_with_cache_path(url, config, git_path, &cache_path)
-}
-
 /// Resolve a git plugin with explicit cache path (for testing)
 pub(crate) fn resolve_git_plugin_with_cache_path(
     url: &str,
