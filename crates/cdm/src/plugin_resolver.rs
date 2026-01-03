@@ -18,6 +18,13 @@ use std::fs;
 /// 2. Git plugins - cloned and cached
 /// 3. Registry plugins - downloaded and cached from CDM registry
 pub fn resolve_plugin_path(import: &PluginImport) -> Result<PathBuf> {
+    use crate::registry;
+    let cache_path = registry::get_cache_path()?;
+    resolve_plugin_path_with_cache_path(import, &cache_path)
+}
+
+/// Resolve plugin path with explicit cache path (for testing)
+pub(crate) fn resolve_plugin_path_with_cache_path(import: &PluginImport, cache_path: &std::path::Path) -> Result<PathBuf> {
     match &import.source {
         Some(PluginSource::Path { path }) => {
             let source_dir = import.source_file.parent()
@@ -72,7 +79,7 @@ pub fn resolve_plugin_path(import: &PluginImport) -> Result<PathBuf> {
                 .map(|s| s.to_string())
                 .or_else(|| path.clone());
 
-            resolve_git_plugin(url, &import.global_config, git_path.as_deref())
+            resolve_git_plugin_with_cache_path(url, &import.global_config, git_path.as_deref(), cache_path)
                 .map_err(|e| anyhow::anyhow!("{}", e))
         }
         None => {
@@ -167,6 +174,21 @@ pub fn resolve_from_registry(plugin_name: &str, config: &Option<JSON>) -> Result
 /// 2. Extracts the WASM file from the repository (optionally from a subdirectory)
 /// 3. Returns the path to the WASM file
 pub fn resolve_git_plugin(url: &str, config: &Option<JSON>, git_path: Option<&str>) -> Result<PathBuf, String> {
+    use crate::registry;
+
+    let cache_path = registry::get_cache_path()
+        .map_err(|e| format!("Failed to get cache path: {}", e))?;
+
+    resolve_git_plugin_with_cache_path(url, config, git_path, &cache_path)
+}
+
+/// Resolve a git plugin with explicit cache path (for testing)
+pub(crate) fn resolve_git_plugin_with_cache_path(
+    url: &str,
+    config: &Option<JSON>,
+    git_path: Option<&str>,
+    cache_path: &std::path::Path,
+) -> Result<PathBuf, String> {
     use crate::git_plugin;
 
     // Extract git ref from config (branch, tag, or commit)
@@ -177,7 +199,7 @@ pub fn resolve_git_plugin(url: &str, config: &Option<JSON>, git_path: Option<&st
         .unwrap_or("main");
 
     // Clone or update git repository
-    let repo_path = git_plugin::clone_git_plugin(url, git_ref)
+    let repo_path = git_plugin::clone_git_plugin_with_cache_path(url, git_ref, cache_path)
         .map_err(|e| format!("Failed to clone git repository '{}': {}", url, e))?;
 
     // Extract WASM file (optionally from subdirectory)

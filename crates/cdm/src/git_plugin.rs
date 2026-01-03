@@ -7,7 +7,12 @@ use crate::registry;
 
 /// Clone or update a git plugin repository and return the path to the WASM file
 pub fn clone_git_plugin(url: &str, git_ref: &str) -> Result<PathBuf> {
-    let cache_dir = registry::get_cache_path()?.join("git");
+    clone_git_plugin_with_cache_path(url, git_ref, &registry::get_cache_path()?)
+}
+
+/// Clone or update a git plugin repository with explicit cache path (for testing)
+pub(crate) fn clone_git_plugin_with_cache_path(url: &str, git_ref: &str, cache_path: &Path) -> Result<PathBuf> {
+    let cache_dir = cache_path.join("git");
     fs::create_dir_all(&cache_dir)
         .context("Failed to create git cache directory")?;
 

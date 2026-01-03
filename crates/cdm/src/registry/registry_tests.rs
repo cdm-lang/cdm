@@ -246,18 +246,14 @@ fn test_registry_version_fields() {
 }
 
 #[test]
-#[serial]
 fn test_load_registry_cache_miss() {
     use tempfile::TempDir;
 
     let temp_dir = TempDir::new().unwrap();
-    unsafe {
-        std::env::set_var("CDM_CACHE_DIR", temp_dir.path().to_str().unwrap());
-    }
 
     // No cached registry exists, should try to fetch
     // This will fail without network, but that's expected
-    let result = load_registry();
+    let result = load_registry_with_cache_path(temp_dir.path());
 
     // Should either succeed (if network available) or fail with a fetch error
     if let Err(e) = result {
@@ -269,23 +265,14 @@ fn test_load_registry_cache_miss() {
             error_msg
         );
     }
-
-    unsafe {
-        std::env::remove_var("CDM_CACHE_DIR");
-    }
 }
 
 #[test]
-#[serial]
 fn test_load_registry_with_expired_cache() {
     use tempfile::TempDir;
 
     let temp_dir = TempDir::new().unwrap();
     let cache_dir = temp_dir.path();
-
-    unsafe {
-        std::env::set_var("CDM_CACHE_DIR", cache_dir.to_str().unwrap());
-    }
 
     // Create expired cache
     let registry_file = cache_dir.join("registry.json");
@@ -304,7 +291,7 @@ fn test_load_registry_with_expired_cache() {
     fs::write(&meta_file, serde_json::to_string(&expired_meta).unwrap()).unwrap();
 
     // Should try to fetch fresh registry (will fail without network)
-    let result = load_registry();
+    let result = load_registry_with_cache_path(cache_dir);
 
     if let Err(e) = result {
         let error_msg = e.to_string();
@@ -314,23 +301,14 @@ fn test_load_registry_with_expired_cache() {
             error_msg
         );
     }
-
-    unsafe {
-        std::env::remove_var("CDM_CACHE_DIR");
-    }
 }
 
 #[test]
-#[serial]
 fn test_load_registry_with_valid_cache() {
     use tempfile::TempDir;
 
     let temp_dir = TempDir::new().unwrap();
     let cache_dir = temp_dir.path();
-
-    unsafe {
-        std::env::set_var("CDM_CACHE_DIR", cache_dir.to_str().unwrap());
-    }
 
     // Create valid cache that won't expire soon
     let registry_file = cache_dir.join("registry.json");
@@ -352,29 +330,20 @@ fn test_load_registry_with_valid_cache() {
     fs::write(&meta_file, serde_json::to_string(&valid_meta).unwrap()).unwrap();
 
     // Should use cached registry
-    let result = load_registry();
+    let result = load_registry_with_cache_path(cache_dir);
     assert!(result.is_ok());
 
     let registry = result.unwrap();
     assert_eq!(registry.version, 1);
     assert_eq!(registry.updated_at, "2024-01-01");
-
-    unsafe {
-        std::env::remove_var("CDM_CACHE_DIR");
-    }
 }
 
 #[test]
-#[serial]
 fn test_load_registry_with_corrupted_cache() {
     use tempfile::TempDir;
 
     let temp_dir = TempDir::new().unwrap();
     let cache_dir = temp_dir.path();
-
-    unsafe {
-        std::env::set_var("CDM_CACHE_DIR", cache_dir.to_str().unwrap());
-    }
 
     // Create corrupted cache files
     let registry_file = cache_dir.join("registry.json");
@@ -384,7 +353,7 @@ fn test_load_registry_with_corrupted_cache() {
     fs::write(&meta_file, "invalid json").unwrap();
 
     // Should try to fetch fresh registry (will fail without network)
-    let result = load_registry();
+    let result = load_registry_with_cache_path(cache_dir);
 
     if let Err(e) = result {
         let error_msg = e.to_string();
@@ -393,9 +362,5 @@ fn test_load_registry_with_corrupted_cache() {
             "Unexpected error: {}",
             error_msg
         );
-    }
-
-    unsafe {
-        std::env::remove_var("CDM_CACHE_DIR");
     }
 }

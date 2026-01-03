@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 /// Registry containing all available plugins
@@ -39,7 +39,11 @@ struct RegistryMeta {
 
 /// Load registry from cache or fetch fresh copy
 pub fn load_registry() -> Result<Registry> {
-    let cache_path = get_cache_path()?;
+    load_registry_with_cache_path(&get_cache_path()?)
+}
+
+/// Load registry from cache or fetch fresh copy with explicit cache path (for testing)
+pub(crate) fn load_registry_with_cache_path(cache_path: &Path) -> Result<Registry> {
     let registry_file = cache_path.join("registry.json");
     let meta_file = cache_path.join("registry.meta.json");
 
@@ -62,17 +66,17 @@ pub fn load_registry() -> Result<Registry> {
     }
 
     // Fetch fresh registry
-    fetch_and_cache_registry()
+    fetch_and_cache_registry_with_cache_path(cache_path)
 }
 
 /// Force refresh the registry from remote
 #[allow(dead_code)]
 pub fn refresh_registry() -> Result<Registry> {
-    fetch_and_cache_registry()
+    fetch_and_cache_registry_with_cache_path(&get_cache_path()?)
 }
 
 /// Fetch registry from remote URL and cache it
-fn fetch_and_cache_registry() -> Result<Registry> {
+fn fetch_and_cache_registry_with_cache_path(cache_path: &Path) -> Result<Registry> {
     let registry_url = get_registry_url();
 
     // Use reqwest to fetch
@@ -99,7 +103,8 @@ fn fetch_and_cache_registry() -> Result<Registry> {
         .context("Failed to parse registry JSON")?;
 
     // Cache registry
-    let cache_path = get_cache_path()?;
+    fs::create_dir_all(cache_path)
+        .context("Failed to create cache directory")?;
     fs::write(cache_path.join("registry.json"), &content)
         .context("Failed to write registry cache")?;
 

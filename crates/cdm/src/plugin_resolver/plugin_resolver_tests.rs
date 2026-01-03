@@ -1,7 +1,6 @@
 use super::*;
 use crate::plugin_validation::{PluginImport, PluginSource};
 use cdm_utils::{Span, Position};
-use serial_test::serial;
 use std::fs;
 use std::path::PathBuf;
 use tempfile::TempDir;
@@ -273,63 +272,45 @@ fn test_resolve_from_registry_no_version() {
 }
 
 #[test]
-#[serial]
 fn test_resolve_git_plugin_default_ref() {
     // Test that default git ref is "main"
     let temp_dir = TempDir::new().unwrap();
-    unsafe {
-        std::env::set_var("CDM_CACHE_DIR", temp_dir.path());
-    }
 
     let config = None;
 
-    let result = resolve_git_plugin(
+    let result = resolve_git_plugin_with_cache_path(
         "https://github.com/cdm-lang/cdm.git",
         &config,
         None,
+        temp_dir.path(),
     );
 
     // Will fail because no cdm-plugin.json in root, but validates ref parsing and cloning
     assert!(result.is_err());
-
-    unsafe {
-        std::env::remove_var("CDM_CACHE_DIR");
-    }
 }
 
 #[test]
-#[serial]
 fn test_resolve_git_plugin_custom_ref() {
     let temp_dir = TempDir::new().unwrap();
-    unsafe {
-        std::env::set_var("CDM_CACHE_DIR", temp_dir.path());
-    }
 
     let config = Some(serde_json::json!({
         "git_ref": "develop"
     }));
 
-    let result = resolve_git_plugin(
+    let result = resolve_git_plugin_with_cache_path(
         "https://github.com/cdm-lang/cdm.git",
         &config,
         None,
+        temp_dir.path(),
     );
 
     // Will fail because develop branch doesn't exist or no cdm-plugin.json
     assert!(result.is_err());
-
-    unsafe {
-        std::env::remove_var("CDM_CACHE_DIR");
-    }
 }
 
 #[test]
-#[serial]
 fn test_resolve_plugin_path_git_source() {
     let temp_dir = TempDir::new().unwrap();
-    unsafe {
-        std::env::set_var("CDM_CACHE_DIR", temp_dir.path());
-    }
 
     let import = PluginImport {
         name: "test-plugin".to_string(),
@@ -342,23 +323,15 @@ fn test_resolve_plugin_path_git_source() {
         source_file: PathBuf::from("/test/schema.cdm"),
     };
 
-    let result = resolve_plugin_path(&import);
+    let result = resolve_plugin_path_with_cache_path(&import, temp_dir.path());
     // Will fail because no cdm-plugin.json in root
     assert!(result.is_err());
-
-    unsafe {
-        std::env::remove_var("CDM_CACHE_DIR");
-    }
 }
 
 #[test]
-#[serial]
 fn test_resolve_git_plugin_with_git_path() {
     // Test that git_path config is used to find plugin in subdirectory
     let temp_dir = TempDir::new().unwrap();
-    unsafe {
-        std::env::set_var("CDM_CACHE_DIR", temp_dir.path());
-    }
 
     let import = PluginImport {
         name: "test-plugin".to_string(),
@@ -373,28 +346,20 @@ fn test_resolve_git_plugin_with_git_path() {
         source_file: PathBuf::from("/test/schema.cdm"),
     };
 
-    let result = resolve_plugin_path(&import);
+    let result = resolve_plugin_path_with_cache_path(&import, temp_dir.path());
 
     // Will fail because the subdirectory doesn't have a cdm-plugin.json
     assert!(result.is_err());
     let err = result.unwrap_err().to_string();
     // Check that the error mentions the subdirectory
     assert!(err.contains("crates/nonexistent-plugin"), "Error was: {}", err);
-
-    unsafe {
-        std::env::remove_var("CDM_CACHE_DIR");
-    }
 }
 
 #[test]
-#[serial]
 fn test_resolve_git_plugin_with_git_path_success() {
     // Test that git_path correctly finds the manifest in a subdirectory
     // Note: This will fail on WASM file lookup since WASM files aren't checked into git
     let temp_dir = TempDir::new().unwrap();
-    unsafe {
-        std::env::set_var("CDM_CACHE_DIR", temp_dir.path());
-    }
 
     let import = PluginImport {
         name: "sql".to_string(),
@@ -409,7 +374,7 @@ fn test_resolve_git_plugin_with_git_path_success() {
         source_file: PathBuf::from("/test/schema.cdm"),
     };
 
-    let result = resolve_plugin_path(&import);
+    let result = resolve_plugin_path_with_cache_path(&import, temp_dir.path());
 
     // Will fail either because:
     // 1. Git clone fails (transient network/filesystem issues)
@@ -420,10 +385,6 @@ fn test_resolve_git_plugin_with_git_path_success() {
     // Verify it tried to use the subdirectory path (either in success path or error)
     assert!(err.contains("cdm-plugin-sql"),
             "Expected error to mention the subdirectory 'cdm-plugin-sql', got: {}", err);
-
-    unsafe {
-        std::env::remove_var("CDM_CACHE_DIR");
-    }
 }
 
 #[test]
@@ -502,14 +463,10 @@ fn test_resolve_from_registry_with_version_constraint() {
 }
 
 #[test]
-#[serial]
 fn test_resolve_git_plugin_from_repo_root_success() {
     // Test successfully loading a plugin from the root of a GitHub repository
     // This test uses a dedicated test repository with a proper plugin structure
     let temp_dir = TempDir::new().unwrap();
-    unsafe {
-        std::env::set_var("CDM_CACHE_DIR", temp_dir.path());
-    }
 
     let import = PluginImport {
         name: "cdm-plugin-test".to_string(),
@@ -522,11 +479,7 @@ fn test_resolve_git_plugin_from_repo_root_success() {
         source_file: PathBuf::from("/test/schema.cdm"),
     };
 
-    let result = resolve_plugin_path(&import);
-
-    unsafe {
-        std::env::remove_var("CDM_CACHE_DIR");
-    }
+    let result = resolve_plugin_path_with_cache_path(&import, temp_dir.path());
 
     assert!(result.is_ok(), "Failed to resolve plugin from GitHub repo root: {:?}", result.err());
     let wasm_path = result.unwrap();
@@ -534,13 +487,9 @@ fn test_resolve_git_plugin_from_repo_root_success() {
 }
 
 #[test]
-#[serial]
 fn test_resolve_git_plugin_from_nested_path_success() {
     // Test successfully loading a plugin from a subdirectory in a GitHub repository
     let temp_dir = TempDir::new().unwrap();
-    unsafe {
-        std::env::set_var("CDM_CACHE_DIR", temp_dir.path());
-    }
 
     let import = PluginImport {
         name: "cdm-plugin-test-nested".to_string(),
@@ -555,11 +504,7 @@ fn test_resolve_git_plugin_from_nested_path_success() {
         source_file: PathBuf::from("/test/schema.cdm"),
     };
 
-    let result = resolve_plugin_path(&import);
-
-    unsafe {
-        std::env::remove_var("CDM_CACHE_DIR");
-    }
+    let result = resolve_plugin_path_with_cache_path(&import, temp_dir.path());
 
     assert!(result.is_ok(), "Failed to resolve plugin from nested path: {:?}", result.err());
     let wasm_path = result.unwrap();
