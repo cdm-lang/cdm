@@ -12,8 +12,8 @@ pub fn format_document(text: &str, uri: &Url, assign_ids: bool) -> Option<Vec<Te
     // Create a temporary file with the document content
     let temp_file = create_temp_file(&path, text).ok()?;
 
-    // Format the file using cdm::format_file
-    let options = cdm::FormatOptions {
+    // Format the file using crate::format_file
+    let options = crate::FormatOptions {
         assign_ids,
         check: false,
         write: true,
@@ -21,7 +21,7 @@ pub fn format_document(text: &str, uri: &Url, assign_ids: bool) -> Option<Vec<Te
         format_whitespace: true,
     };
 
-    let _result = cdm::format_file(temp_file.path(), &options).ok()?;
+    let _result = crate::format_file(temp_file.path(), &options).ok()?;
 
     // Read the formatted content
     let formatted_text = std::fs::read_to_string(temp_file.path()).ok()?;

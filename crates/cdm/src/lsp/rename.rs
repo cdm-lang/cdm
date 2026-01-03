@@ -14,7 +14,7 @@ pub fn prepare_rename(text: &str, position: Position) -> Option<PrepareRenameRes
     let (symbol, range) = navigation::find_symbol_at_position(text, position)?;
 
     // Check if it's a valid symbol to rename (not a built-in type)
-    if cdm::is_builtin_type(&symbol) {
+    if crate::is_builtin_type(&symbol) {
         return None;
     }
 
@@ -41,7 +41,7 @@ pub fn rename_symbol(
     let (symbol, _range) = navigation::find_symbol_at_position(text, position)?;
 
     // Check if it's a valid symbol to rename
-    if cdm::is_builtin_type(&symbol) {
+    if crate::is_builtin_type(&symbol) {
         return None;
     }
 

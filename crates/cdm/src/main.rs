@@ -17,6 +17,8 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum Commands {
+    /// Start the Language Server Protocol server
+    Lsp,
     /// Validate a CDM file
     Validate {
         #[arg(value_name = "FILE")]
@@ -172,6 +174,11 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
+        Commands::Lsp => {
+            tokio::runtime::Runtime::new()
+                .expect("Failed to create Tokio runtime")
+                .block_on(cdm::lsp::run());
+        }
         Commands::Validate { path, check_ids } => {
             let tree = match cdm::FileResolver::load(&path) {
                 Ok(tree) => tree,

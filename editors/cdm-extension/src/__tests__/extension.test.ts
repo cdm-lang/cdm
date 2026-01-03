@@ -14,6 +14,32 @@ jest.mock("vscode-languageclient/node", () => ({
   },
 }));
 
+// Mock fs module
+jest.mock("fs", () => ({
+  ...jest.requireActual("fs"),
+  promises: {
+    access: jest.fn().mockRejectedValue(new Error("Not found")),
+    mkdir: jest.fn().mockResolvedValue(undefined),
+    readFile: jest.fn().mockRejectedValue(new Error("Not found")),
+    writeFile: jest.fn().mockResolvedValue(undefined),
+  },
+  createWriteStream: jest.fn(() => ({
+    on: jest.fn(),
+    close: jest.fn(),
+  })),
+}));
+
+// Mock https module
+jest.mock("https", () => ({
+  get: jest.fn(),
+}));
+
+// Mock os module
+jest.mock("os", () => ({
+  platform: jest.fn().mockReturnValue("darwin"),
+  arch: jest.fn().mockReturnValue("arm64"),
+}));
+
 describe("CDM Extension", () => {
   let mockContext: vscode.ExtensionContext;
   let mockConfig: any;
@@ -27,7 +53,7 @@ describe("CDM Extension", () => {
 
     // Mock output channel
     mockOutputChannel = {
-      name: "CDM Language Server Trace",
+      name: "CDM Language Server",
       append: jest.fn(),
       appendLine: jest.fn(),
       clear: jest.fn(),
@@ -48,14 +74,15 @@ describe("CDM Extension", () => {
       ignoreDeleteEvents: false,
     };
 
-    // Mock configuration
+    // Mock configuration - default returns 'cdm' for cli.path (will use PATH lookup)
     mockConfig = {
       get: jest.fn((key: string) => {
         const defaults: Record<string, any> = {
-          "server.path": "cdm-lsp",
+          "cli.path": "cdm",
           "trace.server": "off",
           "validation.checkIds": true,
           "format.indentSize": 2,
+          "format.assignIdsOnSave": false,
         };
         return defaults[key];
       }),
@@ -77,6 +104,8 @@ describe("CDM Extension", () => {
       () => mockOutputChannel
     );
     (vscode.window.showInformationMessage as jest.Mock) = jest.fn();
+    (vscode.window.showErrorMessage as jest.Mock) = jest.fn().mockResolvedValue(undefined);
+    (vscode.window.withProgress as jest.Mock) = jest.fn();
 
     // Mock commands
     (vscode.commands.registerCommand as jest.Mock) = jest.fn(
@@ -97,7 +126,7 @@ describe("CDM Extension", () => {
       asAbsolutePath: jest.fn(),
       storageUri: undefined,
       storagePath: undefined,
-      globalStorageUri: {} as any,
+      globalStorageUri: { fsPath: "/test/global/storage" } as any,
       globalStoragePath: "/test/global/storage",
       logUri: {} as any,
       logPath: "/test/log",
@@ -109,141 +138,161 @@ describe("CDM Extension", () => {
   });
 
   describe("activate", () => {
-    it("should create and start language client with default configuration", async () => {
-      // eslint-disable-next-line @typescript-eslint/naming-convention
-      const { LanguageClient } = require("vscode-languageclient/node");
+    it("should create output channel on activation", async () => {
+      await activate(mockContext);
 
-      activate(mockContext);
-
-      // Verify configuration was read
-      expect(vscode.workspace.getConfiguration).toHaveBeenCalledWith("cdm");
-      expect(mockConfig.get).toHaveBeenCalledWith("server.path");
-      expect(mockConfig.get).toHaveBeenCalledWith("trace.server");
-
-      // Verify LanguageClient was created with correct parameters
-      expect(LanguageClient).toHaveBeenCalledWith(
-        "cdm",
-        "CDM Language Server",
-        expect.objectContaining({
-          run: expect.objectContaining({
-            command: "cdm-lsp",
-            args: [],
-            transport: 0,
-          }),
-          debug: expect.objectContaining({
-            command: "cdm-lsp",
-            args: [],
-            transport: 0,
-          }),
-        }),
-        expect.objectContaining({
-          documentSelector: [
-            { scheme: "file", language: "cdm" },
-            { scheme: "untitled", language: "cdm" },
-          ],
-          initializationOptions: {
-            checkIds: true,
-            indentSize: 2,
-          },
-          outputChannelName: "CDM Language Server",
-        })
+      expect(vscode.window.createOutputChannel).toHaveBeenCalledWith(
+        "CDM Language Server"
       );
-
-      // Verify client was started
-      expect(mockLanguageClient.start).toHaveBeenCalled();
     });
 
-    it("should use custom server path from configuration", () => {
+    it("should register cdm.restartServer command", async () => {
+      await activate(mockContext);
+
+      expect(vscode.commands.registerCommand).toHaveBeenCalledWith(
+        "cdm.restartServer",
+        expect.any(Function)
+      );
+      expect(registeredCommands.has("cdm.restartServer")).toBe(true);
+    });
+
+    it("should register cdm.updateCli command", async () => {
+      await activate(mockContext);
+
+      expect(vscode.commands.registerCommand).toHaveBeenCalledWith(
+        "cdm.updateCli",
+        expect.any(Function)
+      );
+      expect(registeredCommands.has("cdm.updateCli")).toBe(true);
+    });
+
+    it("should register onWillSaveTextDocument handler", async () => {
+      await activate(mockContext);
+
+      expect(vscode.workspace.onWillSaveTextDocument).toHaveBeenCalled();
+    });
+
+    it("should read cli.path from configuration", async () => {
+      await activate(mockContext);
+
+      expect(vscode.workspace.getConfiguration).toHaveBeenCalledWith("cdm");
+      expect(mockConfig.get).toHaveBeenCalledWith("cli.path");
+    });
+
+    it("should add subscriptions to context", async () => {
+      await activate(mockContext);
+
+      expect(mockContext.subscriptions.length).toBeGreaterThan(0);
+    });
+
+    it("should use custom cli path from configuration when file exists", async () => {
       // eslint-disable-next-line @typescript-eslint/naming-convention
       const { LanguageClient } = require("vscode-languageclient/node");
+      const fs = require("fs");
+
+      // Mock custom path exists
+      fs.promises.access.mockResolvedValueOnce(undefined);
+
       mockConfig.get = jest.fn((key: string) => {
-        if (key === "server.path") {
-          return "/custom/path/to/cdm-lsp";
-        }
-        if (key === "trace.server") {
-          return "off";
-        }
-        if (key === "validation.checkIds") {
-          return true;
-        }
-        if (key === "format.indentSize") {
-          return 2;
-        }
+        if (key === "cli.path") return "/custom/path/to/cdm";
+        if (key === "trace.server") return "off";
+        if (key === "validation.checkIds") return true;
+        if (key === "format.indentSize") return 2;
+        if (key === "format.assignIdsOnSave") return false;
         return undefined;
       });
 
-      activate(mockContext);
+      await activate(mockContext);
 
       expect(LanguageClient).toHaveBeenCalledWith(
         "cdm",
         "CDM Language Server",
         expect.objectContaining({
           run: expect.objectContaining({
-            command: "/custom/path/to/cdm-lsp",
+            command: "/custom/path/to/cdm",
+            args: ["lsp"],
+            transport: 0,
           }),
         }),
         expect.any(Object)
       );
     });
 
-    it("should create trace output channel when trace is enabled", () => {
+    it("should pass lsp argument to server command", async () => {
+      // eslint-disable-next-line @typescript-eslint/naming-convention
+      const { LanguageClient } = require("vscode-languageclient/node");
+      const fs = require("fs");
+
+      // Mock custom path exists
+      fs.promises.access.mockResolvedValueOnce(undefined);
+
       mockConfig.get = jest.fn((key: string) => {
-        if (key === "trace.server") {
-          return "verbose";
-        }
-        if (key === "server.path") {
-          return "cdm-lsp";
-        }
-        if (key === "validation.checkIds") {
-          return true;
-        }
-        if (key === "format.indentSize") {
-          return 2;
-        }
+        if (key === "cli.path") return "/path/to/cdm";
+        if (key === "trace.server") return "off";
+        if (key === "validation.checkIds") return true;
+        if (key === "format.indentSize") return 2;
+        if (key === "format.assignIdsOnSave") return false;
         return undefined;
       });
 
-      activate(mockContext);
+      await activate(mockContext);
 
+      expect(LanguageClient).toHaveBeenCalledWith(
+        expect.any(String),
+        expect.any(String),
+        expect.objectContaining({
+          run: expect.objectContaining({
+            args: ["lsp"],
+          }),
+          debug: expect.objectContaining({
+            args: ["lsp"],
+          }),
+        }),
+        expect.any(Object)
+      );
+    });
+
+    it("should create trace output channel when trace is enabled", async () => {
+      const fs = require("fs");
+      fs.promises.access.mockResolvedValueOnce(undefined);
+
+      mockConfig.get = jest.fn((key: string) => {
+        if (key === "trace.server") return "verbose";
+        if (key === "cli.path") return "/path/to/cdm";
+        if (key === "validation.checkIds") return true;
+        if (key === "format.indentSize") return 2;
+        if (key === "format.assignIdsOnSave") return false;
+        return undefined;
+      });
+
+      await activate(mockContext);
+
+      // Should create both the main output channel and trace channel
+      expect(vscode.window.createOutputChannel).toHaveBeenCalledWith(
+        "CDM Language Server"
+      );
       expect(vscode.window.createOutputChannel).toHaveBeenCalledWith(
         "CDM Language Server Trace"
       );
     });
 
-    it("should not create trace output channel when trace is off", () => {
-      activate(mockContext);
-
-      expect(vscode.window.createOutputChannel).not.toHaveBeenCalled();
-    });
-
-    it("should register file system watcher for .cdm files", () => {
-      activate(mockContext);
-
-      expect(vscode.workspace.createFileSystemWatcher).toHaveBeenCalledWith(
-        "**/*.cdm"
-      );
-    });
-
-    it("should pass initialization options to client", () => {
+    it("should pass initialization options to client", async () => {
       // eslint-disable-next-line @typescript-eslint/naming-convention
       const { LanguageClient } = require("vscode-languageclient/node");
+      const fs = require("fs");
+
+      fs.promises.access.mockResolvedValueOnce(undefined);
+
       mockConfig.get = jest.fn((key: string) => {
-        if (key === "validation.checkIds") {
-          return false;
-        }
-        if (key === "format.indentSize") {
-          return 4;
-        }
-        if (key === "server.path") {
-          return "cdm-lsp";
-        }
-        if (key === "trace.server") {
-          return "off";
-        }
+        if (key === "validation.checkIds") return false;
+        if (key === "format.indentSize") return 4;
+        if (key === "cli.path") return "/path/to/cdm";
+        if (key === "trace.server") return "off";
+        if (key === "format.assignIdsOnSave") return true;
         return undefined;
       });
 
-      activate(mockContext);
+      await activate(mockContext);
 
       expect(LanguageClient).toHaveBeenCalledWith(
         expect.any(String),
@@ -253,31 +302,48 @@ describe("CDM Extension", () => {
           initializationOptions: {
             checkIds: false,
             indentSize: 4,
+            assignIdsOnSave: true,
           },
         })
       );
     });
 
-    it("should register cdm.restartServer command", () => {
-      activate(mockContext);
+    it("should register file system watcher for .cdm files", async () => {
+      const fs = require("fs");
+      fs.promises.access.mockResolvedValueOnce(undefined);
 
-      expect(vscode.commands.registerCommand).toHaveBeenCalledWith(
-        "cdm.restartServer",
-        expect.any(Function)
+      mockConfig.get = jest.fn((key: string) => {
+        if (key === "cli.path") return "/path/to/cdm";
+        if (key === "trace.server") return "off";
+        if (key === "validation.checkIds") return true;
+        if (key === "format.indentSize") return 2;
+        if (key === "format.assignIdsOnSave") return false;
+        return undefined;
+      });
+
+      await activate(mockContext);
+
+      expect(vscode.workspace.createFileSystemWatcher).toHaveBeenCalledWith(
+        "**/*.cdm"
       );
-      expect(registeredCommands.has("cdm.restartServer")).toBe(true);
-    });
-
-    it("should add command to subscriptions", () => {
-      activate(mockContext);
-
-      expect(mockContext.subscriptions.length).toBeGreaterThan(0);
     });
   });
 
   describe("deactivate", () => {
     it("should stop the language client if it exists", async () => {
-      activate(mockContext);
+      const fs = require("fs");
+      fs.promises.access.mockResolvedValueOnce(undefined);
+
+      mockConfig.get = jest.fn((key: string) => {
+        if (key === "cli.path") return "/path/to/cdm";
+        if (key === "trace.server") return "off";
+        if (key === "validation.checkIds") return true;
+        if (key === "format.indentSize") return 2;
+        if (key === "format.assignIdsOnSave") return false;
+        return undefined;
+      });
+
+      await activate(mockContext);
 
       const result = deactivate();
 
@@ -289,7 +355,19 @@ describe("CDM Extension", () => {
 
   describe("restartServer command", () => {
     it("should stop and restart the language client", async () => {
-      activate(mockContext);
+      const fs = require("fs");
+      fs.promises.access.mockResolvedValueOnce(undefined);
+
+      mockConfig.get = jest.fn((key: string) => {
+        if (key === "cli.path") return "/path/to/cdm";
+        if (key === "trace.server") return "off";
+        if (key === "validation.checkIds") return true;
+        if (key === "format.indentSize") return 2;
+        if (key === "format.assignIdsOnSave") return false;
+        return undefined;
+      });
+
+      await activate(mockContext);
 
       const restartCommand = registeredCommands.get("cdm.restartServer");
       expect(restartCommand).toBeDefined();
@@ -305,33 +383,27 @@ describe("CDM Extension", () => {
         "CDM Language Server restarted"
       );
     });
-
-    it("should show user feedback during restart", async () => {
-      activate(mockContext);
-
-      const restartCommand = registeredCommands.get("cdm.restartServer");
-      await restartCommand!();
-
-      expect(vscode.window.showInformationMessage).toHaveBeenNthCalledWith(
-        1,
-        "Restarting CDM Language Server..."
-      );
-      expect(vscode.window.showInformationMessage).toHaveBeenNthCalledWith(
-        2,
-        "CDM Language Server restarted"
-      );
-    });
-
   });
 
   describe("document selector", () => {
-    it("should register for file and untitled schemes", () => {
+    it("should register for file and untitled schemes", async () => {
       // eslint-disable-next-line @typescript-eslint/naming-convention
       const { LanguageClient } = require("vscode-languageclient/node");
+      const fs = require("fs");
 
-      activate(mockContext);
+      fs.promises.access.mockResolvedValueOnce(undefined);
 
-      // Find the most recent call (since activate may have been called in previous tests)
+      mockConfig.get = jest.fn((key: string) => {
+        if (key === "cli.path") return "/path/to/cdm";
+        if (key === "trace.server") return "off";
+        if (key === "validation.checkIds") return true;
+        if (key === "format.indentSize") return 2;
+        if (key === "format.assignIdsOnSave") return false;
+        return undefined;
+      });
+
+      await activate(mockContext);
+
       const calls = (LanguageClient as jest.Mock).mock.calls;
       const clientOptions = calls[calls.length - 1][3];
 
@@ -357,20 +429,20 @@ describe("CDM Extension", () => {
 
       // Mock executeCommand
       (vscode.commands.executeCommand as jest.Mock) = jest.fn().mockResolvedValue(undefined);
-
-      activate(mockContext);
     });
 
-    it("should register onWillSaveTextDocument handler", () => {
+    it("should register onWillSaveTextDocument handler", async () => {
+      await activate(mockContext);
+
       expect(vscode.workspace.onWillSaveTextDocument).toHaveBeenCalled();
       expect(onWillSaveHandler).toBeDefined();
     });
 
     it("should do nothing when assignIdsOnSave is false", async () => {
+      await activate(mockContext);
+
       mockConfig.get = jest.fn((key: string) => {
-        if (key === "format.assignIdsOnSave") {
-          return false;
-        }
+        if (key === "format.assignIdsOnSave") return false;
         return undefined;
       });
 
@@ -387,10 +459,10 @@ describe("CDM Extension", () => {
     });
 
     it("should do nothing when document is not CDM", async () => {
+      await activate(mockContext);
+
       mockConfig.get = jest.fn((key: string) => {
-        if (key === "format.assignIdsOnSave") {
-          return true;
-        }
+        if (key === "format.assignIdsOnSave") return true;
         return undefined;
       });
 
@@ -407,10 +479,10 @@ describe("CDM Extension", () => {
     });
 
     it("should format document when assignIdsOnSave is true and document is CDM", async () => {
+      await activate(mockContext);
+
       mockConfig.get = jest.fn((key: string) => {
-        if (key === "format.assignIdsOnSave") {
-          return true;
-        }
+        if (key === "format.assignIdsOnSave") return true;
         return undefined;
       });
 
@@ -428,47 +500,6 @@ describe("CDM Extension", () => {
       );
       expect(vscode.commands.executeCommand).toHaveBeenCalledWith(
         "editor.action.formatDocument"
-      );
-    });
-
-    it("should include assignIdsOnSave in initialization options", () => {
-      mockConfig.get = jest.fn((key: string) => {
-        if (key === "format.assignIdsOnSave") {
-          return true;
-        }
-        if (key === "validation.checkIds") {
-          return true;
-        }
-        if (key === "format.indentSize") {
-          return 2;
-        }
-        if (key === "server.path") {
-          return "cdm-lsp";
-        }
-        if (key === "trace.server") {
-          return "off";
-        }
-        return undefined;
-      });
-
-      jest.clearAllMocks();
-
-      // eslint-disable-next-line @typescript-eslint/naming-convention
-      const { LanguageClient } = require("vscode-languageclient/node");
-
-      activate(mockContext);
-
-      expect(LanguageClient).toHaveBeenCalledWith(
-        expect.any(String),
-        expect.any(String),
-        expect.any(Object),
-        expect.objectContaining({
-          initializationOptions: {
-            checkIds: true,
-            indentSize: 2,
-            assignIdsOnSave: true,
-          },
-        })
       );
     });
   });

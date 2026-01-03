@@ -2,7 +2,7 @@ use anyhow::{Context, Result};
 use serde::{Deserialize, Serialize};
 use sha2::{Digest, Sha256};
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use crate::registry;
@@ -88,7 +88,16 @@ pub fn cache_plugin(
 
 /// Get path to a cached plugin, if it exists and is valid
 pub fn get_cached_plugin(name: &str, version: &str) -> Result<Option<PathBuf>> {
-    let plugin_dir = registry::get_cache_path()?.join("plugins").join(format!("{}@{}", name, version));
+    get_cached_plugin_with_cache_path(name, version, &registry::get_cache_path()?)
+}
+
+/// Get path to a cached plugin with explicit cache path (for testing)
+pub(crate) fn get_cached_plugin_with_cache_path(
+    name: &str,
+    version: &str,
+    cache_path: &Path,
+) -> Result<Option<PathBuf>> {
+    let plugin_dir = cache_path.join("plugins").join(format!("{}@{}", name, version));
 
     if !plugin_dir.exists() {
         return Ok(None);
@@ -117,7 +126,14 @@ pub fn get_cached_plugin(name: &str, version: &str) -> Result<Option<PathBuf>> {
 
 /// List all cached plugins
 pub fn list_cached_plugins() -> Result<Vec<(String, String, CacheMetadata)>> {
-    let plugins_dir = registry::get_cache_path()?.join("plugins");
+    list_cached_plugins_with_cache_path(&registry::get_cache_path()?)
+}
+
+/// List all cached plugins with explicit cache path (for testing)
+pub(crate) fn list_cached_plugins_with_cache_path(
+    cache_path: &Path,
+) -> Result<Vec<(String, String, CacheMetadata)>> {
+    let plugins_dir = cache_path.join("plugins");
 
     if !plugins_dir.exists() {
         return Ok(Vec::new());
@@ -148,7 +164,12 @@ pub fn list_cached_plugins() -> Result<Vec<(String, String, CacheMetadata)>> {
 
 /// Clear cache for a specific plugin (all versions)
 pub fn clear_plugin_cache(name: &str) -> Result<()> {
-    let plugins_dir = registry::get_cache_path()?.join("plugins");
+    clear_plugin_cache_with_cache_path(name, &registry::get_cache_path()?)
+}
+
+/// Clear cache for a specific plugin with explicit cache path (for testing)
+pub(crate) fn clear_plugin_cache_with_cache_path(name: &str, cache_path: &Path) -> Result<()> {
+    let plugins_dir = cache_path.join("plugins");
 
     if !plugins_dir.exists() {
         return Ok(());
@@ -173,7 +194,11 @@ pub fn clear_plugin_cache(name: &str) -> Result<()> {
 
 /// Clear entire plugin cache
 pub fn clear_all_cache() -> Result<()> {
-    let cache_path = registry::get_cache_path()?;
+    clear_all_cache_with_cache_path(&registry::get_cache_path()?)
+}
+
+/// Clear entire plugin cache with explicit cache path (for testing)
+pub(crate) fn clear_all_cache_with_cache_path(cache_path: &Path) -> Result<()> {
     let plugins_dir = cache_path.join("plugins");
 
     // Clear plugin WASM files
@@ -234,7 +259,16 @@ fn verify_checksum(data: &[u8], expected_checksum: &str) -> Result<()> {
 
 /// Get plugin-specific cache directory
 fn get_plugin_cache_dir(name: &str, version: &str) -> Result<PathBuf> {
-    let plugin_dir = registry::get_cache_path()?
+    get_plugin_cache_dir_with_cache_path(name, version, &registry::get_cache_path()?)
+}
+
+/// Get plugin-specific cache directory with explicit cache path (for testing)
+pub(crate) fn get_plugin_cache_dir_with_cache_path(
+    name: &str,
+    version: &str,
+    cache_path: &Path,
+) -> Result<PathBuf> {
+    let plugin_dir = cache_path
         .join("plugins")
         .join(format!("{}@{}", name, version));
 

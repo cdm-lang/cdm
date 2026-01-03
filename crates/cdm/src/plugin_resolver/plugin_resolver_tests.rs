@@ -1,6 +1,7 @@
 use super::*;
 use crate::plugin_validation::{PluginImport, PluginSource};
 use cdm_utils::{Span, Position};
+use serial_test::serial;
 use std::fs;
 use std::path::PathBuf;
 use tempfile::TempDir;
@@ -272,6 +273,7 @@ fn test_resolve_from_registry_no_version() {
 }
 
 #[test]
+#[serial]
 fn test_resolve_git_plugin_default_ref() {
     // Test that default git ref is "main"
     let temp_dir = TempDir::new().unwrap();
@@ -296,6 +298,7 @@ fn test_resolve_git_plugin_default_ref() {
 }
 
 #[test]
+#[serial]
 fn test_resolve_git_plugin_custom_ref() {
     let temp_dir = TempDir::new().unwrap();
     unsafe {
@@ -321,6 +324,7 @@ fn test_resolve_git_plugin_custom_ref() {
 }
 
 #[test]
+#[serial]
 fn test_resolve_plugin_path_git_source() {
     let temp_dir = TempDir::new().unwrap();
     unsafe {
@@ -348,6 +352,7 @@ fn test_resolve_plugin_path_git_source() {
 }
 
 #[test]
+#[serial]
 fn test_resolve_git_plugin_with_git_path() {
     // Test that git_path config is used to find plugin in subdirectory
     let temp_dir = TempDir::new().unwrap();
@@ -382,6 +387,7 @@ fn test_resolve_git_plugin_with_git_path() {
 }
 
 #[test]
+#[serial]
 fn test_resolve_git_plugin_with_git_path_success() {
     // Test that git_path correctly finds the manifest in a subdirectory
     // Note: This will fail on WASM file lookup since WASM files aren't checked into git
@@ -496,6 +502,7 @@ fn test_resolve_from_registry_with_version_constraint() {
 }
 
 #[test]
+#[serial]
 fn test_resolve_git_plugin_from_repo_root_success() {
     // Test successfully loading a plugin from the root of a GitHub repository
     // This test uses a dedicated test repository with a proper plugin structure
@@ -527,6 +534,7 @@ fn test_resolve_git_plugin_from_repo_root_success() {
 }
 
 #[test]
+#[serial]
 fn test_resolve_git_plugin_from_nested_path_success() {
     // Test successfully loading a plugin from a subdirectory in a GitHub repository
     let temp_dir = TempDir::new().unwrap();

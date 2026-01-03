@@ -41,10 +41,10 @@
     "configuration": {
       "title": "CDM",
       "properties": {
-        "cdm.server.path": {
+        "cdm.cli.path": {
           "type": "string",
-          "default": "cdm-lsp",
-          "description": "Path to cdm-lsp server binary. If not set, will look for 'cdm-lsp' in PATH."
+          "default": "cdm",
+          "description": "Path to cdm CLI binary. If not set, will look for 'cdm' in PATH."
         },
         "cdm.format.indentSize": {
           "type": "number",
@@ -77,6 +77,10 @@
       {
         "command": "cdm.restartServer",
         "title": "CDM: Restart Language Server"
+      },
+      {
+        "command": "cdm.updateCli",
+        "title": "CDM: Update CLI"
       }
     ],
     "semanticTokenScopes": [

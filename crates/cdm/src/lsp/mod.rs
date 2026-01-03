@@ -1,6 +1,6 @@
 use tower_lsp::jsonrpc::Result;
 use tower_lsp::lsp_types::*;
-use tower_lsp::{Client, LanguageServer};
+use tower_lsp::{Client, LanguageServer, LspService, Server};
 
 mod document;
 mod position;
@@ -128,7 +128,7 @@ impl LanguageServer for CdmLanguageServer {
                 ..Default::default()
             },
             server_info: Some(ServerInfo {
-                name: "cdm-lsp".to_string(),
+                name: "cdm".to_string(),
                 version: Some(env!("CARGO_PKG_VERSION").to_string()),
             }),
         })
@@ -231,7 +231,7 @@ impl LanguageServer for CdmLanguageServer {
         }
 
         // Check if it's a built-in type
-        if cdm::is_builtin_type(&symbol) {
+        if crate::is_builtin_type(&symbol) {
             let hover_text = format!("```cdm\n{}\n```\n\nBuilt-in type", symbol);
             return Ok(Some(Hover {
                 contents: HoverContents::Markup(MarkupContent {
@@ -488,7 +488,19 @@ impl LanguageServer for CdmLanguageServer {
     }
 }
 
+/// Run the CDM Language Server
+pub async fn run() {
+    // Set up logging to stderr (LSP uses stdout for JSON-RPC)
+    eprintln!("Starting CDM Language Server...");
+
+    let stdin = tokio::io::stdin();
+    let stdout = tokio::io::stdout();
+
+    let (service, socket) = LspService::new(CdmLanguageServer::new);
+
+    Server::new(stdin, stdout, socket).serve(service).await;
+}
 
 #[cfg(test)]
-#[path = "tests/server_tests.rs"]
-mod server_tests;
+#[path = "lsp_tests.rs"]
+mod lsp_tests;

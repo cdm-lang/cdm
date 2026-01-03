@@ -19,6 +19,7 @@ mod plugin_commands;
 mod self_update;
 mod update_command;
 mod uninstall;
+pub mod lsp;
 
 pub use diagnostics::{Diagnostic, Severity};
 pub use cdm_utils::{Position, Span};

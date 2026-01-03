@@ -14,9 +14,10 @@ import {
 
 let client: LanguageClient | undefined;
 let outputChannel: vscode.OutputChannel;
+let resolvedCliPath: string | null = null;
 
-// Release manifest URL
-const RELEASES_URL = 'https://raw.githubusercontent.com/cdm-lang/cdm/main/lsp-releases.json';
+// Release manifest URL - uses cli-releases.json since cdm CLI now includes the LSP
+const RELEASES_URL = 'https://raw.githubusercontent.com/cdm-lang/cdm/main/cli-releases.json';
 
 interface PlatformInfo {
   url: string;
@@ -39,10 +40,13 @@ export async function activate(context: vscode.ExtensionContext) {
   outputChannel = vscode.window.createOutputChannel('CDM Language Server');
   outputChannel.appendLine('CDM extension is now active');
 
-  // Register commands first
+  // Register commands
   context.subscriptions.push(
     vscode.commands.registerCommand('cdm.restartServer', async () => {
       await restartServer();
+    }),
+    vscode.commands.registerCommand('cdm.updateCli', async () => {
+      await updateCli(context);
     })
   );
 
@@ -69,9 +73,9 @@ export async function activate(context: vscode.ExtensionContext) {
 
   // Try to start the language server
   try {
-    const serverPath = await resolveServerPath(context);
-    if (serverPath) {
-      await startLanguageServer(context, serverPath);
+    resolvedCliPath = await resolveServerPath(context);
+    if (resolvedCliPath) {
+      await startLanguageServer(context, resolvedCliPath);
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
@@ -89,10 +93,10 @@ export async function activate(context: vscode.ExtensionContext) {
 
 async function resolveServerPath(context: vscode.ExtensionContext): Promise<string | null> {
   const config = vscode.workspace.getConfiguration('cdm');
-  const configuredPath = config.get<string>('server.path');
+  const configuredPath = config.get<string>('cli.path');
 
   // 1. Check if user has configured a custom path
-  if (configuredPath && configuredPath !== 'cdm-lsp') {
+  if (configuredPath && configuredPath !== 'cdm') {
     if (await fileExists(configuredPath)) {
       outputChannel.appendLine(`Using configured server path: ${configuredPath}`);
       return configuredPath;
@@ -101,10 +105,10 @@ async function resolveServerPath(context: vscode.ExtensionContext): Promise<stri
     }
   }
 
-  // 2. Check if cdm-lsp is in PATH
-  const pathServer = await findInPath('cdm-lsp');
+  // 2. Check if cdm is in PATH
+  const pathServer = await findInPath('cdm');
   if (pathServer) {
-    outputChannel.appendLine(`Found cdm-lsp in PATH: ${pathServer}`);
+    outputChannel.appendLine(`Found cdm in PATH: ${pathServer}`);
     return pathServer;
   }
 
@@ -122,7 +126,7 @@ async function resolveServerPath(context: vscode.ExtensionContext): Promise<stri
 
 function getDownloadedServerPath(context: vscode.ExtensionContext): string {
   const platform = getPlatformIdentifier();
-  const binaryName = platform.includes('windows') ? 'cdm-lsp.exe' : 'cdm-lsp';
+  const binaryName = platform.includes('windows') ? 'cdm.exe' : 'cdm';
   return path.join(context.globalStorageUri.fsPath, 'bin', binaryName);
 }
 
@@ -155,7 +159,7 @@ async function downloadLatestServer(context: vscode.ExtensionContext): Promise<s
       const manifest = await fetchReleasesManifest();
 
       if (!manifest.latest) {
-        throw new Error('No releases available. Please install cdm-lsp manually.');
+        throw new Error('No releases available. Please install cdm manually.');
       }
 
       const release = manifest.releases[manifest.latest];
@@ -168,8 +172,8 @@ async function downloadLatestServer(context: vscode.ExtensionContext): Promise<s
 
       if (!platformInfo) {
         throw new Error(
-          `No binary available for ${platform}. Please install cdm-lsp manually.\n` +
-          `See: https://github.com/cdm-lang/cdm/tree/main/crates/cdm-lsp`
+          `No binary available for ${platform}. Please install cdm manually.\n` +
+          `See: https://github.com/cdm-lang/cdm`
         );
       }
 
@@ -180,7 +184,7 @@ async function downloadLatestServer(context: vscode.ExtensionContext): Promise<s
       await fs.promises.mkdir(binDir, { recursive: true });
 
       // Download the binary
-      const binaryName = platform.includes('windows') ? 'cdm-lsp.exe' : 'cdm-lsp';
+      const binaryName = platform.includes('windows') ? 'cdm.exe' : 'cdm';
       const destPath = path.join(binDir, binaryName);
 
       await downloadFile(platformInfo.url, destPath);
@@ -190,14 +194,120 @@ async function downloadLatestServer(context: vscode.ExtensionContext): Promise<s
         await fs.promises.chmod(destPath, 0o755);
       }
 
+      // Save the version
+      await saveCurrentCliVersion(context, manifest.latest);
+
       progress.report({ message: 'Done!' });
-      outputChannel.appendLine(`Downloaded CDM Language Server v${manifest.latest} to ${destPath}`);
+      outputChannel.appendLine(`Downloaded CDM CLI v${manifest.latest} to ${destPath}`);
 
       return destPath;
     }
   );
 
   return progress;
+}
+
+async function getCurrentCliVersion(context: vscode.ExtensionContext): Promise<string | null> {
+  const versionFile = path.join(context.globalStorageUri.fsPath, 'version');
+  try {
+    const version = await fs.promises.readFile(versionFile, 'utf-8');
+    return version.trim();
+  } catch {
+    return null;
+  }
+}
+
+async function saveCurrentCliVersion(context: vscode.ExtensionContext, version: string): Promise<void> {
+  const versionFile = path.join(context.globalStorageUri.fsPath, 'version');
+  await fs.promises.mkdir(context.globalStorageUri.fsPath, { recursive: true });
+  await fs.promises.writeFile(versionFile, version, 'utf-8');
+}
+
+async function updateCli(context: vscode.ExtensionContext): Promise<void> {
+  try {
+    await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: 'CDM CLI',
+        cancellable: false
+      },
+      async (progress) => {
+        progress.report({ message: 'Checking for updates...' });
+
+        // Fetch the releases manifest
+        const manifest = await fetchReleasesManifest();
+
+        if (!manifest.latest) {
+          vscode.window.showInformationMessage('No CDM CLI releases available.');
+          return;
+        }
+
+        // Check current version
+        const currentVersion = await getCurrentCliVersion(context);
+
+        if (currentVersion === manifest.latest) {
+          vscode.window.showInformationMessage(
+            `CDM CLI is already up to date (v${currentVersion}).`
+          );
+          return;
+        }
+
+        const updateMessage = currentVersion
+          ? `Update available: v${currentVersion} → v${manifest.latest}`
+          : `Installing CDM CLI v${manifest.latest}`;
+
+        progress.report({ message: updateMessage });
+
+        // Stop the current server if running
+        if (client) {
+          await client.stop();
+        }
+
+        // Download the new version
+        const release = manifest.releases[manifest.latest];
+        const platform = getPlatformIdentifier();
+        const platformInfo = release.platforms[platform];
+
+        if (!platformInfo) {
+          throw new Error(`No binary available for ${platform}`);
+        }
+
+        progress.report({ message: `Downloading v${manifest.latest}...` });
+
+        // Create the bin directory
+        const binDir = path.join(context.globalStorageUri.fsPath, 'bin');
+        await fs.promises.mkdir(binDir, { recursive: true });
+
+        // Download the binary
+        const binaryName = platform.includes('windows') ? 'cdm.exe' : 'cdm';
+        const destPath = path.join(binDir, binaryName);
+
+        await downloadFile(platformInfo.url, destPath);
+
+        // Make executable on Unix
+        if (os.platform() !== 'win32') {
+          await fs.promises.chmod(destPath, 0o755);
+        }
+
+        // Save the version
+        await saveCurrentCliVersion(context, manifest.latest);
+
+        // Update the resolved path
+        resolvedCliPath = destPath;
+
+        // Restart the server
+        progress.report({ message: 'Restarting server...' });
+        await startLanguageServer(context, destPath);
+
+        vscode.window.showInformationMessage(
+          `CDM CLI updated to v${manifest.latest}`
+        );
+      }
+    );
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    vscode.window.showErrorMessage(`Failed to update CDM CLI: ${message}`);
+  }
 }
 
 async function fetchReleasesManifest(): Promise<ReleasesManifest> {
@@ -311,7 +421,7 @@ async function startLanguageServer(context: vscode.ExtensionContext, serverPath:
 
   const serverExecutable: Executable = {
     command: serverPath,
-    args: [],
+    args: ['lsp'],  // Run the LSP subcommand
     transport: TransportKind.stdio
   };
 

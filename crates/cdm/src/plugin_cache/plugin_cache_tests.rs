@@ -1,5 +1,4 @@
 use super::*;
-use serial_test::serial;
 use sha2::{Digest, Sha256};
 use std::fs;
 use tempfile::TempDir;
@@ -42,23 +41,15 @@ fn test_verify_checksum_unsupported_algorithm() {
 }
 
 #[test]
-#[serial]
 fn test_get_plugin_cache_dir() {
     let temp_dir = TempDir::new().unwrap();
-    unsafe {
-        std::env::set_var("CDM_CACHE_DIR", temp_dir.path().to_str().unwrap());
-    }
 
-    let result = get_plugin_cache_dir("test-plugin", "1.0.0");
+    let result = get_plugin_cache_dir_with_cache_path("test-plugin", "1.0.0", temp_dir.path());
     assert!(result.is_ok());
 
     let path = result.unwrap();
     assert!(path.exists());
     assert!(path.to_string_lossy().contains("test-plugin@1.0.0"));
-
-    unsafe {
-        std::env::remove_var("CDM_CACHE_DIR");
-    }
 }
 
 #[test]
@@ -70,29 +61,17 @@ fn test_current_timestamp_string() {
 }
 
 #[test]
-#[serial]
 fn test_get_cached_plugin_not_exists() {
     let temp_dir = TempDir::new().unwrap();
-    unsafe {
-        std::env::set_var("CDM_CACHE_DIR", temp_dir.path().to_str().unwrap());
-    }
 
-    let result = get_cached_plugin("nonexistent-plugin", "1.0.0");
+    let result = get_cached_plugin_with_cache_path("nonexistent-plugin", "1.0.0", temp_dir.path());
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), None);
-
-    unsafe {
-        std::env::remove_var("CDM_CACHE_DIR");
-    }
 }
 
 #[test]
-#[serial]
 fn test_get_cached_plugin_missing_wasm() {
     let temp_dir = TempDir::new().unwrap();
-    unsafe {
-        std::env::set_var("CDM_CACHE_DIR", temp_dir.path().to_str().unwrap());
-    }
 
     // Create plugin directory with metadata but no WASM file
     let plugin_dir = temp_dir.path().join("plugins").join("test-plugin@1.0.0");
@@ -113,44 +92,28 @@ fn test_get_cached_plugin_missing_wasm() {
     )
     .unwrap();
 
-    let result = get_cached_plugin("test-plugin", "1.0.0");
+    let result = get_cached_plugin_with_cache_path("test-plugin", "1.0.0", temp_dir.path());
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), None);
-
-    unsafe {
-        std::env::remove_var("CDM_CACHE_DIR");
-    }
 }
 
 #[test]
-#[serial]
 fn test_get_cached_plugin_missing_metadata() {
     let temp_dir = TempDir::new().unwrap();
-    unsafe {
-        std::env::set_var("CDM_CACHE_DIR", temp_dir.path().to_str().unwrap());
-    }
 
     // Create plugin directory with WASM but no metadata
     let plugin_dir = temp_dir.path().join("plugins").join("test-plugin@1.0.0");
     fs::create_dir_all(&plugin_dir).unwrap();
     fs::write(plugin_dir.join("plugin.wasm"), b"fake wasm").unwrap();
 
-    let result = get_cached_plugin("test-plugin", "1.0.0");
+    let result = get_cached_plugin_with_cache_path("test-plugin", "1.0.0", temp_dir.path());
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), None);
-
-    unsafe {
-        std::env::remove_var("CDM_CACHE_DIR");
-    }
 }
 
 #[test]
-#[serial]
 fn test_get_cached_plugin_checksum_mismatch() {
     let temp_dir = TempDir::new().unwrap();
-    unsafe {
-        std::env::set_var("CDM_CACHE_DIR", temp_dir.path().to_str().unwrap());
-    }
 
     // Create plugin with valid metadata but wrong checksum
     let plugin_dir = temp_dir.path().join("plugins").join("test-plugin@1.0.0");
@@ -175,22 +138,14 @@ fn test_get_cached_plugin_checksum_mismatch() {
     )
     .unwrap();
 
-    let result = get_cached_plugin("test-plugin", "1.0.0");
+    let result = get_cached_plugin_with_cache_path("test-plugin", "1.0.0", temp_dir.path());
     assert!(result.is_ok());
     assert_eq!(result.unwrap(), None);
-
-    unsafe {
-        std::env::remove_var("CDM_CACHE_DIR");
-    }
 }
 
 #[test]
-#[serial]
 fn test_get_cached_plugin_valid() {
     let temp_dir = TempDir::new().unwrap();
-    unsafe {
-        std::env::set_var("CDM_CACHE_DIR", temp_dir.path().to_str().unwrap());
-    }
 
     // Create valid cached plugin
     let plugin_dir = temp_dir.path().join("plugins").join("test-plugin@1.0.0");
@@ -220,39 +175,23 @@ fn test_get_cached_plugin_valid() {
     )
     .unwrap();
 
-    let result = get_cached_plugin("test-plugin", "1.0.0");
+    let result = get_cached_plugin_with_cache_path("test-plugin", "1.0.0", temp_dir.path());
     assert!(result.is_ok());
     assert!(result.unwrap().is_some());
-
-    unsafe {
-        std::env::remove_var("CDM_CACHE_DIR");
-    }
 }
 
 #[test]
-#[serial]
 fn test_list_cached_plugins_empty() {
     let temp_dir = TempDir::new().unwrap();
-    unsafe {
-        std::env::set_var("CDM_CACHE_DIR", temp_dir.path().to_str().unwrap());
-    }
 
-    let result = list_cached_plugins();
+    let result = list_cached_plugins_with_cache_path(temp_dir.path());
     assert!(result.is_ok());
     assert_eq!(result.unwrap().len(), 0);
-
-    unsafe {
-        std::env::remove_var("CDM_CACHE_DIR");
-    }
 }
 
 #[test]
-#[serial]
 fn test_list_cached_plugins_multiple() {
     let temp_dir = TempDir::new().unwrap();
-    unsafe {
-        std::env::set_var("CDM_CACHE_DIR", temp_dir.path().to_str().unwrap());
-    }
 
     // Create multiple cached plugins
     let plugins_dir = temp_dir.path().join("plugins");
@@ -279,44 +218,28 @@ fn test_list_cached_plugins_multiple() {
         .unwrap();
     }
 
-    let result = list_cached_plugins();
+    let result = list_cached_plugins_with_cache_path(temp_dir.path());
     assert!(result.is_ok());
     assert_eq!(result.unwrap().len(), 2);
-
-    unsafe {
-        std::env::remove_var("CDM_CACHE_DIR");
-    }
 }
 
 #[test]
-#[serial]
 fn test_list_cached_plugins_invalid_format() {
     let temp_dir = TempDir::new().unwrap();
-    unsafe {
-        std::env::set_var("CDM_CACHE_DIR", temp_dir.path().to_str().unwrap());
-    }
 
     // Create directory with invalid name format
     let plugins_dir = temp_dir.path().join("plugins");
     fs::create_dir_all(&plugins_dir).unwrap();
     fs::create_dir_all(plugins_dir.join("invalid-name-no-version")).unwrap();
 
-    let result = list_cached_plugins();
+    let result = list_cached_plugins_with_cache_path(temp_dir.path());
     assert!(result.is_ok());
     assert_eq!(result.unwrap().len(), 0);
-
-    unsafe {
-        std::env::remove_var("CDM_CACHE_DIR");
-    }
 }
 
 #[test]
-#[serial]
 fn test_clear_plugin_cache() {
     let temp_dir = TempDir::new().unwrap();
-    unsafe {
-        std::env::set_var("CDM_CACHE_DIR", temp_dir.path().to_str().unwrap());
-    }
 
     // Create multiple versions of same plugin
     let plugins_dir = temp_dir.path().join("plugins");
@@ -331,7 +254,7 @@ fn test_clear_plugin_cache() {
     fs::create_dir_all(plugins_dir.join("other-plugin@1.0.0")).unwrap();
 
     // Clear test-plugin cache
-    let result = clear_plugin_cache("test-plugin");
+    let result = clear_plugin_cache_with_cache_path("test-plugin", temp_dir.path());
     assert!(result.is_ok());
 
     // test-plugin versions should be gone
@@ -340,36 +263,20 @@ fn test_clear_plugin_cache() {
 
     // other-plugin should still exist
     assert!(plugins_dir.join("other-plugin@1.0.0").exists());
-
-    unsafe {
-        std::env::remove_var("CDM_CACHE_DIR");
-    }
 }
 
 #[test]
-#[serial]
 fn test_clear_plugin_cache_nonexistent() {
     let temp_dir = TempDir::new().unwrap();
-    unsafe {
-        std::env::set_var("CDM_CACHE_DIR", temp_dir.path().to_str().unwrap());
-    }
 
     // Should not error even if plugin doesn't exist
-    let result = clear_plugin_cache("nonexistent-plugin");
+    let result = clear_plugin_cache_with_cache_path("nonexistent-plugin", temp_dir.path());
     assert!(result.is_ok());
-
-    unsafe {
-        std::env::remove_var("CDM_CACHE_DIR");
-    }
 }
 
 #[test]
-#[serial]
 fn test_clear_all_cache() {
     let temp_dir = TempDir::new().unwrap();
-    unsafe {
-        std::env::set_var("CDM_CACHE_DIR", temp_dir.path().to_str().unwrap());
-    }
 
     // Create several plugins
     let plugins_dir = temp_dir.path().join("plugins");
@@ -377,16 +284,12 @@ fn test_clear_all_cache() {
     fs::create_dir_all(plugins_dir.join("plugin1@1.0.0")).unwrap();
     fs::create_dir_all(plugins_dir.join("plugin2@1.0.0")).unwrap();
 
-    let result = clear_all_cache();
+    let result = clear_all_cache_with_cache_path(temp_dir.path());
     assert!(result.is_ok());
 
     // plugins directory should exist but be empty
     assert!(plugins_dir.exists());
     assert!(fs::read_dir(&plugins_dir).unwrap().next().is_none());
-
-    unsafe {
-        std::env::remove_var("CDM_CACHE_DIR");
-    }
 }
 
 #[test]

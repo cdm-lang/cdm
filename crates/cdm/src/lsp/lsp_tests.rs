@@ -36,7 +36,7 @@ async fn test_server_initialization() {
     // Verify server info
     assert!(result.server_info.is_some());
     let server_info = result.server_info.unwrap();
-    assert_eq!(server_info.name, "cdm-lsp");
+    assert_eq!(server_info.name, "cdm");
     assert!(server_info.version.is_some());
 }
 

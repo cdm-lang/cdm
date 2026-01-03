@@ -1,5 +1,5 @@
 use tower_lsp::lsp_types::*;
-use cdm::{validate, Diagnostic as CdmDiagnostic, Severity};
+use crate::{validate, Diagnostic as CdmDiagnostic, Severity};
 
 /// Compute diagnostics for a CDM document
 pub fn compute_diagnostics(text: &str, _uri: &Url) -> Vec<Diagnostic> {

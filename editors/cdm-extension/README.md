@@ -14,22 +14,22 @@ Editor extension for the CDM (Contextual Data Model) language. Works with VS Cod
 
 ## Requirements
 
-The extension requires the `cdm-lsp` language server. **It will be downloaded automatically** on first activation if not already installed.
+The extension requires the `cdm` CLI, which includes the language server. **It will be downloaded automatically** on first activation if not already installed.
 
 ### Automatic Installation
 
 When you first open a `.cdm` file, the extension will:
-1. Check if `cdm-lsp` is already in your PATH
+1. Check if `cdm` is already in your PATH
 2. If not found, automatically download the appropriate binary for your platform
 3. Store it in the extension's global storage directory
 
 ### Manual Installation (Optional)
 
-If you prefer to install the language server manually:
+If you prefer to install the CLI manually:
 
 ```bash
 # From the CDM repository root
-cargo install --path crates/cdm-lsp
+cargo install --path crates/cdm
 ```
 
 Or download a pre-built binary from the [releases page](https://github.com/cdm-lang/cdm/releases).
@@ -63,7 +63,7 @@ Or download a pre-built binary from the [releases page](https://github.com/cdm-l
 
 This extension contributes the following settings:
 
-* `cdm.server.path`: Path to the cdm-lsp server binary (default: `"cdm-lsp"`)
+* `cdm.cli.path`: Path to the cdm CLI binary (default: `"cdm"`)
 * `cdm.format.indentSize`: Number of spaces for indentation when formatting (default: `2`)
 * `cdm.validation.checkIds`: Check for missing entity IDs and show warnings (default: `true`)
 * `cdm.trace.server`: Trace LSP communication for debugging (default: `"off"`)
@@ -71,6 +71,7 @@ This extension contributes the following settings:
 ## Commands
 
 * `CDM: Restart Language Server` - Restart the CDM language server
+* `CDM: Update CLI` - Check for and install updates to the CDM CLI
 
 ## Usage
 
@@ -110,16 +111,20 @@ The extension will:
 
 ### Language server not starting
 
-1. Verify `cdm-lsp` is in your PATH:
+1. Verify `cdm` is in your PATH:
    ```bash
-   which cdm-lsp
+   which cdm
    ```
 
 2. Check the output channel:
    - View → Output
    - Select "CDM Language Server" from the dropdown
 
-3. Enable verbose logging:
+3. Try updating the CLI:
+   - Open Command Palette (Ctrl+Shift+P / Cmd+Shift+P)
+   - Run "CDM: Update CLI"
+
+4. Enable verbose logging:
    - Set `cdm.trace.server` to `"verbose"` in settings
    - Check the "CDM Language Server Trace" output channel
 
