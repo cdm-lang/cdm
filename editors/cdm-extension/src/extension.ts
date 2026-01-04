@@ -16,6 +16,17 @@ let client: LanguageClient | undefined;
 let outputChannel: vscode.OutputChannel;
 let resolvedCliPath: string | null = null;
 
+// Capabilities result from CLI
+interface CapabilitiesResult {
+  plugins: Array<{
+    name: string;
+    has_build: boolean;
+    has_migrate: boolean;
+  }>;
+  can_build: boolean;
+  can_migrate: boolean;
+}
+
 // Release manifest URL - uses cli-releases.json since cdm CLI now includes the LSP
 const RELEASES_URL = 'https://raw.githubusercontent.com/cdm-lang/cdm/main/cli-releases.json';
 
@@ -76,6 +87,25 @@ export async function activate(context: vscode.ExtensionContext) {
       );
     })
   );
+
+  // Update capabilities context when active editor changes
+  context.subscriptions.push(
+    vscode.window.onDidChangeActiveTextEditor(async (editor) => {
+      await updateCapabilitiesContext(editor);
+    })
+  );
+
+  // Update capabilities context when document is saved (plugins might change)
+  context.subscriptions.push(
+    vscode.workspace.onDidSaveTextDocument(async (document) => {
+      if (document.languageId === 'cdm' && vscode.window.activeTextEditor?.document === document) {
+        await updateCapabilitiesContext(vscode.window.activeTextEditor);
+      }
+    })
+  );
+
+  // Set initial capabilities context for current editor
+  await updateCapabilitiesContext(vscode.window.activeTextEditor);
 
   // Try to start the language server
   try {
@@ -651,4 +681,44 @@ function runCliCommand(cliPath: string, args: string[]): Promise<CliResult> {
       });
     });
   });
+}
+
+/**
+ * Update VS Code context keys based on plugin capabilities for the current file.
+ * This controls visibility of build/migrate buttons in the editor title bar.
+ */
+async function updateCapabilitiesContext(editor: vscode.TextEditor | undefined): Promise<void> {
+  // Default to hiding buttons if no CDM file is open
+  if (!editor || editor.document.languageId !== 'cdm') {
+    await vscode.commands.executeCommand('setContext', 'cdm.canBuild', false);
+    await vscode.commands.executeCommand('setContext', 'cdm.canMigrate', false);
+    return;
+  }
+
+  // If CLI is not available yet, hide buttons
+  if (!resolvedCliPath) {
+    await vscode.commands.executeCommand('setContext', 'cdm.canBuild', false);
+    await vscode.commands.executeCommand('setContext', 'cdm.canMigrate', false);
+    return;
+  }
+
+  const filePath = editor.document.uri.fsPath;
+
+  try {
+    const result = await runCliCommand(resolvedCliPath, ['capabilities', filePath]);
+
+    if (result.exitCode === 0 && result.stdout) {
+      const capabilities: CapabilitiesResult = JSON.parse(result.stdout);
+      await vscode.commands.executeCommand('setContext', 'cdm.canBuild', capabilities.can_build);
+      await vscode.commands.executeCommand('setContext', 'cdm.canMigrate', capabilities.can_migrate);
+    } else {
+      // On error, hide buttons
+      await vscode.commands.executeCommand('setContext', 'cdm.canBuild', false);
+      await vscode.commands.executeCommand('setContext', 'cdm.canMigrate', false);
+    }
+  } catch {
+    // On error, hide buttons
+    await vscode.commands.executeCommand('setContext', 'cdm.canBuild', false);
+    await vscode.commands.executeCommand('setContext', 'cdm.canMigrate', false);
+  }
 }

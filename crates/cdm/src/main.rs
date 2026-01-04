@@ -37,6 +37,11 @@ enum Commands {
         #[arg(value_name = "FILE")]
         path: PathBuf,
     },
+    /// Check plugin capabilities for a CDM file (outputs JSON)
+    Capabilities {
+        #[arg(value_name = "FILE")]
+        path: PathBuf,
+    },
     /// Generate migration files from schema changes
     Migrate {
         /// Path to CDM file to migrate (exactly one required)
@@ -217,6 +222,18 @@ fn main() -> Result<()> {
             if let Err(err) = cdm::build(&path) {
                 eprintln!("Build failed: {}", err);
                 std::process::exit(1);
+            }
+        }
+        Commands::Capabilities { path } => {
+            match cdm::capabilities(&path) {
+                Ok(result) => {
+                    // Output JSON to stdout for extension to parse
+                    println!("{}", serde_json::to_string(&result).unwrap());
+                }
+                Err(err) => {
+                    eprintln!("Capabilities check failed: {}", err);
+                    std::process::exit(1);
+                }
             }
         }
         Commands::Migrate { file, name, output, dry_run } => {

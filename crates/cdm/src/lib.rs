@@ -19,6 +19,7 @@ mod plugin_commands;
 mod self_update;
 mod update_command;
 mod uninstall;
+mod capabilities;
 pub mod lsp;
 
 pub use diagnostics::{Diagnostic, Severity};
@@ -37,6 +38,7 @@ pub use format::{format_file, format_files, FormatOptions, FormatResult, IdAssig
 pub use plugin_commands::{list_plugins, plugin_info, cache_plugin_cmd, clear_cache_cmd};
 pub use update_command::{UpdateCommands, update_latest, handle_update_subcommand};
 pub use uninstall::uninstall;
+pub use capabilities::{capabilities, CapabilitiesResult, PluginCapability};
 
 // Re-export for testing
 pub use registry::get_cache_path;

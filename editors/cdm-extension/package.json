@@ -97,12 +97,12 @@
       "editor/title": [
         {
           "command": "cdm.build",
-          "when": "resourceLangId == cdm",
+          "when": "resourceLangId == cdm && cdm.canBuild",
           "group": "navigation@1"
         },
         {
           "command": "cdm.migrate",
-          "when": "resourceLangId == cdm",
+          "when": "resourceLangId == cdm && cdm.canMigrate",
           "group": "navigation@2"
         }
       ],
