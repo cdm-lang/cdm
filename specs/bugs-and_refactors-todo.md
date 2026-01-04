@@ -21,7 +21,6 @@ Issue: Trivial but repeated utility function. Recommendation:
 // Move to: crates/cdm/src/ast_utils.rs
 pub fn get_node_text<'a>(node: tree_sitter::Node, source: &'a str) -> &'a str
 
-### Remove std::env::set_var("CDM_CACHE_DIR" from tests to avoid race condition issues and allow parallelization
 
 
 ## Bugs
@@ -34,5 +33,3 @@ Code completion when you've extended from another model and you are about to cre
 ### Visual distinction when you're overriding an inherited model vs defining a new model in the syntax highlighter functionality
 
 ### Ability for plugins to export types
-
-### When I auto format save with a plugin declaration, the plugin gets removed
