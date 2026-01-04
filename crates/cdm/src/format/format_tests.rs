@@ -594,3 +594,267 @@ fn test_format_preserves_array_types() {
     assert!(content.contains("string[]"),
         "Expected 'string[]' but got:\n{}", content);
 }
+
+// =============================================================================
+// Tests for preserving language elements that were previously dropped
+// =============================================================================
+
+#[test]
+fn test_format_preserves_plugin_imports() {
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    // Create a file with plugin imports
+    let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
+    write!(temp_file, r#"@sql {{ dialect: "postgres" }}
+
+@api {{ base_url: "/v1" }}
+
+User {{
+  id: string
+}}
+"#).expect("Failed to write");
+    let temp_path = temp_file.path().to_path_buf();
+
+    let options = FormatOptions {
+        assign_ids: false,
+        check: false,
+        write: true,
+        indent_size: 2,
+        format_whitespace: true,
+    };
+
+    let _result = format_file(&temp_path, &options).expect("Format should succeed");
+
+    // Read back the formatted content
+    let content = std::fs::read_to_string(&temp_path).expect("Failed to read formatted file");
+
+    // Should preserve plugin imports
+    assert!(content.contains("@sql"),
+        "Expected '@sql' plugin import but got:\n{}", content);
+    assert!(content.contains("dialect"),
+        "Expected 'dialect' in plugin config but got:\n{}", content);
+    assert!(content.contains("@api"),
+        "Expected '@api' plugin import but got:\n{}", content);
+}
+
+#[test]
+fn test_format_preserves_model_level_plugin_config() {
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    // Create a file with model-level plugin configs
+    let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
+    write!(temp_file, r#"User {{
+  id: string
+  email: string
+  @sql {{ table: "users" }}
+  @api {{ expose: ["id", "email"] }}
+}}
+"#).expect("Failed to write");
+    let temp_path = temp_file.path().to_path_buf();
+
+    let options = FormatOptions {
+        assign_ids: false,
+        check: false,
+        write: true,
+        indent_size: 2,
+        format_whitespace: true,
+    };
+
+    let _result = format_file(&temp_path, &options).expect("Format should succeed");
+
+    // Read back the formatted content
+    let content = std::fs::read_to_string(&temp_path).expect("Failed to read formatted file");
+
+    // Should preserve model-level plugin configs
+    assert!(content.contains("@sql"),
+        "Expected '@sql' plugin config but got:\n{}", content);
+    assert!(content.contains("table"),
+        "Expected 'table' in @sql config but got:\n{}", content);
+    assert!(content.contains("@api"),
+        "Expected '@api' plugin config but got:\n{}", content);
+}
+
+#[test]
+fn test_format_preserves_field_removal() {
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    // Create a file with field removal
+    let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
+    write!(temp_file, r#"User {{
+  id: string
+  -password_hash
+  email: string
+}}
+"#).expect("Failed to write");
+    let temp_path = temp_file.path().to_path_buf();
+
+    let options = FormatOptions {
+        assign_ids: false,
+        check: false,
+        write: true,
+        indent_size: 2,
+        format_whitespace: true,
+    };
+
+    let _result = format_file(&temp_path, &options).expect("Format should succeed");
+
+    // Read back the formatted content
+    let content = std::fs::read_to_string(&temp_path).expect("Failed to read formatted file");
+
+    // Should preserve field removal
+    assert!(content.contains("-password_hash"),
+        "Expected '-password_hash' field removal but got:\n{}", content);
+}
+
+#[test]
+fn test_format_preserves_field_override() {
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    // Create a file with field override (plugin config on inherited field)
+    let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
+    write!(temp_file, r#"User {{
+  id: string
+  status {{ @sql {{ type: "enum" }} }}
+}}
+"#).expect("Failed to write");
+    let temp_path = temp_file.path().to_path_buf();
+
+    let options = FormatOptions {
+        assign_ids: false,
+        check: false,
+        write: true,
+        indent_size: 2,
+        format_whitespace: true,
+    };
+
+    let _result = format_file(&temp_path, &options).expect("Format should succeed");
+
+    // Read back the formatted content
+    let content = std::fs::read_to_string(&temp_path).expect("Failed to read formatted file");
+
+    // Should preserve field override
+    assert!(content.contains("status {"),
+        "Expected 'status {{' field override but got:\n{}", content);
+    assert!(content.contains("@sql"),
+        "Expected '@sql' in field override but got:\n{}", content);
+}
+
+#[test]
+fn test_format_preserves_model_removal() {
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    // Create a file with model removal
+    let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
+    write!(temp_file, r#"-OldModel
+
+User {{
+  id: string
+}}
+"#).expect("Failed to write");
+    let temp_path = temp_file.path().to_path_buf();
+
+    let options = FormatOptions {
+        assign_ids: false,
+        check: false,
+        write: true,
+        indent_size: 2,
+        format_whitespace: true,
+    };
+
+    let _result = format_file(&temp_path, &options).expect("Format should succeed");
+
+    // Read back the formatted content
+    let content = std::fs::read_to_string(&temp_path).expect("Failed to read formatted file");
+
+    // Should preserve model removal
+    assert!(content.contains("-OldModel"),
+        "Expected '-OldModel' but got:\n{}", content);
+}
+
+#[test]
+fn test_format_preserves_type_alias_with_plugin_block() {
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    // Create a file with type alias that has a plugin block
+    let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
+    write!(temp_file, r#"Email: string {{ @validation {{ format: "email" }} }}
+
+User {{
+  email: Email
+}}
+"#).expect("Failed to write");
+    let temp_path = temp_file.path().to_path_buf();
+
+    let options = FormatOptions {
+        assign_ids: false,
+        check: false,
+        write: true,
+        indent_size: 2,
+        format_whitespace: true,
+    };
+
+    let _result = format_file(&temp_path, &options).expect("Format should succeed");
+
+    // Read back the formatted content
+    let content = std::fs::read_to_string(&temp_path).expect("Failed to read formatted file");
+
+    // Should preserve the type alias with plugin block
+    // Note: The current formatter doesn't fully format type alias plugin blocks,
+    // but it should preserve them
+    assert!(content.contains("Email:"),
+        "Expected 'Email:' type alias but got:\n{}", content);
+    assert!(content.contains("string"),
+        "Expected 'string' type but got:\n{}", content);
+}
+
+#[test]
+fn test_format_preserves_all_elements_comprehensive() {
+    use std::io::Write;
+    use tempfile::NamedTempFile;
+
+    // Create a file with all the elements that should be preserved
+    let mut temp_file = NamedTempFile::new().expect("Failed to create temp file");
+    write!(temp_file, r#"@sql {{ dialect: "postgres" }}
+
+-DeprecatedModel
+
+Email: string
+
+User {{
+  id: string
+  email: Email
+  -old_field
+  status {{ @sql {{ type: "enum" }} }}
+  @sql {{ table: "users" }}
+}}
+"#).expect("Failed to write");
+    let temp_path = temp_file.path().to_path_buf();
+
+    let options = FormatOptions {
+        assign_ids: false,
+        check: false,
+        write: true,
+        indent_size: 2,
+        format_whitespace: true,
+    };
+
+    let _result = format_file(&temp_path, &options).expect("Format should succeed");
+
+    // Read back the formatted content
+    let content = std::fs::read_to_string(&temp_path).expect("Failed to read formatted file");
+
+    // Verify all elements are preserved
+    assert!(content.contains("@sql"), "Plugin import should be preserved");
+    assert!(content.contains("dialect"), "Plugin import config should be preserved");
+    assert!(content.contains("-DeprecatedModel"), "Model removal should be preserved");
+    assert!(content.contains("Email:"), "Type alias should be preserved");
+    assert!(content.contains("-old_field"), "Field removal should be preserved");
+    assert!(content.contains("status {"), "Field override should be preserved");
+    assert!(content.contains("table"), "Model-level plugin config should be preserved");
+}

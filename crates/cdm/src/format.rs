@@ -659,35 +659,28 @@ fn format_source(
     let mut first_item = true;
 
     for child in root.children(&mut cursor) {
-        match child.kind() {
-            "comment" => {
-                if !first_item {
-                    output.push('\n');
-                }
-                output.push_str(&format_comment(child, source));
-                output.push('\n');
-                first_item = false;
-            }
-            "type_alias" => {
-                if !first_item {
-                    output.push('\n');
-                }
-                output.push_str(&format_type_alias(child, source, &assignment_map));
-                output.push('\n');
-                first_item = false;
-            }
-            "model_definition" => {
-                if !first_item {
-                    output.push('\n');
-                }
-                output.push_str(&format_model(child, source, &assignment_map, &indent));
-                output.push('\n');
-                first_item = false;
-            }
-            _ => {
-                // Skip whitespace and other nodes
-            }
+        // Skip whitespace-only nodes (handled by formatting)
+        let kind = child.kind();
+        if kind.starts_with('\n') || kind.starts_with('\r') {
+            continue;
         }
+
+        let formatted = match kind {
+            "comment" => format_comment(child, source),
+            "type_alias" => format_type_alias(child, source, &assignment_map),
+            "model_definition" => format_model(child, source, &assignment_map, &indent),
+            // Preserve all other node types (extends_directive, plugin_import,
+            // model_removal, etc.) by outputting their original source text.
+            // This ensures we don't lose any language elements during formatting.
+            _ => get_node_text(child, source),
+        };
+
+        if !first_item {
+            output.push('\n');
+        }
+        output.push_str(&formatted);
+        output.push('\n');
+        first_item = false;
     }
 
     output
@@ -794,15 +787,25 @@ fn format_model(
 
     let mut output = format!("{}{} {{\n", model_name, extends_str);
 
-    // Format fields
+    // Format model members
     if let Some(body) = node.child_by_field_name("body") {
         let mut cursor = body.walk();
         for member in body.children(&mut cursor) {
-            if member.kind() == "field_definition" {
-                let field_str = format_field(member, source, &model_name, assignment_map, indent);
-                output.push_str(&field_str);
-                output.push('\n');
+            // Skip structural tokens and whitespace
+            let kind = member.kind();
+            if kind == "{" || kind == "}" || kind.starts_with('\n') || kind.starts_with('\r') {
+                continue;
             }
+
+            let member_str = match kind {
+                "field_definition" => format_field(member, source, &model_name, assignment_map, indent),
+                // Preserve all other member types (plugin_config, field_removal,
+                // field_override, etc.) by outputting their original source text
+                // with proper indentation.
+                _ => format!("{}{}", indent, get_node_text(member, source)),
+            };
+            output.push_str(&member_str);
+            output.push('\n');
         }
     }
 
