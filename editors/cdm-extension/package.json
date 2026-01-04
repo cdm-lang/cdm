@@ -22,7 +22,7 @@
     "database",
     "code generation"
   ],
-  "activationEvents": [],
+  "activationEvents": ["onLanguage:cdm"],
   "main": "./out/extension.js",
   "contributes": {
     "languages": [
