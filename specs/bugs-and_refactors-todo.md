@@ -34,3 +34,5 @@ Code completion when you've extended from another model and you are about to cre
 ### Visual distinction when you're overriding an inherited model vs defining a new model in the syntax highlighter functionality
 
 ### Ability for plugins to export types
+
+### When I auto format save with a plugin declaration, the plugin gets removed
