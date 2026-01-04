@@ -163,6 +163,26 @@ describe("CDM Extension", () => {
       expect(registeredCommands.has("cdm.updateCli")).toBe(true);
     });
 
+    it("should register cdm.build command", async () => {
+      await activate(mockContext);
+
+      expect(vscode.commands.registerCommand).toHaveBeenCalledWith(
+        "cdm.build",
+        expect.any(Function)
+      );
+      expect(registeredCommands.has("cdm.build")).toBe(true);
+    });
+
+    it("should register cdm.migrate command", async () => {
+      await activate(mockContext);
+
+      expect(vscode.commands.registerCommand).toHaveBeenCalledWith(
+        "cdm.migrate",
+        expect.any(Function)
+      );
+      expect(registeredCommands.has("cdm.migrate")).toBe(true);
+    });
+
     it("should register onWillSaveTextDocument handler", async () => {
       await activate(mockContext);
 

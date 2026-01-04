@@ -3,6 +3,7 @@ import * as fs from 'fs';
 import * as https from 'https';
 import * as http from 'http';
 import * as os from 'os';
+import * as child_process from 'child_process';
 import * as vscode from 'vscode';
 import {
   LanguageClient,
@@ -46,6 +47,12 @@ export async function activate(context: vscode.ExtensionContext) {
     }),
     vscode.commands.registerCommand('cdm.updateCli', async () => {
       await updateCli(context);
+    }),
+    vscode.commands.registerCommand('cdm.build', async () => {
+      await runBuild();
+    }),
+    vscode.commands.registerCommand('cdm.migrate', async () => {
+      await runMigrate();
     })
   );
 
@@ -493,4 +500,155 @@ async function restartServer() {
     await client.start();
     vscode.window.showInformationMessage('CDM Language Server restarted');
   }
+}
+
+async function runBuild(): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || editor.document.languageId !== 'cdm') {
+    vscode.window.showErrorMessage('Please open a CDM file to build');
+    return;
+  }
+
+  // Save the document first
+  await editor.document.save();
+
+  const filePath = editor.document.uri.fsPath;
+
+  if (!resolvedCliPath) {
+    vscode.window.showErrorMessage('CDM CLI not found. Please install it first.');
+    return;
+  }
+
+  outputChannel.appendLine(`--- Running build ---`);
+  outputChannel.appendLine(`File: ${filePath}`);
+  outputChannel.appendLine(`Command: ${resolvedCliPath} build "${filePath}"`);
+  outputChannel.show();
+
+  try {
+    const result = await runCliCommand(resolvedCliPath, ['build', filePath]);
+    if (result.exitCode === 0) {
+      vscode.window.showInformationMessage('Build completed successfully');
+      outputChannel.appendLine('✓ Build completed successfully');
+      if (result.stdout) {
+        outputChannel.appendLine(result.stdout);
+      }
+    } else {
+      vscode.window.showErrorMessage('Build failed. See output for details.');
+      outputChannel.appendLine('✗ Build failed');
+      if (result.stderr) {
+        outputChannel.appendLine(result.stderr);
+      }
+      if (result.stdout) {
+        outputChannel.appendLine(result.stdout);
+      }
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    vscode.window.showErrorMessage(`Build failed: ${message}`);
+    outputChannel.appendLine(`✗ Build error: ${message}`);
+  }
+}
+
+async function runMigrate(): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || editor.document.languageId !== 'cdm') {
+    vscode.window.showErrorMessage('Please open a CDM file to generate migration');
+    return;
+  }
+
+  // Prompt for migration name
+  const migrationName = await vscode.window.showInputBox({
+    prompt: 'Enter migration name',
+    placeHolder: 'e.g., add_user_email_field',
+    validateInput: (value) => {
+      if (!value || value.trim().length === 0) {
+        return 'Migration name is required';
+      }
+      if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(value)) {
+        return 'Migration name must be alphanumeric with underscores (e.g., add_user_field)';
+      }
+      return null;
+    }
+  });
+
+  if (!migrationName) {
+    return; // User cancelled
+  }
+
+  // Save the document first
+  await editor.document.save();
+
+  const filePath = editor.document.uri.fsPath;
+
+  if (!resolvedCliPath) {
+    vscode.window.showErrorMessage('CDM CLI not found. Please install it first.');
+    return;
+  }
+
+  outputChannel.appendLine(`--- Running migrate ---`);
+  outputChannel.appendLine(`File: ${filePath}`);
+  outputChannel.appendLine(`Migration name: ${migrationName}`);
+  outputChannel.appendLine(`Command: ${resolvedCliPath} migrate "${filePath}" -n ${migrationName}`);
+  outputChannel.show();
+
+  try {
+    const result = await runCliCommand(resolvedCliPath, ['migrate', filePath, '-n', migrationName]);
+    if (result.exitCode === 0) {
+      vscode.window.showInformationMessage(`Migration '${migrationName}' generated successfully`);
+      outputChannel.appendLine('✓ Migration generated successfully');
+      if (result.stdout) {
+        outputChannel.appendLine(result.stdout);
+      }
+    } else {
+      vscode.window.showErrorMessage('Migration failed. See output for details.');
+      outputChannel.appendLine('✗ Migration failed');
+      if (result.stderr) {
+        outputChannel.appendLine(result.stderr);
+      }
+      if (result.stdout) {
+        outputChannel.appendLine(result.stdout);
+      }
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    vscode.window.showErrorMessage(`Migration failed: ${message}`);
+    outputChannel.appendLine(`✗ Migration error: ${message}`);
+  }
+}
+
+interface CliResult {
+  exitCode: number;
+  stdout: string;
+  stderr: string;
+}
+
+function runCliCommand(cliPath: string, args: string[]): Promise<CliResult> {
+  return new Promise((resolve, reject) => {
+    const process = child_process.spawn(cliPath, args, {
+      cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+    });
+
+    let stdout = '';
+    let stderr = '';
+
+    process.stdout.on('data', (data) => {
+      stdout += data.toString();
+    });
+
+    process.stderr.on('data', (data) => {
+      stderr += data.toString();
+    });
+
+    process.on('error', (error) => {
+      reject(error);
+    });
+
+    process.on('close', (code) => {
+      resolve({
+        exitCode: code ?? 1,
+        stdout,
+        stderr
+      });
+    });
+  });
 }

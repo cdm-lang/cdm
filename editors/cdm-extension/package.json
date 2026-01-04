@@ -81,8 +81,40 @@
       {
         "command": "cdm.updateCli",
         "title": "CDM: Update CLI"
+      },
+      {
+        "command": "cdm.build",
+        "title": "CDM: Build",
+        "icon": "$(play)"
+      },
+      {
+        "command": "cdm.migrate",
+        "title": "CDM: Generate Migration",
+        "icon": "$(git-compare)"
       }
     ],
+    "menus": {
+      "editor/title": [
+        {
+          "command": "cdm.build",
+          "when": "resourceLangId == cdm",
+          "group": "navigation@1"
+        },
+        {
+          "command": "cdm.migrate",
+          "when": "resourceLangId == cdm",
+          "group": "navigation@2"
+        }
+      ],
+      "commandPalette": [
+        {
+          "command": "cdm.build"
+        },
+        {
+          "command": "cdm.migrate"
+        }
+      ]
+    },
     "semanticTokenScopes": [
       {
         "language": "cdm",
