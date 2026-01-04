@@ -14,6 +14,9 @@ mod rename;
 mod code_actions;
 mod folding;
 mod semantic_tokens;
+mod plugin_schema_cache;
+
+pub use plugin_schema_cache::{PluginSchemaCache, PluginSettingsSchema, SettingsField};
 
 use document::DocumentStore;
 use workspace::Workspace;
@@ -24,6 +27,7 @@ pub struct CdmLanguageServer {
     client: Client,
     documents: DocumentStore,
     workspace: Workspace,
+    plugin_schema_cache: PluginSchemaCache,
     assign_ids_on_save: std::sync::Arc<std::sync::RwLock<bool>>,
 }
 
@@ -33,6 +37,7 @@ impl CdmLanguageServer {
             client,
             documents: DocumentStore::new(),
             workspace: Workspace::new(),
+            plugin_schema_cache: PluginSchemaCache::new(),
             assign_ids_on_save: std::sync::Arc::new(std::sync::RwLock::new(false)),
         }
     }
@@ -95,7 +100,12 @@ impl LanguageServer for CdmLanguageServer {
                 references_provider: Some(OneOf::Left(true)),
                 // Completion
                 completion_provider: Some(CompletionOptions {
-                    trigger_characters: Some(vec![":".to_string(), " ".to_string()]),
+                    trigger_characters: Some(vec![
+                        ":".to_string(),
+                        " ".to_string(),
+                        "{".to_string(),  // Trigger after opening plugin config brace
+                        ",".to_string(),  // Trigger after comma in plugin config
+                    ]),
                     ..Default::default()
                 }),
                 // Formatting
@@ -257,8 +267,13 @@ impl LanguageServer for CdmLanguageServer {
             None => return Ok(None),
         };
 
-        // Compute completions
-        let completions = completion::compute_completions(&text, position);
+        // Compute completions with plugin schema cache
+        let completions = completion::compute_completions(
+            &text,
+            position,
+            Some(&self.plugin_schema_cache),
+            Some(uri),
+        );
 
         Ok(completions.map(CompletionResponse::Array))
     }

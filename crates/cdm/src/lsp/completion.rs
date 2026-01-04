@@ -10,9 +10,21 @@
 use tower_lsp::lsp_types::*;
 use tree_sitter::{Node, Parser};
 use super::position::lsp_position_to_byte_offset;
+use super::plugin_schema_cache::PluginSchemaCache;
 
 /// Compute completion items for a position in a CDM document
-pub fn compute_completions(text: &str, position: Position) -> Option<Vec<CompletionItem>> {
+///
+/// # Arguments
+/// * `text` - The document text
+/// * `position` - The cursor position
+/// * `plugin_cache` - Optional cache for plugin schemas (for plugin config completions)
+/// * `document_uri` - Optional document URI (for resolving plugin paths)
+pub fn compute_completions(
+    text: &str,
+    position: Position,
+    plugin_cache: Option<&PluginSchemaCache>,
+    document_uri: Option<&Url>,
+) -> Option<Vec<CompletionItem>> {
     let byte_offset = lsp_position_to_byte_offset(text, position);
 
     // Parse the document
@@ -48,6 +60,26 @@ pub fn compute_completions(text: &str, position: Position) -> Option<Vec<Complet
             // Suggest snippets for new models and type aliases
             items.extend(snippet_completions());
         }
+        CompletionContext::PluginConfigField { plugin_name, config_level } => {
+            // Suggest plugin config field names
+            if let (Some(cache), Some(uri)) = (plugin_cache, document_uri) {
+                if let Some(schema) = cache.get_or_load(&plugin_name, uri, text) {
+                    // Get cursor node for finding already-defined fields
+                    if let Some(node) = find_node_at_offset(root, byte_offset) {
+                        let already_defined = extract_already_defined_fields(node, text, byte_offset);
+                        items.extend(plugin_field_completions(&schema, &config_level, &already_defined));
+                    }
+                }
+            }
+        }
+        CompletionContext::PluginConfigValue { plugin_name, config_level, field_name } => {
+            // Suggest plugin config field values
+            if let (Some(cache), Some(uri)) = (plugin_cache, document_uri) {
+                if let Some(schema) = cache.get_or_load(&plugin_name, uri, text) {
+                    items.extend(plugin_value_completions(&schema, &config_level, &field_name));
+                }
+            }
+        }
         CompletionContext::Unknown => {
             // Provide generic completions
             items.extend(builtin_type_completions());
@@ -73,14 +105,35 @@ enum CompletionContext {
     PluginDirective,
     /// At the top level of the document
     TopLevel,
+    /// Inside a plugin config object, suggesting field names
+    /// e.g., @sql { | } or @sql { dialect: "postgres", | }
+    PluginConfigField {
+        plugin_name: String,
+        config_level: PluginConfigLevel,
+    },
+    /// After a field name inside plugin config, suggesting values
+    /// e.g., @sql { dialect: | }
+    PluginConfigValue {
+        plugin_name: String,
+        config_level: PluginConfigLevel,
+        field_name: String,
+    },
     /// Unknown context
     Unknown,
 }
+
+// Re-export ConfigLevel from plugin_validation for use in completions
+pub use crate::plugin_validation::ConfigLevel as PluginConfigLevel;
 
 /// Determine what kind of completion is appropriate at the cursor position
 fn determine_completion_context(root: Node, text: &str, offset: usize) -> Option<CompletionContext> {
     // Find the node at the cursor position
     let node = find_node_at_offset(root, offset)?;
+
+    // Check for plugin config context first (highest priority)
+    if let Some(plugin_context) = detect_plugin_config_context(node, text, offset) {
+        return Some(plugin_context);
+    }
 
     // IMPORTANT: Check if we're after a colon first, before checking tree structure
     // This ensures that "name: " correctly detects as TypeExpression
@@ -145,6 +198,231 @@ fn is_after_colon(text: &str, offset: usize) -> bool {
     let trimmed = before.trim_end();
 
     trimmed.ends_with(':')
+}
+
+/// Detect if cursor is inside a plugin config block and determine the context
+fn detect_plugin_config_context(node: Node, text: &str, offset: usize) -> Option<CompletionContext> {
+    // Walk up the tree to find if we're inside an object_literal within a plugin config
+    let mut current = node;
+    let mut in_object_literal = false;
+    let mut object_literal_node: Option<Node> = None;
+    let mut field_name_if_value_position: Option<String> = None;
+
+    loop {
+        match current.kind() {
+            "object_literal" => {
+                in_object_literal = true;
+                object_literal_node = Some(current);
+            }
+            "object_entry" => {
+                // Check if we're in the value position (after the colon)
+                if let Some(key_node) = current.child_by_field_name("key") {
+                    let key_end = key_node.end_byte();
+                    if offset > key_end {
+                        // Check if there's a colon between key and cursor
+                        let text_between = &text[key_end..offset.min(current.end_byte())];
+                        if text_between.contains(':') {
+                            // We're in value position - extract the field name
+                            if let Ok(key_text) = key_node.utf8_text(text.as_bytes()) {
+                                field_name_if_value_position = Some(key_text.to_string());
+                            }
+                        }
+                    }
+                }
+            }
+            "plugin_config" => {
+                // We found a plugin_config ancestor - this is what we're looking for
+                if in_object_literal {
+                    let plugin_name = extract_plugin_name_from_config(current, text)?;
+                    let config_level = determine_config_level(current, text)?;
+
+                    if let Some(field_name) = field_name_if_value_position {
+                        return Some(CompletionContext::PluginConfigValue {
+                            plugin_name,
+                            config_level,
+                            field_name,
+                        });
+                    } else {
+                        return Some(CompletionContext::PluginConfigField {
+                            plugin_name,
+                            config_level,
+                        });
+                    }
+                }
+            }
+            "plugin_import" => {
+                // Global plugin config in @plugin { ... } directive
+                if in_object_literal {
+                    let plugin_name = extract_plugin_name_from_import(current, text)?;
+
+                    if let Some(field_name) = field_name_if_value_position {
+                        return Some(CompletionContext::PluginConfigValue {
+                            plugin_name,
+                            config_level: PluginConfigLevel::Global,
+                            field_name,
+                        });
+                    } else {
+                        return Some(CompletionContext::PluginConfigField {
+                            plugin_name,
+                            config_level: PluginConfigLevel::Global,
+                        });
+                    }
+                }
+            }
+            "source_file" => break,
+            _ => {}
+        }
+
+        if let Some(parent) = current.parent() {
+            current = parent;
+        } else {
+            break;
+        }
+    }
+
+    // Also check if we're right after an opening brace of a plugin config
+    // e.g., @sql {| where cursor is right after {
+    if let Some(obj_node) = object_literal_node {
+        // Check if this object_literal's parent is plugin_config or plugin_import
+        if let Some(parent) = obj_node.parent() {
+            match parent.kind() {
+                "plugin_config" => {
+                    let plugin_name = extract_plugin_name_from_config(parent, text)?;
+                    let config_level = determine_config_level(parent, text)?;
+                    return Some(CompletionContext::PluginConfigField {
+                        plugin_name,
+                        config_level,
+                    });
+                }
+                "plugin_import" => {
+                    let plugin_name = extract_plugin_name_from_import(parent, text)?;
+                    return Some(CompletionContext::PluginConfigField {
+                        plugin_name,
+                        config_level: PluginConfigLevel::Global,
+                    });
+                }
+                _ => {}
+            }
+        }
+    }
+
+    None
+}
+
+/// Extract plugin name from a plugin_config node (e.g., @sql { ... })
+fn extract_plugin_name_from_config(node: Node, text: &str) -> Option<String> {
+    node.child_by_field_name("name")
+        .and_then(|n| n.utf8_text(text.as_bytes()).ok())
+        .map(|s| s.to_string())
+}
+
+/// Extract plugin name from a plugin_import node (e.g., @sql from "..." { ... })
+fn extract_plugin_name_from_import(node: Node, text: &str) -> Option<String> {
+    node.child_by_field_name("name")
+        .and_then(|n| n.utf8_text(text.as_bytes()).ok())
+        .map(|s| s.to_string())
+}
+
+/// Determine the config level by walking up from a plugin_config node
+fn determine_config_level(plugin_config_node: Node, text: &str) -> Option<PluginConfigLevel> {
+    let mut current = plugin_config_node.parent()?;
+    let mut field_name: Option<String> = None;
+    let mut model_name: Option<String> = None;
+
+    loop {
+        match current.kind() {
+            "plugin_block" => {
+                // Continue up to find what contains the plugin_block
+                current = current.parent()?;
+            }
+            "type_alias" => {
+                let name = current.child_by_field_name("name")
+                    .and_then(|n| n.utf8_text(text.as_bytes()).ok())
+                    .map(|s| s.to_string())
+                    .unwrap_or_default();
+                return Some(PluginConfigLevel::TypeAlias { name });
+            }
+            "model_body" => {
+                // Need to get the model name from the parent model_definition
+                if let Some(model_def) = current.parent() {
+                    if model_def.kind() == "model_definition" {
+                        model_name = model_def.child_by_field_name("name")
+                            .and_then(|n| n.utf8_text(text.as_bytes()).ok())
+                            .map(|s| s.to_string());
+                    }
+                }
+                // Direct child of model_body means model-level config
+                let name = model_name.unwrap_or_default();
+                return Some(PluginConfigLevel::Model { name });
+            }
+            "field_definition" | "field_override" => {
+                // Get the field name
+                field_name = current.child_by_field_name("name")
+                    .and_then(|n| n.utf8_text(text.as_bytes()).ok())
+                    .map(|s| s.to_string());
+                // Continue up to find the model
+                current = current.parent()?;
+            }
+            "model_definition" => {
+                // We got here from a field - return field level
+                if let Some(field) = field_name {
+                    let model = current.child_by_field_name("name")
+                        .and_then(|n| n.utf8_text(text.as_bytes()).ok())
+                        .map(|s| s.to_string())
+                        .unwrap_or_default();
+                    return Some(PluginConfigLevel::Field { model, field });
+                }
+                current = current.parent()?;
+            }
+            "source_file" => {
+                // Reached top without finding a specific context
+                // This shouldn't happen for plugin_config, but handle gracefully
+                break;
+            }
+            _ => {
+                current = current.parent()?;
+            }
+        }
+    }
+
+    None
+}
+
+/// Extract already-defined field names in the current object_literal
+fn extract_already_defined_fields(node: Node, text: &str, _offset: usize) -> std::collections::HashSet<String> {
+    let mut defined = std::collections::HashSet::new();
+
+    // Walk up to find the enclosing object_literal
+    let mut current = node;
+    let mut object_literal: Option<Node> = None;
+
+    loop {
+        if current.kind() == "object_literal" {
+            object_literal = Some(current);
+            break;
+        }
+        if let Some(parent) = current.parent() {
+            current = parent;
+        } else {
+            break;
+        }
+    }
+
+    // Extract field names from object_entry children
+    if let Some(obj) = object_literal {
+        let mut cursor = obj.walk();
+        for child in obj.children(&mut cursor) {
+            if child.kind() == "object_entry" {
+                if let Some(key_node) = child.child_by_field_name("key") {
+                    if let Ok(key_text) = key_node.utf8_text(text.as_bytes()) {
+                        defined.insert(key_text.to_string());
+                    }
+                }
+            }
+        }
+    }
+
+    defined
 }
 
 /// Find the smallest node that contains the given byte offset
@@ -358,6 +636,129 @@ fn snippet_completions() -> Vec<CompletionItem> {
             ..Default::default()
         },
     ]
+}
+
+/// Generate completion items for plugin config fields
+///
+/// # Arguments
+/// * `schema` - The plugin's settings schema (containing GlobalSettings, ModelSettings, etc.)
+/// * `config_level` - Which settings model to use (Global, TypeAlias, Model, Field)
+/// * `already_defined` - Field names already present in the current config block
+pub fn plugin_field_completions(
+    schema: &super::plugin_schema_cache::PluginSettingsSchema,
+    config_level: &PluginConfigLevel,
+    already_defined: &std::collections::HashSet<String>,
+) -> Vec<CompletionItem> {
+    let fields = schema.fields_for_level(config_level);
+
+    fields
+        .iter()
+        .filter(|field| !already_defined.contains(&field.name))
+        .map(|field| {
+            let detail = format_field_detail(field);
+            let documentation = format_field_documentation(field);
+            let insert_text = format_field_insert_text(field);
+
+            CompletionItem {
+                label: field.name.clone(),
+                kind: Some(CompletionItemKind::PROPERTY),
+                detail: Some(detail),
+                documentation: Some(Documentation::MarkupContent(MarkupContent {
+                    kind: MarkupKind::Markdown,
+                    value: documentation,
+                })),
+                insert_text: Some(insert_text),
+                insert_text_format: Some(InsertTextFormat::SNIPPET),
+                ..Default::default()
+            }
+        })
+        .collect()
+}
+
+/// Generate completion items for plugin config field values
+///
+/// # Arguments
+/// * `schema` - The plugin's settings schema
+/// * `config_level` - Which settings model to use
+/// * `field_name` - The field name we're providing values for
+pub fn plugin_value_completions(
+    schema: &super::plugin_schema_cache::PluginSettingsSchema,
+    config_level: &PluginConfigLevel,
+    field_name: &str,
+) -> Vec<CompletionItem> {
+    let fields = schema.fields_for_level(config_level);
+
+    let field = match fields.iter().find(|f| f.name == field_name) {
+        Some(f) => f,
+        None => return Vec::new(),
+    };
+
+    let mut items = Vec::new();
+
+    // Add enum values from pre-parsed literal values
+    for value in &field.literal_values {
+        items.push(CompletionItem {
+            label: format!("\"{}\"", value),
+            kind: Some(CompletionItemKind::ENUM_MEMBER),
+            detail: Some(format!("Value for {}", field_name)),
+            insert_text: Some(format!("\"{}\"", value)),
+            ..Default::default()
+        });
+    }
+
+    // Add boolean completions if field is boolean type
+    if field.is_boolean {
+        items.push(CompletionItem {
+            label: "true".to_string(),
+            kind: Some(CompletionItemKind::KEYWORD),
+            detail: Some(format!("Boolean value for {}", field_name)),
+            ..Default::default()
+        });
+        items.push(CompletionItem {
+            label: "false".to_string(),
+            kind: Some(CompletionItemKind::KEYWORD),
+            detail: Some(format!("Boolean value for {}", field_name)),
+            ..Default::default()
+        });
+    }
+
+    items
+}
+
+/// Format field detail string (type info)
+fn format_field_detail(field: &super::plugin_schema_cache::SettingsField) -> String {
+    let type_str = field.type_expr.as_deref().unwrap_or("string");
+    let optional_marker = if field.optional { "?" } else { "" };
+    format!("{}{}: {}", field.name, optional_marker, type_str)
+}
+
+/// Format field documentation (markdown)
+fn format_field_documentation(field: &super::plugin_schema_cache::SettingsField) -> String {
+    let mut doc = String::new();
+
+    // Type info
+    let type_str = field.type_expr.as_deref().unwrap_or("string");
+    doc.push_str(&format!("**Type:** `{}`\n\n", type_str));
+
+    // Optionality
+    if field.optional {
+        doc.push_str("*Optional*\n\n");
+    } else {
+        doc.push_str("*Required*\n\n");
+    }
+
+    // Default value
+    if let Some(default) = &field.default_value {
+        doc.push_str(&format!("**Default:** `{}`", default));
+    }
+
+    doc
+}
+
+/// Format field insert text as a snippet
+fn format_field_insert_text(field: &super::plugin_schema_cache::SettingsField) -> String {
+    // Provide a snippet with a placeholder for the value
+    format!("{}: $1", field.name)
 }
 
 #[cfg(test)]
