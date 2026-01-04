@@ -103,6 +103,14 @@ describe("CDM Extension", () => {
     (vscode.window.showInformationMessage as jest.Mock) = jest.fn();
     (vscode.window.showErrorMessage as jest.Mock) = jest.fn().mockResolvedValue(undefined);
     (vscode.window.withProgress as jest.Mock) = jest.fn();
+    (vscode.window.onDidChangeActiveTextEditor as jest.Mock) = jest.fn(
+      () => ({ dispose: jest.fn() })
+    );
+    // Mock activeTextEditor as undefined initially
+    Object.defineProperty(vscode.window, 'activeTextEditor', {
+      get: jest.fn(() => undefined),
+      configurable: true,
+    });
 
     // Mock commands
     (vscode.commands.registerCommand as jest.Mock) = jest.fn(
@@ -110,6 +118,12 @@ describe("CDM Extension", () => {
         registeredCommands.set(command, callback);
         return { dispose: jest.fn() };
       }
+    );
+    (vscode.commands.executeCommand as jest.Mock) = jest.fn().mockResolvedValue(undefined);
+
+    // Mock workspace.onDidSaveTextDocument
+    (vscode.workspace.onDidSaveTextDocument as jest.Mock) = jest.fn(
+      () => ({ dispose: jest.fn() })
     );
 
     // Mock extension context
@@ -468,8 +482,7 @@ describe("CDM Extension", () => {
         }
       );
 
-      // Mock executeCommand
-      (vscode.commands.executeCommand as jest.Mock) = jest.fn().mockResolvedValue(undefined);
+      // executeCommand is already mocked in the parent beforeEach
     });
 
     it("should register onWillSaveTextDocument handler", async () => {
