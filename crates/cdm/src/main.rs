@@ -18,7 +18,11 @@ struct Cli {
 #[derive(Subcommand)]
 enum Commands {
     /// Start the Language Server Protocol server
-    Lsp,
+    Lsp {
+        /// Use stdio for communication (default, kept for compatibility with editors)
+        #[arg(long)]
+        stdio: bool,
+    },
     /// Validate a CDM file
     Validate {
         #[arg(value_name = "FILE")]
@@ -174,7 +178,8 @@ fn main() -> Result<()> {
     let cli = Cli::parse();
 
     match cli.command {
-        Commands::Lsp => {
+        Commands::Lsp { stdio: _ } => {
+            // stdio flag is accepted for compatibility but always uses stdio
             tokio::runtime::Runtime::new()
                 .expect("Failed to create Tokio runtime")
                 .block_on(cdm::lsp::run());

@@ -9,9 +9,6 @@ const mockLanguageClient = {
 
 jest.mock("vscode-languageclient/node", () => ({
   LanguageClient: jest.fn(() => mockLanguageClient),
-  TransportKind: {
-    stdio: 0,
-  },
 }));
 
 // Mock fs module
@@ -211,7 +208,6 @@ describe("CDM Extension", () => {
           run: expect.objectContaining({
             command: "/custom/path/to/cdm",
             args: ["lsp"],
-            transport: 0,
           }),
         }),
         expect.any(Object)
@@ -350,6 +346,31 @@ describe("CDM Extension", () => {
       expect(result).toBeDefined();
       await result;
       expect(mockLanguageClient.stop).toHaveBeenCalled();
+    });
+
+    it("should suppress errors during shutdown", async () => {
+      const fs = require("fs");
+      fs.promises.access.mockResolvedValueOnce(undefined);
+
+      mockConfig.get = jest.fn((key: string) => {
+        if (key === "cli.path") return "/path/to/cdm";
+        if (key === "trace.server") return "off";
+        if (key === "validation.checkIds") return true;
+        if (key === "format.indentSize") return 2;
+        if (key === "format.assignIdsOnSave") return false;
+        return undefined;
+      });
+
+      // Mock stop to reject (simulates "connection disposed" error)
+      mockLanguageClient.stop.mockRejectedValueOnce(
+        new Error("Pending response rejected since connection got disposed")
+      );
+
+      await activate(mockContext);
+
+      // Should not throw even if stop() rejects
+      const result = deactivate();
+      await expect(result).resolves.toBeUndefined();
     });
   });
 

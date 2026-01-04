@@ -8,7 +8,6 @@ import {
   LanguageClient,
   LanguageClientOptions,
   ServerOptions,
-  TransportKind,
   Executable
 } from 'vscode-languageclient/node';
 
@@ -95,10 +94,14 @@ async function resolveServerPath(context: vscode.ExtensionContext): Promise<stri
   const config = vscode.workspace.getConfiguration('cdm');
   const configuredPath = config.get<string>('cli.path');
 
+  outputChannel.appendLine('--- Resolving CDM server path ---');
+  outputChannel.appendLine(`Configured cdm.cli.path: "${configuredPath || '(not set)'}"`);
+
   // 1. Check if user has configured a custom path
   if (configuredPath && configuredPath !== 'cdm') {
+    outputChannel.appendLine(`Checking custom path: ${configuredPath}`);
     if (await fileExists(configuredPath)) {
-      outputChannel.appendLine(`Using configured server path: ${configuredPath}`);
+      outputChannel.appendLine(`✓ Using configured server path: ${configuredPath}`);
       return configuredPath;
     } else {
       throw new Error(`Configured server path does not exist: ${configuredPath}`);
@@ -106,21 +109,25 @@ async function resolveServerPath(context: vscode.ExtensionContext): Promise<stri
   }
 
   // 2. Check if cdm is in PATH
+  outputChannel.appendLine('Searching for cdm in PATH...');
   const pathServer = await findInPath('cdm');
   if (pathServer) {
-    outputChannel.appendLine(`Found cdm in PATH: ${pathServer}`);
+    outputChannel.appendLine(`✓ Found cdm in PATH: ${pathServer}`);
     return pathServer;
   }
+  outputChannel.appendLine('✗ cdm not found in PATH');
 
   // 3. Check if we have a downloaded binary
   const downloadedPath = getDownloadedServerPath(context);
+  outputChannel.appendLine(`Checking for downloaded binary: ${downloadedPath}`);
   if (await fileExists(downloadedPath)) {
-    outputChannel.appendLine(`Using downloaded server: ${downloadedPath}`);
+    outputChannel.appendLine(`✓ Using downloaded server: ${downloadedPath}`);
     return downloadedPath;
   }
+  outputChannel.appendLine('✗ No downloaded binary found');
 
   // 4. Download the latest release
-  outputChannel.appendLine('CDM Language Server not found. Downloading...');
+  outputChannel.appendLine('Attempting to download CDM Language Server...');
   return await downloadLatestServer(context);
 }
 
@@ -401,6 +408,9 @@ async function findInPath(binaryName: string): Promise<string | null> {
   const pathSeparator = os.platform() === 'win32' ? ';' : ':';
   const paths = pathEnv.split(pathSeparator);
 
+  outputChannel.appendLine(`PATH contains ${paths.length} directories`);
+  outputChannel.appendLine(`PATH: ${pathEnv}`);
+
   const extensions = os.platform() === 'win32' ? ['', '.exe', '.cmd', '.bat'] : [''];
 
   for (const dir of paths) {
@@ -419,10 +429,13 @@ async function startLanguageServer(context: vscode.ExtensionContext, serverPath:
   const config = vscode.workspace.getConfiguration('cdm');
   const traceLevel = config.get<string>('trace.server') || 'off';
 
+  outputChannel.appendLine('--- Starting Language Server ---');
+  outputChannel.appendLine(`Server path: ${serverPath}`);
+  outputChannel.appendLine(`Command: ${serverPath} lsp`);
+
   const serverExecutable: Executable = {
     command: serverPath,
-    args: ['lsp'],  // Run the LSP subcommand
-    transport: TransportKind.stdio
+    args: ['lsp']  // Run the LSP subcommand (uses stdio by default)
   };
 
   const serverOptions: ServerOptions = {
@@ -454,15 +467,23 @@ async function startLanguageServer(context: vscode.ExtensionContext, serverPath:
     clientOptions
   );
 
-  await client.start();
-  outputChannel.appendLine('CDM Language Server started');
+  try {
+    await client.start();
+    outputChannel.appendLine('✓ CDM Language Server started successfully');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    outputChannel.appendLine(`✗ Failed to start Language Server: ${message}`);
+    throw error;
+  }
 }
 
 export function deactivate(): Thenable<void> | undefined {
   if (!client) {
     return undefined;
   }
-  return client.stop();
+  // Suppress "connection disposed" errors during shutdown - these are expected
+  // when pending requests exist at deactivation time
+  return client.stop().catch(() => {});
 }
 
 async function restartServer() {
