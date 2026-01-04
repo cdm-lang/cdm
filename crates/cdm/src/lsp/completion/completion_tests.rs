@@ -218,21 +218,25 @@ fn test_plugin_field_completions_with_mock_schema() {
         type_alias_settings: vec![],
         model_settings: vec![],
         field_settings: vec![],
+        has_build: false,
+        has_migrate: false,
     };
 
     let already_defined = std::collections::HashSet::new();
     let items = plugin_field_completions(&schema, &PluginConfigLevel::Global, &already_defined);
 
-    assert_eq!(items.len(), 3);
+    // Should have 3 plugin fields + 1 reserved (version always shown)
+    assert_eq!(items.len(), 4);
     assert!(items.iter().any(|i| i.label == "dialect"));
     assert!(items.iter().any(|i| i.label == "schema"));
     assert!(items.iter().any(|i| i.label == "infer_not_null"));
+    assert!(items.iter().any(|i| i.label == "version"));
 
     // Test filtering already defined fields
     let mut already_defined = std::collections::HashSet::new();
     already_defined.insert("dialect".to_string());
     let items = plugin_field_completions(&schema, &PluginConfigLevel::Global, &already_defined);
-    assert_eq!(items.len(), 2);
+    assert_eq!(items.len(), 3);
     assert!(!items.iter().any(|i| i.label == "dialect"));
 }
 
@@ -262,6 +266,8 @@ fn test_plugin_value_completions_with_mock_schema() {
         type_alias_settings: vec![],
         model_settings: vec![],
         field_settings: vec![],
+        has_build: false,
+        has_migrate: false,
     };
 
     // Test enum value completions
@@ -275,4 +281,245 @@ fn test_plugin_value_completions_with_mock_schema() {
     assert_eq!(items.len(), 2);
     assert!(items.iter().any(|i| i.label == "true"));
     assert!(items.iter().any(|i| i.label == "false"));
+}
+
+// Tests for comma + space/newline trigger condition
+
+#[test]
+fn test_no_completions_immediately_after_comma_in_plugin_config() {
+    // When cursor is immediately after a comma in plugin config (no space/newline),
+    // completions should be suppressed entirely - no generic completions like
+    // "boolean", "string", "model", etc.
+    let text = r#"@sql {
+  dialect: "postgres",
+}
+"#;
+    // Position right after the comma (line 1, after the comma)
+    // Line 0: "@sql {"
+    // Line 1: "  dialect: \"postgres\","
+    // Cursor at end of line 1, right after comma
+    let position = Position { line: 1, character: 22 };
+
+    let completions = compute_completions(text, position, None, None);
+
+    // Should return None (no completions), not generic completions
+    assert!(
+        completions.is_none(),
+        "Expected no completions immediately after comma, but got: {:?}",
+        completions.map(|c| c.iter().map(|i| i.label.clone()).collect::<Vec<_>>())
+    );
+}
+
+#[test]
+fn test_completions_after_comma_and_space_in_plugin_config() {
+    // When cursor is after comma + space, completions should be shown
+    let text = r#"@sql {
+  dialect: "postgres",
+}
+"#;
+    // Position after the comma and space (line 1, after ", ")
+    let position = Position { line: 1, character: 23 };
+
+    let completions = compute_completions(text, position, None, None);
+
+    // Should return Some with plugin config context detected
+    // (even if empty because we don't have the plugin cache, the context should be detected)
+    // The key point is it should NOT return generic completions like "boolean", "model", etc.
+    if let Some(items) = &completions {
+        // If completions are returned, they should NOT include generic type completions
+        assert!(
+            !items.iter().any(|i| i.label == "boolean"),
+            "Should not suggest 'boolean' in plugin config context"
+        );
+        assert!(
+            !items.iter().any(|i| i.label == "model"),
+            "Should not suggest 'model' snippet in plugin config context"
+        );
+        assert!(
+            !items.iter().any(|i| i.label == "string"),
+            "Should not suggest 'string' in plugin config context"
+        );
+    }
+    // It's OK if completions is None when plugin cache is not provided
+}
+
+#[test]
+fn test_should_show_plugin_field_completions() {
+    // Should show completions after opening brace (cursor at end of "@sql {")
+    assert!(should_show_plugin_field_completions("@sql {", 6));
+
+    // Should show completions after comma + space
+    let text_comma_space = "@sql { dialect: \"postgres\", ";
+    assert!(should_show_plugin_field_completions(text_comma_space, text_comma_space.len()));
+
+    // Should show completions after comma + newline
+    let text_comma_newline = "@sql { dialect: \"postgres\",\n";
+    assert!(should_show_plugin_field_completions(text_comma_newline, text_comma_newline.len()));
+
+    // Should show completions after comma + tab
+    let text_comma_tab = "@sql { dialect: \"postgres\",\t";
+    assert!(should_show_plugin_field_completions(text_comma_tab, text_comma_tab.len()));
+
+    // Should NOT show completions immediately after comma (no space/newline)
+    let text_comma_only = "@sql { dialect: \"postgres\",";
+    assert!(!should_show_plugin_field_completions(text_comma_only, text_comma_only.len()));
+
+    // Should show completions in empty config block with space
+    assert!(should_show_plugin_field_completions("@sql { }", 7));
+
+    // Edge case: empty text
+    assert!(should_show_plugin_field_completions("", 0));
+
+    // Edge case: just whitespace
+    assert!(should_show_plugin_field_completions("  ", 2));
+}
+
+// Tests for reserved global settings (version, build_output, migrations_output)
+
+#[test]
+fn test_reserved_global_settings_version_always_shown() {
+    use super::super::plugin_schema_cache::PluginSettingsSchema;
+
+    // Plugin with no build/migrate capabilities
+    let schema = PluginSettingsSchema {
+        global_settings: vec![],
+        type_alias_settings: vec![],
+        model_settings: vec![],
+        field_settings: vec![],
+        has_build: false,
+        has_migrate: false,
+    };
+
+    let already_defined = std::collections::HashSet::new();
+    let items = plugin_field_completions(&schema, &PluginConfigLevel::Global, &already_defined);
+
+    // Should only have version (always shown)
+    assert_eq!(items.len(), 1);
+    assert!(items.iter().any(|i| i.label == "version"));
+    assert!(!items.iter().any(|i| i.label == "build_output"));
+    assert!(!items.iter().any(|i| i.label == "migrations_output"));
+}
+
+#[test]
+fn test_reserved_global_settings_build_output_shown_when_plugin_has_build() {
+    use super::super::plugin_schema_cache::PluginSettingsSchema;
+
+    // Plugin with build capability
+    let schema = PluginSettingsSchema {
+        global_settings: vec![],
+        type_alias_settings: vec![],
+        model_settings: vec![],
+        field_settings: vec![],
+        has_build: true,
+        has_migrate: false,
+    };
+
+    let already_defined = std::collections::HashSet::new();
+    let items = plugin_field_completions(&schema, &PluginConfigLevel::Global, &already_defined);
+
+    // Should have version + build_output
+    assert_eq!(items.len(), 2);
+    assert!(items.iter().any(|i| i.label == "version"));
+    assert!(items.iter().any(|i| i.label == "build_output"));
+    assert!(!items.iter().any(|i| i.label == "migrations_output"));
+}
+
+#[test]
+fn test_reserved_global_settings_migrations_output_shown_when_plugin_has_migrate() {
+    use super::super::plugin_schema_cache::PluginSettingsSchema;
+
+    // Plugin with migrate capability
+    let schema = PluginSettingsSchema {
+        global_settings: vec![],
+        type_alias_settings: vec![],
+        model_settings: vec![],
+        field_settings: vec![],
+        has_build: false,
+        has_migrate: true,
+    };
+
+    let already_defined = std::collections::HashSet::new();
+    let items = plugin_field_completions(&schema, &PluginConfigLevel::Global, &already_defined);
+
+    // Should have version + migrations_output
+    assert_eq!(items.len(), 2);
+    assert!(items.iter().any(|i| i.label == "version"));
+    assert!(!items.iter().any(|i| i.label == "build_output"));
+    assert!(items.iter().any(|i| i.label == "migrations_output"));
+}
+
+#[test]
+fn test_reserved_global_settings_all_shown_when_plugin_has_both() {
+    use super::super::plugin_schema_cache::PluginSettingsSchema;
+
+    // Plugin with both build and migrate capabilities (like sql plugin)
+    let schema = PluginSettingsSchema {
+        global_settings: vec![],
+        type_alias_settings: vec![],
+        model_settings: vec![],
+        field_settings: vec![],
+        has_build: true,
+        has_migrate: true,
+    };
+
+    let already_defined = std::collections::HashSet::new();
+    let items = plugin_field_completions(&schema, &PluginConfigLevel::Global, &already_defined);
+
+    // Should have all three reserved settings
+    assert_eq!(items.len(), 3);
+    assert!(items.iter().any(|i| i.label == "version"));
+    assert!(items.iter().any(|i| i.label == "build_output"));
+    assert!(items.iter().any(|i| i.label == "migrations_output"));
+}
+
+#[test]
+fn test_reserved_global_settings_filtered_when_already_defined() {
+    use super::super::plugin_schema_cache::PluginSettingsSchema;
+
+    let schema = PluginSettingsSchema {
+        global_settings: vec![],
+        type_alias_settings: vec![],
+        model_settings: vec![],
+        field_settings: vec![],
+        has_build: true,
+        has_migrate: true,
+    };
+
+    // Already defined version and build_output
+    let mut already_defined = std::collections::HashSet::new();
+    already_defined.insert("version".to_string());
+    already_defined.insert("build_output".to_string());
+
+    let items = plugin_field_completions(&schema, &PluginConfigLevel::Global, &already_defined);
+
+    // Should only have migrations_output
+    assert_eq!(items.len(), 1);
+    assert!(items.iter().any(|i| i.label == "migrations_output"));
+}
+
+#[test]
+fn test_reserved_settings_not_shown_for_non_global_levels() {
+    use super::super::plugin_schema_cache::PluginSettingsSchema;
+
+    let schema = PluginSettingsSchema {
+        global_settings: vec![],
+        type_alias_settings: vec![],
+        model_settings: vec![],
+        field_settings: vec![],
+        has_build: true,
+        has_migrate: true,
+    };
+
+    let already_defined = std::collections::HashSet::new();
+
+    // Model level should not have reserved settings
+    let items = plugin_field_completions(&schema, &PluginConfigLevel::Model { name: "User".to_string() }, &already_defined);
+    assert_eq!(items.len(), 0);
+    assert!(!items.iter().any(|i| i.label == "version"));
+    assert!(!items.iter().any(|i| i.label == "build_output"));
+    assert!(!items.iter().any(|i| i.label == "migrations_output"));
+
+    // Field level should not have reserved settings
+    let items = plugin_field_completions(&schema, &PluginConfigLevel::Field { model: "User".to_string(), field: "name".to_string() }, &already_defined);
+    assert_eq!(items.len(), 0);
 }

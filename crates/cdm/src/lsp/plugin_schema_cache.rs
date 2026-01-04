@@ -31,6 +31,10 @@ pub struct PluginSettingsSchema {
     pub model_settings: Vec<SettingsField>,
     /// FieldSettings model fields
     pub field_settings: Vec<SettingsField>,
+    /// Whether the plugin has a _build function (supports build_output)
+    pub has_build: bool,
+    /// Whether the plugin has a _migrate function (supports migrations_output)
+    pub has_migrate: bool,
 }
 
 /// A simplified field definition for completion purposes
@@ -161,7 +165,14 @@ impl PluginSchemaCache {
         let wasm_path = crate::plugin_resolver::resolve_plugin_path(import).ok()?;
 
         // Load WASM and get schema
-        let mut runner = PluginRunner::new(&wasm_path).ok()?;
+        let runner = PluginRunner::new(&wasm_path).ok()?;
+
+        // Check plugin capabilities
+        let has_build = runner.has_build().unwrap_or(false);
+        let has_migrate = runner.has_migrate().unwrap_or(false);
+
+        // Get schema (need mutable borrow for this)
+        let mut runner = runner;
         let schema_cdm = runner.schema().ok()?;
 
         // Parse the schema
@@ -184,6 +195,8 @@ impl PluginSchemaCache {
             type_alias_settings: extract_settings_fields(&resolved, "TypeAliasSettings"),
             model_settings: extract_settings_fields(&resolved, "ModelSettings"),
             field_settings: extract_settings_fields(&resolved, "FieldSettings"),
+            has_build,
+            has_migrate,
         })
     }
 
@@ -281,6 +294,8 @@ mod tests {
                         type_alias_settings: Vec::new(),
                         model_settings: Vec::new(),
                         field_settings: Vec::new(),
+                        has_build: false,
+                        has_migrate: false,
                     },
                     loaded_at: Instant::now(),
                 },

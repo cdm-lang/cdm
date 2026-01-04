@@ -80,6 +80,10 @@ pub fn compute_completions(
                 }
             }
         }
+        CompletionContext::SuppressCompletions => {
+            // Don't show any completions (e.g., immediately after comma in plugin config)
+            return None;
+        }
         CompletionContext::Unknown => {
             // Provide generic completions
             items.extend(builtin_type_completions());
@@ -118,6 +122,8 @@ enum CompletionContext {
         config_level: PluginConfigLevel,
         field_name: String,
     },
+    /// Suppress all completions (e.g., immediately after comma in plugin config)
+    SuppressCompletions,
     /// Unknown context
     Unknown,
 }
@@ -200,6 +206,34 @@ fn is_after_colon(text: &str, offset: usize) -> bool {
     trimmed.ends_with(':')
 }
 
+/// Check if plugin config field completions should be shown at this position.
+/// Returns false if cursor is immediately after a comma without a space/newline.
+fn should_show_plugin_field_completions(text: &str, offset: usize) -> bool {
+    if offset == 0 {
+        return true;
+    }
+
+    // Look at the text before the cursor
+    let before = &text[..offset];
+
+    // Find the last non-whitespace character before cursor
+    let trimmed = before.trim_end();
+    if trimmed.is_empty() {
+        return true;
+    }
+
+    // If the last non-whitespace char is a comma, check if there's whitespace after it
+    if trimmed.ends_with(',') {
+        // There must be at least one space or newline between the comma and cursor
+        let comma_pos = trimmed.len() - 1;
+        let after_comma = &before[comma_pos + 1..];
+        // Need at least one whitespace character (space or newline) after comma
+        return after_comma.chars().any(|c| c == ' ' || c == '\n' || c == '\r' || c == '\t');
+    }
+
+    true
+}
+
 /// Detect if cursor is inside a plugin config block and determine the context
 fn detect_plugin_config_context(node: Node, text: &str, offset: usize) -> Option<CompletionContext> {
     // Walk up the tree to find if we're inside an object_literal within a plugin config
@@ -243,6 +277,10 @@ fn detect_plugin_config_context(node: Node, text: &str, offset: usize) -> Option
                             field_name,
                         });
                     } else {
+                        // Only show field completions after comma+space/newline, not immediately after comma
+                        if !should_show_plugin_field_completions(text, offset) {
+                            return Some(CompletionContext::SuppressCompletions);
+                        }
                         return Some(CompletionContext::PluginConfigField {
                             plugin_name,
                             config_level,
@@ -262,6 +300,10 @@ fn detect_plugin_config_context(node: Node, text: &str, offset: usize) -> Option
                             field_name,
                         });
                     } else {
+                        // Only show field completions after comma+space/newline, not immediately after comma
+                        if !should_show_plugin_field_completions(text, offset) {
+                            return Some(CompletionContext::SuppressCompletions);
+                        }
                         return Some(CompletionContext::PluginConfigField {
                             plugin_name,
                             config_level: PluginConfigLevel::Global,
@@ -287,6 +329,10 @@ fn detect_plugin_config_context(node: Node, text: &str, offset: usize) -> Option
         if let Some(parent) = obj_node.parent() {
             match parent.kind() {
                 "plugin_config" => {
+                    // Only show field completions after comma+space/newline, not immediately after comma
+                    if !should_show_plugin_field_completions(text, offset) {
+                        return Some(CompletionContext::SuppressCompletions);
+                    }
                     let plugin_name = extract_plugin_name_from_config(parent, text)?;
                     let config_level = determine_config_level(parent, text)?;
                     return Some(CompletionContext::PluginConfigField {
@@ -295,6 +341,10 @@ fn detect_plugin_config_context(node: Node, text: &str, offset: usize) -> Option
                     });
                 }
                 "plugin_import" => {
+                    // Only show field completions after comma+space/newline, not immediately after comma
+                    if !should_show_plugin_field_completions(text, offset) {
+                        return Some(CompletionContext::SuppressCompletions);
+                    }
                     let plugin_name = extract_plugin_name_from_import(parent, text)?;
                     return Some(CompletionContext::PluginConfigField {
                         plugin_name,
@@ -649,9 +699,17 @@ pub fn plugin_field_completions(
     config_level: &PluginConfigLevel,
     already_defined: &std::collections::HashSet<String>,
 ) -> Vec<CompletionItem> {
+    let mut items: Vec<CompletionItem> = Vec::new();
+
+    // For Global level, add reserved settings (version, build_output, migrations_output)
+    if matches!(config_level, PluginConfigLevel::Global) {
+        items.extend(reserved_global_settings_completions(schema, already_defined));
+    }
+
+    // Add plugin-defined fields
     let fields = schema.fields_for_level(config_level);
 
-    fields
+    items.extend(fields
         .iter()
         .filter(|field| !already_defined.contains(&field.name))
         .map(|field| {
@@ -671,8 +729,71 @@ pub fn plugin_field_completions(
                 insert_text_format: Some(InsertTextFormat::SNIPPET),
                 ..Default::default()
             }
-        })
-        .collect()
+        }));
+
+    items
+}
+
+/// Generate completion items for reserved global settings
+/// These are settings handled by CDM itself, not passed to the plugin:
+/// - version: always shown
+/// - build_output: shown if plugin has _build function
+/// - migrations_output: shown if plugin has _migrate function
+fn reserved_global_settings_completions(
+    schema: &super::plugin_schema_cache::PluginSettingsSchema,
+    already_defined: &std::collections::HashSet<String>,
+) -> Vec<CompletionItem> {
+    let mut items = Vec::new();
+
+    // version - always available
+    if !already_defined.contains("version") {
+        items.push(CompletionItem {
+            label: "version".to_string(),
+            kind: Some(CompletionItemKind::PROPERTY),
+            detail: Some("version?: string".to_string()),
+            documentation: Some(Documentation::MarkupContent(MarkupContent {
+                kind: MarkupKind::Markdown,
+                value: "**Type:** `string`\n\n*Optional*\n\nVersion constraint for plugin resolution (e.g., \"1.0.0\", \"^1.2.3\")".to_string(),
+            })),
+            insert_text: Some("version: \"$1\"".to_string()),
+            insert_text_format: Some(InsertTextFormat::SNIPPET),
+            ..Default::default()
+        });
+    }
+
+    // build_output - only if plugin has _build function
+    if schema.has_build && !already_defined.contains("build_output") {
+        items.push(CompletionItem {
+            label: "build_output".to_string(),
+            kind: Some(CompletionItemKind::PROPERTY),
+            detail: Some("build_output?: string".to_string()),
+            documentation: Some(Documentation::MarkupContent(MarkupContent {
+                kind: MarkupKind::Markdown,
+                value: "**Type:** `string`\n\n*Optional*\n\nOutput directory for generated files from `cdm build`".to_string(),
+            })),
+            insert_text: Some("build_output: \"$1\"".to_string()),
+            insert_text_format: Some(InsertTextFormat::SNIPPET),
+            ..Default::default()
+        });
+    }
+
+    // migrations_output - only if plugin has _migrate function
+    if schema.has_migrate && !already_defined.contains("migrations_output") {
+        items.push(CompletionItem {
+            label: "migrations_output".to_string(),
+            kind: Some(CompletionItemKind::PROPERTY),
+            detail: Some("migrations_output?: string".to_string()),
+            documentation: Some(Documentation::MarkupContent(MarkupContent {
+                kind: MarkupKind::Markdown,
+                value: "**Type:** `string`\n\n*Optional*\n\nOutput directory for migration files from `cdm migrate`".to_string(),
+            })),
+            insert_text: Some("migrations_output: \"$1\"".to_string()),
+            insert_text_format: Some(InsertTextFormat::SNIPPET),
+            ..Default::default()
+        });
+    }
+
+    items
 }
 
 /// Generate completion items for plugin config field values
