@@ -835,9 +835,33 @@ fn format_field(
         .map(|n| get_node_text(n, source))
         .unwrap_or_default();
 
+    // Check for optional marker (?)
+    let optional_marker = if node.child_by_field_name("optional").is_some() {
+        "?"
+    } else {
+        ""
+    };
+
+    // Check for type - only add ": type" if there is a type
     let type_node = node.child_by_field_name("type");
-    let type_str = if let Some(type_node) = type_node {
-        format_type(type_node, source)
+    let type_part = if let Some(type_node) = type_node {
+        let type_str = format_type(type_node, source);
+
+        // Check for default value
+        let default_part = if let Some(default_node) = node.child_by_field_name("default") {
+            format!(" = {}", get_node_text(default_node, source))
+        } else {
+            String::new()
+        };
+
+        // Check for inline plugin block
+        let plugins_part = if let Some(plugins_node) = node.child_by_field_name("plugins") {
+            format!(" {}", get_node_text(plugins_node, source))
+        } else {
+            String::new()
+        };
+
+        format!(": {}{}{}", type_str, default_part, plugins_part)
     } else {
         String::new()
     };
@@ -851,7 +875,7 @@ fn format_field(
         String::new()
     };
 
-    format!("{}{}: {}{}", indent, field_name, type_str, id)
+    format!("{}{}{}{}{}", indent, field_name, optional_marker, type_part, id)
 }
 
 // =============================================================================
