@@ -9,7 +9,7 @@ From a single CDM schema, you can generate:
 * Validation logic
 * API-specific views of your models
 * Documentation
-* Any custom output via plugins
+* Other custom output via plugins
 
 CDM is designed to be the **source of truth** for your data — across databases, APIs, services, and clients.
 
@@ -21,12 +21,12 @@ Most teams define the same data model *multiple times*:
 
 * SQL tables
 * ORM models
-* API DTOs
+* API contracts
 * Client types
 * Validation schemas
 * Migration logic
 
-These definitions inevitably drift.
+These definitions can be difficult to keep in sync and inevitably drift.
 
 **CDM eliminates that drift.**
 
@@ -51,28 +51,36 @@ Each context extends a shared base model and applies targeted changes — safely
 ```cdm
 // base.cdm
 User {
-  id: string #1
-  email: string #2
-  password_hash: string #3
-} #10
-```
-
-```cdm
-// api.cdm
-@extends ./base.cdm
-
-User {
-  -password_hash
+  id: string
+  name: string
+  email: string
 }
 ```
 
-This is a core CDM feature — not a workaround.
+```cdm
+// database.cdm
+@extends ./base.cdm
+
+User {
+  birth_date: string
+  password_hash: string
+}
+```
+
+```cdm
+// client.cdm
+@extends ./base.cdm
+
+User {
+  age: number
+}
+```
 
 ---
 
 ### 2. Migration-Safe Schema Evolution
 
-CDM supports **stable entity IDs** that allow it to *reliably detect renames*.
+CDM optionally supports **stable entity IDs** that allow it to *reliably detect renames*.
 
 That means:
 
@@ -86,9 +94,6 @@ User {
 }
 ```
 
-Without IDs, schema tools guess.
-With CDM, they know.
-
 ---
 
 ### 3. Context-Aware Code Generation
@@ -98,7 +103,7 @@ CDM doesn’t just generate code — it generates **the right code for the envir
 The same field can:
 
 * Be a `VARCHAR(320)` in SQL
-* A branded type in TypeScript
+* A named type in TypeScript
 * Have strict validation rules
 * Be hidden entirely in some contexts
 
@@ -138,10 +143,6 @@ User {
   status: "active" | "pending" = "pending" #3
 } #10
 ```
-
-No YAML.
-No annotations bolted onto another language.
-No magic.
 
 ---
 
