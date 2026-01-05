@@ -162,6 +162,8 @@ User {
 
 Because the ID stayed the same, CDM treats this as a rename and preserves data in migrations.
 
+Use the [format command](5-cli-usage-and-workflows.md#assigning-entity-ids) to automatically add entity IDs to your cdm files.
+
 ---
 
 ### ID Design Principles
