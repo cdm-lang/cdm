@@ -36,7 +36,7 @@ You define your data model *once*, in a language designed specifically for model
 
 ## What Makes CDM Different
 
-### 1. One Model, Many Contexts
+### 1. One Model, Many [Contexts](docs/3-context-system.md)
 
 CDM lets you describe **different views of the same schema** without duplication.
 
@@ -78,7 +78,7 @@ User {
 
 ---
 
-### 2. Migration-Safe Schema Evolution
+### 2. Migration-Safe [Schema Evolution](docs/1-core-concepts.md#14-entity-ids-and-schema-evolution)
 
 CDM optionally supports **stable entity IDs** that allow it to *reliably detect renames*.
 
@@ -115,7 +115,7 @@ All of this is configured *at the schema level*, not scattered across tools.
 
 CDM itself is intentionally focused.
 
-Everything else — SQL, TypeScript, docs, validation — is handled by **plugins**.
+Everything else — SQL, TypeScript, docs, validation — is handled by **[plugins](docs/4-plugins-and-code-generation.md)**.
 
 Plugins:
 
@@ -235,10 +235,13 @@ Core commands:
 
 ## Learning More
 
-* 📘 **Language Specification** — full CDM syntax and semantics
-* 🧩 **Plugins** — SQL, TypeScript, validation, and custom generators
-* 🧠 **Examples** — real schemas and patterns
-* 🛠 **VS Code Extension** — syntax highlighting and LSP support
+* 📘 **[Getting Started](docs/0-getting-started.md)** — quick start guide and installation
+* 📚 **[Core Concepts](docs/1-core-concepts.md)** — contexts, IDs, plugins, and schema evolution
+* 🔀 **[Context System](docs/3-context-system.md)** — different views of the same schema
+* 🧩 **[Plugins](docs/4-plugins-and-code-generation.md)** — SQL, TypeScript, validation, and custom generators
+* ⌨️ **[CLI Usage](docs/5-cli-usage-and-workflows.md)** — build, migrate, and format commands
+* 🛠 **[Editor Support](docs/6-tooling-and-editor-support.md)** — VS Code extension and LSP
+* 📖 **[Reference](docs/8-reference.md)** — language and CLI reference
 
 ---
 

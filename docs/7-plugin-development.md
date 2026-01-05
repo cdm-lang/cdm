@@ -1,9 +1,3 @@
-Good call — here is the **updated, complete replacement for Section 7: Plugin Development**, corrected to reflect that `cdm plugin new` **requires `--lang rust`** (and that Rust is currently the only supported language).
-
-This fully replaces the previous Section 7.
-
----
-
 # 7. Plugin Development
 
 Plugins are how CDM turns schemas into concrete outputs such as code, schemas, migrations, or documentation.
@@ -71,7 +65,7 @@ CDM plugins are:
 * Compiled to **WebAssembly**
 * Executed in a sandboxed environment
 * Loaded from a registry, Git repository, or local filesystem
-* Invoked by the CDM CLI
+* Invoked by the [CDM CLI](5-cli-usage-and-workflows.md)
 
 Each plugin declares:
 
@@ -165,13 +159,13 @@ A plugin participates in CDM workflows as follows:
 * The plugin provides its configuration schema
 * User configuration is validated and defaults are applied
 
-### Build Phase (`cdm build`)
+### Build Phase ([`cdm build`](5-cli-usage-and-workflows.md#52-build-workflow))
 
 * The resolved schema and configuration are passed to the plugin
 * Output files are generated
 * Files are written to the configured output directory
 
-### Migration Phase (`cdm migrate`)
+### Migration Phase ([`cdm migrate`](5-cli-usage-and-workflows.md#53-migration-workflow))
 
 * CDM computes schema deltas
 * The plugin receives both schema and deltas
@@ -246,12 +240,8 @@ In CDM, **schema authors express intent**, and plugins execute that intent faith
 
 ---
 
-## What’s Next?
+## What's Next?
 
-With plugin development covered, the remaining sections focus on **reference material**.
+With plugin development covered, the remaining section provides **reference material**.
 
-Proceed to:
-
-* **Section 8: Reference** — language, CLI, and plugin APIs
-* **Section 9: Appendix** — grammar, error catalogs, and data formats
-
+Proceed to **[Section 8: Reference](8-reference.md)** for detailed language syntax, CLI commands, and plugin APIs.

@@ -1,6 +1,6 @@
 # 1. Core Concepts
 
-This section explains the foundational ideas behind CDM. Understanding these concepts will make the rest of the documentation—especially contexts, plugins, and migrations—much easier to reason about.
+This section explains the foundational ideas behind CDM. Understanding these concepts will make the rest of the documentation—especially [contexts](3-context-system.md), [plugins](4-plugins-and-code-generation.md), and [migrations](5-cli-usage-and-workflows.md#53-migration-workflow)—much easier to reason about.
 
 ---
 
@@ -100,7 +100,7 @@ If no type is specified, the field defaults to `string`.
 
 ---
 
-## 1.3 Contexts
+## 1.3 [Contexts](3-context-system.md)
 
 A **context** represents a specific view of a schema.
 
@@ -175,11 +175,11 @@ Entity IDs allow CDM to generate migrations that are deterministic and safe.
 
 ---
 
-## 1.5 Plugins
+## 1.5 [Plugins](4-plugins-and-code-generation.md)
 
 CDM itself does not generate SQL, TypeScript, or documentation.
 
-Instead, all output is produced by **plugins**.
+Instead, all output is produced by **[plugins](4-plugins-and-code-generation.md)**.
 
 Plugins:
 
@@ -239,12 +239,11 @@ CDM’s job is to define structure, enforce correctness, and generate artifacts�
 
 ---
 
-## What’s Next?
+## What's Next?
 
-With the core concepts in place, the next section dives into the **CDM language itself**:
+With the core concepts in place, explore the following topics:
 
-* Syntax rules
-* Types and models in detail
-* Inheritance and relationships
-
-Proceed to **Section 2: Language Guide** to start writing more expressive schemas.
+* **[Context System](3-context-system.md)** — how to create different views of your schema
+* **[Plugins & Code Generation](4-plugins-and-code-generation.md)** — generating SQL, TypeScript, and more
+* **[CLI Usage & Workflows](5-cli-usage-and-workflows.md)** — validation, builds, and migrations
+* **[Reference](8-reference.md)** — detailed language syntax and CLI reference

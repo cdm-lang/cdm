@@ -50,9 +50,9 @@ CDM eliminates this drift by centralizing the data model in a purpose-built lang
 
 ### Key Ideas
 
-* **Contexts** allow different views of the same schema (e.g. DB vs API).
-* **Entity IDs** make schema evolution and renames safe.
-* **Plugins** generate code, schemas, and other artifacts.
+* **[Contexts](3-context-system.md)** allow different views of the same schema (e.g. DB vs API).
+* **[Entity IDs](1-core-concepts.md#14-entity-ids-and-schema-evolution)** make schema evolution and renames safe.
+* **[Plugins](4-plugins-and-code-generation.md)** generate code, schemas, and other artifacts.
 * **Explicit modeling** avoids runtime magic.
 
 CDM operates before runtime — during design, validation, and generation.
@@ -183,13 +183,13 @@ Detailed installation instructions are covered in the CLI documentation.
 
 ---
 
-## What’s Next?
+## What's Next?
 
 From here, you can continue with:
 
-* **Core Concepts** — contexts, IDs, plugins, and schema evolution
-* **Language Guide** — the full CDM syntax
-* **Plugins** — SQL, TypeScript, validation, and custom generators
-* **CLI Workflows** — build, migrate, and format commands
+* **[Core Concepts](1-core-concepts.md)** — contexts, IDs, plugins, and schema evolution
+* **[Context System](3-context-system.md)** — different views of the same schema
+* **[Plugins](4-plugins-and-code-generation.md)** — SQL, TypeScript, validation, and custom generators
+* **[CLI Workflows](5-cli-usage-and-workflows.md)** — build, migrate, and format commands
 
-Section 1 starts by building a deeper mental model of how CDM works.
+[Section 1: Core Concepts](1-core-concepts.md) starts by building a deeper mental model of how CDM works.

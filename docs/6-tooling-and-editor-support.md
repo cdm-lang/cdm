@@ -18,7 +18,7 @@ The LSP provides editor features such as:
 * Reference tracking
 * Hover information
 
-All diagnostics are derived from the same validation logic used by the CLI, ensuring consistency between editor feedback and build-time errors.
+All diagnostics are derived from the same validation logic used by the [CLI](5-cli-usage-and-workflows.md), ensuring consistency between editor feedback and build-time errors.
 
 ---
 
@@ -27,10 +27,10 @@ All diagnostics are derived from the same validation logic used by the CLI, ensu
 The language server is aware of:
 
 * CDM syntax and grammar
-* Type aliases and models
-* Context inheritance and overrides
-* Entity IDs
-* Plugin configuration structure
+* [Type aliases and models](1-core-concepts.md#12-types-models-and-fields)
+* [Context](3-context-system.md) inheritance and overrides
+* [Entity IDs](1-core-concepts.md#14-entity-ids-and-schema-evolution)
+* [Plugin](4-plugins-and-code-generation.md) configuration structure
 
 This allows errors to surface while editing, before running CLI commands.
 
@@ -166,13 +166,13 @@ These limitations affect ergonomics, not schema correctness.
 
 ---
 
-## What’s Next?
+## What's Next?
 
 With tooling covered, the remaining sections focus on **advanced and reference material**, including:
 
-* Plugin development
-* Language reference
-* CLI reference
-* Error catalogs
+* [Plugin development](7-plugin-development.md)
+* [Language reference](8-reference.md#81-language-reference)
+* [CLI reference](8-reference.md#88-cli-reference)
+* [Error codes](8-reference.md#89-error-codes)
 
-Proceed to **Section 7: Plugin Development** if you want to extend CDM with custom generators or validators.
+Proceed to **[Section 7: Plugin Development](7-plugin-development.md)** if you want to extend CDM with custom generators or validators.

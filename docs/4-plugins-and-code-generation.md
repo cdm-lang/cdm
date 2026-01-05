@@ -127,9 +127,9 @@ Lower-level configuration overrides or extends higher-level configuration.
 
 ---
 
-## 4.6 Configuration Inheritance and Contexts
+## 4.6 Configuration Inheritance and [Contexts](3-context-system.md)
 
-When a context extends another schema, plugin configuration merges across context boundaries.
+When a [context](3-context-system.md) extends another schema, plugin configuration merges across context boundaries.
 
 Merge rules:
 
@@ -191,12 +191,12 @@ Build output is derived solely from the current schema.
 
 ### Migrate
 
-`cdm migrate`:
+[`cdm migrate`](5-cli-usage-and-workflows.md#53-migration-workflow):
 
 * Compares the current schema to a previously saved version
 * Computes structural differences (deltas)
-* Uses entity IDs to reliably detect renames
-* Invokes plugins’ migration steps
+* Uses [entity IDs](1-core-concepts.md#14-entity-ids-and-schema-evolution) to reliably detect renames
+* Invokes plugins' migration steps
 
 Migration output describes how to evolve an existing system to match the new schema.
 
@@ -279,12 +279,12 @@ A dedicated section covers:
 * Build and migration APIs
 * Testing and publishing plugins
 
-If you’re interested in extending CDM itself, see **Section 8: Plugin Development**.
+If you're interested in extending CDM itself, see **[Section 7: Plugin Development](7-plugin-development.md)**.
 
 ---
 
-## What’s Next?
+## What's Next?
 
 With plugins understood, the next section focuses on **day-to-day usage**.
 
-Proceed to **Section 5: CLI Usage & Workflows** to learn how validation, builds, migrations, and formatting fit into real-world development workflows.
+Proceed to **[Section 5: CLI Usage & Workflows](5-cli-usage-and-workflows.md)** to learn how validation, builds, migrations, and formatting fit into real-world development workflows.

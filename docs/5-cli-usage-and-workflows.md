@@ -108,7 +108,7 @@ This command:
 
 ### Rename Detection
 
-CDM uses entity IDs to distinguish renames from removals:
+CDM uses [entity IDs](1-core-concepts.md#14-entity-ids-and-schema-evolution) to distinguish renames from removals:
 
 * With entity IDs, renames are detected reliably
 * Without entity IDs, heuristics are used and ambiguous cases may require confirmation
@@ -179,9 +179,9 @@ Entity IDs are optional, but strongly recommended for evolving schemas.
 
 ---
 
-## 5.5 Plugin Management
+## 5.5 [Plugin](4-plugins-and-code-generation.md) Management
 
-The CLI includes commands for managing plugins.
+The CLI includes commands for managing [plugins](4-plugins-and-code-generation.md).
 
 ### Listing Plugins
 
@@ -242,33 +242,16 @@ CDM is designed to make schema changes explicit, reviewable, and safe.
 ## 5.7 Common Mistakes
 
 * Skipping validation before building
-* Reusing or changing entity IDs
+* Reusing or changing [entity IDs](1-core-concepts.md#14-entity-ids-and-schema-evolution)
 * Treating generated code as the source of truth
-* Using contexts to encode runtime behavior
+* Using [contexts](3-context-system.md) to encode runtime behavior
 
 CDM works best when schemas are treated as first-class artifacts.
 
 ---
 
-That makes sense 👍 — omitting Section 6 is the right call for a new tool.
-
-Below are two things:
-
-1. **An updated ending for Section 5** (removing the reference to Section 6)
-2. **A complete write-up of Section 7: Tooling & Editor Support**
-
-These are written to fit cleanly into the existing flow.
-
----
-
-## ✅ Updated ending for Section 5
-
-Replace the **“What’s Next?”** subsection at the end of Section 5 with this:
-
----
-
-## What’s Next?
+## What's Next?
 
 With the core workflows covered, the next section focuses on **developer tooling and editor support**.
 
-Proceed to **Section 7: Tooling & Editor Support** to learn how CDM integrates with editors and improves the authoring experience.
+Proceed to **[Section 6: Tooling & Editor Support](6-tooling-and-editor-support.md)** to learn how CDM integrates with editors and improves the authoring experience.

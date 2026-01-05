@@ -230,9 +230,9 @@ Each layer only expresses what changes.
 
 ---
 
-## 3.10 Plugin Configuration in Contexts
+## 3.10 [Plugin](4-plugins-and-code-generation.md) Configuration in Contexts
 
-Plugin configuration merges across context boundaries.
+[Plugin](4-plugins-and-code-generation.md) configuration merges across context boundaries.
 
 ```cdm
 // base.cdm
@@ -291,8 +291,8 @@ Contexts model **structural differences**, not logic.
 
 ---
 
-## What’s Next?
+## What's Next?
 
 With contexts understood, the next section explores how CDM turns schemas into real artifacts.
 
-Proceed to **Section 4: Plugins & Code Generation** to see how CDM generates SQL, TypeScript, validation logic, and more.
+Proceed to **[Section 4: Plugins & Code Generation](4-plugins-and-code-generation.md)** to see how CDM generates SQL, TypeScript, validation logic, and more.

@@ -2,7 +2,7 @@
 
 This section provides authoritative reference material for CDM. It is intended for lookup and clarification, not as a learning guide.
 
-Where possible, earlier sections explain *why* things work the way they do. This section documents *what* exists and *how it behaves*.
+Where possible, earlier sections ([Core Concepts](1-core-concepts.md), [Context System](3-context-system.md), [Plugins](4-plugins-and-code-generation.md)) explain *why* things work the way they do. This section documents *what* exists and *how it behaves*.
 
 ---
 
@@ -12,7 +12,7 @@ Where possible, earlier sections explain *why* things work the way they do. This
 
 * CDM files use the `.cdm` extension
 * Files must be UTF-8 encoded
-* Schemas may consist of multiple files linked via `@extends`
+* Schemas may consist of multiple files linked via [`@extends`](3-context-system.md#33-creating-a-context-with-extends)
 
 ---
 
@@ -206,7 +206,7 @@ Removing non-existent fields is an error.
 
 ---
 
-## 8.6 Context System Reference
+## 8.6 [Context System](3-context-system.md) Reference
 
 ### `@extends`
 
@@ -217,6 +217,8 @@ Removing non-existent fields is an error.
 * Must appear at the top of the file
 * Paths are resolved relative to the file
 * Circular chains are disallowed
+
+For detailed context usage, see [Section 3: Context System](3-context-system.md).
 
 ---
 
@@ -234,7 +236,7 @@ Contexts apply changes incrementally along the extends chain.
 
 ---
 
-## 8.7 Plugin Reference
+## 8.7 [Plugin](4-plugins-and-code-generation.md) Reference
 
 ### Plugin Declaration
 
@@ -275,19 +277,21 @@ Plugins may implement:
 
 Missing required configuration causes validation failure.
 
+For detailed plugin usage, see [Section 4: Plugins & Code Generation](4-plugins-and-code-generation.md). For writing custom plugins, see [Section 7: Plugin Development](7-plugin-development.md).
+
 ---
 
 ## 8.8 CLI Reference
 
 ### Core Commands
 
-* `cdm validate`
-* `cdm build`
-* `cdm migrate`
-* `cdm format`
-* `cdm plugin`
+* [`cdm validate`](5-cli-usage-and-workflows.md#51-validation-workflow)
+* [`cdm build`](5-cli-usage-and-workflows.md#52-build-workflow)
+* [`cdm migrate`](5-cli-usage-and-workflows.md#53-migration-workflow)
+* [`cdm format`](5-cli-usage-and-workflows.md#54-formatting-and-entity-ids)
+* [`cdm plugin`](5-cli-usage-and-workflows.md#55-plugin-management)
 
-Each command supports `--help` for full option listings.
+Each command supports `--help` for full option listings. For detailed workflows, see [Section 5: CLI Usage & Workflows](5-cli-usage-and-workflows.md).
 
 ---
 
@@ -329,21 +333,15 @@ The exact formats are documented in the Appendix.
 
 ---
 
-Absolutely — here’s the **updated ending for Section 8**, rewritten to gracefully conclude the documentation **without referencing a Section 9**.
-
-This cleanly makes Section 8 the final section.
-
----
-
 ## Closing Notes
 
 This reference section completes the core CDM documentation.
 
 At this point, you should have:
 
-* A working understanding of CDM’s mental model
-* Practical experience with schemas, contexts, and plugins
-* Familiarity with the CLI and tooling
+* A working understanding of CDM's mental model — see [Core Concepts](1-core-concepts.md)
+* Practical experience with schemas, [contexts](3-context-system.md), and [plugins](4-plugins-and-code-generation.md)
+* Familiarity with the [CLI](5-cli-usage-and-workflows.md) and [tooling](6-tooling-and-editor-support.md)
 * A reference for language behavior and commands
 
 As CDM evolves, additional material—such as expanded references, examples, and best practices—may be added incrementally.
