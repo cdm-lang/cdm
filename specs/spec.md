@@ -1046,11 +1046,13 @@ Keys can be unquoted identifiers or quoted strings. Values can be any JSON value
 
 CDM extracts these keys before passing config to plugins:
 
-| Key                 | Type     | Required                        | Description                              |
-| ------------------- | -------- | ------------------------------- | ---------------------------------------- |
-| `version`           | `string` | No                              | Version constraint for plugin resolution |
-| `build_output`      | `string` | Yes, if plugin has `build()`    | Output directory for generated files     |
-| `migrations_output` | `string` | Yes, if plugin has `migrate()`  | Output directory for migration files     |
+| Key                 | Type     | Applies To       | Required                       | Description                                                  |
+| ------------------- | -------- | ---------------- | ------------------------------ | ------------------------------------------------------------ |
+| `version`           | `string` | Registry plugins | No                             | Semver version constraint (see Appendix C.2 for syntax)      |
+| `git_ref`           | `string` | Git plugins      | No (defaults to `"main"`)      | Git reference: tag, branch name, or commit SHA               |
+| `git_path`          | `string` | Git plugins      | No                             | Subdirectory path containing `cdm-plugin.json` manifest      |
+| `build_output`      | `string` | All plugins      | Yes, if plugin has `build()`   | Output directory for generated files                         |
+| `migrations_output` | `string` | All plugins      | Yes, if plugin has `migrate()` | Output directory for migration files                         |
 
 **Validation Rules:**
 
@@ -2058,11 +2060,28 @@ See `grammar.js` in the CDM repository for the complete tree-sitter grammar impl
 
 ### C.2 Version Resolution
 
+#### Version Constraint Syntax
+
+Version constraints follow semantic versioning:
+
+| Constraint  | Meaning                                        |
+| ----------- | ---------------------------------------------- |
+| `"1.0.0"`   | Exact version                                  |
+| `"^1.0.0"`  | Compatible with 1.x.x (>=1.0.0 <2.0.0)         |
+| `"~1.0.0"`  | Patch-level changes only (>=1.0.0 <1.1.0)      |
+| `">=1.0.0"` | At least this version                          |
+| `"*"`       | Any version (equivalent to omitting version)   |
+
+**Note:** The `version` config key applies only to registry plugins. For git plugins, use `git_ref` instead (see Reserved Configuration Keys in Section 8.4).
+
+#### Resolution Rules
+
 When resolving a plugin version:
 
-1. If `version` specified in config, use that exact version
-2. If no version specified, use `latest` from registry
-3. If version is a git ref (branch, tag, commit), fetch from repository
+1. **Registry plugins**: If `version` specified with semver range, find the highest matching version from registry
+2. **Registry plugins**: If `version` specified as exact version, use that exact version
+3. **Registry plugins**: If no version specified, use `latest` from registry
+4. **Git plugins**: Use `git_ref` to specify a branch, tag, or commit SHA (defaults to `"main"`)
 
 ---
 

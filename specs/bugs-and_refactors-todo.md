@@ -25,6 +25,8 @@ pub fn get_node_text<'a>(node: tree_sitter::Node, source: &'a str) -> &'a str
 
 ## Bugs
 
+We should ensure that we can't name plugins "extends" (it's a reserved word). For example `@extends from ./plugins/my-plugin` should not be allowed.
+
 ## Features
 
 ### Code completion on overrides

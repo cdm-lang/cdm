@@ -78,6 +78,29 @@ Plugins without a `from` clause are resolved from the CDM registry:
 
 These are the officially supported plugins maintained by the CDM project.
 
+#### Version Pinning
+
+Registry plugins support version pinning using the `version` config key with full semver range support:
+
+```cdm
+@sql {
+  version: "1.2.3",
+  build_output: "./db/schema"
+}
+```
+
+Supported version constraint formats:
+
+| Constraint       | Meaning                                         |
+| ---------------- | ----------------------------------------------- |
+| `"1.2.3"`        | Exact version                                   |
+| `"^1.2.3"`       | Compatible with 1.x.x (>=1.2.3 <2.0.0)          |
+| `"~1.2.3"`       | Patch-level changes only (>=1.2.3 <1.3.0)       |
+| `">=1.0.0 <2.0.0"` | Explicit range                                |
+| (omitted)        | Latest available version                        |
+
+If no version is specified, the latest available version is used.
+
 ---
 
 ### Git Plugins
@@ -89,6 +112,45 @@ Plugins can be loaded directly from Git repositories:
 ```
 
 This supports private repositories, pinned versions, and custom tooling.
+
+#### Git Reference Pinning
+
+Git plugins can specify a git reference using the `git_ref` config key:
+
+```cdm
+@sql from git:https://github.com/cdm-lang/cdm-plugin-sql.git {
+  git_ref: "v1.2.3"
+}
+```
+
+The `git_ref` can be:
+
+* A tag (e.g., `"v1.2.3"`)
+* A branch name (e.g., `"main"`, `"develop"`)
+* A commit SHA (e.g., `"a1b2c3d"`)
+
+If no `git_ref` is specified, the `main` branch is used by default.
+
+#### Subdirectory Paths
+
+For monorepos or repositories where the plugin is nested within a subdirectory, use the `git_path` config key:
+
+```cdm
+@myplugin from git:https://github.com/my-org/monorepo.git {
+  git_path: "packages/cdm-plugin"
+}
+```
+
+The `git_path` specifies the directory containing the `cdm-plugin.json` manifest file.
+
+You can combine git reference pinning with subdirectory paths:
+
+```cdm
+@myplugin from git:https://github.com/my-org/monorepo.git {
+  git_ref: "v2.0.0",
+  git_path: "packages/cdm-plugin"
+}
+```
 
 ---
 
