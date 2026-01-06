@@ -73,7 +73,7 @@ Plugins without a `from` clause are resolved from the CDM registry:
 @typescript
 @sql
 @docs
-@json-schema
+@jsonschema
 ```
 
 These are the officially supported plugins maintained by the CDM project.
@@ -244,7 +244,7 @@ It is common to enable multiple plugins in a single schema:
   build_output: "./types"
 }
 
-@json-schema {
+@jsonschema {
   build_output: "./schemas"
 }
 ```

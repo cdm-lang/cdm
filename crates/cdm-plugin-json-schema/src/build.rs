@@ -3,11 +3,6 @@ use serde_json::{json, Map, Value};
 
 use crate::type_mapper::{apply_field_constraints, TypeMapper};
 
-// Helper function to get empty JSON config
-fn empty_json() -> JSON {
-    json!({})
-}
-
 /// Generates JSON Schema files from the CDM schema
 pub fn build(schema: Schema, config: JSON, _utils: &Utils) -> Vec<OutputFile> {
     let mut files = Vec::new();
@@ -82,9 +77,7 @@ pub fn build(schema: Schema, config: JSON, _utils: &Utils) -> Vec<OutputFile> {
         // Generate separate files for each model
         for (model_name, model_def) in schema.models.iter() {
             // Check if model should be skipped
-            let empty = empty_json();
-            let model_config = model_def.config.get("json-schema").unwrap_or(&empty);
-            let skip = model_config
+            let skip = model_def.config
                 .get("skip")
                 .and_then(|v| v.as_bool())
                 .unwrap_or(false);
@@ -103,7 +96,7 @@ pub fn build(schema: Schema, config: JSON, _utils: &Utils) -> Vec<OutputFile> {
                 include_examples,
                 include_descriptions,
                 relationship_mode,
-                model_config,
+                &model_def.config,
             );
 
             files.push(OutputFile {
@@ -147,8 +140,7 @@ fn generate_single_file(
         // Check for models with is_root = true
         schema.models.iter()
             .find(|(_, model_def)| {
-                model_def.config.get("json-schema")
-                    .and_then(|c| c.get("is_root"))
+                model_def.config.get("is_root")
                     .and_then(|v| v.as_bool())
                     .unwrap_or(false)
             })
@@ -156,8 +148,7 @@ fn generate_single_file(
             .or_else(|| {
                 // Otherwise, use the first non-skipped model
                 schema.models.values().find(|model_def| {
-                    !model_def.config.get("json-schema")
-                        .and_then(|c| c.get("skip"))
+                    !model_def.config.get("skip")
                         .and_then(|v| v.as_bool())
                         .unwrap_or(false)
                 })
@@ -166,15 +157,13 @@ fn generate_single_file(
 
     // Generate root schema from root model
     if let Some(model_def) = root_model {
-        let empty = empty_json();
-        let model_config = model_def.config.get("json-schema").unwrap_or(&empty);
         let model_schema = generate_model_schema(
             model_def,
             type_mapper,
             include_examples,
             include_descriptions,
             relationship_mode,
-            model_config,
+            &model_def.config,
         );
 
         // Merge model schema into root
@@ -193,10 +182,8 @@ fn generate_single_file(
 
     for (model_name, model_def) in schema.models.iter() {
         // Skip if this is the root model or if skip is set
-        let empty = empty_json();
-        let model_config = model_def.config.get("json-schema").unwrap_or(&empty);
-        let skip = model_config.get("skip").and_then(|v| v.as_bool()).unwrap_or(false);
-        let is_root = model_config.get("is_root").and_then(|v| v.as_bool()).unwrap_or(false);
+        let skip = model_def.config.get("skip").and_then(|v| v.as_bool()).unwrap_or(false);
+        let is_root = model_def.config.get("is_root").and_then(|v| v.as_bool()).unwrap_or(false);
         let is_named_root = Some(model_name.as_str()) == root_model_name;
 
         if skip || is_root || is_named_root {
@@ -209,7 +196,7 @@ fn generate_single_file(
             include_examples,
             include_descriptions,
             relationship_mode,
-            model_config,
+            &model_def.config,
         );
 
         defs.insert(model_name.clone(), model_schema);
@@ -217,20 +204,18 @@ fn generate_single_file(
 
     // Add type aliases to $defs
     for (alias_name, alias_def) in schema.type_aliases.iter() {
-        let empty = empty_json();
-        let alias_config = alias_def.config.get("json-schema").unwrap_or(&empty);
-        let skip = alias_config.get("skip").and_then(|v| v.as_bool()).unwrap_or(false);
+        let skip = alias_def.config.get("skip").and_then(|v| v.as_bool()).unwrap_or(false);
 
         if skip {
             continue;
         }
 
-        let union_mode_override = alias_config.get("union_mode").and_then(|v| v.as_str());
-        let mut alias_schema = type_mapper.map_type(&alias_def.alias_type, union_mode_override, alias_config);
+        let union_mode_override = alias_def.config.get("union_mode").and_then(|v| v.as_str());
+        let mut alias_schema = type_mapper.map_type(&alias_def.alias_type, union_mode_override, &alias_def.config);
 
         // Add description if provided and enabled
         if include_descriptions {
-            if let Some(description) = alias_config.get("description") {
+            if let Some(description) = alias_def.config.get("description") {
                 if let Value::Object(ref mut obj) = alias_schema {
                     obj.insert("description".to_string(), description.clone());
                 }
@@ -316,36 +301,33 @@ fn generate_model_schema(
     let mut required = Vec::new();
 
     for field in &model_def.fields {
-        let empty = empty_json();
-        let field_config = field.config.get("json-schema").unwrap_or(&empty);
-
         // Check if field should be skipped
-        let skip = field_config.get("skip").and_then(|v| v.as_bool()).unwrap_or(false);
+        let skip = field.config.get("skip").and_then(|v| v.as_bool()).unwrap_or(false);
         if skip {
             continue;
         }
 
         // Get union mode override for type aliases
-        let union_mode_override = field_config.get("union_mode").and_then(|v| v.as_str());
+        let union_mode_override = field.config.get("union_mode").and_then(|v| v.as_str());
 
         // Map field type
-        let field_schema = type_mapper.map_type(&field.field_type, union_mode_override, field_config);
+        let field_schema = type_mapper.map_type(&field.field_type, union_mode_override, &field.config);
 
         // Convert field schema to Map for modifications
         if let Value::Object(mut field_obj) = field_schema {
             // Apply field constraints
-            field_obj = apply_field_constraints(field_obj, field_config);
+            field_obj = apply_field_constraints(field_obj, &field.config);
 
             // Add examples if enabled
             if include_examples {
-                if let Some(examples) = field_config.get("examples") {
+                if let Some(examples) = field.config.get("examples") {
                     field_obj.insert("examples".to_string(), examples.clone());
                 }
             }
 
             // Add description if enabled
             if include_descriptions {
-                if let Some(description) = field_config.get("description") {
+                if let Some(description) = field.config.get("description") {
                     field_obj.insert("description".to_string(), description.clone());
                 }
             }

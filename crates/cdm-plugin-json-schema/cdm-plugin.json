@@ -1,5 +1,5 @@
 {
-  "name": "json-schema",
+  "name": "jsonschema",
   "version": "0.1.0",
   "description": "Generate JSON Schema definitions from CDM models and type aliases",
   "schema": "schema.cdm",

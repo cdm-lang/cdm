@@ -11,7 +11,7 @@ The JSON Schema plugin transforms CDM models into standards-compliant JSON Schem
 The JSON Schema plugin is available in the CDM registry:
 
 ```cdm
-@json-schema {
+@jsonschema {
   build_output: "./schemas"
 }
 ```
@@ -19,14 +19,14 @@ The JSON Schema plugin is available in the CDM registry:
 ## Quick Start
 
 ```cdm
-@json-schema {
+@jsonschema {
   draft: "draft7",
   output_mode: "single-file",
   build_output: "./schemas"
 }
 
 Email: string {
-  @json-schema {
+  @jsonschema {
     description: "Valid email address",
     format: "email",
     max_length: 320
@@ -34,7 +34,7 @@ Email: string {
 } #1
 
 Status: "active" | "pending" | "suspended" {
-  @json-schema {
+  @jsonschema {
     description: "User account status"
   }
 } #2
@@ -46,7 +46,7 @@ User {
   status: Status = "pending" #4
   age?: number #5
 
-  @json-schema {
+  @jsonschema {
     title: "User",
     description: "A user account in the system",
     additional_properties: false
@@ -108,8 +108,8 @@ Configure the plugin at import time to set defaults for all generated schemas.
 - **Description:** JSON Schema specification version to target.
 
 ```cdm
-@json-schema { draft: "draft7" }
-@json-schema { draft: "draft2020-12" }
+@jsonschema { draft: "draft7" }
+@jsonschema { draft: "draft2020-12" }
 ```
 
 Each draft version uses the corresponding `$schema` URL:
@@ -126,7 +126,7 @@ Each draft version uses the corresponding `$schema` URL:
 - **Description:** Include the `$schema` property in generated schemas.
 
 ```cdm
-@json-schema { include_schema_property: true }
+@jsonschema { include_schema_property: true }
 ```
 
 Set to `false` to omit the `$schema` property from output.
@@ -138,11 +138,11 @@ Set to `false` to omit the `$schema` property from output.
 - **Description:** Include example values in generated schemas.
 
 ```cdm
-@json-schema { include_examples: true }
+@jsonschema { include_examples: true }
 
 User {
   email: string {
-    @json-schema {
+    @jsonschema {
       examples: ["user@example.com", "admin@example.com"]
     }
   } #1
@@ -156,8 +156,8 @@ User {
 - **Description:** Generate one bundled schema file or separate files per model.
 
 ```cdm
-@json-schema { output_mode: "single-file" }  // schema.json
-@json-schema { output_mode: "multi-file" }   // User.schema.json, Post.schema.json, etc.
+@jsonschema { output_mode: "single-file" }  // schema.json
+@jsonschema { output_mode: "multi-file" }   // User.schema.json, Post.schema.json, etc.
 ```
 
 **single-file mode:** All models are bundled into `schema.json` with one root model and others in `$defs`.
@@ -170,7 +170,7 @@ User {
 - **Description:** Root schema ID for referencing (adds `$id` property).
 
 ```cdm
-@json-schema {
+@jsonschema {
   schema_id: "https://example.com/schemas/user.json"
 }
 ```
@@ -191,11 +191,11 @@ Generates:
 - **Description:** Include description fields from CDM configuration in schemas.
 
 ```cdm
-@json-schema { include_descriptions: true }
+@jsonschema { include_descriptions: true }
 
 User {
   name: string {
-    @json-schema { description: "Full name of the user" }
+    @jsonschema { description: "Full name of the user" }
   } #1
 } #10
 ```
@@ -209,7 +209,7 @@ Set to `false` to omit all descriptions.
 - **Description:** How to handle model references (for future use).
 
 ```cdm
-@json-schema { relationship_mode: "reference" }
+@jsonschema { relationship_mode: "reference" }
 ```
 
 **reference mode:** Model references use `$ref` to point to definitions.
@@ -223,7 +223,7 @@ Set to `false` to omit all descriptions.
 - **Description:** How to represent string literal unions in JSON Schema.
 
 ```cdm
-@json-schema { union_mode: "enum" }
+@jsonschema { union_mode: "enum" }
 
 Status: "active" | "pending" | "suspended" #1
 ```
@@ -253,7 +253,7 @@ Status: "active" | "pending" | "suspended" #1
 - **Description:** In single-file mode, specify which model is the root schema (others go in `$defs`).
 
 ```cdm
-@json-schema {
+@jsonschema {
   output_mode: "single-file",
   root_model: "User"
 }
@@ -275,7 +275,7 @@ Configure JSON Schema generation for specific type aliases.
 
 ```cdm
 Email: string {
-  @json-schema {
+  @jsonschema {
     description: "RFC 5322 compliant email address"
   }
 } #1
@@ -287,10 +287,10 @@ Email: string {
 - **Description:** Override global union mode for this specific type alias.
 
 ```cdm
-@json-schema { union_mode: "enum" }  // Global default
+@jsonschema { union_mode: "enum" }  // Global default
 
 Status: "active" | "pending" {
-  @json-schema {
+  @jsonschema {
     union_mode: "oneOf"  // Override for this type
   }
 } #1
@@ -304,7 +304,7 @@ Status: "active" | "pending" {
 
 ```cdm
 InternalCode: "A" | "B" | "C" {
-  @json-schema { skip: true }
+  @jsonschema { skip: true }
 } #1
 ```
 
@@ -322,7 +322,7 @@ Configure JSON Schema generation for specific models.
 ```cdm
 User {
   id: string #1
-  @json-schema {
+  @jsonschema {
     title: "User Account"
   }
 } #10
@@ -345,7 +345,7 @@ Generates:
 ```cdm
 User {
   id: string #1
-  @json-schema {
+  @jsonschema {
     title: "User",
     description: "Represents a registered user in the system"
   }
@@ -361,7 +361,7 @@ User {
 ```cdm
 User {
   name: string #1
-  @json-schema {
+  @jsonschema {
     additional_properties: true  // Allow extra properties
   }
 } #10
@@ -391,7 +391,7 @@ User {
 InternalCache {
   key: string #1
   value: JSON #2
-  @json-schema { skip: true }
+  @jsonschema { skip: true }
 } #10
 ```
 
@@ -403,7 +403,7 @@ InternalCache {
 ```cdm
 User {
   posts: Post[] #1
-  @json-schema {
+  @jsonschema {
     relationship_mode: "reference"
   }
 } #10
@@ -416,13 +416,13 @@ User {
 - **Description:** In single-file mode, mark this model as the root schema instead of placing it in `$defs`.
 
 ```cdm
-@json-schema {
+@jsonschema {
   output_mode: "single-file"
 }
 
 User {
   id: string #1
-  @json-schema { is_root: true }  // This becomes the root
+  @jsonschema { is_root: true }  // This becomes the root
 } #10
 
 Post {
@@ -442,7 +442,7 @@ Configure JSON Schema generation for specific fields.
 ```cdm
 User {
   email: string {
-    @json-schema {
+    @jsonschema {
       description: "Primary email address for account notifications"
     }
   } #1
@@ -459,7 +459,7 @@ User {
 ```cdm
 User {
   username: string {
-    @json-schema {
+    @jsonschema {
       pattern: "^[a-zA-Z0-9_]{3,20}$",
       description: "Alphanumeric username, 3-20 characters"
     }
@@ -484,7 +484,7 @@ Generates:
 ```cdm
 User {
   bio: string {
-    @json-schema {
+    @jsonschema {
       min_length: 10,
       max_length: 500
     }
@@ -509,19 +509,19 @@ Generates:
 ```cdm
 User {
   email: string {
-    @json-schema { format: "email" }
+    @jsonschema { format: "email" }
   } #1
 
   website?: string {
-    @json-schema { format: "uri" }
+    @jsonschema { format: "uri" }
   } #2
 
   created_at: string {
-    @json-schema { format: "date-time" }
+    @jsonschema { format: "date-time" }
   } #3
 
   id: string {
-    @json-schema { format: "uuid" }
+    @jsonschema { format: "uuid" }
   } #4
 } #10
 ```
@@ -545,14 +545,14 @@ User {
 ```cdm
 Product {
   price: number {
-    @json-schema {
+    @jsonschema {
       minimum: 0,
       maximum: 999999.99
     }
   } #1
 
   rating: number {
-    @json-schema {
+    @jsonschema {
       minimum: 0,
       maximum: 5
     }
@@ -568,7 +568,7 @@ Product {
 ```cdm
 Product {
   discount_percent: number {
-    @json-schema {
+    @jsonschema {
       exclusive_minimum: 0,   // Greater than 0
       exclusive_maximum: 100  // Less than 100
     }
@@ -584,7 +584,7 @@ Product {
 ```cdm
 User {
   metadata: JSON {
-    @json-schema {
+    @jsonschema {
       custom_type: "object"  // Instead of no type restriction
     }
   } #1
@@ -597,17 +597,17 @@ User {
 - **Description:** Example values for this field (only included if `include_examples: true`).
 
 ```cdm
-@json-schema { include_examples: true }
+@jsonschema { include_examples: true }
 
 User {
   email: string {
-    @json-schema {
+    @jsonschema {
       examples: ["user@example.com", "admin@company.org"]
     }
   } #1
 
   age: number {
-    @json-schema {
+    @jsonschema {
       examples: [25, 30, 42]
     }
   } #2
@@ -622,7 +622,7 @@ User {
 ```cdm
 Post {
   author: User {
-    @json-schema {
+    @jsonschema {
       relationship_mode: "reference"
     }
   } #1
@@ -638,7 +638,7 @@ Post {
 ```cdm
 User {
   password_hash: string {
-    @json-schema { skip: true }  // Don't include in schema
+    @jsonschema { skip: true }  // Don't include in schema
   } #1
 } #10
 ```
@@ -685,7 +685,7 @@ Generates:
 String literal unions are represented based on the `union_mode` setting:
 
 ```cdm
-@json-schema { union_mode: "enum" }
+@jsonschema { union_mode: "enum" }
 
 Status: "active" | "pending" | "suspended" #1
 ```
@@ -716,7 +716,7 @@ Status: "active" | "pending" | "suspended" #1
 All models bundled into one `schema.json` with a root schema and `$defs`:
 
 ```cdm
-@json-schema {
+@jsonschema {
   output_mode: "single-file",
   root_model: "User"
 }
@@ -765,7 +765,7 @@ Post {
 Each model gets its own schema file:
 
 ```cdm
-@json-schema {
+@jsonschema {
   output_mode: "multi-file"
 }
 
@@ -782,7 +782,7 @@ Post { ... } #11
 ### Complete API Schema
 
 ```cdm
-@json-schema {
+@jsonschema {
   draft: "draft7",
   output_mode: "single-file",
   include_descriptions: true,
@@ -792,7 +792,7 @@ Post { ... } #11
 }
 
 Email: string {
-  @json-schema {
+  @jsonschema {
     description: "RFC 5322 email address",
     format: "email",
     max_length: 320
@@ -800,7 +800,7 @@ Email: string {
 } #1
 
 UUID: string {
-  @json-schema {
+  @jsonschema {
     description: "RFC 4122 UUID",
     format: "uuid",
     pattern: "^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$"
@@ -808,7 +808,7 @@ UUID: string {
 } #2
 
 Status: "active" | "pending" | "suspended" | "deleted" {
-  @json-schema {
+  @jsonschema {
     description: "User account status"
   }
 } #3
@@ -821,7 +821,7 @@ User {
   status: Status = "pending" #5
   created_at: string #6
 
-  @json-schema {
+  @jsonschema {
     title: "User",
     description: "User account representation",
     additional_properties: false,
@@ -837,7 +837,7 @@ Post {
   published: boolean = false #5
   view_count: number #6
 
-  @json-schema {
+  @jsonschema {
     title: "Post",
     description: "Blog post or article"
   }
@@ -847,14 +847,14 @@ Post {
 ### Validation-Heavy Schema
 
 ```cdm
-@json-schema {
+@jsonschema {
   draft: "draft2020-12",
   build_output: "./schemas"
 }
 
 User {
   username: string {
-    @json-schema {
+    @jsonschema {
       description: "Unique username",
       pattern: "^[a-zA-Z0-9_]{3,20}$",
       min_length: 3,
@@ -863,7 +863,7 @@ User {
   } #1
 
   email: string {
-    @json-schema {
+    @jsonschema {
       description: "Primary email",
       format: "email",
       max_length: 320
@@ -871,7 +871,7 @@ User {
   } #2
 
   age: number {
-    @json-schema {
+    @jsonschema {
       description: "User age in years",
       minimum: 13,
       maximum: 120
@@ -879,20 +879,20 @@ User {
   } #3
 
   website?: string {
-    @json-schema {
+    @jsonschema {
       description: "Personal website URL",
       format: "uri"
     }
   } #4
 
   bio?: string {
-    @json-schema {
+    @jsonschema {
       description: "Short biography",
       max_length: 500
     }
   } #5
 
-  @json-schema {
+  @jsonschema {
     title: "User Registration",
     description: "User account with validation constraints"
   }
@@ -902,7 +902,7 @@ User {
 ### Multi-File Output
 
 ```cdm
-@json-schema {
+@jsonschema {
   output_mode: "multi-file",
   build_output: "./schemas"
 }
@@ -910,7 +910,7 @@ User {
 User {
   id: string #1
   name: string #2
-  @json-schema {
+  @jsonschema {
     title: "User",
     description: "User model"
   }
@@ -919,7 +919,7 @@ User {
 Post {
   id: string #1
   title: string #2
-  @json-schema {
+  @jsonschema {
     title: "Post",
     description: "Post model"
   }
@@ -928,7 +928,7 @@ Post {
 Comment {
   id: string #1
   text: string #2
-  @json-schema {
+  @jsonschema {
     title: "Comment",
     description: "Comment model"
   }
@@ -1050,7 +1050,7 @@ make watch
 Use this plugin from any CDM file with a relative path:
 
 ```cdm
-@json-schema from ./path/to/cdm-plugin-json-schema {
+@jsonschema from ./path/to/cdm-plugin-json-schema {
   build_output: "./schemas"
 }
 

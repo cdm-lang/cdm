@@ -50,7 +50,7 @@
       },
       "latest": "0.1.0"
     },
-    "json-schema": {
+    "jsonschema": {
       "description": "Generate JSON Schema definitions from CDM models and type aliases",
       "repository": "git:https://github.com/cdm-lang/cdm.git",
       "official": true,
