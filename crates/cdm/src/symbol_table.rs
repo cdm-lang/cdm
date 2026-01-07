@@ -2,6 +2,7 @@
 use std::collections::HashMap;
 use std::fmt;
 use cdm_utils::Span;
+use std::path::PathBuf;
 
 /// The kind of definition, with data needed for validation
 #[derive(Debug, Clone)]
@@ -79,15 +80,32 @@ pub struct Ancestor {
     pub model_fields: HashMap<String, Vec<FieldInfo>>,
 }
 
+/// An imported namespace from a template
+#[derive(Debug, Clone)]
+pub struct ImportedNamespace {
+    /// The namespace identifier used in imports (e.g., "sql", "auth")
+    pub name: String,
+    /// Path to the template (for error messages)
+    pub template_path: PathBuf,
+    /// All type and model definitions from the template
+    pub symbol_table: SymbolTable,
+    /// Field information for each model: model_name -> fields
+    pub model_fields: HashMap<String, Vec<FieldInfo>>,
+}
+
 #[derive(Debug, Clone)]
 pub struct SymbolTable {
+    /// Direct definitions in this scope
     pub definitions: HashMap<String, Definition>,
+    /// Imported namespaces from templates
+    pub namespaces: HashMap<String, ImportedNamespace>,
 }
 
 impl SymbolTable {
     pub fn new() -> Self {
         Self {
             definitions: HashMap::new(),
+            namespaces: HashMap::new(),
         }
     }
 
@@ -99,6 +117,21 @@ impl SymbolTable {
     /// Get a definition by name from this symbol table only
     pub fn get(&self, name: &str) -> Option<&Definition> {
         self.definitions.get(name)
+    }
+
+    /// Check if a namespace exists in this symbol table
+    pub fn has_namespace(&self, name: &str) -> bool {
+        self.namespaces.contains_key(name)
+    }
+
+    /// Get a namespace by name
+    pub fn get_namespace(&self, name: &str) -> Option<&ImportedNamespace> {
+        self.namespaces.get(name)
+    }
+
+    /// Add a namespace to the symbol table
+    pub fn add_namespace(&mut self, namespace: ImportedNamespace) {
+        self.namespaces.insert(namespace.name.clone(), namespace);
     }
 }
 
@@ -127,14 +160,115 @@ pub fn resolve_definition<'a>(
     if let Some(def) = local.get(name) {
         return Some((def, None));
     }
-    
+
     for ancestor in ancestors {
         if let Some(def) = ancestor.symbol_table.get(name) {
             return Some((def, Some(&ancestor.path)));
         }
     }
-    
+
     None
+}
+
+/// Represents a parsed qualified type reference (e.g., "sql.UUID" or "auth.types.Email")
+#[derive(Debug, Clone, PartialEq)]
+pub struct QualifiedName {
+    /// The namespace parts (e.g., ["sql"] or ["auth", "types"])
+    pub namespace_parts: Vec<String>,
+    /// The final type/model name (e.g., "UUID" or "Email")
+    pub name: String,
+}
+
+impl QualifiedName {
+    /// Parse a type reference string into a QualifiedName
+    /// Returns None for simple (non-qualified) names
+    pub fn parse(type_ref: &str) -> Option<Self> {
+        let parts: Vec<&str> = type_ref.split('.').collect();
+        if parts.len() < 2 {
+            return None;
+        }
+
+        let name = parts.last()?.to_string();
+        let namespace_parts: Vec<String> = parts[..parts.len() - 1].iter().map(|s| s.to_string()).collect();
+
+        Some(Self {
+            namespace_parts,
+            name,
+        })
+    }
+
+    /// Get the root namespace (first part)
+    pub fn root_namespace(&self) -> &str {
+        &self.namespace_parts[0]
+    }
+
+    /// Check if this is a nested namespace reference (more than one namespace part)
+    pub fn is_nested(&self) -> bool {
+        self.namespace_parts.len() > 1
+    }
+}
+
+/// Check if a qualified type reference is valid
+///
+/// This function checks if a qualified name like "sql.UUID" or "auth.types.Email"
+/// can be resolved in the current context.
+pub fn is_qualified_type_defined(
+    qualified: &QualifiedName,
+    local: &SymbolTable,
+    ancestors: &[Ancestor],
+) -> bool {
+    resolve_qualified_definition(qualified, local, ancestors).is_some()
+}
+
+/// Resolve a qualified type reference to its definition
+///
+/// For "sql.UUID":
+/// 1. Look up "sql" namespace in local symbol table
+/// 2. Look up "UUID" in that namespace's symbol table
+///
+/// For "auth.types.Email":
+/// 1. Look up "auth" namespace in local symbol table
+/// 2. Look up "types" namespace in auth's symbol table
+/// 3. Look up "Email" in types' symbol table
+pub fn resolve_qualified_definition<'a>(
+    qualified: &QualifiedName,
+    local: &'a SymbolTable,
+    _ancestors: &'a [Ancestor],
+) -> Option<&'a Definition> {
+    // Start with the root namespace
+    let root = qualified.root_namespace();
+
+    // First try local namespaces
+    // Note: namespaces are only defined in the local symbol table from template imports
+    // They are not inherited from ancestors (templates are resolved at import time)
+    let mut current_ns = local.get_namespace(root)?;
+
+    // Navigate through nested namespaces (if any)
+    for ns_part in &qualified.namespace_parts[1..] {
+        current_ns = current_ns.symbol_table.get_namespace(ns_part)?;
+    }
+
+    // Finally, look up the type name
+    current_ns.symbol_table.get(&qualified.name)
+}
+
+/// Check if a type name is defined, handling both simple and qualified names
+///
+/// This is the main entry point for type resolution that handles:
+/// - Simple names: "User", "string", etc.
+/// - Qualified names: "sql.UUID", "auth.Role", etc.
+pub fn is_type_reference_defined(
+    type_ref: &str,
+    local: &SymbolTable,
+    ancestors: &[Ancestor],
+) -> bool {
+    // Try to parse as qualified name first
+    if let Some(qualified) = QualifiedName::parse(type_ref) {
+        return is_qualified_type_defined(&qualified, local, ancestors);
+    }
+
+    // Fall back to simple name lookup
+    is_type_defined(type_ref, local, ancestors)
 }
 
 /// Get the fields for a model, checking local model_fields first, then ancestors.

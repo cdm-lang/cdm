@@ -1,0 +1,4 @@
+// Test unknown namespace error
+User {
+  id: unknown.UUID #1
+} #10

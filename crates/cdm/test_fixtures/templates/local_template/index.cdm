@@ -1,0 +1,18 @@
+// sql/postgres-types template
+
+// Type aliases for SQL types
+UUID: string #1
+
+Text: string #2
+
+Varchar: string #3
+
+SmallInt: number #4
+
+Integer: number #5
+
+BigInt: number #6
+
+Timestamp: string #7
+
+Boolean: boolean #8

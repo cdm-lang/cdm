@@ -270,6 +270,299 @@ fn is_boolean_type(parsed_type: &cdm_utils::ParsedType) -> bool {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::plugin_validation::ConfigLevel;
+
+    // =========================================================================
+    // STRUCT TESTS
+    // =========================================================================
+
+    #[test]
+    fn test_settings_field_struct() {
+        let field = SettingsField {
+            name: "test_field".to_string(),
+            type_expr: Some("string".to_string()),
+            optional: false,
+            default_value: Some(serde_json::json!("default")),
+            literal_values: vec!["a".to_string(), "b".to_string()],
+            is_boolean: false,
+        };
+
+        assert_eq!(field.name, "test_field");
+        assert_eq!(field.type_expr, Some("string".to_string()));
+        assert!(!field.optional);
+        assert_eq!(field.default_value, Some(serde_json::json!("default")));
+        assert_eq!(field.literal_values.len(), 2);
+        assert!(!field.is_boolean);
+    }
+
+    #[test]
+    fn test_settings_field_debug() {
+        let field = SettingsField {
+            name: "debug_field".to_string(),
+            type_expr: None,
+            optional: true,
+            default_value: None,
+            literal_values: vec![],
+            is_boolean: true,
+        };
+
+        let debug_str = format!("{:?}", field);
+        assert!(debug_str.contains("debug_field"));
+        assert!(debug_str.contains("is_boolean: true"));
+    }
+
+    #[test]
+    fn test_settings_field_clone() {
+        let field = SettingsField {
+            name: "clone_test".to_string(),
+            type_expr: Some("number".to_string()),
+            optional: true,
+            default_value: Some(serde_json::json!(42)),
+            literal_values: vec!["x".to_string()],
+            is_boolean: false,
+        };
+
+        let cloned = field.clone();
+        assert_eq!(cloned.name, field.name);
+        assert_eq!(cloned.type_expr, field.type_expr);
+        assert_eq!(cloned.optional, field.optional);
+        assert_eq!(cloned.default_value, field.default_value);
+        assert_eq!(cloned.literal_values, field.literal_values);
+        assert_eq!(cloned.is_boolean, field.is_boolean);
+    }
+
+    #[test]
+    fn test_plugin_settings_schema_struct() {
+        let schema = PluginSettingsSchema {
+            global_settings: vec![SettingsField {
+                name: "global".to_string(),
+                type_expr: None,
+                optional: false,
+                default_value: None,
+                literal_values: vec![],
+                is_boolean: false,
+            }],
+            type_alias_settings: vec![],
+            model_settings: vec![SettingsField {
+                name: "model".to_string(),
+                type_expr: None,
+                optional: false,
+                default_value: None,
+                literal_values: vec![],
+                is_boolean: false,
+            }],
+            field_settings: vec![],
+            has_build: true,
+            has_migrate: false,
+        };
+
+        assert_eq!(schema.global_settings.len(), 1);
+        assert_eq!(schema.type_alias_settings.len(), 0);
+        assert_eq!(schema.model_settings.len(), 1);
+        assert_eq!(schema.field_settings.len(), 0);
+        assert!(schema.has_build);
+        assert!(!schema.has_migrate);
+    }
+
+    #[test]
+    fn test_plugin_settings_schema_debug() {
+        let schema = PluginSettingsSchema {
+            global_settings: vec![],
+            type_alias_settings: vec![],
+            model_settings: vec![],
+            field_settings: vec![],
+            has_build: true,
+            has_migrate: true,
+        };
+
+        let debug_str = format!("{:?}", schema);
+        assert!(debug_str.contains("has_build: true"));
+        assert!(debug_str.contains("has_migrate: true"));
+    }
+
+    #[test]
+    fn test_plugin_settings_schema_clone() {
+        let schema = PluginSettingsSchema {
+            global_settings: vec![SettingsField {
+                name: "test".to_string(),
+                type_expr: None,
+                optional: false,
+                default_value: None,
+                literal_values: vec![],
+                is_boolean: false,
+            }],
+            type_alias_settings: vec![],
+            model_settings: vec![],
+            field_settings: vec![],
+            has_build: true,
+            has_migrate: false,
+        };
+
+        let cloned = schema.clone();
+        assert_eq!(cloned.global_settings.len(), 1);
+        assert_eq!(cloned.has_build, schema.has_build);
+        assert_eq!(cloned.has_migrate, schema.has_migrate);
+    }
+
+    // =========================================================================
+    // fields_for_level TESTS
+    // =========================================================================
+
+    #[test]
+    fn test_fields_for_level_global() {
+        let schema = PluginSettingsSchema {
+            global_settings: vec![SettingsField {
+                name: "global_field".to_string(),
+                type_expr: None,
+                optional: false,
+                default_value: None,
+                literal_values: vec![],
+                is_boolean: false,
+            }],
+            type_alias_settings: vec![],
+            model_settings: vec![],
+            field_settings: vec![],
+            has_build: false,
+            has_migrate: false,
+        };
+
+        let fields = schema.fields_for_level(&ConfigLevel::Global);
+        assert_eq!(fields.len(), 1);
+        assert_eq!(fields[0].name, "global_field");
+    }
+
+    #[test]
+    fn test_fields_for_level_type_alias() {
+        let schema = PluginSettingsSchema {
+            global_settings: vec![],
+            type_alias_settings: vec![
+                SettingsField {
+                    name: "type_alias_field_1".to_string(),
+                    type_expr: Some("string".to_string()),
+                    optional: false,
+                    default_value: None,
+                    literal_values: vec![],
+                    is_boolean: false,
+                },
+                SettingsField {
+                    name: "type_alias_field_2".to_string(),
+                    type_expr: Some("number".to_string()),
+                    optional: true,
+                    default_value: Some(serde_json::json!(0)),
+                    literal_values: vec![],
+                    is_boolean: false,
+                },
+            ],
+            model_settings: vec![],
+            field_settings: vec![],
+            has_build: false,
+            has_migrate: false,
+        };
+
+        let fields = schema.fields_for_level(&ConfigLevel::TypeAlias {
+            name: "TestType".to_string(),
+        });
+        assert_eq!(fields.len(), 2);
+        assert_eq!(fields[0].name, "type_alias_field_1");
+        assert_eq!(fields[1].name, "type_alias_field_2");
+    }
+
+    #[test]
+    fn test_fields_for_level_model() {
+        let schema = PluginSettingsSchema {
+            global_settings: vec![],
+            type_alias_settings: vec![],
+            model_settings: vec![SettingsField {
+                name: "model_field".to_string(),
+                type_expr: None,
+                optional: false,
+                default_value: None,
+                literal_values: vec![],
+                is_boolean: false,
+            }],
+            field_settings: vec![],
+            has_build: false,
+            has_migrate: false,
+        };
+
+        let fields = schema.fields_for_level(&ConfigLevel::Model {
+            name: "TestModel".to_string(),
+        });
+        assert_eq!(fields.len(), 1);
+        assert_eq!(fields[0].name, "model_field");
+    }
+
+    #[test]
+    fn test_fields_for_level_field() {
+        let schema = PluginSettingsSchema {
+            global_settings: vec![],
+            type_alias_settings: vec![],
+            model_settings: vec![],
+            field_settings: vec![SettingsField {
+                name: "field_setting".to_string(),
+                type_expr: None,
+                optional: false,
+                default_value: None,
+                literal_values: vec![],
+                is_boolean: false,
+            }],
+            has_build: false,
+            has_migrate: false,
+        };
+
+        let fields = schema.fields_for_level(&ConfigLevel::Field {
+            model: "TestModel".to_string(),
+            field: "test_field".to_string(),
+        });
+        assert_eq!(fields.len(), 1);
+        assert_eq!(fields[0].name, "field_setting");
+    }
+
+    #[test]
+    fn test_fields_for_level_returns_slice() {
+        let schema = PluginSettingsSchema {
+            global_settings: vec![
+                SettingsField {
+                    name: "a".to_string(),
+                    type_expr: None,
+                    optional: false,
+                    default_value: None,
+                    literal_values: vec![],
+                    is_boolean: false,
+                },
+                SettingsField {
+                    name: "b".to_string(),
+                    type_expr: None,
+                    optional: false,
+                    default_value: None,
+                    literal_values: vec![],
+                    is_boolean: false,
+                },
+                SettingsField {
+                    name: "c".to_string(),
+                    type_expr: None,
+                    optional: false,
+                    default_value: None,
+                    literal_values: vec![],
+                    is_boolean: false,
+                },
+            ],
+            type_alias_settings: vec![],
+            model_settings: vec![],
+            field_settings: vec![],
+            has_build: false,
+            has_migrate: false,
+        };
+
+        let fields = schema.fields_for_level(&ConfigLevel::Global);
+        // Test that we can iterate and it's the correct slice
+        let names: Vec<_> = fields.iter().map(|f| f.name.as_str()).collect();
+        assert_eq!(names, vec!["a", "b", "c"]);
+    }
+
+    // =========================================================================
+    // CACHE TESTS
+    // =========================================================================
 
     #[test]
     fn test_cache_new() {
@@ -277,6 +570,45 @@ mod tests {
         // Should be empty initially
         let inner = cache.cache.read().unwrap();
         assert!(inner.is_empty());
+    }
+
+    #[test]
+    fn test_cache_default() {
+        // Test Default::default() implementation
+        let cache = PluginSchemaCache::default();
+        let inner = cache.cache.read().unwrap();
+        assert!(inner.is_empty());
+    }
+
+    #[test]
+    fn test_cache_clone() {
+        let cache = PluginSchemaCache::new();
+
+        // Insert an entry
+        {
+            let mut inner = cache.cache.write().unwrap();
+            inner.insert(
+                "plugin1".to_string(),
+                CachedPluginSchema {
+                    schema: PluginSettingsSchema {
+                        global_settings: Vec::new(),
+                        type_alias_settings: Vec::new(),
+                        model_settings: Vec::new(),
+                        field_settings: Vec::new(),
+                        has_build: true,
+                        has_migrate: false,
+                    },
+                    loaded_at: Instant::now(),
+                },
+            );
+        }
+
+        // Clone the cache
+        let cloned = cache.clone();
+
+        // Both should have the same plugin
+        assert!(cache.cache.read().unwrap().contains_key("plugin1"));
+        assert!(cloned.cache.read().unwrap().contains_key("plugin1"));
     }
 
     #[test]
@@ -310,5 +642,292 @@ mod tests {
 
         // Verify it's gone
         assert!(!cache.cache.read().unwrap().contains_key("test_plugin"));
+    }
+
+    #[test]
+    fn test_cache_invalidate_nonexistent() {
+        let cache = PluginSchemaCache::new();
+
+        // Should not panic when invalidating non-existent plugin
+        cache.invalidate("nonexistent_plugin");
+
+        // Cache should still be empty
+        assert!(cache.cache.read().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_cache_clear() {
+        let cache = PluginSchemaCache::new();
+
+        // Insert multiple entries
+        {
+            let mut inner = cache.cache.write().unwrap();
+            for i in 0..5 {
+                inner.insert(
+                    format!("plugin_{}", i),
+                    CachedPluginSchema {
+                        schema: PluginSettingsSchema {
+                            global_settings: Vec::new(),
+                            type_alias_settings: Vec::new(),
+                            model_settings: Vec::new(),
+                            field_settings: Vec::new(),
+                            has_build: false,
+                            has_migrate: false,
+                        },
+                        loaded_at: Instant::now(),
+                    },
+                );
+            }
+        }
+
+        // Verify entries exist
+        assert_eq!(cache.cache.read().unwrap().len(), 5);
+
+        // Clear the cache
+        cache.clear();
+
+        // Verify cache is empty
+        assert!(cache.cache.read().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_cache_clear_empty() {
+        let cache = PluginSchemaCache::new();
+
+        // Should not panic when clearing empty cache
+        cache.clear();
+
+        assert!(cache.cache.read().unwrap().is_empty());
+    }
+
+    #[test]
+    fn test_cache_invalidate_partial() {
+        let cache = PluginSchemaCache::new();
+
+        // Insert multiple entries
+        {
+            let mut inner = cache.cache.write().unwrap();
+            inner.insert(
+                "keep_me".to_string(),
+                CachedPluginSchema {
+                    schema: PluginSettingsSchema {
+                        global_settings: Vec::new(),
+                        type_alias_settings: Vec::new(),
+                        model_settings: Vec::new(),
+                        field_settings: Vec::new(),
+                        has_build: false,
+                        has_migrate: false,
+                    },
+                    loaded_at: Instant::now(),
+                },
+            );
+            inner.insert(
+                "remove_me".to_string(),
+                CachedPluginSchema {
+                    schema: PluginSettingsSchema {
+                        global_settings: Vec::new(),
+                        type_alias_settings: Vec::new(),
+                        model_settings: Vec::new(),
+                        field_settings: Vec::new(),
+                        has_build: false,
+                        has_migrate: false,
+                    },
+                    loaded_at: Instant::now(),
+                },
+            );
+        }
+
+        // Invalidate only one
+        cache.invalidate("remove_me");
+
+        // Verify correct entry remains
+        let inner = cache.cache.read().unwrap();
+        assert!(inner.contains_key("keep_me"));
+        assert!(!inner.contains_key("remove_me"));
+        assert_eq!(inner.len(), 1);
+    }
+
+    // =========================================================================
+    // HELPER FUNCTION TESTS
+    // =========================================================================
+
+    #[test]
+    fn test_extract_literal_values_single_literal() {
+        use cdm_utils::ParsedType;
+
+        let parsed = ParsedType::Literal("postgres".to_string());
+        let values = extract_literal_values(&parsed);
+        assert_eq!(values, vec!["postgres"]);
+    }
+
+    #[test]
+    fn test_extract_literal_values_union_of_literals() {
+        use cdm_utils::ParsedType;
+
+        let parsed = ParsedType::Union(vec![
+            ParsedType::Literal("active".to_string()),
+            ParsedType::Literal("inactive".to_string()),
+            ParsedType::Literal("pending".to_string()),
+        ]);
+        let values = extract_literal_values(&parsed);
+        assert_eq!(values, vec!["active", "inactive", "pending"]);
+    }
+
+    #[test]
+    fn test_extract_literal_values_mixed_union() {
+        use cdm_utils::{ParsedType, PrimitiveType};
+
+        // Union with some literals and some non-literals
+        let parsed = ParsedType::Union(vec![
+            ParsedType::Literal("literal_value".to_string()),
+            ParsedType::Primitive(PrimitiveType::String),
+            ParsedType::Literal("another_literal".to_string()),
+        ]);
+        let values = extract_literal_values(&parsed);
+        // Should only return literals
+        assert_eq!(values, vec!["literal_value", "another_literal"]);
+    }
+
+    #[test]
+    fn test_extract_literal_values_primitive() {
+        use cdm_utils::{ParsedType, PrimitiveType};
+
+        let parsed = ParsedType::Primitive(PrimitiveType::String);
+        let values = extract_literal_values(&parsed);
+        assert!(values.is_empty());
+    }
+
+    #[test]
+    fn test_extract_literal_values_array() {
+        use cdm_utils::{ParsedType, PrimitiveType};
+
+        let parsed = ParsedType::Array(Box::new(ParsedType::Primitive(PrimitiveType::String)));
+        let values = extract_literal_values(&parsed);
+        assert!(values.is_empty());
+    }
+
+    #[test]
+    fn test_extract_literal_values_reference() {
+        use cdm_utils::ParsedType;
+
+        let parsed = ParsedType::Reference("CustomType".to_string());
+        let values = extract_literal_values(&parsed);
+        assert!(values.is_empty());
+    }
+
+    #[test]
+    fn test_extract_literal_values_null() {
+        use cdm_utils::ParsedType;
+
+        let parsed = ParsedType::Null;
+        let values = extract_literal_values(&parsed);
+        assert!(values.is_empty());
+    }
+
+    #[test]
+    fn test_extract_literal_values_union_no_literals() {
+        use cdm_utils::{ParsedType, PrimitiveType};
+
+        let parsed = ParsedType::Union(vec![
+            ParsedType::Primitive(PrimitiveType::String),
+            ParsedType::Primitive(PrimitiveType::Number),
+        ]);
+        let values = extract_literal_values(&parsed);
+        assert!(values.is_empty());
+    }
+
+    #[test]
+    fn test_is_boolean_type_true() {
+        use cdm_utils::{ParsedType, PrimitiveType};
+
+        let parsed = ParsedType::Primitive(PrimitiveType::Boolean);
+        assert!(is_boolean_type(&parsed));
+    }
+
+    #[test]
+    fn test_is_boolean_type_string() {
+        use cdm_utils::{ParsedType, PrimitiveType};
+
+        let parsed = ParsedType::Primitive(PrimitiveType::String);
+        assert!(!is_boolean_type(&parsed));
+    }
+
+    #[test]
+    fn test_is_boolean_type_number() {
+        use cdm_utils::{ParsedType, PrimitiveType};
+
+        let parsed = ParsedType::Primitive(PrimitiveType::Number);
+        assert!(!is_boolean_type(&parsed));
+    }
+
+    #[test]
+    fn test_is_boolean_type_literal() {
+        use cdm_utils::ParsedType;
+
+        let parsed = ParsedType::Literal("true".to_string());
+        assert!(!is_boolean_type(&parsed));
+    }
+
+    #[test]
+    fn test_is_boolean_type_reference() {
+        use cdm_utils::ParsedType;
+
+        let parsed = ParsedType::Reference("Boolean".to_string());
+        assert!(!is_boolean_type(&parsed));
+    }
+
+    #[test]
+    fn test_is_boolean_type_array() {
+        use cdm_utils::{ParsedType, PrimitiveType};
+
+        let parsed = ParsedType::Array(Box::new(ParsedType::Primitive(PrimitiveType::Boolean)));
+        assert!(!is_boolean_type(&parsed));
+    }
+
+    #[test]
+    fn test_is_boolean_type_union() {
+        use cdm_utils::{ParsedType, PrimitiveType};
+
+        // Even a union with boolean is not a boolean type
+        let parsed = ParsedType::Union(vec![
+            ParsedType::Primitive(PrimitiveType::Boolean),
+            ParsedType::Primitive(PrimitiveType::String),
+        ]);
+        assert!(!is_boolean_type(&parsed));
+    }
+
+    #[test]
+    fn test_is_boolean_type_null() {
+        use cdm_utils::ParsedType;
+
+        let parsed = ParsedType::Null;
+        assert!(!is_boolean_type(&parsed));
+    }
+
+    // =========================================================================
+    // CACHED PLUGIN SCHEMA TESTS
+    // =========================================================================
+
+    #[test]
+    fn test_cached_plugin_schema_timestamp() {
+        let before = Instant::now();
+
+        let cached = CachedPluginSchema {
+            schema: PluginSettingsSchema {
+                global_settings: Vec::new(),
+                type_alias_settings: Vec::new(),
+                model_settings: Vec::new(),
+                field_settings: Vec::new(),
+                has_build: false,
+                has_migrate: false,
+            },
+            loaded_at: Instant::now(),
+        };
+
+        let after = Instant::now();
+
+        // loaded_at should be between before and after
+        assert!(cached.loaded_at >= before);
+        assert!(cached.loaded_at <= after);
     }
 }

@@ -1,0 +1,8 @@
+// Test duplicate namespace error
+import sql from ./sql_template_1
+import sql from ./sql_template_2
+
+// This should error: duplicate namespace 'sql'
+User {
+  id: sql.UUID #1
+} #10

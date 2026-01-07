@@ -1,0 +1,16 @@
+// Test extends with template
+extends ./auth_template
+
+// Extend the User model from auth
+User {
+  avatar_url: string #100
+  display_name: string #101
+}
+
+// Add our own models
+Post {
+  id: string #1
+  author: User #2
+  title: string #3
+  content: string #4
+} #20

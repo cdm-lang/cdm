@@ -1,0 +1,5 @@
+// sql/postgres-types template
+UUID: string #1
+Text: string #2
+Varchar: string #3
+Timestamp: string #4

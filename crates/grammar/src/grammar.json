@@ -25,23 +25,7 @@
             "members": [
               {
                 "type": "SYMBOL",
-                "name": "extends_directive"
-              },
-              {
-                "type": "SYMBOL",
-                "name": "_nls"
-              }
-            ]
-          }
-        },
-        {
-          "type": "REPEAT",
-          "content": {
-            "type": "SEQ",
-            "members": [
-              {
-                "type": "SYMBOL",
-                "name": "plugin_import"
+                "name": "_directive"
               },
               {
                 "type": "SYMBOL",
@@ -73,6 +57,27 @@
               }
             ]
           }
+        }
+      ]
+    },
+    "_directive": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "extends_directive"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "extends_template"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "template_import"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "plugin_import"
         }
       ]
     },
@@ -199,6 +204,109 @@
     "plugin_path": {
       "type": "PATTERN",
       "value": "\\.\\.?\\/[^\\s\\n{}]+"
+    },
+    "template_import": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "import"
+        },
+        {
+          "type": "FIELD",
+          "name": "namespace",
+          "content": {
+            "type": "SYMBOL",
+            "name": "identifier"
+          }
+        },
+        {
+          "type": "STRING",
+          "value": "from"
+        },
+        {
+          "type": "FIELD",
+          "name": "source",
+          "content": {
+            "type": "SYMBOL",
+            "name": "template_source"
+          }
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "FIELD",
+              "name": "config",
+              "content": {
+                "type": "SYMBOL",
+                "name": "object_literal"
+              }
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        }
+      ]
+    },
+    "extends_template": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "STRING",
+          "value": "extends"
+        },
+        {
+          "type": "FIELD",
+          "name": "source",
+          "content": {
+            "type": "SYMBOL",
+            "name": "template_source"
+          }
+        },
+        {
+          "type": "CHOICE",
+          "members": [
+            {
+              "type": "FIELD",
+              "name": "config",
+              "content": {
+                "type": "SYMBOL",
+                "name": "object_literal"
+              }
+            },
+            {
+              "type": "BLANK"
+            }
+          ]
+        }
+      ]
+    },
+    "template_source": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "git_reference"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "local_path"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "registry_name"
+        }
+      ]
+    },
+    "local_path": {
+      "type": "PATTERN",
+      "value": "\\.\\.?\\/[^\\s\\n{}]+"
+    },
+    "registry_name": {
+      "type": "PATTERN",
+      "value": "[a-zA-Z][a-zA-Z0-9_-]*(\\/[a-zA-Z][a-zA-Z0-9_-]*)?"
     },
     "extends_directive": {
       "type": "SEQ",
@@ -761,8 +869,55 @@
       ]
     },
     "type_identifier": {
-      "type": "SYMBOL",
-      "name": "identifier"
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "qualified_identifier"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "identifier"
+        }
+      ]
+    },
+    "qualified_identifier": {
+      "type": "SEQ",
+      "members": [
+        {
+          "type": "FIELD",
+          "name": "namespace",
+          "content": {
+            "type": "SYMBOL",
+            "name": "identifier"
+          }
+        },
+        {
+          "type": "STRING",
+          "value": "."
+        },
+        {
+          "type": "FIELD",
+          "name": "name",
+          "content": {
+            "type": "SYMBOL",
+            "name": "_qualified_name_rest"
+          }
+        }
+      ]
+    },
+    "_qualified_name_rest": {
+      "type": "CHOICE",
+      "members": [
+        {
+          "type": "SYMBOL",
+          "name": "qualified_identifier"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "identifier"
+        }
+      ]
     },
     "array_type": {
       "type": "PREC",
@@ -1277,6 +1432,5 @@
   "precedences": [],
   "externals": [],
   "inline": [],
-  "supertypes": [],
-  "reserved": {}
+  "supertypes": []
 }

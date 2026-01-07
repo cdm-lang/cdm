@@ -99,9 +99,147 @@ pub fn handle_update_subcommand(command: UpdateCommands) -> Result<()> {
 
 #[cfg(test)]
 mod tests {
+    use super::*;
+
+    // =========================================================================
+    // ENUM STRUCTURE TESTS
+    // =========================================================================
+
     #[test]
     fn test_update_commands_structure() {
         // This test just verifies the command structure compiles
         // Actual functionality is tested in integration tests
+    }
+
+    #[test]
+    fn test_update_commands_version_variant() {
+        let cmd = UpdateCommands::Version {
+            version: "1.2.3".to_string(),
+            yes: false,
+        };
+
+        match cmd {
+            UpdateCommands::Version { version, yes } => {
+                assert_eq!(version, "1.2.3");
+                assert!(!yes);
+            }
+            _ => panic!("Expected Version variant"),
+        }
+    }
+
+    #[test]
+    fn test_update_commands_version_with_yes() {
+        let cmd = UpdateCommands::Version {
+            version: "2.0.0".to_string(),
+            yes: true,
+        };
+
+        match cmd {
+            UpdateCommands::Version { version, yes } => {
+                assert_eq!(version, "2.0.0");
+                assert!(yes);
+            }
+            _ => panic!("Expected Version variant"),
+        }
+    }
+
+    #[test]
+    fn test_update_commands_check_variant() {
+        let cmd = UpdateCommands::Check;
+
+        match cmd {
+            UpdateCommands::Check => (),
+            _ => panic!("Expected Check variant"),
+        }
+    }
+
+    #[test]
+    fn test_update_commands_list_variant() {
+        let cmd = UpdateCommands::List;
+
+        match cmd {
+            UpdateCommands::List => (),
+            _ => panic!("Expected List variant"),
+        }
+    }
+
+    // =========================================================================
+    // VERSION STRING TESTS
+    // =========================================================================
+
+    #[test]
+    fn test_version_string_formats() {
+        // Test various version string formats that should be accepted
+        let versions = vec![
+            "0.1.0",
+            "1.0.0",
+            "1.2.3",
+            "10.20.30",
+            "0.0.1",
+            "1.0.0-alpha",
+            "1.0.0-beta.1",
+            "1.0.0-rc.1",
+        ];
+
+        for version in versions {
+            let cmd = UpdateCommands::Version {
+                version: version.to_string(),
+                yes: false,
+            };
+
+            if let UpdateCommands::Version { version: v, .. } = cmd {
+                assert_eq!(v, version);
+            }
+        }
+    }
+
+    #[test]
+    fn test_current_version_available() {
+        // Verify we can access the current version
+        let current = env!("CARGO_PKG_VERSION");
+        assert!(!current.is_empty());
+
+        // Should be a valid semver
+        let parts: Vec<&str> = current.split('.').collect();
+        assert!(parts.len() >= 2); // At least major.minor
+    }
+
+    // =========================================================================
+    // COMMAND PATTERN TESTS
+    // =========================================================================
+
+    #[test]
+    fn test_update_commands_pattern_matching() {
+        // Test that all variants can be pattern matched
+        let commands = vec![
+            UpdateCommands::Version {
+                version: "1.0.0".to_string(),
+                yes: false,
+            },
+            UpdateCommands::Check,
+            UpdateCommands::List,
+        ];
+
+        for cmd in commands {
+            match cmd {
+                UpdateCommands::Version { .. } => (),
+                UpdateCommands::Check => (),
+                UpdateCommands::List => (),
+            }
+        }
+    }
+
+    #[test]
+    fn test_version_empty_string() {
+        // Empty version string should still be constructible
+        // (validation happens at runtime in update_to_version)
+        let cmd = UpdateCommands::Version {
+            version: String::new(),
+            yes: true,
+        };
+
+        if let UpdateCommands::Version { version, .. } = cmd {
+            assert!(version.is_empty());
+        }
     }
 }

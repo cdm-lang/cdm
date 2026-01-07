@@ -1,0 +1,18 @@
+// cdm/auth template
+
+// Type alias for Role
+Role: "admin" | "user" | "guest" #1
+
+// Models
+User {
+  id: string #1
+  email: string #2
+  created_at: string #3
+} #10
+
+Session {
+  id: string #1
+  user: User #2
+  token: string #3
+  expires_at: string #4
+} #11

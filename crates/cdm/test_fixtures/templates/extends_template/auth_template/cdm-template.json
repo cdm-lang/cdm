@@ -1,0 +1,6 @@
+{
+  "name": "cdm/auth",
+  "version": "2.1.0",
+  "description": "Authentication system with User, Session, and Role models",
+  "entry": "./index.cdm"
+}

@@ -667,3 +667,300 @@ fn test_ancestor_structure() {
     assert_eq!(ancestor.path, "base.cdm");
     assert_eq!(ancestor.symbol_table.definitions.len(), 1);
 }
+
+// =========================================================================
+// NAMESPACE TESTS
+// =========================================================================
+
+#[test]
+fn test_qualified_name_parse_simple() {
+    let qualified = QualifiedName::parse("sql.UUID").unwrap();
+    assert_eq!(qualified.namespace_parts, vec!["sql"]);
+    assert_eq!(qualified.name, "UUID");
+    assert_eq!(qualified.root_namespace(), "sql");
+    assert!(!qualified.is_nested());
+}
+
+#[test]
+fn test_qualified_name_parse_nested() {
+    let qualified = QualifiedName::parse("auth.types.Email").unwrap();
+    assert_eq!(qualified.namespace_parts, vec!["auth", "types"]);
+    assert_eq!(qualified.name, "Email");
+    assert_eq!(qualified.root_namespace(), "auth");
+    assert!(qualified.is_nested());
+}
+
+#[test]
+fn test_qualified_name_parse_simple_name_returns_none() {
+    assert!(QualifiedName::parse("User").is_none());
+    assert!(QualifiedName::parse("string").is_none());
+}
+
+#[test]
+fn test_symbol_table_has_namespace() {
+    let mut table = SymbolTable::new();
+    assert!(!table.has_namespace("sql"));
+
+    let ns = ImportedNamespace {
+        name: "sql".to_string(),
+        template_path: PathBuf::from("./templates/sql"),
+        symbol_table: SymbolTable::new(),
+        model_fields: HashMap::new(),
+    };
+    table.add_namespace(ns);
+
+    assert!(table.has_namespace("sql"));
+    assert!(!table.has_namespace("auth"));
+}
+
+#[test]
+fn test_symbol_table_get_namespace() {
+    let mut table = SymbolTable::new();
+
+    let mut ns_table = SymbolTable::new();
+    ns_table.definitions.insert(
+        "UUID".to_string(),
+        Definition {
+            kind: DefinitionKind::TypeAlias {
+                references: vec!["string".to_string()],
+                type_expr: "string".to_string(),
+            },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: None,
+        },
+    );
+
+    let ns = ImportedNamespace {
+        name: "sql".to_string(),
+        template_path: PathBuf::from("./templates/sql"),
+        symbol_table: ns_table,
+        model_fields: HashMap::new(),
+    };
+    table.add_namespace(ns);
+
+    let retrieved_ns = table.get_namespace("sql").unwrap();
+    assert_eq!(retrieved_ns.name, "sql");
+    assert!(retrieved_ns.symbol_table.is_defined("UUID"));
+}
+
+#[test]
+fn test_is_qualified_type_defined() {
+    let mut table = SymbolTable::new();
+
+    let mut ns_table = SymbolTable::new();
+    ns_table.definitions.insert(
+        "UUID".to_string(),
+        Definition {
+            kind: DefinitionKind::TypeAlias {
+                references: vec!["string".to_string()],
+                type_expr: "string".to_string(),
+            },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: None,
+        },
+    );
+
+    let ns = ImportedNamespace {
+        name: "sql".to_string(),
+        template_path: PathBuf::from("./templates/sql"),
+        symbol_table: ns_table,
+        model_fields: HashMap::new(),
+    };
+    table.add_namespace(ns);
+
+    let qualified = QualifiedName::parse("sql.UUID").unwrap();
+    let ancestors = vec![];
+    assert!(is_qualified_type_defined(&qualified, &table, &ancestors));
+
+    let invalid = QualifiedName::parse("sql.NonExistent").unwrap();
+    assert!(!is_qualified_type_defined(&invalid, &table, &ancestors));
+
+    let invalid_ns = QualifiedName::parse("auth.UUID").unwrap();
+    assert!(!is_qualified_type_defined(&invalid_ns, &table, &ancestors));
+}
+
+#[test]
+fn test_resolve_qualified_definition() {
+    let mut table = SymbolTable::new();
+
+    let mut ns_table = SymbolTable::new();
+    ns_table.definitions.insert(
+        "UUID".to_string(),
+        Definition {
+            kind: DefinitionKind::TypeAlias {
+                references: vec!["string".to_string()],
+                type_expr: "string".to_string(),
+            },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: Some(1),
+        },
+    );
+
+    let ns = ImportedNamespace {
+        name: "sql".to_string(),
+        template_path: PathBuf::from("./templates/sql"),
+        symbol_table: ns_table,
+        model_fields: HashMap::new(),
+    };
+    table.add_namespace(ns);
+
+    let qualified = QualifiedName::parse("sql.UUID").unwrap();
+    let ancestors = vec![];
+    let def = resolve_qualified_definition(&qualified, &table, &ancestors).unwrap();
+
+    assert_eq!(def.entity_id, Some(1));
+    match &def.kind {
+        DefinitionKind::TypeAlias { type_expr, .. } => {
+            assert_eq!(type_expr, "string");
+        }
+        _ => panic!("Expected TypeAlias"),
+    }
+}
+
+#[test]
+fn test_resolve_qualified_definition_nested() {
+    let mut table = SymbolTable::new();
+
+    // Create nested namespace: auth.types
+    let mut types_table = SymbolTable::new();
+    types_table.definitions.insert(
+        "Email".to_string(),
+        Definition {
+            kind: DefinitionKind::TypeAlias {
+                references: vec!["string".to_string()],
+                type_expr: "string".to_string(),
+            },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: Some(2),
+        },
+    );
+
+    let types_ns = ImportedNamespace {
+        name: "types".to_string(),
+        template_path: PathBuf::from("./templates/auth/types"),
+        symbol_table: types_table,
+        model_fields: HashMap::new(),
+    };
+
+    let mut auth_table = SymbolTable::new();
+    auth_table.add_namespace(types_ns);
+
+    let auth_ns = ImportedNamespace {
+        name: "auth".to_string(),
+        template_path: PathBuf::from("./templates/auth"),
+        symbol_table: auth_table,
+        model_fields: HashMap::new(),
+    };
+
+    table.add_namespace(auth_ns);
+
+    let qualified = QualifiedName::parse("auth.types.Email").unwrap();
+    let ancestors = vec![];
+    let def = resolve_qualified_definition(&qualified, &table, &ancestors).unwrap();
+
+    assert_eq!(def.entity_id, Some(2));
+}
+
+#[test]
+fn test_is_type_reference_defined_simple() {
+    let mut table = SymbolTable::new();
+    table.definitions.insert(
+        "User".to_string(),
+        Definition {
+            kind: DefinitionKind::Model {
+                extends: vec![],
+            },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: None,
+        },
+    );
+
+    let ancestors = vec![];
+
+    // Simple names
+    assert!(is_type_reference_defined("User", &table, &ancestors));
+    assert!(is_type_reference_defined("string", &table, &ancestors));
+    assert!(!is_type_reference_defined("NonExistent", &table, &ancestors));
+}
+
+#[test]
+fn test_is_type_reference_defined_qualified() {
+    let mut table = SymbolTable::new();
+
+    let mut ns_table = SymbolTable::new();
+    ns_table.definitions.insert(
+        "UUID".to_string(),
+        Definition {
+            kind: DefinitionKind::TypeAlias {
+                references: vec!["string".to_string()],
+                type_expr: "string".to_string(),
+            },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: None,
+        },
+    );
+
+    let ns = ImportedNamespace {
+        name: "sql".to_string(),
+        template_path: PathBuf::from("./templates/sql"),
+        symbol_table: ns_table,
+        model_fields: HashMap::new(),
+    };
+    table.add_namespace(ns);
+
+    let ancestors = vec![];
+
+    // Qualified names
+    assert!(is_type_reference_defined("sql.UUID", &table, &ancestors));
+    assert!(!is_type_reference_defined("sql.NonExistent", &table, &ancestors));
+    assert!(!is_type_reference_defined("auth.UUID", &table, &ancestors));
+}
+
+#[test]
+fn test_imported_namespace_structure() {
+    let mut ns_table = SymbolTable::new();
+    ns_table.definitions.insert(
+        "Role".to_string(),
+        Definition {
+            kind: DefinitionKind::TypeAlias {
+                references: vec![],
+                type_expr: "\"admin\" | \"user\"".to_string(),
+            },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: Some(10),
+        },
+    );
+
+    let mut ns_fields = HashMap::new();
+    ns_fields.insert(
+        "User".to_string(),
+        vec![FieldInfo {
+            name: "id".to_string(),
+            type_expr: Some("number".to_string()),
+            optional: false,
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            default_value: None,
+            entity_id: Some(1),
+        }],
+    );
+
+    let ns = ImportedNamespace {
+        name: "auth".to_string(),
+        template_path: PathBuf::from("/path/to/template"),
+        symbol_table: ns_table,
+        model_fields: ns_fields,
+    };
+
+    assert_eq!(ns.name, "auth");
+    assert_eq!(ns.template_path, PathBuf::from("/path/to/template"));
+    assert!(ns.symbol_table.is_defined("Role"));
+    assert!(ns.model_fields.contains_key("User"));
+}

@@ -345,9 +345,16 @@ fn parse_plugin_source(node: tree_sitter::Node, source: &str) -> PluginSource {
     PluginSource::Path { path: String::new() }
 }
 
-fn parse_json_config(node: tree_sitter::Node, source: &str) -> Option<JSON> {
+/// Parse an object_literal node into JSON
+///
+/// This is public so it can be reused by template_resolver
+pub fn parse_object_literal_to_json(node: tree_sitter::Node, source: &str) -> Option<JSON> {
     // The node is an object_literal, we need to parse it from the AST
     parse_value(node, source)
+}
+
+fn parse_json_config(node: tree_sitter::Node, source: &str) -> Option<JSON> {
+    parse_object_literal_to_json(node, source)
 }
 
 /// Parse a CDM value node into a JSON value

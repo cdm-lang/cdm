@@ -1,0 +1,408 @@
+//! Template resolution logic for CDM templates
+//!
+//! This module provides unified functions for resolving templates from different sources:
+//! - Registry templates (e.g., `sql/postgres-types`, `cdm/auth`)
+//! - Git templates (`git:https://github.com/org/repo.git`)
+//! - Local templates (`./templates/shared`)
+
+use anyhow::{Context, Result};
+use cdm_plugin_interface::JSON;
+use cdm_utils::Span;
+use serde::{Deserialize, Serialize};
+use std::collections::HashMap;
+use std::fs;
+use std::path::{Path, PathBuf};
+
+/// Template manifest structure (cdm-template.json)
+#[derive(Debug, Clone, Deserialize, Serialize)]
+pub struct TemplateManifest {
+    /// Template identifier (e.g., "cdm/auth")
+    pub name: String,
+    /// Semantic version
+    pub version: String,
+    /// Human-readable description
+    pub description: String,
+    /// Path to main CDM file (relative to manifest)
+    pub entry: String,
+    /// Named export paths for selective importing
+    #[serde(default)]
+    pub exports: HashMap<String, String>,
+}
+
+/// Represents a template import directive
+#[derive(Debug, Clone)]
+pub struct TemplateImport {
+    /// The namespace to use for accessing template definitions
+    pub namespace: String,
+    /// Where to load the template from
+    pub source: TemplateSource,
+    /// Optional configuration (version, git_ref, git_path, etc.)
+    pub config: Option<JSON>,
+    /// Source location for error messages
+    pub span: Span,
+    /// Path of the file containing this import (for relative path resolution)
+    pub source_file: PathBuf,
+}
+
+/// Represents a template extends directive (merged import)
+#[derive(Debug, Clone)]
+pub struct TemplateExtends {
+    /// Where to load the template from
+    pub source: TemplateSource,
+    /// Optional configuration (version, git_ref, git_path, etc.)
+    pub config: Option<JSON>,
+    /// Source location for error messages
+    pub span: Span,
+    /// Path of the file containing this extends (for relative path resolution)
+    pub source_file: PathBuf,
+}
+
+/// Source of a template
+#[derive(Debug, Clone)]
+pub enum TemplateSource {
+    /// Registry template (e.g., "sql/postgres-types", "cdm/auth")
+    Registry { name: String },
+    /// Git repository
+    Git { url: String },
+    /// Local path (relative to importing file)
+    Local { path: String },
+}
+
+/// Loaded template with its manifest and content
+#[derive(Debug, Clone)]
+pub struct LoadedTemplate {
+    /// Template manifest
+    pub manifest: TemplateManifest,
+    /// Absolute path to the template directory
+    pub path: PathBuf,
+    /// Absolute path to the entry file
+    pub entry_path: PathBuf,
+}
+
+/// Extract template imports from a parsed AST
+pub fn extract_template_imports(
+    root: tree_sitter::Node,
+    source: &str,
+    source_file: &Path,
+) -> Vec<TemplateImport> {
+    let mut imports = Vec::new();
+    let mut cursor = root.walk();
+
+    for child in root.children(&mut cursor) {
+        if child.kind() == "template_import" {
+            if let Some(import) = parse_template_import(child, source, source_file) {
+                imports.push(import);
+            }
+        }
+    }
+
+    imports
+}
+
+/// Extract template extends from a parsed AST
+pub fn extract_template_extends(
+    root: tree_sitter::Node,
+    source: &str,
+    source_file: &Path,
+) -> Vec<TemplateExtends> {
+    let mut extends = Vec::new();
+    let mut cursor = root.walk();
+
+    for child in root.children(&mut cursor) {
+        if child.kind() == "extends_template" {
+            if let Some(ext) = parse_template_extends(child, source, source_file) {
+                extends.push(ext);
+            }
+        }
+    }
+
+    extends
+}
+
+/// Parse a single template_import node
+fn parse_template_import(
+    node: tree_sitter::Node,
+    source: &str,
+    source_file: &Path,
+) -> Option<TemplateImport> {
+    let namespace = node
+        .child_by_field_name("namespace")?
+        .utf8_text(source.as_bytes())
+        .ok()?
+        .to_string();
+
+    let source_node = node.child_by_field_name("source")?;
+    let template_source = parse_template_source(source_node, source)?;
+
+    let config = node
+        .child_by_field_name("config")
+        .and_then(|c| parse_object_literal(c, source));
+
+    let start = node.start_position();
+    let end = node.end_position();
+
+    Some(TemplateImport {
+        namespace,
+        source: template_source,
+        config,
+        span: Span {
+            start: cdm_utils::Position {
+                line: start.row,
+                column: start.column,
+            },
+            end: cdm_utils::Position {
+                line: end.row,
+                column: end.column,
+            },
+        },
+        source_file: source_file.to_path_buf(),
+    })
+}
+
+/// Parse a single extends_template node
+fn parse_template_extends(
+    node: tree_sitter::Node,
+    source: &str,
+    source_file: &Path,
+) -> Option<TemplateExtends> {
+    let source_node = node.child_by_field_name("source")?;
+    let template_source = parse_template_source(source_node, source)?;
+
+    let config = node
+        .child_by_field_name("config")
+        .and_then(|c| parse_object_literal(c, source));
+
+    let start = node.start_position();
+    let end = node.end_position();
+
+    Some(TemplateExtends {
+        source: template_source,
+        config,
+        span: Span {
+            start: cdm_utils::Position {
+                line: start.row,
+                column: start.column,
+            },
+            end: cdm_utils::Position {
+                line: end.row,
+                column: end.column,
+            },
+        },
+        source_file: source_file.to_path_buf(),
+    })
+}
+
+/// Parse a template_source node into TemplateSource enum
+fn parse_template_source(node: tree_sitter::Node, source: &str) -> Option<TemplateSource> {
+    let child = node.child(0)?;
+
+    match child.kind() {
+        "git_reference" => {
+            let url_node = child.child_by_field_name("url")?;
+            let url = url_node.utf8_text(source.as_bytes()).ok()?.to_string();
+            Some(TemplateSource::Git { url })
+        }
+        "local_path" => {
+            let path = child.utf8_text(source.as_bytes()).ok()?.to_string();
+            Some(TemplateSource::Local { path })
+        }
+        "registry_name" => {
+            let name = child.utf8_text(source.as_bytes()).ok()?.to_string();
+            Some(TemplateSource::Registry { name })
+        }
+        _ => None,
+    }
+}
+
+/// Parse an object_literal node into JSON
+fn parse_object_literal(node: tree_sitter::Node, source: &str) -> Option<JSON> {
+    // Reuse existing parsing logic from plugin_validation
+    crate::plugin_validation::parse_object_literal_to_json(node, source)
+}
+
+/// Resolve a template import to a loaded template
+pub fn resolve_template(import: &TemplateImport) -> Result<LoadedTemplate> {
+    resolve_template_from_source(&import.source, &import.config, &import.source_file)
+}
+
+/// Resolve a template extends to a loaded template
+pub fn resolve_template_extends(extends: &TemplateExtends) -> Result<LoadedTemplate> {
+    resolve_template_from_source(&extends.source, &extends.config, &extends.source_file)
+}
+
+/// Resolve a template from its source
+pub fn resolve_template_from_source(
+    source: &TemplateSource,
+    config: &Option<JSON>,
+    source_file: &Path,
+) -> Result<LoadedTemplate> {
+    match source {
+        TemplateSource::Local { path } => resolve_local_template(path, source_file),
+        TemplateSource::Git { url } => resolve_git_template(url, config),
+        TemplateSource::Registry { name } => resolve_registry_template(name, config),
+    }
+}
+
+/// Resolve a local template
+fn resolve_local_template(path: &str, source_file: &Path) -> Result<LoadedTemplate> {
+    let source_dir = source_file
+        .parent()
+        .context("Failed to get source file directory")?;
+    let template_dir = source_dir.join(path);
+
+    // Read manifest
+    let manifest_path = template_dir.join("cdm-template.json");
+    if !manifest_path.exists() {
+        anyhow::bail!(
+            "No cdm-template.json found in template directory: {}\n\
+            Templates must have a cdm-template.json manifest file",
+            template_dir.display()
+        );
+    }
+
+    let manifest = load_manifest(&manifest_path)?;
+    let entry_path = template_dir.join(&manifest.entry);
+
+    if !entry_path.exists() {
+        anyhow::bail!(
+            "Template entry file not found: {}\n\
+            Specified in cdm-template.json as: {}",
+            entry_path.display(),
+            manifest.entry
+        );
+    }
+
+    Ok(LoadedTemplate {
+        manifest,
+        path: template_dir
+            .canonicalize()
+            .unwrap_or_else(|_| template_dir.clone()),
+        entry_path: entry_path
+            .canonicalize()
+            .unwrap_or_else(|_| entry_path.clone()),
+    })
+}
+
+/// Resolve a git template
+fn resolve_git_template(url: &str, config: &Option<JSON>) -> Result<LoadedTemplate> {
+    use crate::git_plugin;
+    use crate::registry;
+
+    let cache_path = registry::get_cache_path()?;
+
+    // Extract git ref from config
+    let git_ref = config
+        .as_ref()
+        .and_then(|c| c.get("git_ref"))
+        .and_then(|v| v.as_str())
+        .unwrap_or("main");
+
+    // Extract git path from config
+    let git_path = config
+        .as_ref()
+        .and_then(|c| c.get("git_path"))
+        .and_then(|v| v.as_str());
+
+    // Clone or update git repository (reuse plugin caching)
+    let repo_path = git_plugin::clone_git_plugin_with_cache_path(url, git_ref, &cache_path)
+        .map_err(|e| anyhow::anyhow!("Failed to clone git repository '{}': {}", url, e))?;
+
+    // Navigate to subdirectory if specified
+    let template_dir = if let Some(path) = git_path {
+        repo_path.join(path)
+    } else {
+        repo_path
+    };
+
+    // Read manifest
+    let manifest_path = template_dir.join("cdm-template.json");
+    if !manifest_path.exists() {
+        anyhow::bail!(
+            "No cdm-template.json found in git repository: {}\n\
+            Git URL: {}\n\
+            {}",
+            template_dir.display(),
+            url,
+            if git_path.is_some() {
+                format!("Git path: {}", git_path.unwrap())
+            } else {
+                String::new()
+            }
+        );
+    }
+
+    let manifest = load_manifest(&manifest_path)?;
+    let entry_path = template_dir.join(&manifest.entry);
+
+    if !entry_path.exists() {
+        anyhow::bail!(
+            "Template entry file not found: {}\n\
+            Specified in cdm-template.json as: {}",
+            entry_path.display(),
+            manifest.entry
+        );
+    }
+
+    Ok(LoadedTemplate {
+        manifest,
+        path: template_dir,
+        entry_path,
+    })
+}
+
+/// Resolve a registry template
+fn resolve_registry_template(name: &str, config: &Option<JSON>) -> Result<LoadedTemplate> {
+    use crate::{registry, version_resolver};
+
+    // Extract version constraint from config
+    let version_constraint = config
+        .as_ref()
+        .and_then(|c| c.get("version"))
+        .and_then(|v| v.as_str())
+        .map(|s| version_resolver::parse_version_constraint(s))
+        .transpose()
+        .map_err(|e| anyhow::anyhow!("Invalid version constraint: {}", e))?
+        .unwrap_or(version_resolver::VersionConstraint::Latest);
+
+    // For now, try to load from template registry
+    // TODO: Implement template registry similar to plugin registry
+    let cache_path = registry::get_cache_path()?;
+    let template_dir = cache_path
+        .join("templates")
+        .join(name.replace('/', "_"))
+        .join(version_constraint.to_string());
+
+    if template_dir.exists() {
+        let manifest_path = template_dir.join("cdm-template.json");
+        if manifest_path.exists() {
+            let manifest = load_manifest(&manifest_path)?;
+            let entry_path = template_dir.join(&manifest.entry);
+            return Ok(LoadedTemplate {
+                manifest,
+                path: template_dir,
+                entry_path,
+            });
+        }
+    }
+
+    // Template not found in cache - would need to download
+    anyhow::bail!(
+        "Template '{}' not found in registry.\n\
+        Template registry is not yet implemented.\n\
+        Use git: or local paths instead.",
+        name
+    )
+}
+
+/// Load and parse a template manifest file
+fn load_manifest(path: &Path) -> Result<TemplateManifest> {
+    let content =
+        fs::read_to_string(path).with_context(|| format!("Failed to read {}", path.display()))?;
+
+    serde_json::from_str(&content)
+        .with_context(|| format!("Failed to parse template manifest: {}", path.display()))
+}
+
+#[cfg(test)]
+#[path = "template_resolver/template_resolver_tests.rs"]
+mod template_resolver_tests;

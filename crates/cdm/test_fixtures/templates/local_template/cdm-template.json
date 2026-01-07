@@ -1,0 +1,9 @@
+{
+  "name": "sql/postgres-types",
+  "version": "1.0.0",
+  "description": "PostgreSQL type aliases for CDM",
+  "entry": "./index.cdm",
+  "exports": {
+    ".": "./index.cdm"
+  }
+}

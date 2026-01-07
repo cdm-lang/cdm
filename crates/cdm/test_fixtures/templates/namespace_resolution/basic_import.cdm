@@ -1,0 +1,9 @@
+// Test basic template import
+import sql from ./local_template
+
+User {
+  id: sql.UUID #1
+  name: sql.Varchar #2
+  bio: sql.Text #3
+  created_at: sql.Timestamp #4
+} #10

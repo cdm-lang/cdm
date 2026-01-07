@@ -5,6 +5,9 @@
  * - Plugin imports: @sql { dialect: "postgres" }
  * - External plugins: @analytics from git:https://github.com/myorg/cdm-analytics.git { }
  * - Local plugins: @custom from ./plugins/my-plugin { }
+ * - Template imports: import sql from sql/postgres-types { version: "^1.0.0" }
+ * - Template extends: extends cdm/auth { version: "^2.0.0" }
+ * - Qualified type references: sql.UUID, auth.types.Email
  * - Simple type aliases: Email: string
  * - Union types: Status: "active" | "pending" | "deleted"
  * - Composite types / models: User { name: string }
@@ -34,14 +37,23 @@ module.exports = grammar({
   conflicts: ($) => [],
 
   rules: {
-    // Enforce ordering: @extends directives → plugin imports → definitions
+    // All directives (extends, imports, plugins) must appear before definitions
+    // The ordering among directives is flexible
     // Newlines separate top-level items
     source_file: ($) =>
       seq(
         optional($._nls),
-        repeat(seq($.extends_directive, $._nls)),
-        repeat(seq($.plugin_import, $._nls)),
+        repeat(seq($._directive, $._nls)),
         repeat(seq($._definition, optional($._nls)))
+      ),
+
+    // Top-level directives: extends, template imports, plugin imports
+    _directive: ($) =>
+      choice(
+        $.extends_directive,     // @extends ./local/path.cdm
+        $.extends_template,      // extends cdm/auth { version: "^2.0.0" }
+        $.template_import,       // import sql from sql/postgres-types
+        $.plugin_import          // @sql { dialect: "postgres" }
       ),
 
     _definition: ($) =>
@@ -83,6 +95,49 @@ module.exports = grammar({
 
     // Local plugin path: ./path or ../path
     plugin_path: ($) => /\.\.?\/[^\s\n{}]+/,
+
+    // =========================================================================
+    // TEMPLATE IMPORTS
+    // =========================================================================
+
+    // Template import: import <namespace> from <source> [{ config }]
+    // Examples:
+    //   import sql from sql/postgres-types
+    //   import auth from cdm/auth { version: "^2.0.0" }
+    //   import custom from git:https://github.com/org/repo.git { git_ref: "v1.0.0" }
+    //   import local from ./templates/shared
+    template_import: ($) =>
+      seq(
+        "import",
+        field("namespace", $.identifier),
+        "from",
+        field("source", $.template_source),
+        optional(field("config", $.object_literal))
+      ),
+
+    // Template extends (merged import): extends <source> [{ config }]
+    // Examples:
+    //   extends cdm/auth
+    //   extends cdm/auth { version: "^2.0.0" }
+    //   extends git:https://github.com/org/repo.git { git_ref: "main" }
+    //   extends ./templates/base
+    extends_template: ($) =>
+      seq(
+        "extends",
+        field("source", $.template_source),
+        optional(field("config", $.object_literal))
+      ),
+
+    // Template source: registry name, git URL, or local path
+    template_source: ($) =>
+      choice($.git_reference, $.local_path, $.registry_name),
+
+    // Local path for templates: ./path or ../path (same as plugin_path)
+    local_path: ($) => /\.\.?\/[^\s\n{}]+/,
+
+    // Registry template name: name or scope/name
+    // Examples: sql/postgres-types, cdm/auth, mytemplate
+    registry_name: ($) => /[a-zA-Z][a-zA-Z0-9_-]*(\/[a-zA-Z][a-zA-Z0-9_-]*)?/,
 
     // =========================================================================
     // TOP-LEVEL DIRECTIVES
@@ -274,8 +329,23 @@ module.exports = grammar({
     _union_member: ($) =>
       choice($.string_literal, $.array_type, $.type_identifier),
 
-    // Basic type reference
-    type_identifier: ($) => $.identifier,
+    // Type identifier: simple name or qualified name (namespace.Type)
+    // Examples: string, User, sql.UUID, auth.types.Email
+    type_identifier: ($) =>
+      choice($.qualified_identifier, $.identifier),
+
+    // Qualified identifier for namespace access: namespace.name or namespace.nested.name
+    // Examples: sql.UUID, auth.Role, auth.types.Email
+    qualified_identifier: ($) =>
+      seq(
+        field("namespace", $.identifier),
+        ".",
+        field("name", $._qualified_name_rest)
+      ),
+
+    // Rest of qualified name (recursive for nested namespaces)
+    _qualified_name_rest: ($) =>
+      choice($.qualified_identifier, $.identifier),
 
     // Array type: Type[]
     array_type: ($) => prec(2, seq($.type_identifier, "[", "]")),
