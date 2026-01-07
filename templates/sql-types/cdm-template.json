@@ -1,0 +1,9 @@
+{
+  "name": "sql-types",
+  "version": "1.0.0",
+  "description": "SQL type definitions for CDM schemas",
+  "exports": {
+    "postgres": "./postgres.cdm",
+    "sqlite": "./sqlite.cdm"
+  }
+}

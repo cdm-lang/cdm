@@ -7,15 +7,15 @@ fn test_parse_template_registry_json() {
         "version": 1,
         "updated_at": "2026-01-07T00:00:00Z",
         "templates": {
-            "sql/postgres-types": {
-                "description": "PostgreSQL type definitions",
+            "sql-types": {
+                "description": "SQL type definitions for CDM schemas (PostgreSQL, SQLite)",
                 "repository": "git:https://github.com/cdm-lang/cdm.git",
                 "official": true,
                 "versions": {
                     "1.0.0": {
                         "git_url": "https://github.com/cdm-lang/cdm.git",
                         "git_ref": "main",
-                        "git_path": "templates/sql/postgres-types"
+                        "git_path": "templates/sql-types"
                     }
                 },
                 "latest": "1.0.0"
@@ -27,14 +27,14 @@ fn test_parse_template_registry_json() {
     assert_eq!(registry.version, 1);
     assert_eq!(registry.templates.len(), 1);
 
-    let template = registry.templates.get("sql/postgres-types").unwrap();
-    assert_eq!(template.description, "PostgreSQL type definitions");
+    let template = registry.templates.get("sql-types").unwrap();
+    assert_eq!(template.description, "SQL type definitions for CDM schemas (PostgreSQL, SQLite)");
     assert!(template.official);
     assert_eq!(template.latest, "1.0.0");
 
     let version = template.versions.get("1.0.0").unwrap();
     assert_eq!(version.git_ref, "main");
-    assert_eq!(version.git_path, Some("templates/sql/postgres-types".to_string()));
+    assert_eq!(version.git_path, Some("templates/sql-types".to_string()));
 }
 
 #[test]
@@ -155,9 +155,9 @@ fn test_template_with_multiple_versions() {
 fn test_lookup_template() {
     let mut templates = HashMap::new();
     templates.insert(
-        "sql/postgres-types".to_string(),
+        "sql-types".to_string(),
         RegistryTemplate {
-            description: "PostgreSQL types".to_string(),
+            description: "SQL type definitions".to_string(),
             repository: "https://github.com/test".to_string(),
             official: true,
             versions: HashMap::new(),
@@ -171,7 +171,7 @@ fn test_lookup_template() {
         templates,
     };
 
-    assert!(lookup_template(&registry, "sql/postgres-types").is_some());
+    assert!(lookup_template(&registry, "sql-types").is_some());
     assert!(lookup_template(&registry, "nonexistent").is_none());
 }
 

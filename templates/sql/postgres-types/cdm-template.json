@@ -1,6 +1,0 @@
-{
-  "name": "sql/postgres-types",
-  "version": "1.0.0",
-  "description": "PostgreSQL type definitions for CDM schemas",
-  "entry": "./index.cdm"
-}
