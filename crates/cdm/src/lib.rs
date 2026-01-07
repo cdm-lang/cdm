@@ -34,7 +34,7 @@ pub use file_resolver::{FileResolver, LoadedFile, LoadedFileTree};
 pub use grammar_parser::GrammarParser;
 pub use resolved_schema::{ResolvedSchema, ResolvedTypeAlias, ResolvedModel, ResolvedField, build_resolved_schema, build_cdm_schema_for_plugin, convert_type_expression, find_references_in_resolved, ParsedType, PrimitiveType};
 pub use plugin_validation::{PluginImport, PluginSource, extract_plugin_imports, extract_structured_plugin_configs, ExtractedPluginConfigs, parse_object_literal_to_json};
-pub use template_resolver::{TemplateImport, TemplateExtends, TemplateSource, TemplateManifest, LoadedTemplate, extract_template_imports, extract_template_extends, resolve_template, resolve_template_extends};
+pub use template_resolver::{TemplateImport, TemplateExtends, TemplateSource, TemplateManifest, LoadedTemplate, extract_template_imports, extract_template_extends, resolve_template, resolve_template_extends, get_entity_id_source, get_import_entity_id_source, get_extends_entity_id_source};
 pub use template_validation::{validate_template_imports, validate_qualified_type_reference, extract_templates_from_source, check_unused_namespaces, collect_used_namespaces};
 pub use build::build;
 pub use migrate::migrate;

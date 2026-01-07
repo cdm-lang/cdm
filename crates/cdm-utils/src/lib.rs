@@ -3,6 +3,8 @@
 //! This crate contains core types, parsing functions, and utilities shared between
 //! the CDM compiler and related crates to avoid circular dependencies.
 
+use serde::{Deserialize, Serialize};
+
 /// Position in source code (line and column)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct Position {
@@ -15,6 +17,115 @@ pub struct Position {
 pub struct Span {
     pub start: Position,
     pub end: Position,
+}
+
+/// Source of an entity ID - identifies who assigned the ID.
+///
+/// Entity IDs are scoped by their source to prevent collisions when multiple
+/// templates use the same numeric IDs. Two entity IDs only collide if they
+/// have the same source AND the same local_id.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(tag = "type", rename_all = "snake_case")]
+pub enum EntityIdSource {
+    /// Defined in the current schema being compiled (including @extends file inheritance).
+    /// Files without a cdm-template.json manifest are NOT templates and use this source.
+    Local,
+    /// From a registry template (registry enforces name uniqueness)
+    Registry { name: String },
+    /// From a git template
+    Git {
+        url: String,
+        #[serde(skip_serializing_if = "Option::is_none")]
+        path: Option<String>,
+    },
+    /// From a local filesystem template (has cdm-template.json).
+    /// Path is relative to project root.
+    LocalTemplate { path: String },
+}
+
+impl std::fmt::Display for EntityIdSource {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            EntityIdSource::Local => write!(f, "local"),
+            EntityIdSource::Registry { name } => write!(f, "{}", name),
+            EntityIdSource::Git { url, path } => match path {
+                Some(p) => write!(f, "git:{}#{}", url, p),
+                None => write!(f, "git:{}", url),
+            },
+            EntityIdSource::LocalTemplate { path } => write!(f, "{}", path),
+        }
+    }
+}
+
+/// Composite entity ID with source tracking.
+///
+/// Entity IDs are used to track schema elements across versions for migration
+/// purposes. The composite structure prevents collisions when multiple templates
+/// use the same numeric IDs independently.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct EntityId {
+    /// The source where this ID was defined
+    #[serde(flatten)]
+    pub source: EntityIdSource,
+    /// The numeric ID value within the source
+    pub local_id: u64,
+}
+
+impl EntityId {
+    /// Create a new local entity ID
+    pub fn local(id: u64) -> Self {
+        Self {
+            source: EntityIdSource::Local,
+            local_id: id,
+        }
+    }
+
+    /// Create a new entity ID from a registry template
+    pub fn registry(name: impl Into<String>, id: u64) -> Self {
+        Self {
+            source: EntityIdSource::Registry { name: name.into() },
+            local_id: id,
+        }
+    }
+
+    /// Create a new entity ID from a git template
+    pub fn git(url: impl Into<String>, path: Option<String>, id: u64) -> Self {
+        Self {
+            source: EntityIdSource::Git {
+                url: url.into(),
+                path,
+            },
+            local_id: id,
+        }
+    }
+
+    /// Create a new entity ID from a local template
+    pub fn local_template(path: impl Into<String>, id: u64) -> Self {
+        Self {
+            source: EntityIdSource::LocalTemplate { path: path.into() },
+            local_id: id,
+        }
+    }
+
+    /// Get a display string for this entity ID.
+    /// For local IDs, just shows #N. For template IDs, shows source:#N.
+    pub fn display(&self) -> String {
+        match &self.source {
+            EntityIdSource::Local => format!("#{}", self.local_id),
+            EntityIdSource::Registry { name } => format!("{}:#{}", name, self.local_id),
+            EntityIdSource::Git { url, path } => match path {
+                Some(p) => format!("git:{}#{}:#{}", url, p, self.local_id),
+                None => format!("git:{}:#{}", url, self.local_id),
+            },
+            EntityIdSource::LocalTemplate { path } => format!("{}:#{}", path, self.local_id),
+        }
+    }
+}
+
+impl std::fmt::Display for EntityId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}", self.display())
+    }
 }
 
 /// Parsed representation of a CDM type expression
@@ -91,8 +202,8 @@ pub struct ResolvedTypeAlias {
     /// Cached parsed type (lazy-initialized on first access)
     #[allow(clippy::type_complexity)]
     pub cached_parsed_type: std::cell::RefCell<Option<Result<ParsedType, String>>>,
-    /// Optional entity ID for migration tracking
-    pub entity_id: Option<u64>,
+    /// Optional composite entity ID for migration tracking
+    pub entity_id: Option<EntityId>,
 }
 
 impl Clone for ResolvedTypeAlias {
@@ -106,7 +217,7 @@ impl Clone for ResolvedTypeAlias {
             source_span: self.source_span,
             // Don't clone the cache - let each clone re-parse if needed
             cached_parsed_type: std::cell::RefCell::new(None),
-            entity_id: self.entity_id,
+            entity_id: self.entity_id.clone(),
         }
     }
 }
@@ -162,8 +273,8 @@ pub struct ResolvedModel {
     pub source_file: String,
     /// Span in the source file
     pub source_span: Span,
-    /// Optional entity ID for migration tracking
-    pub entity_id: Option<u64>,
+    /// Optional composite entity ID for migration tracking
+    pub entity_id: Option<EntityId>,
 }
 
 /// A resolved field with source tracking
@@ -184,8 +295,8 @@ pub struct ResolvedField {
     /// Cached parsed type (lazy-initialized on first access)
     #[allow(clippy::type_complexity)]
     pub cached_parsed_type: std::cell::RefCell<Option<Result<ParsedType, String>>>,
-    /// Optional entity ID for migration tracking
-    pub entity_id: Option<u64>,
+    /// Optional composite entity ID for migration tracking
+    pub entity_id: Option<EntityId>,
 }
 
 impl Clone for ResolvedField {
@@ -200,7 +311,7 @@ impl Clone for ResolvedField {
             source_span: self.source_span,
             // Don't clone the cache - let each clone re-parse if needed
             cached_parsed_type: std::cell::RefCell::new(None),
-            entity_id: self.entity_id,
+            entity_id: self.entity_id.clone(),
         }
     }
 }

@@ -69,7 +69,7 @@ pub fn build_resolved_schema(
                             source_file: ancestor.path.clone(),
                             source_span: def.span,
                             cached_parsed_type: RefCell::new(None),
-                            entity_id: def.entity_id,
+                            entity_id: def.entity_id.clone(),
                         },
                     );
                 }
@@ -91,14 +91,14 @@ pub fn build_resolved_schema(
                                         source_file: ancestor.path.clone(),
                                         source_span: f.span,
                                         cached_parsed_type: RefCell::new(None),
-                                        entity_id: f.entity_id,
+                                        entity_id: f.entity_id.clone(),
                                     })
                                     .collect(),
                                 parents: extends.clone(),
                                 plugin_configs: def.plugin_configs.clone(),
                                 source_file: ancestor.path.clone(),
                                 source_span: def.span,
-                                entity_id: def.entity_id,
+                                entity_id: def.entity_id.clone(),
                             },
                         );
                     }
@@ -126,7 +126,7 @@ pub fn build_resolved_schema(
                         source_file: "current file".to_string(),
                         source_span: def.span,
                         cached_parsed_type: RefCell::new(None),
-                        entity_id: def.entity_id,
+                        entity_id: def.entity_id.clone(),
                     },
                 );
             }
@@ -148,12 +148,12 @@ pub fn build_resolved_schema(
                                     source_file: "current file".to_string(),
                                     source_span: f.span,
                                     cached_parsed_type: RefCell::new(None),
-                                    entity_id: f.entity_id,
+                                    entity_id: f.entity_id.clone(),
                                 })
                                 .collect(),
                             parents: extends.clone(),
                             plugin_configs: def.plugin_configs.clone(),
-                            entity_id: def.entity_id,
+                            entity_id: def.entity_id.clone(),
                             source_file: "current file".to_string(),
                             source_span: def.span,
                         },
@@ -230,7 +230,7 @@ pub fn build_cdm_schema_for_plugin(
                         // For plugin execution, get this plugin's config
                         f.plugin_configs.get(plugin_name).cloned().unwrap_or(serde_json::json!({}))
                     },
-                    entity_id: f.entity_id,
+                    entity_id: f.entity_id.clone(),
                 }
             }).collect(),
             config: if plugin_name.is_empty() {
@@ -238,7 +238,7 @@ pub fn build_cdm_schema_for_plugin(
             } else {
                 model.plugin_configs.get(plugin_name).cloned().unwrap_or(serde_json::json!({}))
             },
-            entity_id: model.entity_id,
+            entity_id: model.entity_id.clone(),
         });
     }
 
@@ -258,7 +258,7 @@ pub fn build_cdm_schema_for_plugin(
             } else {
                 alias.plugin_configs.get(plugin_name).cloned().unwrap_or(serde_json::json!({}))
             },
-            entity_id: alias.entity_id,
+            entity_id: alias.entity_id.clone(),
         });
     }
 

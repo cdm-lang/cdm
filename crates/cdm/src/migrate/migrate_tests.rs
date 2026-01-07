@@ -1,7 +1,12 @@
 use super::*;
 use std::collections::HashMap;
-use cdm_plugin_interface::{TypeExpression, Value, FieldDefinition, ModelDefinition, TypeAliasDefinition};
+use cdm_plugin_interface::{TypeExpression, Value, FieldDefinition, ModelDefinition, TypeAliasDefinition, EntityId};
 use serde_json::json;
+
+// Helper to create a local entity ID
+fn local_id(id: u64) -> Option<EntityId> {
+    Some(EntityId::local(id))
+}
 
 // Helper to create a simple identifier type
 fn ident_type(name: &str) -> TypeExpression {
@@ -239,7 +244,7 @@ fn test_compute_type_alias_deltas_addition() {
             name: "Email".to_string(),
             alias_type: ident_type("string"),
             config: json!({}),
-            entity_id: Some(1),
+            entity_id: local_id(1),
         },
     );
 
@@ -269,7 +274,7 @@ fn test_compute_type_alias_deltas_removal() {
             name: "Email".to_string(),
             alias_type: ident_type("string"),
             config: json!({}),
-            entity_id: Some(1),
+            entity_id: local_id(1),
         },
     );
 
@@ -304,7 +309,7 @@ fn test_compute_type_alias_deltas_rename() {
             name: "Email".to_string(),
             alias_type: ident_type("string"),
             config: json!({}),
-            entity_id: Some(1),
+            entity_id: local_id(1),
         },
     );
 
@@ -320,7 +325,7 @@ fn test_compute_type_alias_deltas_rename() {
             name: "EmailAddress".to_string(),
             alias_type: ident_type("string"),
             config: json!({}),
-            entity_id: Some(1), // Same ID, different name = rename
+            entity_id: local_id(1), // Same ID, different name = rename
         },
     );
 
@@ -337,7 +342,7 @@ fn test_compute_type_alias_deltas_rename() {
         Delta::TypeAliasRenamed { old_name, new_name, id, .. } => {
             assert_eq!(old_name, "Email");
             assert_eq!(new_name, "EmailAddress");
-            assert_eq!(*id, Some(1));
+            assert_eq!(id.as_ref().map(|e| e.local_id), Some(1));
         }
         _ => panic!("Expected TypeAliasRenamed delta"),
     }
@@ -352,7 +357,7 @@ fn test_compute_type_alias_deltas_type_changed() {
             name: "Email".to_string(),
             alias_type: ident_type("string"),
             config: json!({}),
-            entity_id: Some(1),
+            entity_id: local_id(1),
         },
     );
 
@@ -368,7 +373,7 @@ fn test_compute_type_alias_deltas_type_changed() {
             name: "Email".to_string(),
             alias_type: array_type(ident_type("string")), // Changed type
             config: json!({}),
-            entity_id: Some(1),
+            entity_id: local_id(1),
         },
     );
 
@@ -406,7 +411,7 @@ fn test_compute_model_deltas_addition() {
             parents: vec![],
             fields: vec![],
             config: json!({}),
-            entity_id: Some(1),
+            entity_id: local_id(1),
         },
     );
 
@@ -437,7 +442,7 @@ fn test_compute_model_deltas_removal() {
             parents: vec![],
             fields: vec![],
             config: json!({}),
-            entity_id: Some(1),
+            entity_id: local_id(1),
         },
     );
 
@@ -473,7 +478,7 @@ fn test_compute_model_deltas_rename() {
             parents: vec![],
             fields: vec![],
             config: json!({}),
-            entity_id: Some(1),
+            entity_id: local_id(1),
         },
     );
 
@@ -490,7 +495,7 @@ fn test_compute_model_deltas_rename() {
             parents: vec![],
             fields: vec![],
             config: json!({}),
-            entity_id: Some(1), // Same ID, different name = rename
+            entity_id: local_id(1), // Same ID, different name = rename
         },
     );
 
@@ -507,7 +512,7 @@ fn test_compute_model_deltas_rename() {
         Delta::ModelRenamed { old_name, new_name, id, .. } => {
             assert_eq!(old_name, "User");
             assert_eq!(new_name, "Account");
-            assert_eq!(*id, Some(1));
+            assert_eq!(id.as_ref().map(|e| e.local_id), Some(1));
         }
         _ => panic!("Expected ModelRenamed delta"),
     }
@@ -523,7 +528,7 @@ fn test_compute_model_deltas_config_changed() {
             parents: vec![],
             fields: vec![],
             config: json!({"table": "users"}),
-            entity_id: Some(1),
+            entity_id: local_id(1),
         },
     );
 
@@ -540,7 +545,7 @@ fn test_compute_model_deltas_config_changed() {
             parents: vec![],
             fields: vec![],
             config: json!({"table": "accounts"}), // Changed config
-            entity_id: Some(1),
+            entity_id: local_id(1),
         },
     );
 
@@ -573,7 +578,7 @@ fn test_compute_field_deltas_addition() {
             optional: false,
             default: None,
             config: json!({}),
-            entity_id: Some(1),
+            entity_id: local_id(1),
         },
     ];
 
@@ -599,7 +604,7 @@ fn test_compute_field_deltas_removal() {
             optional: false,
             default: None,
             config: json!({}),
-            entity_id: Some(1),
+            entity_id: local_id(1),
         },
     ];
     let curr_fields = vec![];
@@ -626,7 +631,7 @@ fn test_compute_field_deltas_rename() {
             optional: false,
             default: None,
             config: json!({}),
-            entity_id: Some(1),
+            entity_id: local_id(1),
         },
     ];
     let curr_fields = vec![
@@ -636,7 +641,7 @@ fn test_compute_field_deltas_rename() {
             optional: false,
             default: None,
             config: json!({}),
-            entity_id: Some(1), // Same ID, different name = rename
+            entity_id: local_id(1), // Same ID, different name = rename
         },
     ];
 
@@ -649,7 +654,7 @@ fn test_compute_field_deltas_rename() {
             assert_eq!(model, "User");
             assert_eq!(old_name, "email");
             assert_eq!(new_name, "emailAddress");
-            assert_eq!(*id, Some(1));
+            assert_eq!(id.as_ref().map(|e| e.local_id), Some(1));
         }
         _ => panic!("Expected FieldRenamed delta"),
     }
@@ -664,7 +669,7 @@ fn test_compute_field_deltas_type_changed() {
             optional: false,
             default: None,
             config: json!({}),
-            entity_id: Some(1),
+            entity_id: local_id(1),
         },
     ];
     let curr_fields = vec![
@@ -674,7 +679,7 @@ fn test_compute_field_deltas_type_changed() {
             optional: false,
             default: None,
             config: json!({}),
-            entity_id: Some(1),
+            entity_id: local_id(1),
         },
     ];
 
@@ -705,7 +710,7 @@ fn test_compute_field_deltas_type_changed_from_implicit_string() {
             optional: false,
             default: None,
             config: json!({}),
-            entity_id: Some(1),
+            entity_id: local_id(1),
         },
     ];
     let curr_fields = vec![
@@ -715,7 +720,7 @@ fn test_compute_field_deltas_type_changed_from_implicit_string() {
             optional: false,
             default: None,
             config: json!({}),
-            entity_id: Some(1),
+            entity_id: local_id(1),
         },
     ];
 
@@ -908,7 +913,7 @@ fn test_compute_field_deltas_optionality_changed() {
             optional: false,
             default: None,
             config: json!({}),
-            entity_id: Some(1),
+            entity_id: local_id(1),
         },
     ];
     let curr_fields = vec![
@@ -918,7 +923,7 @@ fn test_compute_field_deltas_optionality_changed() {
             optional: true, // Changed optionality
             default: None,
             config: json!({}),
-            entity_id: Some(1),
+            entity_id: local_id(1),
         },
     ];
 
@@ -946,7 +951,7 @@ fn test_compute_field_deltas_default_changed() {
             optional: false,
             default: Some(Value::String("active".to_string())),
             config: json!({}),
-            entity_id: Some(1),
+            entity_id: local_id(1),
         },
     ];
     let curr_fields = vec![
@@ -956,7 +961,7 @@ fn test_compute_field_deltas_default_changed() {
             optional: false,
             default: Some(Value::String("pending".to_string())), // Changed default
             config: json!({}),
-            entity_id: Some(1),
+            entity_id: local_id(1),
         },
     ];
 
@@ -990,7 +995,7 @@ fn test_compute_field_deltas_config_changed() {
             optional: false,
             default: None,
             config: json!({"unique": true}),
-            entity_id: Some(1),
+            entity_id: local_id(1),
         },
     ];
     let curr_fields = vec![
@@ -1000,7 +1005,7 @@ fn test_compute_field_deltas_config_changed() {
             optional: false,
             default: None,
             config: json!({"unique": false}), // Changed config
-            entity_id: Some(1),
+            entity_id: local_id(1),
         },
     ];
 
@@ -1108,7 +1113,7 @@ fn test_compute_deltas_comprehensive() {
                     optional: false,
                     default: None,
                     config: json!({}),
-                    entity_id: Some(1),
+                    entity_id: local_id(1),
                 },
                 FieldDefinition {
                     name: "name".to_string(),
@@ -1116,11 +1121,11 @@ fn test_compute_deltas_comprehensive() {
                     optional: false,
                     default: None,
                     config: json!({}),
-                    entity_id: Some(2),
+                    entity_id: local_id(2),
                 },
             ],
             config: json!({}),
-            entity_id: Some(10),
+            entity_id: local_id(10),
         },
     );
 
@@ -1131,7 +1136,7 @@ fn test_compute_deltas_comprehensive() {
             name: "Email".to_string(),
             alias_type: ident_type("string"),
             config: json!({}),
-            entity_id: Some(20),
+            entity_id: local_id(20),
         },
     );
 
@@ -1153,7 +1158,7 @@ fn test_compute_deltas_comprehensive() {
                     optional: false,
                     default: None,
                     config: json!({}),
-                    entity_id: Some(1),
+                    entity_id: local_id(1),
                 },
                 FieldDefinition {
                     name: "fullName".to_string(), // Renamed from "name"
@@ -1161,7 +1166,7 @@ fn test_compute_deltas_comprehensive() {
                     optional: false,
                     default: None,
                     config: json!({}),
-                    entity_id: Some(2),
+                    entity_id: local_id(2),
                 },
                 FieldDefinition {
                     name: "email".to_string(), // Added field
@@ -1169,11 +1174,11 @@ fn test_compute_deltas_comprehensive() {
                     optional: true,
                     default: None,
                     config: json!({}),
-                    entity_id: Some(3),
+                    entity_id: local_id(3),
                 },
             ],
             config: json!({}),
-            entity_id: Some(10),
+            entity_id: local_id(10),
         },
     );
 
@@ -1184,7 +1189,7 @@ fn test_compute_deltas_comprehensive() {
             name: "EmailAddress".to_string(),
             alias_type: ident_type("string"),
             config: json!({}),
-            entity_id: Some(20),
+            entity_id: local_id(20),
         },
     );
 
@@ -1248,7 +1253,7 @@ fn test_compute_deltas_first_migration_no_previous_schema() {
                     optional: false,
                     default: None,
                     config: json!({}),
-                    entity_id: Some(1),
+                    entity_id: local_id(1),
                 },
                 FieldDefinition {
                     name: "email".to_string(),
@@ -1256,11 +1261,11 @@ fn test_compute_deltas_first_migration_no_previous_schema() {
                     optional: false,
                     default: None,
                     config: json!({}),
-                    entity_id: Some(2),
+                    entity_id: local_id(2),
                 },
             ],
             config: json!({}),
-            entity_id: Some(10),
+            entity_id: local_id(10),
         },
     );
     curr_models.insert(
@@ -1275,11 +1280,11 @@ fn test_compute_deltas_first_migration_no_previous_schema() {
                     optional: false,
                     default: None,
                     config: json!({}),
-                    entity_id: Some(3),
+                    entity_id: local_id(3),
                 },
             ],
             config: json!({}),
-            entity_id: Some(20),
+            entity_id: local_id(20),
         },
     );
 
@@ -1290,7 +1295,7 @@ fn test_compute_deltas_first_migration_no_previous_schema() {
             name: "Email".to_string(),
             alias_type: ident_type("string"),
             config: json!({}),
-            entity_id: Some(30),
+            entity_id: local_id(30),
         },
     );
 
@@ -1336,7 +1341,7 @@ fn test_transform_deltas_for_plugin_unwraps_model_config() {
         name: "User".to_string(),
         after: ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(100),
+            entity_id: local_id(100),
             parents: vec![],
             fields: vec![],
             config: json!({
@@ -1381,7 +1386,7 @@ fn test_transform_deltas_for_plugin_unwraps_field_config() {
                     "type": "VARCHAR(320)"
                 }
             }),
-            entity_id: Some(2),
+            entity_id: local_id(2),
         },
     };
 
@@ -1407,7 +1412,7 @@ fn test_transform_deltas_for_plugin_handles_missing_plugin_config() {
         name: "User".to_string(),
         after: ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(100),
+            entity_id: local_id(100),
             parents: vec![],
             fields: vec![],
             config: json!({
@@ -1471,7 +1476,7 @@ fn test_transform_deltas_for_plugin_transforms_nested_fields() {
         name: "User".to_string(),
         after: ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(100),
+            entity_id: local_id(100),
             parents: vec![],
             fields: vec![
                 FieldDefinition {
@@ -1482,7 +1487,7 @@ fn test_transform_deltas_for_plugin_transforms_nested_fields() {
                     config: json!({
                         "sql": { "type": "INTEGER" }
                     }),
-                    entity_id: Some(1),
+                    entity_id: local_id(1),
                 },
                 FieldDefinition {
                     name: "email".to_string(),
@@ -1492,7 +1497,7 @@ fn test_transform_deltas_for_plugin_transforms_nested_fields() {
                     config: json!({
                         "sql": { "type": "VARCHAR(320)" }
                     }),
-                    entity_id: Some(2),
+                    entity_id: local_id(2),
                 },
             ],
             config: json!({
@@ -1554,7 +1559,7 @@ fn test_context_isolation_different_contexts_have_separate_schema_files() {
                     optional: false,
                     default: None,
                     config: json!({}),
-                    entity_id: Some(1),
+                    entity_id: local_id(1),
                 },
                 FieldDefinition {
                     name: "password_hash".to_string(),
@@ -1562,11 +1567,11 @@ fn test_context_isolation_different_contexts_have_separate_schema_files() {
                     optional: false,
                     default: None,
                     config: json!({}),
-                    entity_id: Some(2),
+                    entity_id: local_id(2),
                 },
             ],
             config: json!({}),
-            entity_id: Some(100),
+            entity_id: local_id(100),
         },
     );
 
@@ -1626,7 +1631,7 @@ fn test_context_isolation_saves_to_context_specific_files() {
             parents: vec![],
             fields: vec![],
             config: json!({}),
-            entity_id: Some(200),
+            entity_id: local_id(200),
         },
     );
     let client_schema = Schema {
@@ -1698,7 +1703,7 @@ fn test_context_isolation_prevents_cross_context_delta_pollution() {
                     optional: false,
                     default: None,
                     config: json!({}),
-                    entity_id: Some(1),
+                    entity_id: local_id(1),
                 },
                 FieldDefinition {
                     name: "secret_field".to_string(),
@@ -1706,11 +1711,11 @@ fn test_context_isolation_prevents_cross_context_delta_pollution() {
                     optional: false,
                     default: None,
                     config: json!({}),
-                    entity_id: Some(2),
+                    entity_id: local_id(2),
                 },
             ],
             config: json!({}),
-            entity_id: Some(100),
+            entity_id: local_id(100),
         },
     );
     let base_schema = Schema {
@@ -1735,12 +1740,12 @@ fn test_context_isolation_prevents_cross_context_delta_pollution() {
                     optional: false,
                     default: None,
                     config: json!({}),
-                    entity_id: Some(1),
+                    entity_id: local_id(1),
                 },
                 // secret_field is intentionally NOT here - it's not exposed in client context
             ],
             config: json!({}),
-            entity_id: Some(100),
+            entity_id: local_id(100),
         },
     );
     let client_schema = Schema {

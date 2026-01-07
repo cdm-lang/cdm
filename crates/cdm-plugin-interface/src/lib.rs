@@ -3,6 +3,9 @@ use std::collections::HashMap;
 
 pub mod ffi;
 
+// Re-export EntityId types from cdm-utils for a single source of truth
+pub use cdm_utils::{EntityId, EntityIdSource};
+
 pub type JSON = serde_json::Value;
 
 /// Configuration level for validation
@@ -258,7 +261,7 @@ pub struct ModelDefinition {
     pub fields: Vec<FieldDefinition>,
     pub config: JSON,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub entity_id: Option<u64>,
+    pub entity_id: Option<EntityId>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -269,7 +272,7 @@ pub struct FieldDefinition {
     pub default: Option<Value>,
     pub config: JSON,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub entity_id: Option<u64>,
+    pub entity_id: Option<EntityId>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -278,7 +281,7 @@ pub struct TypeAliasDefinition {
     pub alias_type: TypeExpression,
     pub config: JSON,
     #[serde(skip_serializing_if = "Option::is_none")]
-    pub entity_id: Option<u64>,
+    pub entity_id: Option<EntityId>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -330,7 +333,7 @@ pub enum Delta {
         old_name: String,
         new_name: String,
         #[serde(skip_serializing_if = "Option::is_none")]
-        id: Option<u64>,
+        id: Option<EntityId>,
         before: ModelDefinition,
         after: ModelDefinition,
     },
@@ -351,7 +354,7 @@ pub enum Delta {
         old_name: String,
         new_name: String,
         #[serde(skip_serializing_if = "Option::is_none")]
-        id: Option<u64>,
+        id: Option<EntityId>,
         before: FieldDefinition,
         after: FieldDefinition,
     },
@@ -387,7 +390,7 @@ pub enum Delta {
         old_name: String,
         new_name: String,
         #[serde(skip_serializing_if = "Option::is_none")]
-        id: Option<u64>,
+        id: Option<EntityId>,
         before: TypeAliasDefinition,
         after: TypeAliasDefinition,
     },

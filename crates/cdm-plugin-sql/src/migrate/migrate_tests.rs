@@ -1,6 +1,10 @@
 use super::*;
-use cdm_plugin_interface::{FieldDefinition, ModelDefinition};
+use cdm_plugin_interface::{EntityId, FieldDefinition, ModelDefinition};
 use std::collections::HashMap;
+
+fn local_id(id: u64) -> Option<EntityId> {
+    Some(EntityId::local(id))
+}
 
 #[test]
 fn test_migrate_empty() {
@@ -27,7 +31,7 @@ fn test_migrate_first_time_migration_with_models() {
         "User".to_string(),
         ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![
                 FieldDefinition {
@@ -38,7 +42,7 @@ fn test_migrate_first_time_migration_with_models() {
                     optional: false,
                     default: None,
                     config: serde_json::json!({}),
-                    entity_id: Some(2),
+                    entity_id: local_id(2),
                 },
                 FieldDefinition {
                     name: "email".to_string(),
@@ -48,7 +52,7 @@ fn test_migrate_first_time_migration_with_models() {
                     optional: false,
                     default: None,
                     config: serde_json::json!({}),
-                    entity_id: Some(3),
+                    entity_id: local_id(3),
                 },
             ],
             config: serde_json::json!({}),
@@ -58,7 +62,7 @@ fn test_migrate_first_time_migration_with_models() {
         "Post".to_string(),
         ModelDefinition {
             name: "Post".to_string(),
-            entity_id: Some(10),
+            entity_id: local_id(10),
             parents: vec![],
             fields: vec![
                 FieldDefinition {
@@ -69,7 +73,7 @@ fn test_migrate_first_time_migration_with_models() {
                     optional: false,
                     default: None,
                     config: serde_json::json!({}),
-                    entity_id: Some(11),
+                    entity_id: local_id(11),
                 },
             ],
             config: serde_json::json!({}),
@@ -128,7 +132,7 @@ fn test_migrate_with_deltas() {
         name: "User".to_string(),
         after: ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![],
             config: serde_json::json!({}),
@@ -159,7 +163,7 @@ fn test_migrate_field_added_postgres() {
         "User".to_string(),
         ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![FieldDefinition {
                 name: "name".to_string(),
@@ -169,7 +173,7 @@ fn test_migrate_field_added_postgres() {
                 optional: false,
                 default: None,
                 config: serde_json::json!({}),
-                entity_id: Some(2),
+                entity_id: local_id(2),
             }],
             config: serde_json::json!({}),
         },
@@ -191,7 +195,7 @@ fn test_migrate_field_added_postgres() {
             optional: false,
             default: None,
             config: serde_json::json!({}),
-            entity_id: Some(3),
+            entity_id: local_id(3),
         },
     }];
 
@@ -219,7 +223,7 @@ fn test_migrate_field_renamed_postgres() {
         "User".to_string(),
         ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![FieldDefinition {
                 name: "full_name".to_string(),
@@ -229,7 +233,7 @@ fn test_migrate_field_renamed_postgres() {
                 optional: false,
                 default: None,
                 config: serde_json::json!({}),
-                entity_id: Some(2),
+                entity_id: local_id(2),
             }],
             config: serde_json::json!({}),
         },
@@ -244,7 +248,7 @@ fn test_migrate_field_renamed_postgres() {
         model: "User".to_string(),
         old_name: "name".to_string(),
         new_name: "full_name".to_string(),
-        id: Some(2),
+        id: local_id(2),
         before: FieldDefinition {
             name: "name".to_string(),
             field_type: TypeExpression::Identifier {
@@ -253,7 +257,7 @@ fn test_migrate_field_renamed_postgres() {
             optional: false,
             default: None,
             config: serde_json::json!({}),
-            entity_id: Some(2),
+            entity_id: local_id(2),
         },
         after: FieldDefinition {
             name: "full_name".to_string(),
@@ -263,7 +267,7 @@ fn test_migrate_field_renamed_postgres() {
             optional: false,
             default: None,
             config: serde_json::json!({}),
-            entity_id: Some(2),
+            entity_id: local_id(2),
         },
     }];
 
@@ -290,7 +294,7 @@ fn test_migrate_model_removed_postgres() {
         name: "User".to_string(),
         before: ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![],
             config: serde_json::json!({}),
@@ -319,7 +323,7 @@ fn test_migrate_field_type_changed_sqlite() {
         "User".to_string(),
         ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![FieldDefinition {
                 name: "age".to_string(),
@@ -329,7 +333,7 @@ fn test_migrate_field_type_changed_sqlite() {
                 optional: false,
                 default: None,
                 config: serde_json::json!({}),
-                entity_id: Some(2),
+                entity_id: local_id(2),
             }],
             config: serde_json::json!({}),
         },
@@ -371,7 +375,7 @@ fn test_migrate_optionality_changed_postgres() {
         "User".to_string(),
         ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![FieldDefinition {
                 name: "email".to_string(),
@@ -381,7 +385,7 @@ fn test_migrate_optionality_changed_postgres() {
                 optional: true,
                 default: None,
                 config: serde_json::json!({}),
-                entity_id: Some(2),
+                entity_id: local_id(2),
             }],
             config: serde_json::json!({}),
         },
@@ -421,7 +425,7 @@ fn test_migrate_default_changed_postgres() {
         "User".to_string(),
         ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![FieldDefinition {
                 name: "status".to_string(),
@@ -431,7 +435,7 @@ fn test_migrate_default_changed_postgres() {
                 optional: false,
                 default: Some(Value::String("active".to_string())),
                 config: serde_json::json!({}),
-                entity_id: Some(2),
+                entity_id: local_id(2),
             }],
             config: serde_json::json!({}),
         },
@@ -473,7 +477,7 @@ fn test_migrate_default_removed_postgres() {
         "User".to_string(),
         ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![FieldDefinition {
                 name: "status".to_string(),
@@ -483,7 +487,7 @@ fn test_migrate_default_removed_postgres() {
                 optional: false,
                 default: None,
                 config: serde_json::json!({}),
-                entity_id: Some(2),
+                entity_id: local_id(2),
             }],
             config: serde_json::json!({}),
         },
@@ -525,17 +529,17 @@ fn test_migrate_model_renamed_postgres() {
     let deltas = vec![Delta::ModelRenamed {
         old_name: "User".to_string(),
         new_name: "Account".to_string(),
-        id: Some(1),
+        id: local_id(1),
         before: ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![],
             config: serde_json::json!({}),
         },
         after: ModelDefinition {
             name: "Account".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![],
             config: serde_json::json!({}),
@@ -569,17 +573,17 @@ fn test_migrate_model_renamed_sqlite() {
     let deltas = vec![Delta::ModelRenamed {
         old_name: "User".to_string(),
         new_name: "Account".to_string(),
-        id: Some(1),
+        id: local_id(1),
         before: ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![],
             config: serde_json::json!({}),
         },
         after: ModelDefinition {
             name: "Account".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![],
             config: serde_json::json!({}),
@@ -606,7 +610,7 @@ fn test_migrate_field_renamed_sqlite() {
         "User".to_string(),
         ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![FieldDefinition {
                 name: "full_name".to_string(),
@@ -616,7 +620,7 @@ fn test_migrate_field_renamed_sqlite() {
                 optional: false,
                 default: None,
                 config: serde_json::json!({}),
-                entity_id: Some(2),
+                entity_id: local_id(2),
             }],
             config: serde_json::json!({}),
         },
@@ -631,7 +635,7 @@ fn test_migrate_field_renamed_sqlite() {
         model: "User".to_string(),
         old_name: "name".to_string(),
         new_name: "full_name".to_string(),
-        id: Some(2),
+        id: local_id(2),
         before: FieldDefinition {
             name: "name".to_string(),
             field_type: TypeExpression::Identifier {
@@ -640,7 +644,7 @@ fn test_migrate_field_renamed_sqlite() {
             optional: false,
             default: None,
             config: serde_json::json!({}),
-            entity_id: Some(2),
+            entity_id: local_id(2),
         },
         after: FieldDefinition {
             name: "full_name".to_string(),
@@ -650,7 +654,7 @@ fn test_migrate_field_renamed_sqlite() {
             optional: false,
             default: None,
             config: serde_json::json!({}),
-            entity_id: Some(2),
+            entity_id: local_id(2),
         },
     }];
 
@@ -675,7 +679,7 @@ fn test_migrate_field_type_changed_postgres() {
         "User".to_string(),
         ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![FieldDefinition {
                 name: "age".to_string(),
@@ -685,7 +689,7 @@ fn test_migrate_field_type_changed_postgres() {
                 optional: false,
                 default: None,
                 config: serde_json::json!({}),
-                entity_id: Some(2),
+                entity_id: local_id(2),
             }],
             config: serde_json::json!({}),
         },
@@ -733,7 +737,7 @@ fn test_migrate_with_schema_prefix_postgres() {
         name: "User".to_string(),
         after: ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![],
             config: serde_json::json!({}),
@@ -766,7 +770,7 @@ fn test_migrate_with_name_formatting() {
         "UserProfile".to_string(),
         ModelDefinition {
             name: "UserProfile".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![FieldDefinition {
                 name: "firstName".to_string(),
@@ -776,7 +780,7 @@ fn test_migrate_with_name_formatting() {
                 optional: false,
                 default: None,
                 config: serde_json::json!({}),
-                entity_id: Some(2),
+                entity_id: local_id(2),
             }],
             config: serde_json::json!({}),
         },
@@ -798,7 +802,7 @@ fn test_migrate_with_name_formatting() {
             optional: false,
             default: None,
             config: serde_json::json!({}),
-            entity_id: Some(3),
+            entity_id: local_id(3),
         },
     }];
 
@@ -827,7 +831,7 @@ fn test_migrate_optionality_changed_required_to_optional() {
         "User".to_string(),
         ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![FieldDefinition {
                 name: "email".to_string(),
@@ -837,7 +841,7 @@ fn test_migrate_optionality_changed_required_to_optional() {
                 optional: true,
                 default: None,
                 config: serde_json::json!({}),
-                entity_id: Some(2),
+                entity_id: local_id(2),
             }],
             config: serde_json::json!({}),
         },
@@ -875,7 +879,7 @@ fn test_migrate_optionality_changed_optional_to_required() {
         "User".to_string(),
         ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![FieldDefinition {
                 name: "email".to_string(),
@@ -885,7 +889,7 @@ fn test_migrate_optionality_changed_optional_to_required() {
                 optional: false,
                 default: None,
                 config: serde_json::json!({}),
-                entity_id: Some(2),
+                entity_id: local_id(2),
             }],
             config: serde_json::json!({}),
         },
@@ -923,7 +927,7 @@ fn test_migrate_sqlite_limitations() {
         "User".to_string(),
         ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![FieldDefinition {
                 name: "status".to_string(),
@@ -933,7 +937,7 @@ fn test_migrate_sqlite_limitations() {
                 optional: false,
                 default: None,
                 config: serde_json::json!({}),
-                entity_id: Some(2),
+                entity_id: local_id(2),
             }],
             config: serde_json::json!({}),
         },
@@ -981,7 +985,7 @@ fn test_migrate_multiple_deltas() {
         "User".to_string(),
         ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![
                 FieldDefinition {
@@ -992,7 +996,7 @@ fn test_migrate_multiple_deltas() {
                     optional: false,
                     default: None,
                     config: serde_json::json!({}),
-                    entity_id: Some(2),
+                    entity_id: local_id(2),
                 },
                 FieldDefinition {
                     name: "email".to_string(),
@@ -1002,7 +1006,7 @@ fn test_migrate_multiple_deltas() {
                     optional: false,
                     default: None,
                     config: serde_json::json!({}),
-                    entity_id: Some(3),
+                    entity_id: local_id(3),
                 },
             ],
             config: serde_json::json!({}),
@@ -1026,7 +1030,7 @@ fn test_migrate_multiple_deltas() {
                 optional: false,
                 default: None,
                 config: serde_json::json!({}),
-                entity_id: Some(4),
+                entity_id: local_id(4),
             },
         },
         Delta::FieldRemoved {
@@ -1040,7 +1044,7 @@ fn test_migrate_multiple_deltas() {
                 optional: false,
                 default: None,
                 config: serde_json::json!({}),
-                entity_id: Some(3),
+                entity_id: local_id(3),
             },
         },
     ];
@@ -1071,7 +1075,7 @@ fn test_migrate_file_naming() {
         name: "User".to_string(),
         after: ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![],
             config: serde_json::json!({}),
@@ -1103,7 +1107,7 @@ fn test_migrate_model_with_indexes_added() {
         name: "User".to_string(),
         after: ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![],
             config: serde_json::json!({
@@ -1160,7 +1164,7 @@ fn test_migrate_model_with_primary_key_added() {
         name: "User".to_string(),
         after: ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![],
             config: serde_json::json!({
@@ -1212,7 +1216,7 @@ fn test_migrate_model_with_composite_index_added() {
         name: "Post".to_string(),
         after: ModelDefinition {
             name: "Post".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![],
             config: serde_json::json!({
@@ -1265,7 +1269,7 @@ fn test_migrate_model_with_partial_index_postgres() {
         name: "User".to_string(),
         after: ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![],
             config: serde_json::json!({
@@ -1319,7 +1323,7 @@ fn test_migrate_model_with_index_method_postgres() {
         name: "Document".to_string(),
         after: ModelDefinition {
             name: "Document".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![],
             config: serde_json::json!({
@@ -1373,7 +1377,7 @@ fn test_migrate_model_with_multiple_constraint_types() {
         name: "User".to_string(),
         after: ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![],
             config: serde_json::json!({
@@ -1438,7 +1442,7 @@ fn test_migrate_model_config_changed_indexes() {
         "User".to_string(),
         ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![FieldDefinition {
                 name: "email".to_string(),
@@ -1448,7 +1452,7 @@ fn test_migrate_model_config_changed_indexes() {
                 optional: false,
                 default: None,
                 config: serde_json::json!({}),
-                entity_id: Some(2),
+                entity_id: local_id(2),
             }],
             config: serde_json::json!({
                 "indexes": [
@@ -1509,7 +1513,7 @@ fn test_migrate_sqlite_indexes() {
         name: "User".to_string(),
         after: ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![],
             config: serde_json::json!({
@@ -1558,7 +1562,7 @@ fn test_migrate_model_removed_with_indexes() {
         name: "User".to_string(),
         before: ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![],
             config: serde_json::json!({
@@ -1605,7 +1609,7 @@ fn test_migrate_composite_primary_key() {
         name: "UserRole".to_string(),
         after: ModelDefinition {
             name: "UserRole".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![],
             config: serde_json::json!({
@@ -1657,7 +1661,7 @@ fn test_migrate_composite_unique_constraint() {
         name: "Product".to_string(),
         after: ModelDefinition {
             name: "Product".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![],
             config: serde_json::json!({
@@ -1709,7 +1713,7 @@ fn test_migrate_with_schema_prefix_and_indexes() {
         name: "User".to_string(),
         after: ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![],
             config: serde_json::json!({
@@ -1766,7 +1770,7 @@ fn test_migrate_multiple_indexes_different_types() {
         name: "Document".to_string(),
         after: ModelDefinition {
             name: "Document".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![],
             config: serde_json::json!({
@@ -1862,7 +1866,7 @@ fn test_migrate_field_removed() {
             name: "email".to_string(),
             field_type: TypeExpression::Identifier { name: "string".to_string() },
             optional: false,
-            entity_id: Some(2),
+            entity_id: local_id(2),
             default: None,
             config: serde_json::json!({}),
         },
@@ -1893,13 +1897,13 @@ fn test_migrate_field_default_changed_to_some() {
         "User".to_string(),
         ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![FieldDefinition {
                 name: "status".to_string(),
                 field_type: TypeExpression::Identifier { name: "string".to_string() },
                 optional: false,
-                entity_id: Some(2),
+                entity_id: local_id(2),
                 default: Some(cdm_plugin_interface::Value::String("active".to_string())),
                 config: serde_json::json!({}),
             }],
@@ -1943,7 +1947,7 @@ fn test_migrate_model_config_changed_no_indexes() {
         "User".to_string(),
         ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![],
             config: serde_json::json!({ "table_name": "users_new" }),
@@ -1981,7 +1985,7 @@ fn test_migrate_empty_schema_with_model_added() {
         name: "EmptyModel".to_string(),
         after: ModelDefinition {
             name: "EmptyModel".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![],
             config: serde_json::json!({}),
@@ -2011,7 +2015,7 @@ fn test_generate_column_definition_with_all_properties() {
         name: "email".to_string(),
         field_type: TypeExpression::Identifier { name: "string".to_string() },
         optional: false,
-        entity_id: Some(2),
+        entity_id: local_id(2),
         default: Some(cdm_plugin_interface::Value::String("user@example.com".to_string())),
         config: serde_json::json!({ "column_name": "user_email", "max_length": 255 }),
     };
@@ -2039,14 +2043,14 @@ fn test_migrate_complex_multiple_deltas_mixed() {
         "User".to_string(),
         ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![
                 FieldDefinition {
                     name: "name".to_string(),
                     field_type: TypeExpression::Identifier { name: "string".to_string() },
                     optional: false,
-                    entity_id: Some(2),
+                    entity_id: local_id(2),
                     default: None,
                     config: serde_json::json!({}),
                 },
@@ -2054,7 +2058,7 @@ fn test_migrate_complex_multiple_deltas_mixed() {
                     name: "email".to_string(),
                     field_type: TypeExpression::Identifier { name: "string".to_string() },
                     optional: false,
-                    entity_id: Some(3),
+                    entity_id: local_id(3),
                     default: None,
                     config: serde_json::json!({}),
                 },
@@ -2074,7 +2078,7 @@ fn test_migrate_complex_multiple_deltas_mixed() {
             name: "Product".to_string(),
             after: ModelDefinition {
                 name: "Product".to_string(),
-                entity_id: Some(10),
+                entity_id: local_id(10),
                 parents: vec![],
                 fields: vec![],
                 config: serde_json::json!({}),
@@ -2087,7 +2091,7 @@ fn test_migrate_complex_multiple_deltas_mixed() {
                 name: "age".to_string(),
                 field_type: TypeExpression::Identifier { name: "number".to_string() },
                 optional: true,
-                entity_id: Some(4),
+                entity_id: local_id(4),
                 default: None,
                 config: serde_json::json!({}),
             },
@@ -2096,12 +2100,12 @@ fn test_migrate_complex_multiple_deltas_mixed() {
             model: "User".to_string(),
             old_name: "name".to_string(),
             new_name: "full_name".to_string(),
-            id: Some(2),
+            id: local_id(2),
             before: FieldDefinition {
                 name: "name".to_string(),
                 field_type: TypeExpression::Identifier { name: "string".to_string() },
                 optional: false,
-                entity_id: Some(2),
+                entity_id: local_id(2),
                 default: None,
                 config: serde_json::json!({}),
             },
@@ -2109,7 +2113,7 @@ fn test_migrate_complex_multiple_deltas_mixed() {
                 name: "full_name".to_string(),
                 field_type: TypeExpression::Identifier { name: "string".to_string() },
                 optional: false,
-                entity_id: Some(2),
+                entity_id: local_id(2),
                 default: None,
                 config: serde_json::json!({}),
             },
@@ -2358,7 +2362,7 @@ fn test_migrate_model_config_changed_index_removed() {
         "User".to_string(),
         ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![FieldDefinition {
                 name: "email".to_string(),
@@ -2368,7 +2372,7 @@ fn test_migrate_model_config_changed_index_removed() {
                 optional: false,
                 default: None,
                 config: serde_json::json!({}),
-                entity_id: Some(2),
+                entity_id: local_id(2),
             }],
             config: serde_json::json!({}), // Current state has no indexes
         },
@@ -2414,7 +2418,7 @@ fn test_migrate_model_config_changed_primary_key_added() {
         "User".to_string(),
         ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![FieldDefinition {
                 name: "id".to_string(),
@@ -2424,7 +2428,7 @@ fn test_migrate_model_config_changed_primary_key_added() {
                 optional: false,
                 default: None,
                 config: serde_json::json!({}),
-                entity_id: Some(2),
+                entity_id: local_id(2),
             }],
             config: serde_json::json!({
                 "indexes": [
@@ -2471,7 +2475,7 @@ fn test_migrate_model_config_changed_multiple_index_changes() {
         "User".to_string(),
         ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![
                 FieldDefinition {
@@ -2480,7 +2484,7 @@ fn test_migrate_model_config_changed_multiple_index_changes() {
                     optional: false,
                     default: None,
                     config: serde_json::json!({}),
-                    entity_id: Some(2),
+                    entity_id: local_id(2),
                 },
                 FieldDefinition {
                     name: "name".to_string(),
@@ -2488,7 +2492,7 @@ fn test_migrate_model_config_changed_multiple_index_changes() {
                     optional: false,
                     default: None,
                     config: serde_json::json!({}),
-                    entity_id: Some(3),
+                    entity_id: local_id(3),
                 },
             ],
             config: serde_json::json!({
@@ -2543,7 +2547,7 @@ fn test_migrate_model_config_changed_index_with_schema_prefix() {
         "User".to_string(),
         ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![FieldDefinition {
                 name: "email".to_string(),
@@ -2551,7 +2555,7 @@ fn test_migrate_model_config_changed_index_with_schema_prefix() {
                 optional: false,
                 default: None,
                 config: serde_json::json!({}),
-                entity_id: Some(2),
+                entity_id: local_id(2),
             }],
             config: serde_json::json!({
                 "indexes": [
@@ -2603,7 +2607,7 @@ fn test_migrate_model_config_changed_sqlite_index() {
         "User".to_string(),
         ModelDefinition {
             name: "User".to_string(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
             parents: vec![],
             fields: vec![FieldDefinition {
                 name: "email".to_string(),
@@ -2611,7 +2615,7 @@ fn test_migrate_model_config_changed_sqlite_index() {
                 optional: false,
                 default: None,
                 config: serde_json::json!({}),
-                entity_id: Some(2),
+                entity_id: local_id(2),
             }],
             config: serde_json::json!({
                 "indexes": [

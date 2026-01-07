@@ -1,7 +1,7 @@
 // symbol_table.rs
 use std::collections::HashMap;
 use std::fmt;
-use cdm_utils::Span;
+use cdm_utils::{EntityId, EntityIdSource, Span};
 use std::path::PathBuf;
 
 /// The kind of definition, with data needed for validation
@@ -35,8 +35,8 @@ pub struct Definition {
     pub span: Span,
     /// Plugin-specific configurations (plugin_name → config)
     pub plugin_configs: std::collections::HashMap<String, serde_json::Value>,
-    /// Optional entity ID for migration tracking
-    pub entity_id: Option<u64>,
+    /// Optional composite entity ID for migration tracking
+    pub entity_id: Option<EntityId>,
 }
 
 /// Information about a field in a model.
@@ -56,8 +56,8 @@ pub struct FieldInfo {
     pub plugin_configs: std::collections::HashMap<String, serde_json::Value>,
     /// Default value for this field
     pub default_value: Option<serde_json::Value>,
-    /// Optional entity ID for migration tracking
-    pub entity_id: Option<u64>,
+    /// Optional composite entity ID for migration tracking
+    pub entity_id: Option<EntityId>,
 }
 
 /// A resolved ancestor file with its symbol table and field information.
@@ -91,6 +91,8 @@ pub struct ImportedNamespace {
     pub symbol_table: SymbolTable,
     /// Field information for each model: model_name -> fields
     pub model_fields: HashMap<String, Vec<FieldInfo>>,
+    /// The source for entity IDs from this template
+    pub template_source: EntityIdSource,
 }
 
 #[derive(Debug, Clone)]

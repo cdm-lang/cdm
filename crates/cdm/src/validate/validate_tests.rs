@@ -1,4 +1,11 @@
 use super::*;
+use cdm_utils::EntityId;
+
+// Helper to create a local entity ID
+fn local_id(id: u64) -> Option<EntityId> {
+    Some(EntityId::local(id))
+}
+
 fn validate_source(source: &str) -> ValidationResult {
     validate(source, &[])
 }
@@ -4339,7 +4346,7 @@ fn test_entity_id_extraction_type_alias() {
 
     assert!(diagnostics.is_empty());
     let def = symbol_table.get("Email").expect("Email should be defined");
-    assert_eq!(def.entity_id, Some(42));
+    assert_eq!(def.entity_id, local_id(42));
 }
 
 #[test]
@@ -4356,7 +4363,7 @@ fn test_entity_id_extraction_model() {
 
     assert!(diagnostics.is_empty());
     let def = symbol_table.get("User").expect("User should be defined");
-    assert_eq!(def.entity_id, Some(100));
+    assert_eq!(def.entity_id, local_id(100));
 }
 
 #[test]
@@ -4377,10 +4384,10 @@ fn test_entity_id_extraction_field() {
     assert_eq!(fields.len(), 2);
 
     let name_field = fields.iter().find(|f| f.name == "name").expect("name field should exist");
-    assert_eq!(name_field.entity_id, Some(5));
+    assert_eq!(name_field.entity_id, local_id(5));
 
     let email_field = fields.iter().find(|f| f.name == "email").expect("email field should exist");
-    assert_eq!(email_field.entity_id, Some(10));
+    assert_eq!(email_field.entity_id, local_id(10));
 }
 
 #[test]
@@ -4398,7 +4405,7 @@ fn test_entity_id_optional_field() {
     assert!(diagnostics.is_empty());
     let fields = model_fields.get("User").expect("User fields should exist");
     let bio_field = fields.iter().find(|f| f.name == "bio").expect("bio field should exist");
-    assert_eq!(bio_field.entity_id, Some(7));
+    assert_eq!(bio_field.entity_id, local_id(7));
     assert!(bio_field.optional);
 }
 
@@ -4417,7 +4424,7 @@ fn test_entity_id_with_default_value() {
     assert!(diagnostics.is_empty());
     let fields = model_fields.get("User").expect("User fields should exist");
     let active_field = fields.iter().find(|f| f.name == "active").expect("active field should exist");
-    assert_eq!(active_field.entity_id, Some(15));
+    assert_eq!(active_field.entity_id, local_id(15));
 }
 
 #[test]
@@ -4432,7 +4439,7 @@ fn test_entity_id_with_plugins() {
 
     assert!(diagnostics.is_empty());
     let def = symbol_table.get("Email").expect("Email should be defined");
-    assert_eq!(def.entity_id, Some(20));
+    assert_eq!(def.entity_id, local_id(20));
     assert!(def.plugin_configs.contains_key("validation"));
 }
 
@@ -4573,7 +4580,7 @@ fn test_entity_id_union_type() {
 
     assert!(diagnostics.is_empty());
     let def = symbol_table.get("Status").expect("Status should be defined");
-    assert_eq!(def.entity_id, Some(3));
+    assert_eq!(def.entity_id, local_id(3));
 }
 
 #[test]
@@ -4592,7 +4599,7 @@ fn test_entity_id_array_field() {
     assert!(diagnostics.is_empty());
     let fields = model_fields.get("User").expect("User fields should exist");
     let tags_field = fields.iter().find(|f| f.name == "tags").expect("tags field should exist");
-    assert_eq!(tags_field.entity_id, Some(8));
+    assert_eq!(tags_field.entity_id, local_id(8));
 }
 
 #[test]
@@ -4611,7 +4618,7 @@ fn test_entity_id_untyped_field() {
     assert!(diagnostics.is_empty());
     let fields = model_fields.get("User").expect("User fields should exist");
     let name_field = fields.iter().find(|f| f.name == "name").expect("name field should exist");
-    assert_eq!(name_field.entity_id, Some(12));
+    assert_eq!(name_field.entity_id, local_id(12));
 }
 
 #[test]
@@ -4636,20 +4643,20 @@ fn test_entity_ids_mixed_with_without() {
     assert!(diagnostics.is_empty());
 
     let user_def = symbol_table.get("User").expect("User should be defined");
-    assert_eq!(user_def.entity_id, Some(100));
+    assert_eq!(user_def.entity_id, local_id(100));
 
     let post_def = symbol_table.get("Post").expect("Post should be defined");
     assert_eq!(post_def.entity_id, None);
 
     let user_fields = model_fields.get("User").expect("User fields should exist");
     let id_field = user_fields.iter().find(|f| f.name == "id").expect("id field should exist");
-    assert_eq!(id_field.entity_id, Some(1));
+    assert_eq!(id_field.entity_id, local_id(1));
 
     let name_field = user_fields.iter().find(|f| f.name == "name").expect("name field should exist");
     assert_eq!(name_field.entity_id, None);
 
     let email_field = user_fields.iter().find(|f| f.name == "email").expect("email field should exist");
-    assert_eq!(email_field.entity_id, Some(3));
+    assert_eq!(email_field.entity_id, local_id(3));
 }
 
 #[test]
@@ -4688,11 +4695,11 @@ fn test_large_entity_ids() {
     assert!(diagnostics.is_empty());
 
     let user_def = symbol_table.get("User").expect("User should be defined");
-    assert_eq!(user_def.entity_id, Some(1000000));
+    assert_eq!(user_def.entity_id, local_id(1000000));
 
     let fields = model_fields.get("User").expect("User fields should exist");
     let name_field = fields.iter().find(|f| f.name == "name").expect("name field should exist");
-    assert_eq!(name_field.entity_id, Some(999999));
+    assert_eq!(name_field.entity_id, local_id(999999));
 }
 // =============================================================================
 // Tests for --check-ids flag

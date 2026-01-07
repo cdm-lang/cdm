@@ -15,8 +15,12 @@ use cdm::{
     SymbolTable, Definition, DefinitionKind, ImportedNamespace,
     QualifiedName, is_type_reference_defined,
 };
-use cdm_utils::{Position, Span};
+use cdm_utils::{EntityId, EntityIdSource, Position, Span};
 use std::collections::{HashMap, HashSet};
+
+fn local_id(id: u64) -> Option<EntityId> {
+    Some(EntityId::local(id))
+}
 
 fn parse(source: &str) -> tree_sitter::Tree {
     let mut parser = tree_sitter::Parser::new();
@@ -250,7 +254,7 @@ fn test_is_type_reference_defined_with_namespaces() {
             },
             span: test_span(),
             plugin_configs: HashMap::new(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
         },
     );
     ns_table.definitions.insert(
@@ -262,7 +266,7 @@ fn test_is_type_reference_defined_with_namespaces() {
             },
             span: test_span(),
             plugin_configs: HashMap::new(),
-            entity_id: Some(2),
+            entity_id: local_id(2),
         },
     );
 
@@ -271,6 +275,7 @@ fn test_is_type_reference_defined_with_namespaces() {
         template_path: PathBuf::from("./sql"),
         symbol_table: ns_table,
         model_fields: HashMap::new(),
+        template_source: EntityIdSource::LocalTemplate { path: "./sql".to_string() },
     });
 
     // Add a local type
@@ -280,7 +285,7 @@ fn test_is_type_reference_defined_with_namespaces() {
             kind: DefinitionKind::Model { extends: vec![] },
             span: test_span(),
             plugin_configs: HashMap::new(),
-            entity_id: Some(10),
+            entity_id: local_id(10),
         },
     );
 
@@ -478,7 +483,7 @@ fn test_nested_namespace_access() {
             },
             span: test_span(),
             plugin_configs: HashMap::new(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
         },
     );
 
@@ -487,6 +492,7 @@ fn test_nested_namespace_access() {
         template_path: PathBuf::from("./auth/types"),
         symbol_table: types_table,
         model_fields: HashMap::new(),
+        template_source: EntityIdSource::LocalTemplate { path: "./auth/types".to_string() },
     };
 
     let mut auth_table = SymbolTable::new();
@@ -497,6 +503,7 @@ fn test_nested_namespace_access() {
         template_path: PathBuf::from("./auth"),
         symbol_table: auth_table,
         model_fields: HashMap::new(),
+        template_source: EntityIdSource::LocalTemplate { path: "./auth".to_string() },
     };
 
     table.add_namespace(auth_ns);

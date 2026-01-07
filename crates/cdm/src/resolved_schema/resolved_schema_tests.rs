@@ -1,7 +1,12 @@
 use super::*;
 use crate::{DefinitionKind, FieldInfo, SymbolTable};
-use cdm_utils::{Position, Span};
+use cdm_utils::{EntityId, Position, Span};
 use std::collections::HashMap;
+
+// Helper to create a local entity ID
+fn local_id(id: u64) -> Option<EntityId> {
+    Some(EntityId::local(id))
+}
 
 // Helper to create a test span
 fn test_span() -> Span {
@@ -36,7 +41,7 @@ fn test_build_resolved_schema_with_type_alias() {
             },
             span: test_span(),
             plugin_configs: HashMap::new(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
         },
     );
 
@@ -52,7 +57,7 @@ fn test_build_resolved_schema_with_type_alias() {
     let email_alias = &resolved.type_aliases["Email"];
     assert_eq!(email_alias.name, "Email");
     assert_eq!(email_alias.type_expr, "string");
-    assert_eq!(email_alias.entity_id, Some(1));
+    assert_eq!(email_alias.entity_id, local_id(1));
 }
 
 #[test]
@@ -66,7 +71,7 @@ fn test_build_resolved_schema_with_model() {
             },
             span: test_span(),
             plugin_configs: HashMap::new(),
-            entity_id: Some(2),
+            entity_id: local_id(2),
         },
     );
 
@@ -80,7 +85,7 @@ fn test_build_resolved_schema_with_model() {
             span: test_span(),
             plugin_configs: HashMap::new(),
             default_value: None,
-            entity_id: Some(3),
+            entity_id: local_id(3),
         }],
     );
 
@@ -96,7 +101,7 @@ fn test_build_resolved_schema_with_model() {
     assert_eq!(user_model.name, "User");
     assert_eq!(user_model.fields.len(), 1);
     assert_eq!(user_model.fields[0].name, "id");
-    assert_eq!(user_model.entity_id, Some(2));
+    assert_eq!(user_model.entity_id, local_id(2));
 }
 
 #[test]
@@ -153,7 +158,7 @@ fn test_build_resolved_schema_ancestor_type_alias() {
             },
             span: test_span(),
             plugin_configs: HashMap::new(),
-            entity_id: Some(10),
+            entity_id: local_id(10),
         },
     );
 
@@ -172,7 +177,7 @@ fn test_build_resolved_schema_ancestor_type_alias() {
 
     let ancestor_type = &resolved.type_aliases["AncestorType"];
     assert_eq!(ancestor_type.source_file, "ancestor.cdm");
-    assert_eq!(ancestor_type.entity_id, Some(10));
+    assert_eq!(ancestor_type.entity_id, local_id(10));
 }
 
 #[test]
@@ -187,7 +192,7 @@ fn test_build_resolved_schema_current_overrides_ancestor() {
             },
             span: test_span(),
             plugin_configs: HashMap::new(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
         },
     );
 
@@ -203,7 +208,7 @@ fn test_build_resolved_schema_current_overrides_ancestor() {
             },
             span: test_span(),
             plugin_configs: HashMap::new(),
-            entity_id: Some(2),
+            entity_id: local_id(2),
         },
     );
 
@@ -223,7 +228,7 @@ fn test_build_resolved_schema_current_overrides_ancestor() {
     // Should get current file's version (number), not ancestor's (string)
     assert_eq!(shared_type.type_expr, "number");
     assert_eq!(shared_type.source_file, "current file");
-    assert_eq!(shared_type.entity_id, Some(1));
+    assert_eq!(shared_type.entity_id, local_id(1));
 }
 
 #[test]
@@ -296,7 +301,7 @@ fn test_build_resolved_schema_closer_ancestor_wins() {
             },
             span: test_span(),
             plugin_configs: HashMap::new(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
         },
     );
 
@@ -310,7 +315,7 @@ fn test_build_resolved_schema_closer_ancestor_wins() {
             },
             span: test_span(),
             plugin_configs: HashMap::new(),
-            entity_id: Some(2),
+            entity_id: local_id(2),
         },
     );
 
@@ -341,7 +346,7 @@ fn test_build_resolved_schema_closer_ancestor_wins() {
     // and the code skips if already added, so far gets added first
     assert_eq!(contested.type_expr, "string");
     assert_eq!(contested.source_file, "far.cdm");
-    assert_eq!(contested.entity_id, Some(1));
+    assert_eq!(contested.entity_id, local_id(1));
 }
 
 #[test]
@@ -572,7 +577,7 @@ fn test_build_resolved_schema_model_from_ancestor() {
             },
             span: test_span(),
             plugin_configs: HashMap::new(),
-            entity_id: Some(99),
+            entity_id: local_id(99),
         },
     );
 
@@ -607,7 +612,7 @@ fn test_build_resolved_schema_model_from_ancestor() {
     assert_eq!(base_model.source_file, "base.cdm");
     assert_eq!(base_model.fields.len(), 1);
     assert_eq!(base_model.fields[0].name, "created_at");
-    assert_eq!(base_model.entity_id, Some(99));
+    assert_eq!(base_model.entity_id, local_id(99));
 }
 
 #[test]

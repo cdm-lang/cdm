@@ -1,7 +1,13 @@
 use super::*;
-use cdm_plugin_interface::{FieldDefinition, ModelDefinition, TypeAliasDefinition, TypeExpression};
+use cdm_plugin_interface::{
+    EntityId, FieldDefinition, ModelDefinition, TypeAliasDefinition, TypeExpression,
+};
 use serde_json::json;
 use std::path::PathBuf;
+
+fn local_id(id: u64) -> Option<EntityId> {
+    Some(EntityId::local(id))
+}
 
 fn fixtures_path() -> PathBuf {
     PathBuf::from(env!("CARGO_MANIFEST_DIR"))
@@ -140,7 +146,7 @@ fn test_field_name_format_camel() {
             optional: false,
             default: None,
             config: json!({}),
-            entity_id: Some(4),
+            entity_id: local_id(4),
         });
 
     let config = json!({ "field_name_format": "camel" });
@@ -164,7 +170,7 @@ fn test_type_name_format_pascal() {
                 name: "string".to_string(),
             },
             config: json!({}),
-            entity_id: Some(3),
+            entity_id: local_id(3),
         },
     );
 
@@ -301,10 +307,10 @@ fn test_per_model_file_strategy() {
                 optional: false,
                 default: None,
                 config: json!({}),
-                entity_id: Some(1),
+                entity_id: local_id(1),
             }],
             config: json!({}),
-            entity_id: Some(11),
+            entity_id: local_id(11),
         },
     );
 
@@ -341,10 +347,10 @@ fn test_file_grouping() {
                 optional: false,
                 default: None,
                 config: json!({}),
-                entity_id: Some(1),
+                entity_id: local_id(1),
             }],
             config: json!({ "file_name": "models.ts" }),
-            entity_id: Some(11),
+            entity_id: local_id(11),
         },
     );
 

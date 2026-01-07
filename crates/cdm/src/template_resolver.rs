@@ -7,7 +7,7 @@
 
 use anyhow::{Context, Result};
 use cdm_plugin_interface::JSON;
-use cdm_utils::Span;
+use cdm_utils::{EntityIdSource, Span};
 use serde::{Deserialize, Serialize};
 use std::collections::HashMap;
 use std::fs;
@@ -401,6 +401,68 @@ fn load_manifest(path: &Path) -> Result<TemplateManifest> {
 
     serde_json::from_str(&content)
         .with_context(|| format!("Failed to parse template manifest: {}", path.display()))
+}
+
+/// Derive an EntityIdSource from a TemplateSource.
+///
+/// This function maps template sources to entity ID sources for tagging entity IDs
+/// with their origin. This prevents ID collisions when multiple templates use the
+/// same numeric IDs independently.
+///
+/// # Arguments
+///
+/// * `source` - The template source to derive from
+/// * `config` - Optional configuration (for git_path extraction)
+/// * `source_file` - The file containing the import (for relative path resolution)
+/// * `project_root` - Root of the project (for canonicalizing local paths)
+///
+/// # Returns
+///
+/// An EntityIdSource corresponding to the template source type.
+pub fn get_entity_id_source(
+    source: &TemplateSource,
+    config: &Option<JSON>,
+    source_file: &Path,
+    project_root: &Path,
+) -> EntityIdSource {
+    match source {
+        TemplateSource::Registry { name } => EntityIdSource::Registry { name: name.clone() },
+        TemplateSource::Git { url } => {
+            // Extract git_path from config if present
+            let git_path = config
+                .as_ref()
+                .and_then(|c| c.get("git_path"))
+                .and_then(|v| v.as_str())
+                .map(|s| s.to_string());
+            EntityIdSource::Git {
+                url: url.clone(),
+                path: git_path,
+            }
+        }
+        TemplateSource::Local { path } => {
+            // Compute the path relative to project root
+            let source_dir = source_file.parent().unwrap_or(Path::new("."));
+            let template_dir = source_dir.join(path);
+
+            // Try to make it relative to project root, fall back to the path as-is
+            let relative_path = template_dir
+                .strip_prefix(project_root)
+                .map(|p| p.to_string_lossy().to_string())
+                .unwrap_or_else(|_| path.clone());
+
+            EntityIdSource::LocalTemplate { path: relative_path }
+        }
+    }
+}
+
+/// Get EntityIdSource from a TemplateImport
+pub fn get_import_entity_id_source(import: &TemplateImport, project_root: &Path) -> EntityIdSource {
+    get_entity_id_source(&import.source, &import.config, &import.source_file, project_root)
+}
+
+/// Get EntityIdSource from a TemplateExtends
+pub fn get_extends_entity_id_source(extends: &TemplateExtends, project_root: &Path) -> EntityIdSource {
+    get_entity_id_source(&extends.source, &extends.config, &extends.source_file, project_root)
 }
 
 #[cfg(test)]

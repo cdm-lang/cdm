@@ -1,6 +1,6 @@
 use super::*;
 use crate::symbol_table::{Definition, DefinitionKind, ImportedNamespace, SymbolTable};
-use cdm_utils::{Position, Span};
+use cdm_utils::{EntityIdSource, Position, Span};
 use std::path::PathBuf;
 
 fn test_span() -> Span {
@@ -97,6 +97,7 @@ fn test_validate_qualified_type_reference_valid() {
         template_path: PathBuf::from("./sql"),
         symbol_table: ns_table,
         model_fields: std::collections::HashMap::new(),
+        template_source: EntityIdSource::LocalTemplate { path: "./sql".to_string() },
     });
 
     let diagnostics = validate_qualified_type_reference("sql.UUID", &test_span(), &table);
@@ -124,6 +125,7 @@ fn test_validate_qualified_type_reference_unknown_type() {
         template_path: PathBuf::from("./sql"),
         symbol_table: ns_table,
         model_fields: std::collections::HashMap::new(),
+        template_source: EntityIdSource::LocalTemplate { path: "./sql".to_string() },
     });
 
     let diagnostics = validate_qualified_type_reference("sql.NonExistent", &test_span(), &table);

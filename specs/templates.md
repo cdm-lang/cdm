@@ -878,4 +878,173 @@ extends cdm/auth  // Uses latest - risky for production
 
 ---
 
+## 14. Entity ID Collision Prevention
+
+### 14.1 The Problem
+
+When multiple templates use the same numeric entity IDs independently, extending both into a single schema would cause collisions:
+
+```cdm
+// cdm/auth template defines:
+User { id: string #1 } #10
+
+// cdm/billing template defines:
+Invoice { id: string #1 } #10
+
+// Consumer schema:
+extends cdm/auth
+extends cdm/billing
+// Without collision prevention: #10 refers to both User and Invoice!
+```
+
+### 14.2 Composite Entity IDs
+
+Entity IDs are composite values consisting of a **source** and a **local ID**:
+
+```
+EntityId = (Source, LocalId)
+```
+
+Two entity IDs only collide if they have the **same source AND same local ID**. IDs from different sources never collide.
+
+### 14.3 Entity ID Sources
+
+| Source Type | Description | Identity |
+|-------------|-------------|----------|
+| `Local` | Definitions in the current schema (including `@extends` file inheritance) | N/A |
+| `Registry` | From a registry template | Registry name (e.g., `cdm/auth`) |
+| `Git` | From a git template | URL + optional path |
+| `LocalTemplate` | From a local filesystem template (with `cdm-template.json`) | Path relative to project root |
+
+**Important:** Files without a `cdm-template.json` manifest are NOT templates. They are treated as part of the local schema when used with `@extends` file inheritance.
+
+### 14.4 Source Identity Rules
+
+- **Registry templates**: Identity is the registry name (guaranteed unique by registry)
+- **Git templates**: Identity is the git URL plus optional `git_path` for monorepos
+- **Local templates**: Identity is the canonicalized path relative to project root (NOT the manifest `name` field, to avoid collisions between unrelated templates)
+- **Version is NOT part of identity**: Template IDs remain stable across version upgrades
+
+### 14.5 Field ID Ownership
+
+Field entity IDs belong to the model where they are defined:
+
+```cdm
+extends cdm/auth
+// cdm/auth defines: User { id: string #1, email: string #2 } #10
+
+User {
+  avatar: string #100  // This field ID is Local, not cdm/auth
+}
+```
+
+Result:
+- `User.id #1` → Source: `cdm/auth`
+- `User.email #2` → Source: `cdm/auth`
+- `User.avatar #100` → Source: `Local`
+
+### 14.6 Re-exports
+
+Templates may re-export types from other templates. Re-exported definitions get **new entity IDs** in the re-exporting template's namespace:
+
+```cdm
+// cdm/auth/index.cdm
+import sql from sql/postgres-types
+
+// Re-export creates a NEW type alias with cdm/auth as source
+UUID: sql.UUID #1  // This #1 belongs to cdm/auth, not sql/postgres-types
+```
+
+### 14.7 Constraints
+
+| Constraint | Behavior |
+|------------|----------|
+| Circular template dependencies | **Error** (E604) |
+| Duplicate `extends` of same template | **Error** |
+| `import` + `extends` same template | Allowed (redundant but valid) |
+| Redefining a template's model | Must use `-ModelName` to remove first |
+
+### 14.8 Collision Detection
+
+Entity ID validation checks for collisions **within the same source**:
+
+```cdm
+// These DON'T collide (different sources):
+extends cdm/auth      // User #10
+extends cdm/billing   // Invoice #10
+LocalModel { } #10    // Local #10
+
+// These DO collide (same source - Local):
+TypeA: string #1
+TypeB: string #1  // Error E501: Duplicate entity ID #1
+```
+
+### 14.9 Serialization Format
+
+Composite entity IDs are serialized in `previous_schema.json` for migration tracking:
+
+```json
+{
+  "entity_id": {
+    "type": "local",
+    "local_id": 10
+  }
+}
+```
+
+```json
+{
+  "entity_id": {
+    "type": "registry",
+    "name": "cdm/auth",
+    "local_id": 10
+  }
+}
+```
+
+```json
+{
+  "entity_id": {
+    "type": "git",
+    "url": "https://github.com/org/repo.git",
+    "path": "packages/auth",
+    "local_id": 10
+  }
+}
+```
+
+```json
+{
+  "entity_id": {
+    "type": "local_template",
+    "path": "templates/shared",
+    "local_id": 10
+  }
+}
+```
+
+When `entity_id` is not specified in the CDM source, it is omitted from serialization.
+
+### 14.10 Migration and Rename Detection
+
+The migration system uses composite entity IDs to detect renames:
+
+```cdm
+// Previous schema:
+User { name: string #1 } #10
+
+// Current schema:
+User { fullName: string #1 } #10  // Same composite ID
+```
+
+With composite IDs, the migration system correctly identifies this as a field rename (not delete + add), enabling:
+- `RENAME COLUMN name TO fullName` instead of `DROP COLUMN` + `ADD COLUMN`
+- `RENAME TABLE` instead of `DROP TABLE` + `CREATE TABLE`
+
+### 14.11 Future Considerations
+
+**Peer dependencies** are not currently supported. If future use cases require templates to share the same instance of a dependency (e.g., for type identity across template boundaries), peer dependency support may be added.
+
+---
+
 _End of Templates Specification_

@@ -330,6 +330,7 @@ dependencies = [
 name = "cdm-plugin-interface"
 version = "0.1.0"
 dependencies = [
+ "cdm-utils",
  "serde",
  "serde_json",
 ]
@@ -366,6 +367,7 @@ dependencies = [
 name = "cdm-utils"
 version = "0.1.0"
 dependencies = [
+ "serde",
  "serde_json",
 ]
 

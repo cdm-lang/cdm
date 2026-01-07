@@ -13,7 +13,10 @@
           "optional": false,
           "default": null,
           "config": {},
-          "entity_id": 1
+          "entity_id": {
+            "type": "local",
+            "local_id": 1
+          }
         },
         {
           "name": "name",
@@ -24,7 +27,10 @@
           "optional": false,
           "default": null,
           "config": {},
-          "entity_id": 2
+          "entity_id": {
+            "type": "local",
+            "local_id": 2
+          }
         },
         {
           "name": "email",
@@ -35,11 +41,17 @@
           "optional": true,
           "default": null,
           "config": {},
-          "entity_id": 3
+          "entity_id": {
+            "type": "local",
+            "local_id": 3
+          }
         }
       ],
       "config": {},
-      "entity_id": 10
+      "entity_id": {
+        "type": "local",
+        "local_id": 10
+      }
     }
   },
   "type_aliases": {
@@ -50,7 +62,10 @@
         "name": "string"
       },
       "config": {},
-      "entity_id": 1
+      "entity_id": {
+        "type": "local",
+        "local_id": 1
+      }
     },
     "Status": {
       "name": "Status",
@@ -68,7 +83,10 @@
         ]
       },
       "config": {},
-      "entity_id": 2
+      "entity_id": {
+        "type": "local",
+        "local_id": 2
+      }
     }
   }
 }

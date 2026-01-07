@@ -13,7 +13,7 @@ use crate::diagnostics::{
 use crate::file_resolver::LoadedFileTree;
 use crate::resolved_schema::{build_resolved_schema, find_references_in_resolved};
 use crate::plugin_validation::validate_plugins;
-use cdm_utils::{Position, Span};
+use cdm_utils::{EntityId, Position, Span};
 
 #[cfg(test)]
 #[path = "validate/validate_tests.rs"]
@@ -518,8 +518,8 @@ fn collect_type_alias(
         .cloned()
         .unwrap_or_default();
 
-    // Extract entity ID
-    let entity_id = extract_entity_id(node, source);
+    // Extract entity ID (local source for current file)
+    let entity_id = extract_entity_id(node, source).map(EntityId::local);
 
     symbol_table.definitions.insert(
         name.to_string(),
@@ -641,8 +641,8 @@ fn collect_model(
         .cloned()
         .unwrap_or_default();
 
-    // Extract entity ID
-    let entity_id = extract_entity_id(node, source);
+    // Extract entity ID (local source for current file)
+    let entity_id = extract_entity_id(node, source).map(EntityId::local);
 
     symbol_table.definitions.insert(
         name.to_string(),
@@ -711,8 +711,8 @@ fn collect_field_info(
                     .get(&(model_name.to_string(), name.clone()))
                     .cloned();
 
-                // Extract entity ID
-                let entity_id = extract_entity_id(child, source);
+                // Extract entity ID (local source for current file)
+                let entity_id = extract_entity_id(child, source).map(EntityId::local);
 
                 fields.push(FieldInfo {
                     name,
@@ -734,54 +734,61 @@ fn collect_field_info(
 // Entity ID Validation
 // =============================================================================
 
-/// Validate entity IDs for uniqueness within their scope
+/// Validate entity IDs for uniqueness within their scope.
+///
+/// Entity IDs are now composite (source + local_id), and IDs only collide if they
+/// have the same source AND the same local_id. For local files, all IDs have
+/// EntityIdSource::Local, so we validate within that scope.
 fn validate_entity_ids(
     symbol_table: &SymbolTable,
     model_fields: &HashMap<String, Vec<FieldInfo>>,
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     // Track global IDs for models and type aliases (they share a global namespace)
+    // Key is (source, local_id) - for local files, source is always Local
     let mut global_ids: HashMap<u64, (String, Span)> = HashMap::new();
 
     // Sort definitions by source position to ensure consistent error messages
     let mut sorted_defs: Vec<_> = symbol_table.definitions.iter().collect();
     sorted_defs.sort_by_key(|(_, def)| (def.span.start.line, def.span.start.column));
 
-    // Check model and type alias IDs (global scope)
+    // Check model and type alias IDs (global scope within same source)
     for (name, def) in sorted_defs {
-        if let Some(id) = def.entity_id {
-            if let Some((existing_name, existing_span)) = global_ids.get(&id) {
+        if let Some(ref entity_id) = def.entity_id {
+            let local_id = entity_id.local_id;
+            if let Some((existing_name, existing_span)) = global_ids.get(&local_id) {
                 diagnostics.push(Diagnostic {
                     message: format!(
                         "{}: Duplicate entity ID #{}: already used by '{}' at line {}",
-                        E501_DUPLICATE_ENTITY_ID, id, existing_name, existing_span.start.line + 1
+                        E501_DUPLICATE_ENTITY_ID, local_id, existing_name, existing_span.start.line + 1
                     ),
                     severity: Severity::Error,
                     span: def.span,
                 });
             } else {
-                global_ids.insert(id, (name.clone(), def.span));
+                global_ids.insert(local_id, (name.clone(), def.span));
             }
         }
     }
 
-    // Check field IDs (scoped per model)
+    // Check field IDs (scoped per model within same source)
     for (model_name, fields) in model_fields {
         let mut field_ids: HashMap<u64, (String, Span)> = HashMap::new();
 
         for field in fields {
-            if let Some(id) = field.entity_id {
-                if let Some((existing_name, existing_span)) = field_ids.get(&id) {
+            if let Some(ref entity_id) = field.entity_id {
+                let local_id = entity_id.local_id;
+                if let Some((existing_name, existing_span)) = field_ids.get(&local_id) {
                     diagnostics.push(Diagnostic {
                         message: format!(
                             "{}: Duplicate field ID #{} in model '{}': already used by field '{}' at line {}",
-                            E502_DUPLICATE_FIELD_ID, id, model_name, existing_name, existing_span.start.line + 1
+                            E502_DUPLICATE_FIELD_ID, local_id, model_name, existing_name, existing_span.start.line + 1
                         ),
                         severity: Severity::Error,
                         span: field.span,
                     });
                 } else {
-                    field_ids.insert(id, (field.name.clone(), field.span));
+                    field_ids.insert(local_id, (field.name.clone(), field.span));
                 }
             }
         }

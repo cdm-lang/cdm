@@ -1,5 +1,10 @@
 use super::*;
-use cdm_utils::{Position, Span};
+use cdm_utils::{EntityId, EntityIdSource, Position, Span};
+
+// Helper to create a local entity ID
+fn local_id(id: u64) -> Option<EntityId> {
+    Some(EntityId::local(id))
+}
 
 // Helper to create a test span
 fn test_span() -> Span {
@@ -207,7 +212,7 @@ fn test_resolve_definition_local_overrides_ancestor() {
             },
             span: test_span(),
             plugin_configs: HashMap::new(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
         },
     );
 
@@ -221,7 +226,7 @@ fn test_resolve_definition_local_overrides_ancestor() {
             },
             span: test_span(),
             plugin_configs: HashMap::new(),
-            entity_id: Some(2),
+            entity_id: local_id(2),
         },
     );
 
@@ -238,7 +243,7 @@ fn test_resolve_definition_local_overrides_ancestor() {
     // Should get local definition (Model), not ancestor (TypeAlias)
     assert!(matches!(def.kind, DefinitionKind::Model { .. }));
     assert!(source.is_none());
-    assert_eq!(def.entity_id, Some(1));
+    assert_eq!(def.entity_id, local_id(1));
 }
 
 #[test]
@@ -586,7 +591,7 @@ fn test_definition_kind_type_alias() {
         },
         span: test_span(),
         plugin_configs: HashMap::new(),
-        entity_id: Some(42),
+        entity_id: local_id(42),
     };
 
     match &def.kind {
@@ -596,7 +601,7 @@ fn test_definition_kind_type_alias() {
         }
         _ => panic!("Expected TypeAlias"),
     }
-    assert_eq!(def.entity_id, Some(42));
+    assert_eq!(def.entity_id, local_id(42));
 }
 
 #[test]
@@ -632,7 +637,7 @@ fn test_field_info_with_plugin_configs() {
         span: test_span(),
         plugin_configs: configs,
         default_value: Some(serde_json::json!("test@example.com")),
-        entity_id: Some(100),
+        entity_id: local_id(100),
     };
 
     assert_eq!(field.name, "email");
@@ -640,7 +645,7 @@ fn test_field_info_with_plugin_configs() {
     assert!(!field.optional);
     assert_eq!(field.plugin_configs.len(), 1);
     assert_eq!(field.default_value, Some(serde_json::json!("test@example.com")));
-    assert_eq!(field.entity_id, Some(100));
+    assert_eq!(field.entity_id, local_id(100));
 }
 
 #[test]
@@ -706,6 +711,7 @@ fn test_symbol_table_has_namespace() {
         template_path: PathBuf::from("./templates/sql"),
         symbol_table: SymbolTable::new(),
         model_fields: HashMap::new(),
+        template_source: EntityIdSource::LocalTemplate { path: "./templates/sql".to_string() },
     };
     table.add_namespace(ns);
 
@@ -736,6 +742,7 @@ fn test_symbol_table_get_namespace() {
         template_path: PathBuf::from("./templates/sql"),
         symbol_table: ns_table,
         model_fields: HashMap::new(),
+        template_source: EntityIdSource::LocalTemplate { path: "./templates/sql".to_string() },
     };
     table.add_namespace(ns);
 
@@ -767,6 +774,7 @@ fn test_is_qualified_type_defined() {
         template_path: PathBuf::from("./templates/sql"),
         symbol_table: ns_table,
         model_fields: HashMap::new(),
+        template_source: EntityIdSource::LocalTemplate { path: "./templates/sql".to_string() },
     };
     table.add_namespace(ns);
 
@@ -795,7 +803,7 @@ fn test_resolve_qualified_definition() {
             },
             span: test_span(),
             plugin_configs: HashMap::new(),
-            entity_id: Some(1),
+            entity_id: local_id(1),
         },
     );
 
@@ -804,6 +812,7 @@ fn test_resolve_qualified_definition() {
         template_path: PathBuf::from("./templates/sql"),
         symbol_table: ns_table,
         model_fields: HashMap::new(),
+        template_source: EntityIdSource::LocalTemplate { path: "./templates/sql".to_string() },
     };
     table.add_namespace(ns);
 
@@ -811,7 +820,7 @@ fn test_resolve_qualified_definition() {
     let ancestors = vec![];
     let def = resolve_qualified_definition(&qualified, &table, &ancestors).unwrap();
 
-    assert_eq!(def.entity_id, Some(1));
+    assert_eq!(def.entity_id, local_id(1));
     match &def.kind {
         DefinitionKind::TypeAlias { type_expr, .. } => {
             assert_eq!(type_expr, "string");
@@ -835,7 +844,7 @@ fn test_resolve_qualified_definition_nested() {
             },
             span: test_span(),
             plugin_configs: HashMap::new(),
-            entity_id: Some(2),
+            entity_id: local_id(2),
         },
     );
 
@@ -844,6 +853,7 @@ fn test_resolve_qualified_definition_nested() {
         template_path: PathBuf::from("./templates/auth/types"),
         symbol_table: types_table,
         model_fields: HashMap::new(),
+        template_source: EntityIdSource::LocalTemplate { path: "./templates/auth/types".to_string() },
     };
 
     let mut auth_table = SymbolTable::new();
@@ -854,6 +864,7 @@ fn test_resolve_qualified_definition_nested() {
         template_path: PathBuf::from("./templates/auth"),
         symbol_table: auth_table,
         model_fields: HashMap::new(),
+        template_source: EntityIdSource::LocalTemplate { path: "./templates/auth".to_string() },
     };
 
     table.add_namespace(auth_ns);
@@ -862,7 +873,7 @@ fn test_resolve_qualified_definition_nested() {
     let ancestors = vec![];
     let def = resolve_qualified_definition(&qualified, &table, &ancestors).unwrap();
 
-    assert_eq!(def.entity_id, Some(2));
+    assert_eq!(def.entity_id, local_id(2));
 }
 
 #[test]
@@ -911,6 +922,7 @@ fn test_is_type_reference_defined_qualified() {
         template_path: PathBuf::from("./templates/sql"),
         symbol_table: ns_table,
         model_fields: HashMap::new(),
+        template_source: EntityIdSource::LocalTemplate { path: "./templates/sql".to_string() },
     };
     table.add_namespace(ns);
 
@@ -934,7 +946,7 @@ fn test_imported_namespace_structure() {
             },
             span: test_span(),
             plugin_configs: HashMap::new(),
-            entity_id: Some(10),
+            entity_id: local_id(10),
         },
     );
 
@@ -948,7 +960,7 @@ fn test_imported_namespace_structure() {
             span: test_span(),
             plugin_configs: HashMap::new(),
             default_value: None,
-            entity_id: Some(1),
+            entity_id: local_id(1),
         }],
     );
 
@@ -957,6 +969,7 @@ fn test_imported_namespace_structure() {
         template_path: PathBuf::from("/path/to/template"),
         symbol_table: ns_table,
         model_fields: ns_fields,
+        template_source: EntityIdSource::LocalTemplate { path: "/path/to/template".to_string() },
     };
 
     assert_eq!(ns.name, "auth");

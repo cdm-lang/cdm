@@ -262,16 +262,17 @@ fn compute_type_alias_deltas(
     use std::collections::{HashSet, HashMap};
 
     // Build ID maps for rename detection
+    // Key by local_id since we're comparing within the same source context
     let prev_by_id: HashMap<u64, &cdm_plugin_interface::TypeAliasDefinition> = previous
         .type_aliases
         .values()
-        .filter_map(|a| a.entity_id.map(|id| (id, a)))
+        .filter_map(|a| a.entity_id.as_ref().map(|id| (id.local_id, a)))
         .collect();
 
     let curr_by_id: HashMap<u64, &cdm_plugin_interface::TypeAliasDefinition> = current
         .type_aliases
         .values()
-        .filter_map(|a| a.entity_id.map(|id| (id, a)))
+        .filter_map(|a| a.entity_id.as_ref().map(|id| (id.local_id, a)))
         .collect();
 
     let mut processed_ids = HashSet::new();
@@ -288,7 +289,7 @@ fn compute_type_alias_deltas(
                 deltas.push(Delta::TypeAliasRenamed {
                     old_name: prev_alias.name.clone(),
                     new_name: curr_alias.name.clone(),
-                    id: Some(*id),
+                    id: curr_alias.entity_id.clone(),
                     before: (*prev_alias).clone(),
                     after: (*curr_alias).clone(),
                 });
@@ -362,16 +363,17 @@ fn compute_model_deltas(
     use std::collections::{HashSet, HashMap};
 
     // Build ID maps for rename detection
+    // Key by local_id since we're comparing within the same source context
     let prev_by_id: HashMap<u64, &cdm_plugin_interface::ModelDefinition> = previous
         .models
         .values()
-        .filter_map(|m| m.entity_id.map(|id| (id, m)))
+        .filter_map(|m| m.entity_id.as_ref().map(|id| (id.local_id, m)))
         .collect();
 
     let curr_by_id: HashMap<u64, &cdm_plugin_interface::ModelDefinition> = current
         .models
         .values()
-        .filter_map(|m| m.entity_id.map(|id| (id, m)))
+        .filter_map(|m| m.entity_id.as_ref().map(|id| (id.local_id, m)))
         .collect();
 
     let mut processed_ids = HashSet::new();
@@ -388,7 +390,7 @@ fn compute_model_deltas(
                 deltas.push(Delta::ModelRenamed {
                     old_name: prev_model.name.clone(),
                     new_name: curr_model.name.clone(),
-                    id: Some(*id),
+                    id: curr_model.entity_id.clone(),
                     before: (*prev_model).clone(),
                     after: (*curr_model).clone(),
                 });
@@ -475,14 +477,15 @@ fn compute_field_deltas(
     use std::collections::{HashSet, HashMap};
 
     // Build ID maps for rename detection
+    // Key by local_id since we're comparing within the same source context
     let prev_by_id: HashMap<u64, &cdm_plugin_interface::FieldDefinition> = prev_fields
         .iter()
-        .filter_map(|f| f.entity_id.map(|id| (id, f)))
+        .filter_map(|f| f.entity_id.as_ref().map(|id| (id.local_id, f)))
         .collect();
 
     let curr_by_id: HashMap<u64, &cdm_plugin_interface::FieldDefinition> = curr_fields
         .iter()
-        .filter_map(|f| f.entity_id.map(|id| (id, f)))
+        .filter_map(|f| f.entity_id.as_ref().map(|id| (id.local_id, f)))
         .collect();
 
     let mut processed_ids = HashSet::new();
@@ -500,7 +503,7 @@ fn compute_field_deltas(
                     model: model_name.to_string(),
                     old_name: prev_field.name.clone(),
                     new_name: curr_field.name.clone(),
-                    id: Some(*id),
+                    id: curr_field.entity_id.clone(),
                     before: (*prev_field).clone(),
                     after: (*curr_field).clone(),
                 });
@@ -796,7 +799,7 @@ fn transform_deltas_for_plugin(deltas: &[Delta], plugin_name: &str) -> Vec<Delta
             Delta::ModelRenamed { old_name, new_name, id, before, after } => Delta::ModelRenamed {
                 old_name: old_name.clone(),
                 new_name: new_name.clone(),
-                id: *id,
+                id: id.clone(),
                 before: transform_model_definition(before, plugin_name),
                 after: transform_model_definition(after, plugin_name),
             },
@@ -814,7 +817,7 @@ fn transform_deltas_for_plugin(deltas: &[Delta], plugin_name: &str) -> Vec<Delta
                 model: model.clone(),
                 old_name: old_name.clone(),
                 new_name: new_name.clone(),
-                id: *id,
+                id: id.clone(),
                 before: transform_field_definition(before, plugin_name),
                 after: transform_field_definition(after, plugin_name),
             },
@@ -840,7 +843,7 @@ fn transform_deltas_for_plugin(deltas: &[Delta], plugin_name: &str) -> Vec<Delta
             Delta::TypeAliasRenamed { old_name, new_name, id, before, after } => Delta::TypeAliasRenamed {
                 old_name: old_name.clone(),
                 new_name: new_name.clone(),
-                id: *id,
+                id: id.clone(),
                 before: transform_type_alias_definition(before, plugin_name),
                 after: transform_type_alias_definition(after, plugin_name),
             },
@@ -857,7 +860,7 @@ fn transform_model_definition(model: &cdm_plugin_interface::ModelDefinition, plu
         parents: model.parents.clone(),
         fields: model.fields.iter().map(|f| transform_field_definition(f, plugin_name)).collect(),
         config: unwrap_config(&model.config, plugin_name),
-        entity_id: model.entity_id,
+        entity_id: model.entity_id.clone(),
     }
 }
 
@@ -869,7 +872,7 @@ fn transform_field_definition(field: &cdm_plugin_interface::FieldDefinition, plu
         optional: field.optional,
         default: field.default.clone(),
         config: unwrap_config(&field.config, plugin_name),
-        entity_id: field.entity_id,
+        entity_id: field.entity_id.clone(),
     }
 }
 
@@ -879,7 +882,7 @@ fn transform_type_alias_definition(alias: &cdm_plugin_interface::TypeAliasDefini
         name: alias.name.clone(),
         alias_type: alias.alias_type.clone(),
         config: unwrap_config(&alias.config, plugin_name),
-        entity_id: alias.entity_id,
+        entity_id: alias.entity_id.clone(),
     }
 }
 
