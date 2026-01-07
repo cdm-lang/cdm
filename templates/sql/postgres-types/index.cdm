@@ -1,0 +1,124 @@
+// PostgreSQL Type Definitions
+
+// These types map to PostgreSQL native data types
+
+// Numeric Types
+
+SmallInt: number #1
+
+Integer: number #2
+
+BigInt: number #3
+
+Decimal: number #4
+
+Numeric: number #5
+
+Real: number #6
+
+DoublePrecision: number #7
+
+Serial: number #8
+
+BigSerial: number #9
+
+SmallSerial: number #10
+
+// Character Types
+
+Varchar: string #20
+
+Char: string #21
+
+Text: string #22
+
+// Binary Types
+
+Bytea: string #30
+
+// boolean Type
+
+Boolean: boolean #40
+
+// Date/Time Types
+
+Date: string #50
+
+Time: string #51
+
+TimeTZ: string #52
+
+Timestamp: string #53
+
+TimestampTZ: string #54
+
+Interval: string #55
+
+// UUID Type
+
+UUID: string #60
+
+// JSON Types
+
+SQLJSON: string #70
+
+JSONB: string #71
+
+// Network Types
+
+CIDR: string #80
+
+Inet: string #81
+
+MacAddr: string #82
+
+MacAddr8: string #83
+
+// Geometric Types
+
+Point: string #90
+
+Line: string #91
+
+LSeg: string #92
+
+Box: string #93
+
+Path: string #94
+
+Polygon: string #95
+
+Circle: string #96
+
+// Array Type (generic marker)
+
+Array: string #100
+
+// Range Types
+
+Int4Range: string #110
+
+Int8Range: string #111
+
+NumRange: string #112
+
+TSRange: string #113
+
+TSTZRange: string #114
+
+DateRange: string #115
+
+// Other Types
+
+Money: string #120
+
+Bit: string #121
+
+BitVarying: string #122
+
+TSVector: string #123
+
+TSQuery: string #124
+
+XML: string #125
+

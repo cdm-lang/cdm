@@ -1,0 +1,32 @@
+{
+  "version": 1,
+  "updated_at": "2026-01-07T00:00:00Z",
+  "templates": {
+    "sql/postgres-types": {
+      "description": "PostgreSQL type definitions for CDM schemas",
+      "repository": "git:https://github.com/cdm-lang/cdm.git",
+      "official": true,
+      "versions": {
+        "1.0.0": {
+          "git_url": "https://github.com/cdm-lang/cdm.git",
+          "git_ref": "main",
+          "git_path": "templates/sql/postgres-types"
+        }
+      },
+      "latest": "1.0.0"
+    },
+    "sql/sqlite-types": {
+      "description": "SQLite type definitions for CDM schemas",
+      "repository": "git:https://github.com/cdm-lang/cdm.git",
+      "official": true,
+      "versions": {
+        "1.0.0": {
+          "git_url": "https://github.com/cdm-lang/cdm.git",
+          "git_ref": "main",
+          "git_path": "templates/sql/sqlite-types"
+        }
+      },
+      "latest": "1.0.0"
+    }
+  }
+}

@@ -1,0 +1,76 @@
+// SQLite Type Definitions
+
+// SQLite uses a dynamic type system with storage classes and type affinities
+
+// Storage Classes (Core Types)
+
+Null: string #1
+
+Integer: number #2
+
+Real: number #3
+
+Text: string #4
+
+Blob: string #5
+
+// Integer Affinity Types
+
+Int: number #10
+
+TinyInt: number #11
+
+SmallInt: number #12
+
+MediumInt: number #13
+
+BigInt: number #14
+
+Int2: number #15
+
+Int8: number #16
+
+// Text Affinity Types
+
+Character: string #20
+
+Varchar: string #21
+
+VaryingCharacter: string #22
+
+NChar: string #23
+
+NativeCharacter: string #24
+
+NVarchar: string #25
+
+Clob: string #26
+
+// Real Affinity Types
+
+Double: number #30
+
+DoublePrecision: number #31
+
+Float: number #32
+
+// Numeric Affinity Types
+
+Numeric: number #40
+
+Decimal: number #41
+
+Boolean: boolean #42
+
+Date: string #43
+
+DateTime: string #44
+
+Timestamp: string #45
+
+// Special Types (stored as text or integer internally)
+
+UUID: string #50
+
+SQLJSON: string #51
+

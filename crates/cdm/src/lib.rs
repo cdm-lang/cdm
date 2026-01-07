@@ -14,6 +14,7 @@ mod migrate;
 mod plugin_new;
 mod format;
 mod registry;
+mod template_registry;
 mod plugin_cache;
 mod version_resolver;
 mod git_plugin;
@@ -46,3 +47,4 @@ pub use capabilities::{capabilities, CapabilitiesResult, PluginCapability};
 
 // Re-export for testing
 pub use registry::get_cache_path;
+pub use template_registry::{TemplateRegistry, RegistryTemplate, RegistryTemplateVersion, load_template_registry, lookup_template, get_template_version};

@@ -1,0 +1,6 @@
+{
+  "name": "sql/sqlite-types",
+  "version": "1.0.0",
+  "description": "SQLite type definitions for CDM schemas",
+  "entry": "./index.cdm"
+}
