@@ -188,6 +188,7 @@ Detailed installation instructions are covered in the CLI documentation.
 From here, you can continue with:
 
 * **[Core Concepts](1-core-concepts.md)** — contexts, IDs, plugins, and schema evolution
+* **[Templates](2-templates.md)** — reusable schema packages and type libraries
 * **[Context System](3-context-system.md)** — different views of the same schema
 * **[Plugins](4-plugins-and-code-generation.md)** — SQL, TypeScript, validation, and custom generators
 * **[CLI Workflows](5-cli-usage-and-workflows.md)** — build, migrate, and format commands

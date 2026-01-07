@@ -245,6 +245,7 @@ CDM’s job is to define structure, enforce correctness, and generate artifacts�
 
 With the core concepts in place, explore the following topics:
 
+* **[Templates](2-templates.md)** — reusable schema packages and type libraries
 * **[Context System](3-context-system.md)** — how to create different views of your schema
 * **[Plugins & Code Generation](4-plugins-and-code-generation.md)** — generating SQL, TypeScript, and more
 * **[CLI Usage & Workflows](5-cli-usage-and-workflows.md)** — validation, builds, and migrations

@@ -23,19 +23,19 @@
   export_style: "named"
 }
 
-// GitHub plugin - no config
-@protobuf from github:cdm-community/cdm-protobuf
+// Git plugin - no config
+@protobuf from git:https://github.com/cdm-community/cdm-protobuf.git
 
-// GitHub plugin - with config
-@analytics from github:myorg/cdm-analytics {
-  version: "1.0.0",
+// Git plugin - with config
+@analytics from git:https://github.com/myorg/cdm-analytics.git {
+  git_ref: "v1.0.0",
   endpoint: "https://analytics.example.com/v2",
   batch_size: 100,
   flush_interval: 5000
 }
 
-// GitHub plugin - organization internal
-@api from github:myorg/cdm-api-generator {
+// Git plugin - organization internal
+@api from git:https://github.com/myorg/cdm-api-generator.git {
   base_url: "/api/v1",
   auth: "bearer",
   rate_limit: {
