@@ -11,9 +11,12 @@
 use std::collections::{HashMap, HashSet};
 use std::cell::RefCell;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use anyhow::{Context, Result};
 use crate::{Ancestor, DefinitionKind, FieldInfo, SymbolTable};
+use crate::template_resolver::extract_template_imports;
+use crate::template_validation::validate_template_imports;
+use crate::validate::validate_with_templates;
 use cdm_utils::Span;
 use cdm_plugin_interface::Schema;
 
@@ -22,6 +25,56 @@ pub use cdm_utils::{
     ParsedType, PrimitiveType, ResolvedSchema, ResolvedTypeAlias,
     ResolvedModel, ResolvedField, find_references_in_resolved
 };
+
+/// Load templates for a source file and return the namespaces.
+fn load_templates_for_source(
+    source: &str,
+    source_path: &Path,
+) -> Result<Vec<crate::ImportedNamespace>> {
+    // Parse to extract template imports
+    let mut parser = tree_sitter::Parser::new();
+    parser
+        .set_language(&grammar::LANGUAGE.into())
+        .expect("Failed to load grammar");
+
+    let parse_tree = match parser.parse(source, None) {
+        Some(tree) => tree,
+        None => return Ok(Vec::new()),
+    };
+
+    let template_imports = extract_template_imports(parse_tree.root_node(), source, source_path);
+
+    // Validate template imports
+    let template_diagnostics = validate_template_imports(&template_imports);
+    if template_diagnostics.iter().any(|d| d.severity == crate::Severity::Error) {
+        let errors: Vec<_> = template_diagnostics
+            .iter()
+            .filter(|d| d.severity == crate::Severity::Error)
+            .map(|d| d.message.clone())
+            .collect();
+        anyhow::bail!("Template import errors: {}", errors.join("; "));
+    }
+
+    // Load template namespaces
+    let project_root = source_path.parent().unwrap_or_else(|| Path::new("."));
+    let mut load_diagnostics = Vec::new();
+    let namespaces = crate::validate::load_template_namespaces(
+        &template_imports,
+        project_root,
+        &mut load_diagnostics,
+    );
+
+    if load_diagnostics.iter().any(|d| d.severity == crate::Severity::Error) {
+        let errors: Vec<_> = load_diagnostics
+            .iter()
+            .filter(|d| d.severity == crate::Severity::Error)
+            .map(|d| d.message.clone())
+            .collect();
+        anyhow::bail!("Template loading errors: {}", errors.join("; "));
+    }
+
+    Ok(namespaces)
+}
 
 /// Build a resolved schema from current file symbols and ancestors.
 ///
@@ -190,7 +243,12 @@ pub fn build_cdm_schema_for_plugin(
     for ancestor_path in ancestor_paths {
         let source = fs::read_to_string(ancestor_path)
             .with_context(|| format!("Failed to read ancestor file: {}", ancestor_path.display()))?;
-        let ancestor_result = crate::validate(&source, &ancestors);
+
+        // Load templates for this ancestor
+        let namespaces = load_templates_for_source(&source, ancestor_path)?;
+
+        // Validate with templates
+        let ancestor_result = validate_with_templates(&source, &ancestors, namespaces);
         if ancestor_result.has_errors() {
             anyhow::bail!("Ancestor file has validation errors: {}", ancestor_path.display());
         }

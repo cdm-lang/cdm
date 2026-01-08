@@ -3,22 +3,12 @@
 // This is the base schema that can be extended by context files
 
 // =============================================================================
-// TEMPLATE IMPORTS (PREVIEW)
+// TEMPLATE IMPORTS
 // =============================================================================
 
-// Note: Template imports are parsed but type resolution is not yet implemented.
-// When fully implemented, you'll be able to import SQL types like this:
-//
-//   import pg from sql-types/postgres
-//
-// And use them in your schema:
-//
-//   User {
-//     id: pg.UUID #1
-//     created_at: pg.TimestampTZ #2
-//   }
-//
-// For now, define types locally or use the built-in primitives.
+// Import PostgreSQL types from the sql-types template
+// Using local path since registry resolution requires network access
+import pg from ../templates/sql-types/postgres.cdm
 
 // =============================================================================
 // PLUGIN CONFIGURATION
@@ -49,9 +39,8 @@ Email: string {
   @sql { type: "VARCHAR(320)" }
 } #1
 
-UUID: string {
-  @sql { type: "UUID", default: "gen_random_uuid()" }
-} #2
+// Note: UUID is now imported from pg.UUID (sql-types/postgres template)
+// We can still define custom type aliases that wrap imported types if needed
 
 // Union type alias for status values
 Status: "active" | "pending" | "suspended" | "deleted" {
@@ -72,10 +61,10 @@ ContentStatus: "draft" | "published" | "archived" {
 // BASE MODELS (for inheritance)
 // =============================================================================
 
-// Timestamped base model
+// Timestamped base model - uses PostgreSQL timestamp types
 Timestamped {
-  created_at: string #1
-  updated_at: string #2
+  created_at: pg.TimestampTZ #1
+  updated_at: pg.TimestampTZ #2
 
   @sql {
     indexes: [{ fields: ["created_at"] }]
@@ -84,8 +73,8 @@ Timestamped {
 
 // Auditable base model - adds tracking fields
 Auditable extends Timestamped {
-  created_by?: string #3
-  updated_by?: string #4
+  created_by?: pg.UUID #3
+  updated_by?: pg.UUID #4
 } #11
 
 // =============================================================================
@@ -94,16 +83,16 @@ Auditable extends Timestamped {
 
 // User model with all fields
 User extends Auditable {
-  id: UUID #5
+  id: pg.UUID #5
   email: Email #6
-  username: string #7
-  password_hash: string #8
-  salt: string #9
-  name: string #10
-  bio?: string #11
+  username: pg.Varchar #7
+  password_hash: pg.Text #8
+  salt: pg.Text #9
+  name: pg.Varchar #10
+  bio?: pg.Text #11
   role: Role = "member" #12
   status: Status = "pending" #13
-  last_login?: string #14
+  last_login?: pg.TimestampTZ #14
 
   @sql {
     table_name: "users",
@@ -117,15 +106,15 @@ User extends Auditable {
 
 // Post model with relationships
 Post extends Timestamped {
-  id: UUID #3
-  author_id: UUID #4
-  title: string #5
-  slug: string #6
-  content: string #7
-  excerpt?: string #8
+  id: pg.UUID #3
+  author_id: pg.UUID #4
+  title: pg.Varchar #5
+  slug: pg.Varchar #6
+  content: pg.Text #7
+  excerpt?: pg.Text #8
   status: ContentStatus = "draft" #9
-  published_at?: string #10
-  view_count: number = 0 #11
+  published_at?: pg.TimestampTZ #10
+  view_count: pg.Integer = 0 #11
 
   @sql {
     table_name: "posts",
@@ -139,12 +128,12 @@ Post extends Timestamped {
 
 // Comment model with self-referential relationship
 Comment extends Timestamped {
-  id: UUID #3
-  post_id: UUID #4
-  author_id: UUID #5
-  parent_id?: UUID #6
-  content: string #7
-  is_approved: boolean = false #8
+  id: pg.UUID #3
+  post_id: pg.UUID #4
+  author_id: pg.UUID #5
+  parent_id?: pg.UUID #6
+  content: pg.Text #7
+  is_approved: pg.Boolean = false #8
 
   @sql {
     table_name: "comments",
@@ -158,10 +147,10 @@ Comment extends Timestamped {
 
 // Tag model for categorization
 Tag {
-  id: UUID #1
-  name: string #2
-  slug: string #3
-  description?: string #4
+  id: pg.UUID #1
+  name: pg.Varchar #2
+  slug: pg.Varchar #3
+  description?: pg.Text #4
 
   @sql {
     table_name: "tags",
@@ -173,8 +162,8 @@ Tag {
 
 // PostTag junction table for many-to-many
 PostTag {
-  post_id: UUID #1
-  tag_id: UUID #2
+  post_id: pg.UUID #1
+  tag_id: pg.UUID #2
 
   @sql {
     table_name: "post_tags",
@@ -186,13 +175,13 @@ PostTag {
 
 // Session model for authentication
 Session {
-  id: UUID #1
-  user_id: UUID #2
-  token: string #3
-  ip_address?: string #4
-  user_agent?: string #5
-  expires_at: string #6
-  created_at: string #7
+  id: pg.UUID #1
+  user_id: pg.UUID #2
+  token: pg.Text #3
+  ip_address?: pg.Inet #4
+  user_agent?: pg.Text #5
+  expires_at: pg.TimestampTZ #6
+  created_at: pg.TimestampTZ #7
 
   @sql {
     table_name: "sessions",
@@ -210,11 +199,11 @@ Session {
 
 // Site settings stored in database
 Setting {
-  key: string #1
-  value: JSON #2
-  description?: string #3
-  updated_at: string #4
-  updated_by?: string #5
+  key: pg.Varchar #1
+  value: pg.JSONB #2
+  description?: pg.Text #3
+  updated_at: pg.TimestampTZ #4
+  updated_by?: pg.UUID #5
 
   @sql {
     table_name: "settings",
@@ -226,14 +215,14 @@ Setting {
 
 // Audit log for tracking changes
 AuditLog {
-  id: UUID #1
-  entity_type: string #2
-  entity_id: string #3
+  id: pg.UUID #1
+  entity_type: pg.Varchar #2
+  entity_id: pg.Varchar #3
   action: "create" | "update" | "delete" #4
-  changes: JSON #5
-  user_id?: UUID #6
-  ip_address?: string #7
-  timestamp: string #8
+  changes: pg.JSONB #5
+  user_id?: pg.UUID #6
+  ip_address?: pg.Inet #7
+  timestamp: pg.TimestampTZ #8
 
   @sql {
     table_name: "audit_logs",

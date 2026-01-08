@@ -121,11 +121,15 @@ import types from git:https://github.com/org/monorepo.git {
 Templates from the local filesystem:
 
 ```cdm
+// Reference a template directory (requires cdm-template.json manifest)
 import shared from ./templates/shared
 import common from ../common-schemas
+
+// Reference a CDM file directly (no manifest required)
+import pg from ../templates/sql-types/postgres.cdm
 ```
 
-Paths are resolved relative to the importing file.
+Paths are resolved relative to the importing file. Direct `.cdm` file references are useful for development or when you don't need the full template manifest structure.
 
 ## Namespace Access
 

@@ -242,8 +242,9 @@ fn test_typescript_output_contains_models() {
     let content = fs::read_to_string(&ts_output).expect("Should read TypeScript output");
 
     // Verify key types are present
+    // Note: UUID is now imported from pg.UUID template, not defined locally
     assert!(content.contains("export type Email"), "Should contain Email type");
-    assert!(content.contains("export type UUID"), "Should contain UUID type");
+    assert!(content.contains("export type Status"), "Should contain Status type");
     assert!(content.contains("export interface User"), "Should contain User interface");
     assert!(content.contains("export interface Post"), "Should contain Post interface");
     assert!(content.contains("export interface Comment"), "Should contain Comment interface");

@@ -1,10 +1,12 @@
 // validate.rs
 use std::collections::{HashMap, HashSet};
 use std::fmt;
+use std::path::Path;
 
 use crate::{
     Ancestor, Definition, DefinitionKind, Diagnostic, FieldInfo, Severity,
-    SymbolTable, field_exists_in_parents, is_builtin_type, is_type_defined, resolve_definition,
+    SymbolTable, ImportedNamespace, field_exists_in_parents, is_builtin_type,
+    is_type_defined, is_type_reference_defined, resolve_definition,
 };
 use crate::diagnostics::{
     E501_DUPLICATE_ENTITY_ID, E502_DUPLICATE_FIELD_ID,
@@ -13,6 +15,11 @@ use crate::diagnostics::{
 use crate::file_resolver::LoadedFileTree;
 use crate::resolved_schema::{build_resolved_schema, find_references_in_resolved};
 use crate::plugin_validation::validate_plugins;
+use crate::template_resolver::{
+    extract_template_imports, resolve_template, get_import_entity_id_source,
+    TemplateImport,
+};
+use crate::template_validation::validate_template_imports;
 use cdm_utils::{EntityId, Position, Span};
 
 #[cfg(test)]
@@ -181,6 +188,154 @@ pub fn validate(source: &str, ancestors: &[Ancestor]) -> ValidationResult {
     }
 }
 
+/// Validate a CDM source file with template namespaces pre-loaded.
+///
+/// This is an extended version of `validate()` that accepts pre-loaded template
+/// namespaces. Use this when you need to validate a file that imports templates.
+pub fn validate_with_templates(
+    source: &str,
+    ancestors: &[Ancestor],
+    namespaces: Vec<ImportedNamespace>,
+) -> ValidationResult {
+    let mut diagnostics: Vec<Diagnostic> = Vec::new();
+
+    // Parse
+    let mut parser = tree_sitter::Parser::new();
+    parser
+        .set_language(&grammar::LANGUAGE.into())
+        .expect("Failed to load grammar");
+
+    let tree = match parser.parse(source, None) {
+        Some(tree) => tree,
+        None => {
+            diagnostics.push(Diagnostic {
+                message: "Failed to parse file".to_string(),
+                severity: Severity::Error,
+                span: Span {
+                    start: Position { line: 0, column: 0 },
+                    end: Position { line: 0, column: 0 },
+                },
+            });
+            return ValidationResult {
+                diagnostics,
+                tree: None,
+                symbol_table: SymbolTable::new(),
+                model_fields: HashMap::new(),
+            };
+        }
+    };
+
+    // Collect syntax errors from tree-sitter
+    collect_syntax_errors(tree.root_node(), source, &mut diagnostics);
+
+    // Semantic validation with templates
+    let (symbol_table, model_fields) =
+        collect_semantic_errors_with_templates(tree.root_node(), source, ancestors, namespaces, &mut diagnostics);
+
+    ValidationResult {
+        diagnostics,
+        tree: Some(tree),
+        symbol_table,
+        model_fields,
+    }
+}
+
+/// Load template imports and convert them to ImportedNamespaces.
+///
+/// This function:
+/// 1. Resolves each template import to its location
+/// 2. Parses the template CDM file
+/// 3. Validates the template (recursively handling its own imports)
+/// 4. Builds a symbol table for the template
+/// 5. Returns ImportedNamespace structs ready to be added to the main symbol table
+pub fn load_template_namespaces(
+    imports: &[TemplateImport],
+    project_root: &Path,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> Vec<ImportedNamespace> {
+    let mut namespaces = Vec::new();
+
+    for import in imports {
+        match load_single_template(import, project_root) {
+            Ok(namespace) => {
+                namespaces.push(namespace);
+            }
+            Err(err) => {
+                diagnostics.push(Diagnostic {
+                    message: format!(
+                        "Failed to load template '{}': {}",
+                        import.namespace, err
+                    ),
+                    severity: Severity::Error,
+                    span: import.span.clone(),
+                });
+            }
+        }
+    }
+
+    namespaces
+}
+
+/// Load a single template and convert it to an ImportedNamespace.
+fn load_single_template(
+    import: &TemplateImport,
+    project_root: &Path,
+) -> Result<ImportedNamespace, String> {
+    // Resolve the template location
+    let loaded = resolve_template(import)
+        .map_err(|e| e.to_string())?;
+
+    // Read the template entry file
+    let template_source = std::fs::read_to_string(&loaded.entry_path)
+        .map_err(|e| format!("Failed to read template file {}: {}", loaded.entry_path.display(), e))?;
+
+    // Parse the template
+    let mut parser = tree_sitter::Parser::new();
+    parser
+        .set_language(&grammar::LANGUAGE.into())
+        .expect("Failed to load grammar");
+
+    let tree = parser.parse(&template_source, None)
+        .ok_or_else(|| "Failed to parse template file".to_string())?;
+
+    // Check for syntax errors
+    if tree.root_node().has_error() {
+        return Err("Template file contains syntax errors".to_string());
+    }
+
+    // Build symbol table for the template
+    // Note: Templates can have their own imports, but we don't recursively load them yet
+    // This is a simplification - full implementation would handle nested templates
+    let mut diagnostics = Vec::new();
+    let (symbol_table, model_fields) = collect_definitions(
+        tree.root_node(),
+        &template_source,
+        &[], // Templates don't inherit from the main file's ancestors
+        &mut diagnostics,
+    );
+
+    // Check for validation errors in the template
+    if diagnostics.iter().any(|d| d.severity == Severity::Error) {
+        let errors: Vec<String> = diagnostics
+            .iter()
+            .filter(|d| d.severity == Severity::Error)
+            .map(|d| d.message.clone())
+            .collect();
+        return Err(format!("Template validation errors: {}", errors.join("; ")));
+    }
+
+    // Get the entity ID source for this template
+    let template_source_id = get_import_entity_id_source(import, project_root);
+
+    Ok(ImportedNamespace {
+        name: import.namespace.clone(),
+        template_path: loaded.entry_path.clone(),
+        symbol_table,
+        model_fields,
+        template_source: template_source_id,
+    })
+}
+
 /// Validate a LoadedFileTree with all its ancestors.
 ///
 /// This is the high-level API for validating CDM files that have been loaded
@@ -219,8 +374,37 @@ pub fn validate_tree_with_options(tree: LoadedFileTree, check_ids: bool) -> Resu
             }]
         })?;
 
-        // Validate ancestor
-        let ancestor_result = validate(&source, &ancestors);
+        // Get project root for this ancestor
+        let ancestor_project_root = loaded_ancestor.path.parent()
+            .unwrap_or_else(|| Path::new("."));
+
+        // Parse to extract template imports for ancestor
+        let mut parser = tree_sitter::Parser::new();
+        parser
+            .set_language(&grammar::LANGUAGE.into())
+            .expect("Failed to load grammar");
+
+        let ancestor_namespaces = if let Some(parse_tree) = parser.parse(&source, None) {
+            let template_imports = extract_template_imports(parse_tree.root_node(), &source, &loaded_ancestor.path);
+
+            // Validate template imports
+            let mut template_diagnostics = validate_template_imports(&template_imports);
+            if template_diagnostics.iter().any(|d| d.severity == Severity::Error) {
+                return Err(template_diagnostics);
+            }
+
+            // Load template namespaces for ancestor
+            let namespaces = load_template_namespaces(&template_imports, ancestor_project_root, &mut template_diagnostics);
+            if template_diagnostics.iter().any(|d| d.severity == Severity::Error) {
+                return Err(template_diagnostics);
+            }
+            namespaces
+        } else {
+            Vec::new()
+        };
+
+        // Validate ancestor with its templates
+        let ancestor_result = validate_with_templates(&source, &ancestors, ancestor_namespaces);
 
         // Check for validation errors
         if ancestor_result.has_errors() {
@@ -250,7 +434,51 @@ pub fn validate_tree_with_options(tree: LoadedFileTree, check_ids: bool) -> Resu
         }]
     })?;
 
-    let mut result = validate(&main_source, &ancestors);
+    // Get the project root directory for resolving relative template paths
+    let project_root = main_path.parent()
+        .unwrap_or_else(|| Path::new("."));
+
+    // First, parse the source to extract template imports
+    let mut parser = tree_sitter::Parser::new();
+    parser
+        .set_language(&grammar::LANGUAGE.into())
+        .expect("Failed to load grammar");
+
+    let parse_tree = parser.parse(&main_source, None).ok_or_else(|| {
+        vec![Diagnostic {
+            message: "Failed to parse file".to_string(),
+            severity: Severity::Error,
+            span: Span {
+                start: Position { line: 0, column: 0 },
+                end: Position { line: 0, column: 0 },
+            },
+        }]
+    })?;
+
+    // Extract template imports
+    let template_imports = extract_template_imports(parse_tree.root_node(), &main_source, &main_path);
+
+    // Validate template imports for namespace conflicts
+    let mut template_diagnostics = validate_template_imports(&template_imports);
+
+    // If there are namespace conflicts, return early
+    if template_diagnostics.iter().any(|d| d.severity == Severity::Error) {
+        return Err(template_diagnostics);
+    }
+
+    // Load template namespaces
+    let namespaces = load_template_namespaces(&template_imports, project_root, &mut template_diagnostics);
+
+    // If template loading failed, return early
+    if template_diagnostics.iter().any(|d| d.severity == Severity::Error) {
+        return Err(template_diagnostics);
+    }
+
+    // Validate main file with templates loaded
+    let mut result = validate_with_templates(&main_source, &ancestors, namespaces);
+
+    // Add any template warnings to the result
+    result.diagnostics.extend(template_diagnostics);
 
     // Check for semantic errors before plugin validation
     if result.has_errors() {
@@ -547,6 +775,8 @@ fn collect_type_references_recursive(
 ) {
     match node.kind() {
         "type_identifier" => {
+            // type_identifier can contain either a simple identifier or a qualified_identifier
+            // We capture the full text which works for both cases
             let type_name = get_node_text(node, source);
             references.push(type_name.to_string());
         }
@@ -849,6 +1079,40 @@ fn collect_semantic_errors(
     detect_type_alias_cycles(&symbol_table, diagnostics);
 
     // Pass 2c: Validate references and fields
+    validate_references(root, source, &symbol_table, &model_fields, ancestors, diagnostics);
+
+    // Pass 2d: Validate entity IDs
+    validate_entity_ids(&symbol_table, &model_fields, diagnostics);
+
+    (symbol_table, model_fields)
+}
+
+/// Semantic validation with template namespaces.
+///
+/// This is an extended version of `collect_semantic_errors` that also
+/// accepts pre-loaded template namespaces and adds them to the symbol table.
+fn collect_semantic_errors_with_templates(
+    root: tree_sitter::Node,
+    source: &str,
+    ancestors: &[Ancestor],
+    namespaces: Vec<ImportedNamespace>,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> (SymbolTable, HashMap<String, Vec<FieldInfo>>) {
+    // Pass 1: Build symbol table (also collects type alias references and model fields)
+    let (mut symbol_table, model_fields) = collect_definitions(root, source, ancestors, diagnostics);
+
+    // Add template namespaces to the symbol table
+    for namespace in namespaces {
+        symbol_table.add_namespace(namespace);
+    }
+
+    // Pass 2a: Detect inheritance cycles
+    detect_inheritance_cycles(&symbol_table, ancestors, diagnostics);
+
+    // Pass 2b: Detect type alias cycles
+    detect_type_alias_cycles(&symbol_table, diagnostics);
+
+    // Pass 2c: Validate references and fields (now with template support)
     validate_references(root, source, &symbol_table, &model_fields, ancestors, diagnostics);
 
     // Pass 2d: Validate entity IDs
@@ -1655,13 +1919,32 @@ fn validate_type_expression(
 ) {
     match node.kind() {
         "type_identifier" => {
-            let type_name = get_node_text(node, source);
-            if !is_type_defined(type_name, symbol_table, ancestors) {
-                diagnostics.push(Diagnostic {
-                    message: format!("Undefined type '{}'", type_name),
-                    severity: Severity::Error,
-                    span: node_span(node),
-                });
+            // type_identifier can contain either a simple identifier or a qualified_identifier
+            let mut cursor = node.walk();
+            let first_child = node.children(&mut cursor).next();
+
+            if let Some(child) = first_child {
+                if child.kind() == "qualified_identifier" {
+                    // Handle qualified type: namespace.Type (e.g., pg.UUID, auth.Role)
+                    let qualified_name = get_node_text(child, source);
+                    if !is_type_reference_defined(qualified_name, symbol_table, ancestors) {
+                        diagnostics.push(Diagnostic {
+                            message: format!("Undefined type '{}'", qualified_name),
+                            severity: Severity::Error,
+                            span: node_span(child),
+                        });
+                    }
+                } else {
+                    // Simple identifier
+                    let type_name = get_node_text(node, source);
+                    if !is_type_defined(type_name, symbol_table, ancestors) {
+                        diagnostics.push(Diagnostic {
+                            message: format!("Undefined type '{}'", type_name),
+                            severity: Severity::Error,
+                            span: node_span(node),
+                        });
+                    }
+                }
             }
         }
         "array_type" => {

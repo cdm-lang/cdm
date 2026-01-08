@@ -4,6 +4,9 @@
 
 @extends ./base.cdm
 
+// Import the same PostgreSQL types (inherited from base, but explicit for clarity)
+import pg from ../templates/sql-types/postgres.cdm
+
 // Override plugin config for client context
 @typescript from ./plugins/typescript {
   build_output: "./build/client"
@@ -19,8 +22,8 @@ User {
   -salt
 
   // Add client-specific fields
-  avatar_url?: string #15
-  is_online: boolean = false #16
+  avatar_url?: pg.Text #15
+  is_online: pg.Boolean = false #16
 }
 
 // Remove the approval flag from Comment in client view

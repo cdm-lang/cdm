@@ -248,8 +248,60 @@ fn resolve_local_template(path: &str, source_file: &Path) -> Result<LoadedTempla
     let source_dir = source_file
         .parent()
         .context("Failed to get source file directory")?;
-    let template_dir = source_dir.join(path);
+    let template_path = source_dir.join(path);
 
+    // Check if this is a direct CDM file reference
+    if path.ends_with(".cdm") {
+        return resolve_local_template_file(&template_path);
+    }
+
+    // Otherwise, treat as a directory with a manifest
+    resolve_local_template_dir(&template_path)
+}
+
+/// Resolve a direct CDM file as a template (no manifest required)
+fn resolve_local_template_file(file_path: &Path) -> Result<LoadedTemplate> {
+    if !file_path.exists() {
+        anyhow::bail!(
+            "Template file not found: {}",
+            file_path.display()
+        );
+    }
+
+    // Extract the file name for the manifest
+    let file_name = file_path
+        .file_name()
+        .and_then(|n| n.to_str())
+        .unwrap_or("template.cdm")
+        .to_string();
+
+    let template_dir = file_path
+        .parent()
+        .unwrap_or_else(|| Path::new("."))
+        .to_path_buf();
+
+    // Create a synthetic manifest for direct file imports
+    let manifest = TemplateManifest {
+        name: file_name.trim_end_matches(".cdm").to_string(),
+        version: "0.0.0".to_string(),
+        description: format!("Direct import from {}", file_path.display()),
+        entry: file_name,
+        exports: HashMap::new(),
+    };
+
+    Ok(LoadedTemplate {
+        manifest,
+        path: template_dir
+            .canonicalize()
+            .unwrap_or_else(|_| template_dir.clone()),
+        entry_path: file_path
+            .canonicalize()
+            .unwrap_or_else(|_| file_path.to_path_buf()),
+    })
+}
+
+/// Resolve a template directory with a manifest
+fn resolve_local_template_dir(template_dir: &Path) -> Result<LoadedTemplate> {
     // Read manifest
     let manifest_path = template_dir.join("cdm-template.json");
     if !manifest_path.exists() {
@@ -276,10 +328,10 @@ fn resolve_local_template(path: &str, source_file: &Path) -> Result<LoadedTempla
         manifest,
         path: template_dir
             .canonicalize()
-            .unwrap_or_else(|_| template_dir.clone()),
+            .unwrap_or_else(|_| template_dir.to_path_buf()),
         entry_path: entry_path
             .canonicalize()
-            .unwrap_or_else(|_| entry_path.clone()),
+            .unwrap_or_else(|_| entry_path),
     })
 }
 

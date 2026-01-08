@@ -4911,3 +4911,287 @@ fn test_plugin_resolution_cached_registry() {
     assert_eq!(path1, path2, "Cached plugin should return same path");
     assert!(path1.exists(), "Cached plugin file should exist");
 }
+
+// =============================================================================
+// Template Type Resolution Tests
+// =============================================================================
+
+#[test]
+fn test_qualified_type_undefined_namespace() {
+    // Qualified type with undefined namespace should fail validation
+    let source = r#"
+        User {
+            id: pg.UUID
+        }
+    "#;
+    let result = validate_source(source);
+
+    // Should have an error about undefined type
+    assert!(
+        has_error_containing(&result, "Undefined type 'pg.UUID'"),
+        "Expected error about undefined qualified type, got: {:?}",
+        get_errors(&result)
+    );
+}
+
+#[test]
+fn test_qualified_type_in_array() {
+    // Qualified type in array should also fail if namespace undefined
+    let source = r#"
+        User {
+            ids: pg.UUID[]
+        }
+    "#;
+    let result = validate_source(source);
+
+    assert!(
+        has_error_containing(&result, "Undefined type 'pg.UUID'"),
+        "Expected error about undefined qualified type in array, got: {:?}",
+        get_errors(&result)
+    );
+}
+
+#[test]
+fn test_qualified_type_in_union() {
+    // Qualified type in union should fail if namespace undefined
+    let source = r#"
+        User {
+            id: string | pg.UUID
+        }
+    "#;
+    let result = validate_source(source);
+
+    assert!(
+        has_error_containing(&result, "Undefined type 'pg.UUID'"),
+        "Expected error about undefined qualified type in union, got: {:?}",
+        get_errors(&result)
+    );
+}
+
+#[test]
+fn test_validate_with_templates_loads_namespace() {
+    // Test that validate_with_templates correctly uses loaded namespaces
+    use crate::ImportedNamespace;
+    use std::path::PathBuf;
+
+    // Create a mock namespace with a UUID type
+    let mut pg_symbol_table = SymbolTable::new();
+    pg_symbol_table.definitions.insert(
+        "UUID".to_string(),
+        Definition {
+            kind: DefinitionKind::TypeAlias {
+                references: vec!["string".to_string()],
+                type_expr: "string".to_string(),
+            },
+            span: cdm_utils::Span {
+                start: cdm_utils::Position { line: 0, column: 0 },
+                end: cdm_utils::Position { line: 0, column: 4 },
+            },
+            plugin_configs: std::collections::HashMap::new(),
+            entity_id: None,
+        },
+    );
+
+    let pg_namespace = ImportedNamespace {
+        name: "pg".to_string(),
+        template_path: PathBuf::from("test/pg.cdm"),
+        symbol_table: pg_symbol_table,
+        model_fields: std::collections::HashMap::new(),
+        template_source: cdm_utils::EntityIdSource::Local,
+    };
+
+    // Source that uses the pg.UUID type
+    let source = r#"
+        User {
+            id: pg.UUID
+        }
+    "#;
+
+    // Validate with the namespace pre-loaded
+    let result = validate_with_templates(source, &[], vec![pg_namespace]);
+
+    // Should have no errors about undefined type
+    let errors = get_errors(&result);
+    assert!(
+        !has_error_containing(&result, "Undefined type 'pg.UUID'"),
+        "Should not have error about pg.UUID when namespace is loaded, got: {:?}",
+        errors
+    );
+}
+
+#[test]
+fn test_validate_with_templates_multiple_namespaces() {
+    // Test loading multiple namespaces
+    use crate::ImportedNamespace;
+    use std::path::PathBuf;
+
+    // Create pg namespace with UUID
+    let mut pg_symbol_table = SymbolTable::new();
+    pg_symbol_table.definitions.insert(
+        "UUID".to_string(),
+        Definition {
+            kind: DefinitionKind::TypeAlias {
+                references: vec!["string".to_string()],
+                type_expr: "string".to_string(),
+            },
+            span: cdm_utils::Span {
+                start: cdm_utils::Position { line: 0, column: 0 },
+                end: cdm_utils::Position { line: 0, column: 0 },
+            },
+            plugin_configs: std::collections::HashMap::new(),
+            entity_id: None,
+        },
+    );
+
+    let pg_namespace = ImportedNamespace {
+        name: "pg".to_string(),
+        template_path: PathBuf::from("test/pg.cdm"),
+        symbol_table: pg_symbol_table,
+        model_fields: std::collections::HashMap::new(),
+        template_source: cdm_utils::EntityIdSource::Local,
+    };
+
+    // Create auth namespace with Role model
+    let mut auth_symbol_table = SymbolTable::new();
+    auth_symbol_table.definitions.insert(
+        "Role".to_string(),
+        Definition {
+            kind: DefinitionKind::Model {
+                extends: vec![],
+            },
+            span: cdm_utils::Span {
+                start: cdm_utils::Position { line: 0, column: 0 },
+                end: cdm_utils::Position { line: 0, column: 0 },
+            },
+            plugin_configs: std::collections::HashMap::new(),
+            entity_id: None,
+        },
+    );
+
+    let auth_namespace = ImportedNamespace {
+        name: "auth".to_string(),
+        template_path: PathBuf::from("test/auth.cdm"),
+        symbol_table: auth_symbol_table,
+        model_fields: std::collections::HashMap::new(),
+        template_source: cdm_utils::EntityIdSource::Local,
+    };
+
+    // Source that uses types from both namespaces
+    let source = r#"
+        User {
+            id: pg.UUID
+            role: auth.Role
+        }
+    "#;
+
+    // Validate with both namespaces loaded
+    let result = validate_with_templates(source, &[], vec![pg_namespace, auth_namespace]);
+
+    // Should have no errors
+    let errors = get_errors(&result);
+    assert!(
+        errors.is_empty(),
+        "Should have no errors when all namespaces are loaded, got: {:?}",
+        errors
+    );
+}
+
+#[test]
+fn test_qualified_type_wrong_namespace() {
+    // Test that using a type from a wrong namespace still fails
+    use crate::ImportedNamespace;
+    use std::path::PathBuf;
+
+    // Create pg namespace with UUID
+    let mut pg_symbol_table = SymbolTable::new();
+    pg_symbol_table.definitions.insert(
+        "UUID".to_string(),
+        Definition {
+            kind: DefinitionKind::TypeAlias {
+                references: vec!["string".to_string()],
+                type_expr: "string".to_string(),
+            },
+            span: cdm_utils::Span {
+                start: cdm_utils::Position { line: 0, column: 0 },
+                end: cdm_utils::Position { line: 0, column: 0 },
+            },
+            plugin_configs: std::collections::HashMap::new(),
+            entity_id: None,
+        },
+    );
+
+    let pg_namespace = ImportedNamespace {
+        name: "pg".to_string(),
+        template_path: PathBuf::from("test/pg.cdm"),
+        symbol_table: pg_symbol_table,
+        model_fields: std::collections::HashMap::new(),
+        template_source: cdm_utils::EntityIdSource::Local,
+    };
+
+    // Source that tries to use mysql.UUID (wrong namespace)
+    let source = r#"
+        User {
+            id: mysql.UUID
+        }
+    "#;
+
+    // Validate with only pg namespace loaded
+    let result = validate_with_templates(source, &[], vec![pg_namespace]);
+
+    // Should have an error about undefined namespace
+    assert!(
+        has_error_containing(&result, "Undefined type 'mysql.UUID'"),
+        "Expected error about undefined namespace, got: {:?}",
+        get_errors(&result)
+    );
+}
+
+#[test]
+fn test_qualified_type_wrong_type_name() {
+    // Test that using a wrong type name in correct namespace fails
+    use crate::ImportedNamespace;
+    use std::path::PathBuf;
+
+    // Create pg namespace with UUID only
+    let mut pg_symbol_table = SymbolTable::new();
+    pg_symbol_table.definitions.insert(
+        "UUID".to_string(),
+        Definition {
+            kind: DefinitionKind::TypeAlias {
+                references: vec!["string".to_string()],
+                type_expr: "string".to_string(),
+            },
+            span: cdm_utils::Span {
+                start: cdm_utils::Position { line: 0, column: 0 },
+                end: cdm_utils::Position { line: 0, column: 0 },
+            },
+            plugin_configs: std::collections::HashMap::new(),
+            entity_id: None,
+        },
+    );
+
+    let pg_namespace = ImportedNamespace {
+        name: "pg".to_string(),
+        template_path: PathBuf::from("test/pg.cdm"),
+        symbol_table: pg_symbol_table,
+        model_fields: std::collections::HashMap::new(),
+        template_source: cdm_utils::EntityIdSource::Local,
+    };
+
+    // Source that tries to use pg.INTEGER (type not in namespace)
+    let source = r#"
+        User {
+            id: pg.INTEGER
+        }
+    "#;
+
+    // Validate with pg namespace loaded
+    let result = validate_with_templates(source, &[], vec![pg_namespace]);
+
+    // Should have an error about undefined type in namespace
+    assert!(
+        has_error_containing(&result, "Undefined type 'pg.INTEGER'"),
+        "Expected error about undefined type in namespace, got: {:?}",
+        get_errors(&result)
+    );
+}
