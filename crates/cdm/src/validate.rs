@@ -1399,12 +1399,11 @@ fn resolve_type(
         return ResolvedType::Unknown;
     }
     
-    // Check for primitive types
+    // Check for primitive types (only spec-defined built-ins)
     match type_expr {
         "string" => return ResolvedType::Primitive("string".to_string()),
         "number" => return ResolvedType::Primitive("number".to_string()),
         "boolean" => return ResolvedType::Primitive("boolean".to_string()),
-        "decimal" => return ResolvedType::Primitive("number".to_string()), // decimal is numeric
         "JSON" => return ResolvedType::Unknown, // JSON accepts any value
         _ => {}
     }

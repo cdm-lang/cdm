@@ -1,12 +1,38 @@
+// client.cdm
+// Client-facing context that removes sensitive fields and internal models
+// This demonstrates the CDM context system for creating API/client-safe views
+
 @extends ./base.cdm
 
-User {
-  -password_hash    // Remove sensitive fields
-  -salt
-  -last_login
-  
-  avatar_url?: string   // Add client-specific fields
-  is_online: boolean = false
+// Override plugin config for client context
+@typescript from ./plugins/typescript {
+  build_output: "./build/client"
 }
 
--Session   // Remove entire model from client context
+// =============================================================================
+// MODEL MODIFICATIONS
+// =============================================================================
+
+// Remove sensitive fields from User for client consumption
+User {
+  -password_hash
+  -salt
+
+  // Add client-specific fields
+  avatar_url?: string #15
+  is_online: boolean = false #16
+}
+
+// Remove the approval flag from Comment in client view
+Comment {
+  -is_approved
+}
+
+// =============================================================================
+// MODEL REMOVALS
+// =============================================================================
+
+// Remove internal models from client context
+-Session
+-Setting
+-AuditLog

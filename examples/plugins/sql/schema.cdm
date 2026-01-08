@@ -1,0 +1,144 @@
+// SQL Plugin Configuration Schema
+
+GlobalSettings {
+  // Database dialect (required)
+  dialect: "postgresql" | "sqlite" = "postgresql"
+
+  // Schema/namespace (PostgreSQL only, ignored for SQLite)
+  schema?: string
+
+  // Naming conventions for tables and columns
+  table_name_format: "snake_case" | "preserve" | "camel_case" | "pascal_case" = "snake_case"
+  column_name_format: "snake_case" | "preserve" | "camel_case" | "pascal_case" = "snake_case"
+
+  // Automatically pluralize table names (e.g., User -> users)
+  pluralize_table_names: boolean = true
+
+  // Default string column length (when no explicit length specified)
+  default_string_length: number = 255
+
+  // Default SQL type for CDM number type
+  number_type: "real" | "double" | "numeric" = "double"
+
+  // Nullability inference from CDM optional syntax
+  infer_not_null: boolean = true
+
+  // Apply CDM default values as SQL DEFAULT constraints
+  apply_cdm_defaults: boolean = true
+}
+
+TypeAliasSettings {
+  // SQL type override for this type alias (e.g., "VARCHAR(320)", "UUID", "TEXT")
+  type?: string
+
+  // Default value SQL expression (e.g., "gen_random_uuid()", "CURRENT_TIMESTAMP")
+  default?: string
+
+  // Comment/description for this type alias
+  comment?: string
+}
+
+ModelSettings {
+  // Table name override (default: model name with table_name_format applied)
+  table_name?: string
+
+  // Schema/namespace override (PostgreSQL only)
+  schema?: string
+
+  // Indexes (including primary keys and unique constraints)
+  indexes?: Index[]
+
+  // Constraints (NOT NULL, DEFAULT, CHECK, FOREIGN KEY, etc.)
+  constraints?: Constraint[]
+
+  // Skip table generation
+  skip?: boolean
+}
+
+FieldSettings {
+  // Column name override
+  column_name?: string
+
+  // SQL type override (e.g., "TEXT", "VARCHAR(500)", "JSONB")
+  type?: string
+
+  // Foreign key reference
+  references?: Reference
+
+  // Table relationship configuration (for model references and arrays)
+  relationship?: Relationship
+
+  // Comment/description
+  comment?: string
+
+  // Skip this field in table generation
+  skip?: boolean
+}
+
+// Index definition (handles PRIMARY KEY, UNIQUE, and regular indexes)
+Index {
+  fields: string[]  // One or more field names
+
+  // PRIMARY KEY constraint
+  primary?: boolean
+
+  // UNIQUE constraint
+  unique?: boolean
+
+  // Index method (PostgreSQL)
+  method?: "btree" | "hash" | "gin" | "gist" | "spgist" | "brin"
+
+  // Custom index name (auto-generated if not provided)
+  name?: string
+
+  // Partial index condition (PostgreSQL: WHERE clause)
+  where?: string
+}
+
+// Constraint definition
+Constraint {
+  // Constraint type
+  type: "not_null" | "null" | "default" | "check" | "foreign_key" | "exclude" | "custom"
+
+  // Fields involved in the constraint
+  fields: string[]
+
+  // SQL expression (required for: default, check, exclude, custom)
+  expression?: string
+
+  // Foreign key reference (required for: foreign_key)
+  reference?: Reference
+
+  // Constraint name (auto-generated if not provided)
+  name?: string
+}
+
+// Foreign key reference
+Reference {
+  // Referenced table name (CDM model name)
+  table: string
+
+  // Referenced column (default: "id")
+  column?: string
+
+  // ON DELETE action
+  on_delete?: "cascade" | "set_null" | "restrict" | "no_action" | "set_default"
+
+  // ON UPDATE action
+  on_update?: "cascade" | "set_null" | "restrict" | "no_action" | "set_default"
+}
+
+// Relationship configuration (for model references and arrays)
+Relationship {
+  // Relationship type
+  type: "one_to_one" | "one_to_many" | "many_to_many"
+
+  // Junction table name (required for many_to_many)
+  through?: string
+
+  // Foreign key column name override
+  foreign_key?: string
+
+  // Require this relationship (adds NOT NULL constraint)
+  required?: boolean
+}

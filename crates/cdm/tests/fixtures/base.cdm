@@ -1,0 +1,37 @@
+// Test fixture for plugin resolver tests
+// This file demonstrates plugin usage for integration testing
+
+// Local plugins for testing
+@typescript from ./plugins/typescript {
+  build_output: "./build"
+}
+
+@sql from ./plugins/sql {
+  dialect: "postgresql",
+  schema: "public",
+  build_output: "./build",
+  migrations_output: "./migrate"
+}
+
+// Simple type alias
+Email: string {
+  @sql { type: "VARCHAR(320)" }
+} #1
+
+UUID: string {
+  @sql { type: "UUID" }
+} #2
+
+// Simple model for testing
+User {
+  id: UUID #1
+  email: Email #2
+  name: string #3
+
+  @sql {
+    table_name: "users",
+    indexes: [
+      { fields: ["email"], unique: true }
+    ]
+  }
+} #10

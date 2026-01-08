@@ -1,35 +1,246 @@
-@typescript {
+// base.cdm
+// Complete CDM example demonstrating the language features
+// This is the base schema that can be extended by context files
+
+// =============================================================================
+// TEMPLATE IMPORTS (PREVIEW)
+// =============================================================================
+
+// Note: Template imports are parsed but type resolution is not yet implemented.
+// When fully implemented, you'll be able to import SQL types like this:
+//
+//   import pg from sql-types/postgres
+//
+// And use them in your schema:
+//
+//   User {
+//     id: pg.UUID #1
+//     created_at: pg.TimestampTZ #2
+//   }
+//
+// For now, define types locally or use the built-in primitives.
+
+// =============================================================================
+// PLUGIN CONFIGURATION
+// =============================================================================
+
+// Local plugin from file system (for development or custom plugins)
+// TypeScript plugin generates type definitions from the schema
+@typescript from ./plugins/typescript {
   build_output: "./build"
 }
 
-@sql {
+// Local SQL plugin for database schema and migrations
+// Note: Registry plugins (@sql without "from") are available but this example
+// uses local plugins to demonstrate development workflow
+@sql from ./plugins/sql {
+  dialect: "postgresql",
+  schema: "public",
   build_output: "./build",
-  migrations_output: "./migrate",
-  dialect: "postgresql"
+  migrations_output: "./migrate"
 }
 
-User {
-  id
-  email
-  password_hash
-  salt
-  name
-  bio?
-  role
-  created_at
-  last_login?
-}
-Post {
-  id
-  author
-  title
-  content
-  status
-  internal_notes?
-  view_count
-  created_at
-  published_at?
-}
+// =============================================================================
+// TYPE ALIASES
+// =============================================================================
+
+// Simple type aliases with SQL type mappings
+Email: string {
+  @sql { type: "VARCHAR(320)" }
+} #1
+
+UUID: string {
+  @sql { type: "UUID", default: "gen_random_uuid()" }
+} #2
+
+// Union type alias for status values
+Status: "active" | "pending" | "suspended" | "deleted" {
+  @sql { type: "VARCHAR(20)" }
+} #3
+
+// Union type alias for user roles
+Role: "admin" | "moderator" | "member" | "guest" {
+  @sql { type: "VARCHAR(20)" }
+} #4
+
+// Union type alias for content status
+ContentStatus: "draft" | "published" | "archived" {
+  @sql { type: "VARCHAR(20)" }
+} #5
+
+// =============================================================================
+// BASE MODELS (for inheritance)
+// =============================================================================
+
+// Timestamped base model
+Timestamped {
+  created_at: string #1
+  updated_at: string #2
+
+  @sql {
+    indexes: [{ fields: ["created_at"] }]
+  }
+} #10
+
+// Auditable base model - adds tracking fields
+Auditable extends Timestamped {
+  created_by?: string #3
+  updated_by?: string #4
+} #11
+
+// =============================================================================
+// CORE MODELS
+// =============================================================================
+
+// User model with all fields
+User extends Auditable {
+  id: UUID #5
+  email: Email #6
+  username: string #7
+  password_hash: string #8
+  salt: string #9
+  name: string #10
+  bio?: string #11
+  role: Role = "member" #12
+  status: Status = "pending" #13
+  last_login?: string #14
+
+  @sql {
+    table_name: "users",
+    indexes: [
+      { fields: ["email"], unique: true },
+      { fields: ["username"], unique: true },
+      { fields: ["status"] }
+    ]
+  }
+} #20
+
+// Post model with relationships
+Post extends Timestamped {
+  id: UUID #3
+  author_id: UUID #4
+  title: string #5
+  slug: string #6
+  content: string #7
+  excerpt?: string #8
+  status: ContentStatus = "draft" #9
+  published_at?: string #10
+  view_count: number = 0 #11
+
+  @sql {
+    table_name: "posts",
+    indexes: [
+      { fields: ["slug"], unique: true },
+      { fields: ["author_id"] },
+      { fields: ["status", "published_at"] }
+    ]
+  }
+} #21
+
+// Comment model with self-referential relationship
+Comment extends Timestamped {
+  id: UUID #3
+  post_id: UUID #4
+  author_id: UUID #5
+  parent_id?: UUID #6
+  content: string #7
+  is_approved: boolean = false #8
+
+  @sql {
+    table_name: "comments",
+    indexes: [
+      { fields: ["post_id"] },
+      { fields: ["author_id"] },
+      { fields: ["parent_id"] }
+    ]
+  }
+} #22
+
+// Tag model for categorization
+Tag {
+  id: UUID #1
+  name: string #2
+  slug: string #3
+  description?: string #4
+
+  @sql {
+    table_name: "tags",
+    indexes: [
+      { fields: ["slug"], unique: true }
+    ]
+  }
+} #23
+
+// PostTag junction table for many-to-many
+PostTag {
+  post_id: UUID #1
+  tag_id: UUID #2
+
+  @sql {
+    table_name: "post_tags",
+    indexes: [
+      { fields: ["post_id", "tag_id"], primary: true }
+    ]
+  }
+} #24
+
+// Session model for authentication
 Session {
-  id
-}
+  id: UUID #1
+  user_id: UUID #2
+  token: string #3
+  ip_address?: string #4
+  user_agent?: string #5
+  expires_at: string #6
+  created_at: string #7
+
+  @sql {
+    table_name: "sessions",
+    indexes: [
+      { fields: ["token"], unique: true },
+      { fields: ["user_id"] },
+      { fields: ["expires_at"] }
+    ]
+  }
+} #25
+
+// =============================================================================
+// CONFIGURATION MODELS
+// =============================================================================
+
+// Site settings stored in database
+Setting {
+  key: string #1
+  value: JSON #2
+  description?: string #3
+  updated_at: string #4
+  updated_by?: string #5
+
+  @sql {
+    table_name: "settings",
+    indexes: [
+      { fields: ["key"], primary: true }
+    ]
+  }
+} #30
+
+// Audit log for tracking changes
+AuditLog {
+  id: UUID #1
+  entity_type: string #2
+  entity_id: string #3
+  action: "create" | "update" | "delete" #4
+  changes: JSON #5
+  user_id?: UUID #6
+  ip_address?: string #7
+  timestamp: string #8
+
+  @sql {
+    table_name: "audit_logs",
+    indexes: [
+      { fields: ["entity_type", "entity_id"] },
+      { fields: ["user_id"] },
+      { fields: ["timestamp"] }
+    ]
+  }
+} #31

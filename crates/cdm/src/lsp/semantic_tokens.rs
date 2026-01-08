@@ -50,10 +50,9 @@ const MODIFIER_DEFINITION: u32 = 1 << 1;
 const MODIFIER_READONLY: u32 = 1 << 2;
 const MODIFIER_MODIFICATION: u32 = 1 << 4;
 
-/// Built-in CDM types
+/// Built-in CDM types (matches symbol_table::is_builtin_type)
 const BUILTIN_TYPES: &[&str] = &[
-    "string", "number", "boolean", "decimal", "date", "datetime",
-    "timestamp", "binary", "json", "JSON"
+    "string", "number", "boolean", "JSON"
 ];
 
 /// Check if a string is a built-in type

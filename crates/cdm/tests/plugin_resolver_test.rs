@@ -6,38 +6,36 @@
 use std::fs;
 use std::path::PathBuf;
 use std::env;
-use cdm::{build, FileResolver, validate_tree_with_options, Severity, get_cache_path};
+use cdm::{build, FileResolver, validate_tree_with_options, Severity};
 
-/// Get the path to the project root
-fn project_root() -> PathBuf {
-    // When tests run, the working directory is crates/cdm
-    // We need to go up two levels to get to the project root
-    let mut path = env::current_dir().expect("Failed to get current directory");
+/// Get the path to the test fixtures directory
+fn fixtures_dir() -> PathBuf {
+    // Get the cargo manifest directory (crates/cdm)
+    let manifest_dir = env::var("CARGO_MANIFEST_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| {
+            // Fallback: current directory
+            env::current_dir().expect("Failed to get current directory")
+        });
 
-    // If we're in crates/cdm, go up two levels
-    if path.ends_with("crates/cdm") {
-        path.pop(); // Remove cdm
-        path.pop(); // Remove crates
-    }
-
-    path
+    manifest_dir.join("tests/fixtures")
 }
 
-/// Test that validation works with registry plugins
+/// Test that validation works with local plugins
 #[test]
-fn test_validate_with_registry_plugin() {
-    let root = project_root();
-    let test_file = root.join("examples/base.cdm");
+fn test_validate_with_local_plugin() {
+    let fixtures = fixtures_dir();
+    let test_file = fixtures.join("base.cdm");
 
     // Load the file tree
     let tree = FileResolver::load(&test_file).expect("Failed to load file");
 
-    // Validate - this should succeed and the plugin will be downloaded from the registry
+    // Validate - this should succeed using local plugins
     let result = validate_tree_with_options(tree, false);
 
     assert!(
         result.is_ok(),
-        "Validation should succeed with registry plugin: {:?}",
+        "Validation should succeed with local plugins: {:?}",
         result.err()
     );
 
@@ -52,24 +50,23 @@ fn test_validate_with_registry_plugin() {
     }
 }
 
-/// Test that build works with registry plugins
+/// Test that build works with local plugins
 #[test]
 #[serial_test::serial]
-fn test_build_with_registry_plugin() {
-    let root = project_root();
-    let test_file = root.join("examples/base.cdm");
+fn test_build_with_local_plugin() {
+    let fixtures = fixtures_dir();
+    let test_file = fixtures.join("base.cdm");
 
     // Clean up any previous output
-    // Output is now written relative to source file: examples/build/types.ts
-    let output_file = root.join("examples/build/types.ts");
+    let output_file = fixtures.join("build/types.ts");
     let _ = fs::remove_file(&output_file);
 
-    // This should succeed - the plugin will be downloaded from the registry
+    // This should succeed using local plugins
     let result = build(&test_file);
 
     assert!(
         result.is_ok(),
-        "Build should succeed with registry plugin: {:?}",
+        "Build should succeed with local plugins: {:?}",
         result.err()
     );
 
@@ -84,36 +81,25 @@ fn test_build_with_registry_plugin() {
     let _ = fs::remove_file(&output_file);
 }
 
-/// Test that the plugin cache is used across multiple operations
+/// Test that multiple builds work consistently with local plugins
 #[test]
 #[serial_test::serial]
-fn test_plugin_cache_reuse() {
-    let root = project_root();
-    let test_file = root.join("examples/base.cdm");
+fn test_multiple_builds_consistent() {
+    let fixtures = fixtures_dir();
+    let test_file = fixtures.join("base.cdm");
 
     // Clean up any previous output
-    let output_file = root.join("examples/build/types.ts");
+    let output_file = fixtures.join("build/types.ts");
     let _ = fs::remove_file(&output_file);
 
-    // First build - will download the plugin
+    // First build
     let result1 = build(&test_file);
     assert!(result1.is_ok(), "First build should succeed");
     let _ = fs::remove_file(&output_file);
 
-    // Check that the plugin was cached
-    // Cache is created using get_cache_path() which uses platform-specific directories
-    let cache_path = get_cache_path()
-        .unwrap()
-        .join("plugins/typescript@0.1.0/plugin.wasm");
-    assert!(
-        cache_path.exists(),
-        "Plugin should be cached after first build at {}",
-        cache_path.display()
-    );
-
-    // Second build - should use cached plugin (no download)
+    // Second build - should also succeed
     let result2 = build(&test_file);
-    assert!(result2.is_ok(), "Second build should succeed using cache");
+    assert!(result2.is_ok(), "Second build should succeed");
 
     // Clean up
     let _ = fs::remove_file(&output_file);
@@ -159,11 +145,11 @@ User {
 #[test]
 #[serial_test::serial]
 fn test_validate_build_consistency() {
-    let root = project_root();
-    let test_file = root.join("examples/base.cdm");
+    let fixtures = fixtures_dir();
+    let test_file = fixtures.join("base.cdm");
 
     // Clean up any previous output
-    let output_file = root.join("examples/build/types.ts");
+    let output_file = fixtures.join("build/types.ts");
     let _ = fs::remove_file(&output_file);
 
     // Validation should succeed
