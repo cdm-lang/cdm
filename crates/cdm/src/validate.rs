@@ -680,7 +680,7 @@ fn validate_removals(
 fn collect_type_alias(
     node: tree_sitter::Node,
     source: &str,
-    ancestors: &[Ancestor],
+    _ancestors: &[Ancestor],
     symbol_table: &mut SymbolTable,
     plugin_data: &crate::ExtractedPluginConfigs,
     diagnostics: &mut Vec<Diagnostic>,
@@ -706,20 +706,9 @@ fn collect_type_alias(
         return;
     }
 
-    // Check for shadowing ancestor definitions (warning)
-    for ancestor in ancestors {
-        if ancestor.symbol_table.definitions.contains_key(name) {
-            diagnostics.push(Diagnostic {
-                message: format!(
-                    "'{}' shadows definition from '{}'",
-                    name, ancestor.path
-                ),
-                severity: Severity::Warning,
-                span,
-            });
-            break;
-        }
-    }
+    // Note: Redefining a type alias from an ancestor is allowed - this is how
+    // child files can override/extend parent definitions via the extends directive.
+    // We only warn about shadowing built-in types.
 
     // Check for shadowing built-in types (warning)
     if is_builtin_type(name) {
@@ -810,7 +799,7 @@ fn collect_type_references_recursive(
 fn collect_model(
     node: tree_sitter::Node,
     source: &str,
-    ancestors: &[Ancestor],
+    _ancestors: &[Ancestor],
     symbol_table: &mut SymbolTable,
     model_fields: &mut HashMap<String, Vec<FieldInfo>>,
     plugin_data: &crate::ExtractedPluginConfigs,
@@ -837,17 +826,9 @@ fn collect_model(
         return;
     }
 
-    // Check for shadowing ancestor definitions (warning)
-    for ancestor in ancestors {
-        if ancestor.symbol_table.definitions.contains_key(name) {
-            diagnostics.push(Diagnostic {
-                message: format!("'{}' shadows definition from '{}'", name, ancestor.path),
-                severity: Severity::Warning,
-                span,
-            });
-            break;
-        }
-    }
+    // Note: Redefining a model from an ancestor is allowed - this is how
+    // child files can extend/modify parent models (add fields, remove fields, etc.)
+    // via the extends directive. We only warn about shadowing built-in types.
 
     // Check for shadowing built-in types (warning)
     if is_builtin_type(name) {

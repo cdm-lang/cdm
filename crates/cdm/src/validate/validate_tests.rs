@@ -2807,27 +2807,28 @@ mod extends_tests {
     }
 
     // -------------------------------------------------------------------------
-    // Shadowing ancestor definitions
+    // Redefining ancestor definitions (allowed for extension)
     // -------------------------------------------------------------------------
 
     #[test]
-    fn test_shadow_ancestor_definition_warning() {
+    fn test_redefine_ancestor_definition_allowed() {
+        // Redefining a type/model from an ancestor is allowed - this is how
+        // child files extend/modify parent definitions via the extends directive.
         let base_source = r#"
             Email: string
             User { name: string }
         "#;
         let base_ancestor = make_ancestor("base.cdm", base_source);
-        
+
         let child_source = "Email: number";
         let result = validate(child_source, &[base_ancestor]);
-        
+
+        // Should NOT produce a shadowing warning - this is intentional extension
         let warnings: Vec<_> = result.diagnostics.iter()
             .filter(|d| d.severity == Severity::Warning && d.message.contains("shadows definition"))
             .collect();
-        
-        assert_eq!(warnings.len(), 1);
-        assert!(warnings[0].message.contains("Email"));
-        assert!(warnings[0].message.contains("base.cdm"));
+
+        assert_eq!(warnings.len(), 0, "Redefining ancestor types should not warn");
     }
 
     // -------------------------------------------------------------------------
