@@ -1,6 +1,6 @@
 {
   "name": "sql-types",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "SQL type definitions for CDM schemas",
   "exports": {
     "postgres": "./postgres.cdm",
