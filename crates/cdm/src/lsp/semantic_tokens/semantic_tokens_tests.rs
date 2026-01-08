@@ -214,25 +214,45 @@ fn test_semantic_tokens_union_type_detailed() {
 }
 
 #[test]
-fn test_semantic_tokens_template_import_no_from_keyword() {
-    // Test that "from" in template imports does NOT get a semantic token
-    // This allows the TextMate grammar to handle it with keyword.control.import scope
+fn test_semantic_tokens_template_import() {
+    // Test that template imports get proper semantic tokens:
+    // - "import" and "from" -> keyword (pink)
+    // - "pg" (namespace) -> variable (light blue)
+    // - "../templates/..." (path) -> string (orange)
     let text = r#"import pg from ../templates/sql-types/postgres.cdm"#;
 
     let tokens = compute_semantic_tokens(text).expect("Should parse successfully");
 
-    // "from" should NOT be emitted as a keyword token for template imports
-    // The TextMate grammar handles it with keyword.control.import.cdm scope
+    // Should have keyword tokens for "import" and "from"
     let keyword_tokens: Vec<_> = tokens
         .iter()
         .filter(|t| t.token_type == TOKEN_KEYWORD)
         .collect();
-
-    // Should have no keyword tokens in template import
-    // (import, from, and path are all handled by TextMate grammar)
     assert_eq!(
         keyword_tokens.len(),
-        0,
-        "Template import should not have keyword semantic tokens (let TextMate handle it)"
+        2,
+        "Should have 2 keyword tokens (import, from)"
+    );
+
+    // Should have variable token for namespace "pg"
+    let variable_tokens: Vec<_> = tokens
+        .iter()
+        .filter(|t| t.token_type == TOKEN_VARIABLE)
+        .collect();
+    assert_eq!(
+        variable_tokens.len(),
+        1,
+        "Should have 1 variable token (pg namespace)"
+    );
+
+    // Should have string token for the path
+    let string_tokens: Vec<_> = tokens
+        .iter()
+        .filter(|t| t.token_type == TOKEN_STRING)
+        .collect();
+    assert_eq!(
+        string_tokens.len(),
+        1,
+        "Should have 1 string token (path)"
     );
 }

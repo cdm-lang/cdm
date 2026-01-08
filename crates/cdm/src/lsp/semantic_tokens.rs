@@ -161,19 +161,10 @@ fn get_token_info(node: &Node, source: &str) -> Option<(u32, u32)> {
         "comment" => Some((TOKEN_COMMENT, 0)),
 
         // Keywords
-        "extends" => Some((TOKEN_KEYWORD, 0)),
-        // Note: "from" in import/plugin statements is handled by TextMate grammar
-        // to get the correct keyword.control.import scope for pink highlighting
-        "from" => {
-            // Only emit keyword token for "from" in extends clauses, not imports
-            let parent_kind = node.parent().map(|p| p.kind()).unwrap_or("");
-            if parent_kind == "template_import" || parent_kind == "plugin_import" {
-                // Let TextMate grammar handle import/plugin "from" for consistent coloring
-                None
-            } else {
-                Some((TOKEN_KEYWORD, 0))
-            }
-        }
+        "extends" | "import" | "from" => Some((TOKEN_KEYWORD, 0)),
+
+        // Template/plugin source paths (e.g., ../templates/sql-types/postgres.cdm)
+        "local_path" | "registry_name" | "git_url" => Some((TOKEN_STRING, 0)),
 
         // String literals
         "string_literal" => {
@@ -231,6 +222,11 @@ fn get_token_info(node: &Node, source: &str) -> Option<(u32, u32)> {
             let text = node.utf8_text(source.as_bytes()).unwrap_or("");
 
             match parent_kind {
+                // Template import namespace (e.g., "pg" in "import pg from ...")
+                "template_import" => {
+                    Some((TOKEN_VARIABLE, 0))
+                }
+
                 // Plugin name
                 "plugin_import" | "plugin_config" => {
                     Some((TOKEN_MACRO, 0))
