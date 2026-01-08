@@ -1,9 +1,11 @@
 use std::path::Path;
 use tower_lsp::lsp_types::*;
 use crate::{
-    validate::validate_with_templates,
+    validate::{validate_with_templates, load_template_namespaces},
     template_resolver::extract_template_imports,
     template_validation::validate_template_imports,
+    file_resolver::FileResolver,
+    symbol_table::Ancestor,
     Diagnostic as CdmDiagnostic, Severity,
 };
 
@@ -18,7 +20,8 @@ pub fn compute_diagnostics(text: &str, uri: &Url) -> Vec<Diagnostic> {
         .set_language(&grammar::LANGUAGE.into())
         .expect("Failed to load grammar");
 
-    let namespaces = if let Some(tree) = parser.parse(text, None) {
+    let (namespaces, ancestors) = if let Some(tree) = parser.parse(text, None) {
+        // Extract and load template imports
         let template_imports = extract_template_imports(
             tree.root_node(),
             text,
@@ -52,13 +55,70 @@ pub fn compute_diagnostics(text: &str, uri: &Url) -> Vec<Diagnostic> {
                 .collect();
         }
 
-        ns
+        // Load ancestors from extends directives
+        let ancestors: Vec<Ancestor> = if source_path.exists() {
+            match FileResolver::load(&source_path) {
+                Ok(loaded_tree) => {
+                    // Convert loaded files to ancestors (excluding the current file)
+                    let mut converted_ancestors: Vec<Ancestor> = Vec::new();
+                    let mut prior_ancestors: Vec<Ancestor> = Vec::new();
+
+                    for loaded_file in loaded_tree.ancestors.iter() {
+                        // Read source
+                        let source = match loaded_file.source() {
+                            Ok(s) => s,
+                            Err(_) => continue,
+                        };
+
+                        // Parse to extract template imports for ancestor
+                        let mut ancestor_parser = tree_sitter::Parser::new();
+                        ancestor_parser
+                            .set_language(&grammar::LANGUAGE.into())
+                            .expect("Failed to load grammar");
+
+                        let ancestor_namespaces = if let Some(parse_tree) = ancestor_parser.parse(&source, None) {
+                            let ancestor_imports = extract_template_imports(
+                                parse_tree.root_node(),
+                                &source,
+                                &loaded_file.path,
+                            );
+
+                            // Load template namespaces for ancestor
+                            let ancestor_project_root = loaded_file.path.parent().unwrap_or(Path::new("."));
+                            let mut template_diags = Vec::new();
+                            load_template_namespaces(&ancestor_imports, ancestor_project_root, &mut template_diags)
+                        } else {
+                            Vec::new()
+                        };
+
+                        // Validate ancestor with its templates
+                        let ancestor_result = validate_with_templates(&source, &prior_ancestors, ancestor_namespaces);
+
+                        // Skip if validation errors (don't block current file validation)
+                        if ancestor_result.has_errors() {
+                            continue;
+                        }
+
+                        // Convert to Ancestor
+                        let ancestor = ancestor_result.into_ancestor(loaded_file.path.display().to_string());
+                        prior_ancestors.push(ancestor.clone());
+                        converted_ancestors.push(ancestor);
+                    }
+
+                    converted_ancestors
+                }
+                Err(_) => vec![]
+            }
+        } else {
+            vec![]
+        };
+
+        (ns, ancestors)
     } else {
-        vec![]
+        (vec![], vec![])
     };
 
-    // Validate with template namespaces
-    let ancestors = vec![];
+    // Validate with template namespaces and ancestors
     let validation_result = validate_with_templates(text, &ancestors, namespaces);
 
     // Convert CDM diagnostics to LSP diagnostics

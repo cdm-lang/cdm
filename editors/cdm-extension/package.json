@@ -40,6 +40,13 @@
         "configuration": "./language-configuration.json"
       }
     ],
+    "grammars": [
+      {
+        "language": "cdm",
+        "scopeName": "source.cdm",
+        "path": "./syntaxes/cdm.tmLanguage.json"
+      }
+    ],
     "configuration": {
       "title": "CDM",
       "properties": {
@@ -247,7 +254,9 @@
     "jest": "^30.2.0",
     "ovsx": "^0.10.0",
     "ts-jest": "^29.4.6",
-    "typescript": "^5.0.0"
+    "typescript": "^5.0.0",
+    "vscode-oniguruma": "^2.0.1",
+    "vscode-textmate": "^9.3.1"
   },
   "dependencies": {
     "vscode-languageclient": "^9.0.1"
