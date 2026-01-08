@@ -30,3 +30,14 @@ CDM (Contextual Data Models) is a schema language and toolchain for defining a s
 ## Notes
 - If you modify grammar files under `crates/grammar`, regenerate the parser (`just generate`) before building or testing.
 - Plugin release workflows are defined in `Justfile` (see `release-plugin` and `release-cli`).
+- For rust based unit tests, they should live in their own files. For example crates/cdm/src/git_plugin.rs has tests in the file crates/cdm/src/git_plugin/git_plugin_tests.rs and is linked with the code below. All rust unit tests should follow this format.
+
+    ```rs
+    #[cfg(test)]
+    #[path = "git_plugin/git_plugin_tests.rs"]
+    mod git_plugin_tests;
+    ```
+
+- When making any code changes ensure that the full code still builds without errors/warnings. If there are any, fix them.
+- When making code changes be sure that all relevant tests run. `just test` may not be able to fully run inside the docker container, but you should run any specific tests related to the changed code and ensure that they still pass.
+- When running tests in editors/cdm-extension, you may need to run npm install before running the tests.
