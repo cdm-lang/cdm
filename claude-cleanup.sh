@@ -57,32 +57,32 @@ SESSION_HAS_CONTAINER=()
 SESSION_CONTAINER_NAMES=()
 SESSION_MERGE_STATUS=()
 
-# Find session index by name, returns -1 if not found
+# Find session index by name, sets FOUND_IDX to index or -1 if not found
 find_session_index() {
     local name="$1"
     local i
+    FOUND_IDX=-1
     for i in "${!SESSION_NAMES[@]}"; do
         if [ "${SESSION_NAMES[$i]}" = "$name" ]; then
-            echo "$i"
+            FOUND_IDX=$i
             return
         fi
     done
-    echo "-1"
 }
 
-# Add or update session data
+# Add or update session data, sets RESULT_IDX to the index
 add_session() {
     local name="$1"
-    local idx=$(find_session_index "$name")
-    if [ "$idx" = "-1" ]; then
+    find_session_index "$name"
+    if [ "$FOUND_IDX" = "-1" ]; then
         SESSION_NAMES+=("$name")
         SESSION_HAS_WORKTREE+=("no")
         SESSION_HAS_CONTAINER+=("no")
         SESSION_CONTAINER_NAMES+=("")
         SESSION_MERGE_STATUS+=("n/a")
-        echo "$((${#SESSION_NAMES[@]} - 1))"
+        RESULT_IDX=$((${#SESSION_NAMES[@]} - 1))
     else
-        echo "$idx"
+        RESULT_IDX=$FOUND_IDX
     fi
 }
 
@@ -93,7 +93,8 @@ if [ -d "worktrees" ] && [ "$(ls -A worktrees 2>/dev/null)" ]; then
             worktree_name=$(basename "$worktree")
             worktree_path=$(realpath "$worktree")
 
-            idx=$(add_session "$worktree_name")
+            add_session "$worktree_name"
+            idx=$RESULT_IDX
             SESSION_HAS_WORKTREE[$idx]="yes"
 
             # Check if it's a valid git worktree and get merge status
@@ -110,7 +111,8 @@ fi
 # Collect containers (both Claude and Codex)
 for container in $(docker ps -a --filter "name=cdm-claude-" --format "{{.Names}}" 2>/dev/null); do
     session_name=$(extract_session_name "$container")
-    idx=$(add_session "$session_name")
+    add_session "$session_name"
+    idx=$RESULT_IDX
     SESSION_HAS_CONTAINER[$idx]="yes"
     if [ -n "${SESSION_CONTAINER_NAMES[$idx]}" ]; then
         SESSION_CONTAINER_NAMES[$idx]="${SESSION_CONTAINER_NAMES[$idx]} $container"
@@ -121,7 +123,8 @@ done
 
 for container in $(docker ps -a --filter "name=cdm-codex-" --format "{{.Names}}" 2>/dev/null); do
     session_name=$(extract_session_name "$container")
-    idx=$(add_session "$session_name")
+    add_session "$session_name"
+    idx=$RESULT_IDX
     SESSION_HAS_CONTAINER[$idx]="yes"
     if [ -n "${SESSION_CONTAINER_NAMES[$idx]}" ]; then
         SESSION_CONTAINER_NAMES[$idx]="${SESSION_CONTAINER_NAMES[$idx]} $container"
@@ -141,8 +144,8 @@ if [ ${#SESSION_NAMES[@]} -eq 0 ]; then
 fi
 
 # Print table header
-printf "  ${BOLD}%-3s %-30s %-10s %-12s %-10s${NC}\n" "#" "NAME" "WORKTREE" "CONTAINER" "UNMERGED"
-printf "  %-3s %-30s %-10s %-12s %-10s\n" "---" "------------------------------" "----------" "------------" "----------"
+printf "  ${BOLD}%-3s %-40s %-10s %-12s %-10s${NC}\n" "#" "NAME" "WORKTREE" "CONTAINER" "UNMERGED"
+printf "  %-3s %-40s %-10s %-12s %-10s\n" "---" "----------------------------------------" "----------" "------------" "----------"
 
 # Sort session names and create display order
 SORTED_INDICES=()
@@ -172,7 +175,7 @@ for idx in "${SORTED_INDICES[@]}"; do
     has_container="${SESSION_HAS_CONTAINER[$idx]}"
     merge_status="${SESSION_MERGE_STATUS[$idx]}"
 
-    # Determine unmerged display
+    # Determine unmerged display (pad first, then colorize)
     if [ "$has_worktree" = "no" ]; then
         unmerged_display="n/a"
     elif [ "$merge_status" = "merged" ]; then
@@ -186,20 +189,20 @@ for idx in "${SORTED_INDICES[@]}"; do
         unmerged_display="${RED}unknown${NC}"
     fi
 
-    # Color the worktree/container columns
+    # Color the worktree/container columns (use fixed-width padding before colors)
     if [ "$has_worktree" = "yes" ]; then
-        worktree_display="${GREEN}yes${NC}"
+        worktree_display="${GREEN}yes${NC}       "
     else
-        worktree_display="no"
+        worktree_display="no        "
     fi
 
     if [ "$has_container" = "yes" ]; then
-        container_display="${GREEN}yes${NC}"
+        container_display="${GREEN}yes${NC}         "
     else
-        container_display="no"
+        container_display="no          "
     fi
 
-    printf "  %-3s %-30s %-10b %-12b %-10b\n" "$display_num" "$session" "$worktree_display" "$container_display" "$unmerged_display"
+    printf "  %-3s %-40s %b %b %b\n" "$display_num" "$session" "$worktree_display" "$container_display" "$unmerged_display"
     ((display_num++))
 done
 
