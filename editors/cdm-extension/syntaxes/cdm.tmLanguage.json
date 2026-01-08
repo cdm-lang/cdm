@@ -40,10 +40,10 @@
           "match": "(extends)\\s+([^\\s\\n\\{]+)",
           "captures": {
             "1": {
-              "name": "keyword.control.extends.cdm"
+              "name": "keyword.control.import.cdm"
             },
             "2": {
-              "name": "string.unquoted.path.cdm"
+              "name": "string.quoted.module.cdm"
             }
           }
         }
@@ -59,16 +59,16 @@
               "name": "keyword.control.import.cdm"
             },
             "2": {
-              "name": "entity.name.namespace.cdm"
+              "name": "variable.other.readwrite.alias.cdm"
             },
             "3": {
-              "name": "keyword.control.from.cdm"
+              "name": "keyword.control.import.cdm"
             },
             "4": {
-              "name": "keyword.other.git.cdm"
+              "name": "keyword.control.import.cdm"
             },
             "5": {
-              "name": "string.unquoted.url.cdm"
+              "name": "string.quoted.module.cdm"
             }
           }
         },
@@ -80,13 +80,13 @@
               "name": "keyword.control.import.cdm"
             },
             "2": {
-              "name": "entity.name.namespace.cdm"
+              "name": "variable.other.readwrite.alias.cdm"
             },
             "3": {
-              "name": "keyword.control.from.cdm"
+              "name": "keyword.control.import.cdm"
             },
             "4": {
-              "name": "string.unquoted.path.cdm"
+              "name": "string.quoted.module.cdm"
             }
           }
         },
@@ -98,13 +98,13 @@
               "name": "keyword.control.import.cdm"
             },
             "2": {
-              "name": "entity.name.namespace.cdm"
+              "name": "variable.other.readwrite.alias.cdm"
             },
             "3": {
-              "name": "keyword.control.from.cdm"
+              "name": "keyword.control.import.cdm"
             },
             "4": {
-              "name": "string.unquoted.registry.cdm"
+              "name": "string.quoted.module.cdm"
             }
           }
         }
