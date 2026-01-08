@@ -212,3 +212,27 @@ fn test_semantic_tokens_union_type_detailed() {
         .collect();
     assert_eq!(entity_ids.len(), 1, "Should have 1 entity ID (#2)");
 }
+
+#[test]
+fn test_semantic_tokens_template_import_no_from_keyword() {
+    // Test that "from" in template imports does NOT get a semantic token
+    // This allows the TextMate grammar to handle it with keyword.control.import scope
+    let text = r#"import pg from ../templates/sql-types/postgres.cdm"#;
+
+    let tokens = compute_semantic_tokens(text).expect("Should parse successfully");
+
+    // "from" should NOT be emitted as a keyword token for template imports
+    // The TextMate grammar handles it with keyword.control.import.cdm scope
+    let keyword_tokens: Vec<_> = tokens
+        .iter()
+        .filter(|t| t.token_type == TOKEN_KEYWORD)
+        .collect();
+
+    // Should have no keyword tokens in template import
+    // (import, from, and path are all handled by TextMate grammar)
+    assert_eq!(
+        keyword_tokens.len(),
+        0,
+        "Template import should not have keyword semantic tokens (let TextMate handle it)"
+    );
+}

@@ -162,7 +162,18 @@ fn get_token_info(node: &Node, source: &str) -> Option<(u32, u32)> {
 
         // Keywords
         "extends" => Some((TOKEN_KEYWORD, 0)),
-        "from" => Some((TOKEN_KEYWORD, 0)),
+        // Note: "from" in import/plugin statements is handled by TextMate grammar
+        // to get the correct keyword.control.import scope for pink highlighting
+        "from" => {
+            // Only emit keyword token for "from" in extends clauses, not imports
+            let parent_kind = node.parent().map(|p| p.kind()).unwrap_or("");
+            if parent_kind == "template_import" || parent_kind == "plugin_import" {
+                // Let TextMate grammar handle import/plugin "from" for consistent coloring
+                None
+            } else {
+                Some((TOKEN_KEYWORD, 0))
+            }
+        }
 
         // String literals
         "string_literal" => {
