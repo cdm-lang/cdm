@@ -322,6 +322,148 @@ release-extension version:
   echo "  git tag -d $TAG"
   echo "  git reset --soft HEAD~1"
 
+# Release a template (creates and optionally pushes a version tag)
+# Usage: just release-template <template-name> <version>
+# Example: just release-template sql-types 1.0.0
+release-template template_name version:
+  #!/usr/bin/env bash
+  set -e
+
+  # Validate version format
+  if ! [[ {{version}} =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "Error: Version must be in format X.Y.Z (e.g., 1.0.0)"
+    exit 1
+  fi
+
+  # Check if template directory exists and has cdm-template.json
+  TEMPLATE_DIR="templates/{{template_name}}"
+  if [ ! -d "$TEMPLATE_DIR" ]; then
+    echo "Error: Template directory $TEMPLATE_DIR does not exist"
+    echo ""
+    echo "Available templates:"
+    for dir in templates/*/; do
+      if [ -f "$dir/cdm-template.json" ]; then
+        basename "$dir"
+      fi
+    done
+    exit 1
+  fi
+
+  if [ ! -f "$TEMPLATE_DIR/cdm-template.json" ]; then
+    echo "Error: $TEMPLATE_DIR is not a valid template (missing cdm-template.json)"
+    echo ""
+    echo "Available templates:"
+    for dir in templates/*/; do
+      if [ -f "$dir/cdm-template.json" ]; then
+        basename "$dir"
+      fi
+    done
+    exit 1
+  fi
+
+  # Create tag name
+  TAG="{{template_name}}-v{{version}}"
+
+  echo "Creating release for template {{template_name}} version {{version}}"
+  echo "Tag: $TAG"
+  echo ""
+
+  # Check if tag already exists
+  if git rev-parse "$TAG" >/dev/null 2>&1; then
+    echo "Error: Tag $TAG already exists"
+    echo ""
+    echo "To remove the existing tag and try again:"
+    echo "  # Delete local tag"
+    echo "  git tag -d $TAG"
+    echo ""
+    echo "  # If already pushed, delete remote tag"
+    echo "  git push --delete origin $TAG"
+    echo ""
+    echo "  # Then run this command again"
+    echo "  just release-template {{template_name}} {{version}}"
+    exit 1
+  fi
+
+  # Check for uncommitted changes BEFORE making any modifications
+  if ! git diff-index --quiet HEAD --; then
+    echo ""
+    echo "Warning: You have uncommitted changes"
+    git status --short
+    echo ""
+    read -p "Continue anyway? (y/N) " -n 1 -r
+    echo
+    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+      echo "Cancelled"
+      exit 0
+    fi
+  fi
+
+  # Update version in cdm-template.json
+  echo "Updating version in $TEMPLATE_DIR/cdm-template.json..."
+  # Use node for reliable JSON manipulation
+  node -e "
+    const fs = require('fs');
+    const path = '$TEMPLATE_DIR/cdm-template.json';
+    const data = JSON.parse(fs.readFileSync(path, 'utf8'));
+    data.version = '{{version}}';
+    fs.writeFileSync(path, JSON.stringify(data, null, 2) + '\n');
+  "
+
+  # Update templates.json registry if it exists
+  if [ -f "templates.json" ]; then
+    echo "Updating templates.json registry..."
+    node -e "
+      const fs = require('fs');
+      const data = JSON.parse(fs.readFileSync('templates.json', 'utf8'));
+      if (data.templates && data.templates['{{template_name}}']) {
+        const template = data.templates['{{template_name}}'];
+        template.versions['{{version}}'] = template.versions[template.latest] || {
+          git_url: 'https://github.com/cdm-lang/cdm.git',
+          git_ref: '{{template_name}}-v{{version}}',
+          git_path: 'templates/{{template_name}}'
+        };
+        template.versions['{{version}}'].git_ref = '{{template_name}}-v{{version}}';
+        template.latest = '{{version}}';
+        data.updated_at = new Date().toISOString().split('T')[0] + 'T00:00:00Z';
+      }
+      fs.writeFileSync('templates.json', JSON.stringify(data, null, 2) + '\n');
+    "
+  fi
+
+  # Commit the version updates
+  echo "Committing version update..."
+  git add "$TEMPLATE_DIR/cdm-template.json"
+  if [ -f "templates.json" ]; then
+    git add templates.json
+  fi
+  git commit -m "Release template {{template_name}} {{version}}"
+
+  # Create tag
+  echo "Creating tag $TAG..."
+  git tag -a "$TAG" -m "Release template {{template_name}} v{{version}}"
+
+  echo ""
+  echo "✓ Tag created successfully!"
+  echo ""
+  echo "To push the commit and tag to trigger the release, run:"
+  echo "  git push origin main $TAG"
+  echo ""
+  echo "To undo if you made a mistake, run:"
+  echo "  git tag -d $TAG"
+  echo "  git reset --soft HEAD~1"
+
+# List available templates
+list-templates:
+  #!/usr/bin/env bash
+  echo "Available templates:"
+  for dir in templates/*/; do
+    if [ -f "$dir/cdm-template.json" ]; then
+      name=$(basename "$dir")
+      version=$(node -p "require('./$dir/cdm-template.json').version" 2>/dev/null || echo "unknown")
+      echo "  $name (v$version)"
+    fi
+  done
+
 # Release the CLI (creates and optionally pushes a version tag)
 # Usage: just release-cli <version>
 # Example: just release-cli 0.2.0
