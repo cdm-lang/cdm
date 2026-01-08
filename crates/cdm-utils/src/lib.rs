@@ -27,7 +27,7 @@ pub struct Span {
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum EntityIdSource {
-    /// Defined in the current schema being compiled (including @extends file inheritance).
+    /// Defined in the current schema being compiled (including extends file inheritance).
     /// Files without a cdm-template.json manifest are NOT templates and use this source.
     Local,
     /// From a registry template (registry enforces name uniqueness)

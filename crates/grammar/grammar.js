@@ -18,7 +18,7 @@
  * - Array types: Post[]
  * - Plugin configurations: @sql { table: "users" }
  * - Field-level plugin overrides
- * - Context extensions: @extends ./base.cdm
+ * - Context extensions: extends ./base.cdm
  * - Model removal: -ModelName
  * - Entity IDs: User { name: string #1 } #10
  *
@@ -50,8 +50,7 @@ module.exports = grammar({
     // Top-level directives: extends, template imports, plugin imports
     _directive: ($) =>
       choice(
-        $.extends_directive,     // @extends ./local/path.cdm
-        $.extends_template,      // extends cdm/auth { version: "^2.0.0" }
+        $.extends_template,      // extends ./base.cdm, extends cdm/auth { version: "^2.0.0" }
         $.template_import,       // import sql from sql/postgres-types
         $.plugin_import          // @sql { dialect: "postgres" }
       ),
@@ -115,12 +114,14 @@ module.exports = grammar({
         optional(field("config", $.object_literal))
       ),
 
-    // Template extends (merged import): extends <source> [{ config }]
+    // Extends directive: extends <source> [{ config }]
+    // Unified syntax for both local files and templates
     // Examples:
-    //   extends cdm/auth
-    //   extends cdm/auth { version: "^2.0.0" }
+    //   extends ./base.cdm                    (local file)
+    //   extends ../shared/types.cdm           (local file)
+    //   extends cdm/auth                      (registry template)
+    //   extends cdm/auth { version: "^2.0.0" } (with config)
     //   extends git:https://github.com/org/repo.git { git_ref: "main" }
-    //   extends ./templates/base
     extends_template: ($) =>
       seq(
         "extends",
@@ -142,12 +143,6 @@ module.exports = grammar({
     // =========================================================================
     // TOP-LEVEL DIRECTIVES
     // =========================================================================
-
-    // Context extension: @extends ./path/to/base.cdm
-    extends_directive: ($) => seq("@extends", field("path", $.path)),
-
-    // File path for extends
-    path: ($) => /[^\s\n]+/,
 
     // Model removal at file level: -ModelName
     model_removal: ($) => seq("-", field("name", $.identifier)),

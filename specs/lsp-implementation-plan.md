@@ -30,7 +30,7 @@ Build a production-ready Language Server Protocol (LSP) implementation for CDM t
 - Hover information and documentation
 - Go-to-definition and find references
 - Document formatting on save
-- Multi-file workspace support with @extends resolution
+- Multi-file workspace support with extends resolution
 
 ### 1.2 Target Editors
 
@@ -50,7 +50,7 @@ The CDM codebase is **exceptionally well-positioned** for LSP development:
 ✅ **Tree-sitter grammar** (11,351 lines) - production-ready incremental parser
 ✅ **Semantic validation** (1,685 lines) - complete error detection
 ✅ **Symbol table** - type resolution and definition lookup
-✅ **File resolver** - @extends chain resolution
+✅ **File resolver** - extends chain resolution
 ✅ **Formatter** (1,420 lines) - AST-aware formatting
 ✅ **Diagnostics** - structured error reporting with spans
 
@@ -78,7 +78,7 @@ The CDM codebase is **exceptionally well-positioned** for LSP development:
 - **Capabilities:**
   - Full semantic validation
   - Type checking with circular reference detection
-  - Cross-file validation with @extends
+  - Cross-file validation with extends
   - Error codes E101-E503
   - Warning codes W005-W006
   - Returns structured `Diagnostic` objects
@@ -97,7 +97,7 @@ The CDM codebase is **exceptionally well-positioned** for LSP development:
 - **Location:** `crates/cdm/src/file_resolver.rs`
 - **Status:** Production-ready (289 lines)
 - **Capabilities:**
-  - Recursive @extends loading
+  - Recursive extends loading
   - Circular dependency detection
   - Lazy file loading with caching
   - Relative path resolution
@@ -298,7 +298,7 @@ cdm/
   - Models show extends chain
 - ✅ Go-to-definition
   - Click on type → jump to definition
-  - Works across @extends files
+  - Works across extends files
 - ✅ Find all references
   - See all uses of a type/model
   - Works in workspace
@@ -320,7 +320,7 @@ cdm/
 **Features:**
 - ✅ Code completion
   - Type names (built-in + user-defined)
-  - Keywords (@extends, @sql, etc.)
+  - Keywords (extends, @sql, etc.)
   - Field names in model body
   - Snippets for common patterns
 - ✅ Document formatting
@@ -329,7 +329,7 @@ cdm/
   - Configurable indent width
 - ✅ Workspace management
   - Multi-file validation
-  - Dependency tracking for @extends
+  - Dependency tracking for extends
 
 **Deliverables:**
 - Autocomplete works in all contexts
@@ -542,7 +542,7 @@ Email: string {
    - Handle different symbol types:
      - Type reference → type alias or model definition
      - Field type → type definition
-     - @extends path → file location
+     - extends path → file location
    - Return file URI + range
 3. Support cross-file navigation:
    - Load ancestor symbol tables
@@ -553,7 +553,7 @@ Email: string {
 
 **Output:**
 - F12 jumps to definition
-- Works across @extends files
+- Works across extends files
 - Shows "no definition found" for built-ins
 
 #### Step 2.3: Find References (Day 8-9)
@@ -622,7 +622,7 @@ number        (built-in)    Built-in number type
 
 **Context: After `@` at top level**
 ```
-@extends      (directive)   Extend another CDM file
+extends      (directive)   Extend another CDM file
 @sql          (plugin)      SQL schema generation plugin
 @typescript   (plugin)      TypeScript type generation
 ```
@@ -659,7 +659,7 @@ number        (built-in)    Built-in number type
 1. Create `src/workspace.rs`
 2. Implement `WorkspaceManager`:
    - Track all `.cdm` files in workspace
-   - Build dependency graph from @extends
+   - Build dependency graph from extends
    - Detect when file changes affect dependents
    - Re-validate affected files
 3. Implement workspace-wide validation:
@@ -1368,7 +1368,7 @@ suite('CDM Extension E2E', () => {
 
     const apiDoc = await vscode.workspace.openTextDocument({
       language: 'cdm',
-      content: '@extends ./base.cdm\n\nUser { email: Email #1 } #10'
+      content: 'extends ./base.cdm\n\nUser { email: Email #1 } #10'
     });
 
     await vscode.window.showTextDocument(apiDoc);

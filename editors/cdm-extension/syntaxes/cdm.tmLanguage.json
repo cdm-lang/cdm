@@ -34,7 +34,7 @@
     "extends-directive": {
       "patterns": [
         {
-          "match": "(@extends)\\s+([^\\s\\n]+)",
+          "match": "(extends)\\s+([^\\s\\n]+)",
           "captures": {
             "1": {
               "name": "keyword.control.extends.cdm"

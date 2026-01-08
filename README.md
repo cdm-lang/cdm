@@ -59,7 +59,7 @@ User {
 
 ```cdm
 // database.cdm
-@extends ./base.cdm
+extends ./base.cdm
 
 User {
   birth_date: string
@@ -69,7 +69,7 @@ User {
 
 ```cdm
 // client.cdm
-@extends ./base.cdm
+extends ./base.cdm
 
 User {
   age: number

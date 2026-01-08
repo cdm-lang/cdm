@@ -13,7 +13,7 @@ fn test_workspace_update_and_dependencies() {
     // Update derived file (extends base.cdm)
     workspace.update_document(
         uri2.clone(),
-        "@extends \"base.cdm\"\n\nAdminUser extends User { role: string #1 } #20".to_string(),
+        "extends ./base.cdm\n\nAdminUser extends User { role: string #1 } #20".to_string(),
     );
 
     // Check dependencies
@@ -35,7 +35,7 @@ fn test_workspace_remove_document() {
     let uri2 = Url::parse("file:///derived.cdm").unwrap();
 
     workspace.update_document(uri1.clone(), "User { } #10".to_string());
-    workspace.update_document(uri2.clone(), "@extends \"base.cdm\"".to_string());
+    workspace.update_document(uri2.clone(), "extends ./base.cdm".to_string());
 
     // Remove the derived file
     workspace.remove_document(&uri2);
@@ -48,8 +48,8 @@ fn test_workspace_remove_document() {
 #[test]
 fn test_extract_extends_directives() {
     let text = r#"
-@extends "base.cdm"
-@extends "mixins/timestamps.cdm"
+extends ./base.cdm
+extends ./mixins/timestamps.cdm
 
 User extends BaseUser {
   name: string #1
@@ -58,8 +58,8 @@ User extends BaseUser {
 
     let extends = extract_extends_directives(text);
     assert_eq!(extends.len(), 2);
-    assert!(extends.contains(&"base.cdm".to_string()));
-    assert!(extends.contains(&"mixins/timestamps.cdm".to_string()));
+    assert!(extends.contains(&"./base.cdm".to_string()));
+    assert!(extends.contains(&"./mixins/timestamps.cdm".to_string()));
 }
 
 #[test]

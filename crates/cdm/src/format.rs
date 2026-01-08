@@ -669,8 +669,8 @@ fn format_source(
             "comment" => format_comment(child, source),
             "type_alias" => format_type_alias(child, source, &assignment_map),
             "model_definition" => format_model(child, source, &assignment_map, &indent),
-            // Preserve all other node types (extends_directive, plugin_import,
-            // model_removal, etc.) by outputting their original source text.
+            // Preserve all other node types (extends_template, plugin_import,
+            // template_import, model_removal, etc.) by outputting their original source text.
             // This ensures we don't lose any language elements during formatting.
             _ => get_node_text(child, source),
         };

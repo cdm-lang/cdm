@@ -72,22 +72,6 @@
     }
   },
   {
-    "type": "extends_directive",
-    "named": true,
-    "fields": {
-      "path": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "path",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
     "type": "extends_template",
     "named": true,
     "fields": {
@@ -557,10 +541,6 @@
       "required": false,
       "types": [
         {
-          "type": "extends_directive",
-          "named": true
-        },
-        {
           "type": "extends_template",
           "named": true
         },
@@ -798,10 +778,6 @@
     "named": false
   },
   {
-    "type": "@extends",
-    "named": false
-  },
-  {
     "type": "[",
     "named": false
   },
@@ -811,7 +787,8 @@
   },
   {
     "type": "comment",
-    "named": true
+    "named": true,
+    "extra": true
   },
   {
     "type": "escape_sequence",
@@ -847,10 +824,6 @@
   },
   {
     "type": "number_literal",
-    "named": true
-  },
-  {
-    "type": "path",
     "named": true
   },
   {

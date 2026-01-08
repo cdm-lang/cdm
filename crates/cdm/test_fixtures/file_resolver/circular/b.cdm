@@ -1,4 +1,4 @@
-@extends ./a.cdm
+extends ./a.cdm
 
 B {
   id: number

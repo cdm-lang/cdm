@@ -1,4 +1,4 @@
-@extends ./base.cdm
+extends ./base.cdm
 
 ClientUser extends User {
   -email

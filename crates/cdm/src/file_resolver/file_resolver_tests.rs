@@ -69,7 +69,7 @@ fn test_load_circular_detected() {
 
     assert!(result.is_err());
     let errors = result.unwrap_err();
-    assert!(errors[0].message.contains("Circular @extends detected"));
+    assert!(errors[0].message.contains("Circular extends detected"));
 }
 
 #[test]
@@ -196,7 +196,7 @@ fn test_circular_dependency_error_details() {
     assert_eq!(errors.len(), 1);
     assert_eq!(errors[0].severity, Severity::Error);
     assert!(errors[0].message.contains("Circular"));
-    assert!(errors[0].message.contains("@extends"));
+    assert!(errors[0].message.contains("extends"));
 }
 
 #[test]

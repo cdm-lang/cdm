@@ -3114,8 +3114,8 @@ mod extends_tests {
         let mixins_ancestor = make_ancestor("mixins.cdm", mixins_source);
         
         let user_source = r#"
-            @extends ./types.cdm
-            @extends ./mixins.cdm
+            extends ./types.cdm
+            extends ./mixins.cdm
             
             User extends Timestamped {
                 id: UUID

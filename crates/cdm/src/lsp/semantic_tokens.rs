@@ -115,7 +115,7 @@ fn should_emit_token(node: &Node) -> bool {
         | "union_type" | "array_type" | "type_identifier" | "extends_clause"
         | "field_override" | "field_removal" | "model_removal" | "plugin_config"
         | "plugin_import" | "object_literal" | "array_literal" | "object_entry"
-        | "extends_directive" | "plugin_source" | "git_reference" | "plugin_path" => false,
+        | "extends_template" | "plugin_source" | "git_reference" | "plugin_path" => false,
         _ => !node.is_missing() && node.start_byte() < node.end_byte(),
     }
 }
@@ -295,9 +295,9 @@ fn get_token_info(node: &Node, source: &str) -> Option<(u32, u32)> {
         // Entity IDs (#1, #2, etc.)
         "entity_id" => Some((TOKEN_PARAMETER, MODIFIER_READONLY)),
 
-        // Plugin directives
-        "extends_directive" => {
-            // The @ symbol and "extends" keyword
+        // Extends directive
+        "extends_template" => {
+            // The "extends" keyword
             Some((TOKEN_KEYWORD, 0))
         }
 

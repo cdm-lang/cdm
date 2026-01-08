@@ -133,7 +133,7 @@ fn test_extract_text_at_range_out_of_bounds() {
 
 #[test]
 fn test_find_type_alias_insert_position_after_directives() {
-    let text = r#"@extends "./base.cdm"
+    let text = r#"extends "./base.cdm"
 @plugin "test-plugin"
 
 User { name: string } #1"#;

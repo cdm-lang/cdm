@@ -750,11 +750,11 @@ The context system allows multiple "views" of the same schema for different envi
 
 ### 7.2 Extends Directive
 
-A context file begins with the `@extends` directive:
+A context file begins with the `extends` directive:
 
 ```cdm
 // api.cdm
-@extends ./base.cdm
+extends ./base.cdm
 
 // Modifications follow...
 ```
@@ -769,7 +769,7 @@ Context files can define new types and models:
 
 ```cdm
 // api.cdm
-@extends ./base.cdm
+extends ./base.cdm
 
 // New type alias
 ApiToken: string {
@@ -790,7 +790,7 @@ Use the `-` prefix to remove models or type aliases:
 
 ```cdm
 // api.cdm
-@extends ./base.cdm
+extends ./base.cdm
 
 -InternalAuditLog    // Remove model
 -SystemConfig        // Remove model
@@ -805,7 +805,7 @@ Use the model name with a block to modify an inherited model:
 
 ```cdm
 // api.cdm
-@extends ./base.cdm
+extends ./base.cdm
 
 User {
   -password_hash      // Remove inherited field
@@ -837,7 +837,7 @@ Admin { contact_email: Email #1 } #11
 
 ```cdm
 // api.cdm
-@extends ./base.cdm
+extends ./base.cdm
 
 Email: string {
   @validation { format: "email" }  // Simpler validation for API
@@ -870,7 +870,7 @@ When a context file extends another, plugin configurations are merged.
 
 ```cdm
 // child.cdm
-@extends ./base.cdm
+extends ./base.cdm
 
 @sql {
   schema: "api",
@@ -906,11 +906,11 @@ User {
 } #10
 
 // client.cdm
-@extends ./base.cdm
+extends ./base.cdm
 User { -password_hash }
 
 // mobile.cdm
-@extends ./client.cdm
+extends ./client.cdm
 User { device_token?: string #4 }
 ```
 
@@ -939,7 +939,7 @@ Status: "active" | "inactive" #1
 User { status: Status #1 } #10
 
 // api.cdm
-@extends ./base.cdm
+extends ./base.cdm
 Status: "active" | "inactive" | "pending" #1  // Override
 ```
 
@@ -949,7 +949,7 @@ When building `api.cdm`, `User.status` has type `"active" | "inactive" | "pendin
 
 1. **No circular extends**: A file cannot extend itself or create a cycle
 2. **No upward references**: A parent context cannot reference types defined only in a child
-3. **Extends at top**: All `@extends` directives must appear at the top of the file, before plugin imports
+3. **Extends at top**: All `extends` directives must appear at the top of the file, before plugin imports
 
 ---
 
@@ -1090,7 +1090,7 @@ When a context file extends another, plugin configurations merge:
 @sql { dialect: "postgres", schema: "public" }
 
 // api.cdm
-@extends ./base.cdm
+extends ./base.cdm
 @sql { schema: "api" }  // Merges with parent config
 ```
 
@@ -1117,7 +1117,7 @@ CDM validation occurs in multiple phases:
 | Rule                                        | Error |
 | ------------------------------------------- | ----- |
 | Plugin imports must come before definitions | E001  |
-| `@extends` must come before plugin imports  | E002  |
+| `extends` must come before plugin imports  | E002  |
 | (Reserved for future use)                   | E003  |
 
 #### Type Definitions
@@ -1253,11 +1253,11 @@ my-project/
 
 ### 10.4 Path Resolution
 
-Paths in `@extends` directives and local plugin references are resolved relative to the containing file:
+Paths in `extends` directives and local plugin references are resolved relative to the containing file:
 
 ```cdm
 // In /project/cdm/contexts/api.cdm
-@extends ../base.cdm           // Resolves to /project/cdm/base.cdm
+extends ../base.cdm           // Resolves to /project/cdm/base.cdm
 @custom from ../../plugins/my-plugin  // Resolves to /project/plugins/my-plugin
 ```
 
@@ -1899,7 +1899,7 @@ git_reference = "git:" , url ;
 plugin_path = ( "./" | "../" ) , path_segment , { "/" , path_segment } ;
 
 (* Directives *)
-extends_directive = "@extends" , file_path ;
+extends_directive = "extends" , file_path ;
 model_removal = "-" , identifier ;
 
 (* Entity IDs *)
@@ -1967,7 +1967,7 @@ See `grammar.js` in the CDM repository for the complete tree-sitter grammar impl
 | Code | Message                        | Description                                            |
 | ---- | ------------------------------ | ------------------------------------------------------ |
 | E001 | Plugin import after definition | Plugin imports must come before type/model definitions |
-| E002 | Extends after plugin import    | @extends directives must come before plugin imports    |
+| E002 | Extends after plugin import    | extends directives must come before plugin imports    |
 | E003 | (Reserved)                     | Reserved for future use                                |
 
 ### B.2 Type Errors

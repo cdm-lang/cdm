@@ -688,9 +688,9 @@ fn test_extract_extends_with_mixed_directives() {
     std::fs::write(
         &temp_file,
         r#"
-@extends ./base1.cdm
+extends ./base1.cdm
 @sql { dialect: "postgres" }
-@extends ./base2.cdm
+extends ./base2.cdm
 @typescript { output_dir: "./types" }
 
 User {
@@ -706,7 +706,7 @@ User {
 
     std::fs::remove_file(&temp_file).unwrap();
 
-    // Should extract both @extends directives
+    // Should extract both extends directives
     assert_eq!(extends.len(), 2);
     assert!(extends[0].contains("base1.cdm"));
     assert!(extends[1].contains("base2.cdm"));
@@ -720,9 +720,9 @@ fn test_extract_extends_ignores_extends_keyword() {
     std::fs::write(
         &temp_file,
         r#"
-@extends ./base.cdm
+extends ./base.cdm
 
-// extends keyword for model inheritance is different from @extends
+// extends keyword for model inheritance is different from extends
 User extends BaseModel {
   name: string #1
 } #10
@@ -736,7 +736,7 @@ User extends BaseModel {
 
     std::fs::remove_file(&temp_file).unwrap();
 
-    // Should only extract @extends directive, not model extends
+    // Should only extract extends directive, not model extends
     assert_eq!(extends.len(), 1);
     assert!(extends[0].contains("base.cdm"));
 }
@@ -749,7 +749,7 @@ fn test_extract_extends_ignores_extends_template() {
     std::fs::write(
         &temp_file,
         r#"
-@extends ./local_file.cdm
+extends ./local_file.cdm
 extends cdm/auth { version: "^2.0.0" }
 
 User {
@@ -765,7 +765,7 @@ User {
 
     std::fs::remove_file(&temp_file).unwrap();
 
-    // Should only extract @extends directive paths, not template extends
+    // Should only extract local file paths, not registry template extends
     assert_eq!(extends.len(), 1);
     assert!(extends[0].contains("local_file.cdm"));
 }

@@ -1,6 +1,6 @@
 //! Workspace management with dependency tracking
 //!
-//! This module tracks file dependencies via @extends directives and manages
+//! This module tracks file dependencies via extends directives and manages
 //! multi-file validation with caching for performance.
 
 use std::collections::{HashMap, HashSet};
@@ -56,10 +56,10 @@ impl Workspace {
     pub fn update_document(&self, uri: Url, text: String) {
         let mut state = self.state.write().unwrap();
 
-        // Parse the document and extract @extends directives
+        // Parse the document and extract extends directives
         let extends_paths = extract_extends_directives(&text);
 
-        // Resolve @extends paths to URIs
+        // Resolve extends paths to URIs
         let dependencies = extends_paths
             .iter()
             .filter_map(|path| {
@@ -154,7 +154,7 @@ impl Workspace {
 
             if let Some(deps) = state.dependencies.get(&current) {
                 // For simplicity, take the first dependency
-                // In a real implementation, we'd need to handle multiple @extends
+                // In a real implementation, we'd need to handle multiple extends
                 if let Some(dep) = deps.iter().next() {
                     result.push(dep.clone());
                     current = dep.clone();
@@ -178,7 +178,7 @@ impl Workspace {
 
 }
 
-/// Extract @extends directives from a CDM file
+/// Extract extends directives from a CDM file
 fn extract_extends_directives(text: &str) -> Vec<String> {
     let mut extends_paths = Vec::new();
 
@@ -193,22 +193,28 @@ fn extract_extends_directives(text: &str) -> Vec<String> {
         None => return extends_paths,
     };
 
-    // Walk the tree to find @extends directives
+    // Walk the tree to find extends directives
     let root = tree.root_node();
     walk_extends_directives(root, text, &mut extends_paths);
 
     extends_paths
 }
 
-/// Recursively walk the tree to find @extends directives
+/// Recursively walk the tree to find extends directives
 fn walk_extends_directives(node: Node, text: &str, extends_paths: &mut Vec<String>) {
-    if node.kind() == "extends_directive" {
-        // Extract the file path from the directive
-        if let Some(path_node) = node.child_by_field_name("path") {
-            if let Ok(path) = path_node.utf8_text(text.as_bytes()) {
-                // Remove quotes if present
-                let path = path.trim_matches('"').trim_matches('\'');
-                extends_paths.push(path.to_string());
+    if node.kind() == "extends_template" {
+        // Extract the file path from local_path sources only
+        // source_node is template_source, which contains local_path, git_reference, or registry_name
+        if let Some(source_node) = node.child_by_field_name("source") {
+            let mut inner_cursor = source_node.walk();
+            for child in source_node.children(&mut inner_cursor) {
+                if child.kind() == "local_path" {
+                    if let Ok(path) = child.utf8_text(text.as_bytes()) {
+                        // Remove quotes if present
+                        let path = path.trim_matches('"').trim_matches('\'');
+                        extends_paths.push(path.to_string());
+                    }
+                }
             }
         }
     }

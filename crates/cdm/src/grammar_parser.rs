@@ -7,7 +7,7 @@ use crate::file_resolver::LoadedFile;
 /// GrammarParser is responsible for:
 /// - Parsing CDM source files using tree-sitter
 /// - Caching the parsed tree for reuse
-/// - Extracting @extends paths from parsed source
+/// - Extracting extends paths from parsed source
 ///
 /// It does NOT perform semantic validation - that's the responsibility of the validate module.
 #[derive(Debug)]
@@ -73,12 +73,12 @@ impl<'a> GrammarParser<'a> {
         ))
     }
 
-    /// Extract all @extends paths from the loaded file.
+    /// Extract all extends paths from the loaded file.
     ///
-    /// This will parse the file if not already parsed, then extract the @extends directives.
+    /// This will parse the file if not already parsed, then extract the extends directives.
     ///
     /// # Returns
-    /// * `Vec<String>` - List of @extends paths in order they appear
+    /// * `Vec<String>` - List of extends paths in order they appear
     ///
     /// # Example
     /// ```no_run
@@ -102,19 +102,26 @@ impl<'a> GrammarParser<'a> {
             Err(_) => return Vec::new(),
         };
 
-        // Extract @extends paths
+        // Extract extends paths
         let root = tree_ref.root_node();
         let mut cursor = root.walk();
         let mut paths = Vec::new();
 
         for node in root.children(&mut cursor) {
-            if node.kind() == "extends_directive" {
-                if let Some(path_node) = node.child_by_field_name("path") {
-                    let path_text = path_node
-                        .utf8_text(source.as_bytes())
-                        .unwrap_or("")
-                        .to_string();
-                    paths.push(path_text);
+            if node.kind() == "extends_template" {
+                if let Some(source_node) = node.child_by_field_name("source") {
+                    // source_node is template_source, which contains local_path, git_reference, or registry_name
+                    // Only extract local paths (./path or ../path), not registry names or git refs
+                    let mut inner_cursor = source_node.walk();
+                    for child in source_node.children(&mut inner_cursor) {
+                        if child.kind() == "local_path" {
+                            let path_text = child
+                                .utf8_text(source.as_bytes())
+                                .unwrap_or("")
+                                .to_string();
+                            paths.push(path_text);
+                        }
+                    }
                 }
             }
         }

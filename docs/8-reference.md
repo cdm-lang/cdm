@@ -12,7 +12,7 @@ Where possible, earlier sections ([Core Concepts](1-core-concepts.md), [Context 
 
 * CDM files use the `.cdm` extension
 * Files must be UTF-8 encoded
-* Schemas may consist of multiple files linked via [`@extends`](3-context-system.md#33-creating-a-context-with-extends)
+* Schemas may consist of multiple files linked via [`extends`](3-context-system.md#33-creating-a-context-with-extends)
 
 ---
 
@@ -20,7 +20,7 @@ Where possible, earlier sections ([Core Concepts](1-core-concepts.md), [Context 
 
 A CDM file may contain, in order:
 
-1. `@extends` directives (optional)
+1. `extends` directives (optional)
 2. Plugin imports and configuration
 3. Type alias definitions
 4. Model definitions
@@ -208,10 +208,10 @@ Removing non-existent fields is an error.
 
 ## 8.6 [Context System](3-context-system.md) Reference
 
-### `@extends`
+### `extends`
 
 ```cdm
-@extends ./base.cdm
+extends ./base.cdm
 ```
 
 * Must appear at the top of the file

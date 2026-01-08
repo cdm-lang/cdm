@@ -2,7 +2,7 @@
 // Client-facing context that removes sensitive fields and internal models
 // This demonstrates the CDM context system for creating API/client-safe views
 
-@extends ./base.cdm
+extends ./base.cdm
 
 // Import the same PostgreSQL types (inherited from base, but explicit for clarity)
 import pg from ../templates/sql-types/postgres.cdm

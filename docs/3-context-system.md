@@ -13,7 +13,7 @@ Instead of duplicating models, contexts **extend and modify** existing schemas i
 A context is a CDM file that **extends another CDM file** and applies changes to it.
 
 ```cdm
-@extends ./base.cdm
+extends ./base.cdm
 ```
 
 A context can:
@@ -47,23 +47,23 @@ Contexts solve this by making differences explicit and reviewable.
 
 ---
 
-## 3.3 Creating a Context with `@extends`
+## 3.3 Creating a Context with `extends`
 
-A context file begins with an `@extends` directive:
+A context file begins with an `extends` directive:
 
 ```cdm
 // api.cdm
-@extends ./base.cdm
+extends ./base.cdm
 ```
 
 Rules:
 
-* `@extends` must appear at the top of the file
+* `extends` must appear at the top of the file
 * Paths are resolved relative to the current file
 * A context can extend another context, forming a chain
 * Circular extends are not allowed
 
-After the `@extends` directive, the file may contain additions and modifications.
+After the `extends` directive, the file may contain additions and modifications.
 
 ---
 
@@ -147,7 +147,7 @@ Email: string {
 
 ```cdm
 // api.cdm
-@extends ./base.cdm
+extends ./base.cdm
 
 Email: string {
   @validation { format: "email" }
@@ -204,7 +204,7 @@ User {
 
 ```cdm
 // api.cdm
-@extends ./base.cdm
+extends ./base.cdm
 
 User {
   -password_hash
@@ -213,7 +213,7 @@ User {
 
 ```cdm
 // mobile.cdm
-@extends ./api.cdm
+extends ./api.cdm
 
 User {
   device_token?: string
@@ -243,7 +243,7 @@ Each layer only expresses what changes.
 
 ```cdm
 // api.cdm
-@extends ./base.cdm
+extends ./base.cdm
 
 @typescript {
   strict_nulls: false

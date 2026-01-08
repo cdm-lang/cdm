@@ -57,11 +57,11 @@ pub struct LoadedFileTree {
     pub ancestors: Vec<LoadedFile>,
 }
 
-/// Resolves CDM files and their @extends dependencies.
+/// Resolves CDM files and their extends dependencies.
 ///
 /// FileResolver is responsible for:
 /// - Loading CDM files from the filesystem (lazily)
-/// - Resolving relative @extends paths
+/// - Resolving relative extends paths
 /// - Building the complete dependency tree
 /// - Detecting circular dependencies
 ///
@@ -80,7 +80,7 @@ impl FileResolver {
         }
     }
 
-    /// Load a CDM file and all its @extends dependencies.
+    /// Load a CDM file and all its extends dependencies.
     ///
     /// Files are not read immediately - they're loaded lazily when you call
     /// `source()` on a LoadedFile. This minimizes memory usage.
@@ -113,7 +113,7 @@ impl FileResolver {
     fn load_file_tree(&mut self, file_path: &Path) -> Result<LoadedFileTree, Vec<Diagnostic>> {
         let main = self.load_single_file(file_path)?;
 
-        // Extract @extends paths from the main file using GrammarParser
+        // Extract extends paths from the main file using GrammarParser
         let parser = GrammarParser::new(&main);
         let extends_paths = parser.extract_extends_paths();
 
@@ -139,7 +139,7 @@ impl FileResolver {
         if self.loaded_files.contains(file_path) {
             return Err(vec![Diagnostic {
                 message: format!(
-                    "Circular @extends detected: {} is already in the extends chain",
+                    "Circular extends detected: {} is already in the extends chain",
                     file_path.display()
                 ),
                 severity: Severity::Error,
@@ -169,7 +169,7 @@ impl FileResolver {
         Ok(LoadedFile::new(file_path.to_path_buf()))
     }
 
-    /// Resolve a relative path from an @extends directive
+    /// Resolve a relative path from an extends directive
     ///
     /// Handles paths like:
     /// - `./types.cdm` - same directory as current file

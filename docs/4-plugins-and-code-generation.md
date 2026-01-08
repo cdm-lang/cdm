@@ -208,7 +208,7 @@ Merge rules:
 
 ```cdm
 // api.cdm
-@extends ./base.cdm
+extends ./base.cdm
 
 @typescript {
   strict_nulls: false

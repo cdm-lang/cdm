@@ -94,9 +94,9 @@ impl fmt::Display for ValidationResult {
 /// # Parameters
 ///
 /// - `source`: The CDM source code to validate
-/// - `ancestors`: Resolved ancestor files from the `@extends` chain, ordered from
+/// - `ancestors`: Resolved ancestor files from the `extends` chain, ordered from
 ///   immediate parent to most distant ancestor. Pass an empty slice if this file
-///   has no `@extends` directive.
+///   has no `extends` directive.
 ///
 /// # Validation Scope
 ///
@@ -125,10 +125,10 @@ impl fmt::Display for ValidationResult {
 ///
 /// # Building Ancestors
 ///
-/// The caller is responsible for resolving `@extends` directives and building
+/// The caller is responsible for resolving `extends` directives and building
 /// the ancestor chain. A typical workflow:
 ///
-/// 1. Parse the source to find `@extends` directive (use `extract_extends_path()`)
+/// 1. Parse the source to find `extends` directive (use `extract_extends_path()`)
 /// 2. Resolve the file path
 /// 3. Recursively validate ancestor files (with their own ancestors)
 /// 4. Use `ValidationResult::into_ancestor()` to convert results
@@ -136,7 +136,7 @@ impl fmt::Display for ValidationResult {
 /// # Example
 ///
 /// ```ignore
-/// // For a file with no @extends
+/// // For a file with no extends
 /// let result = validate(source, &[]);
 ///
 /// // For a file that extends base.cdm

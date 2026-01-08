@@ -203,7 +203,7 @@ npm run publish          # Both marketplaces
 - Code completion not yet implemented
 - Go-to-definition not yet implemented
 - Hover information not yet implemented
-- Multi-file validation (via `@extends`) shows errors for inherited types
+- Multi-file validation (via `extends`) shows errors for inherited types
 
 See the [GitHub issues](https://github.com/cdm-lang/cdm/issues) for a full list.
 

@@ -1,5 +1,5 @@
-@extends ./types.cdm
-@extends ./mixins.cdm
+extends ./types.cdm
+extends ./mixins.cdm
 
 User extends Timestamped {
   id: number

@@ -1,4 +1,4 @@
-@extends ./base.cdm
+extends ./base.cdm
 
 // Invalid: trying to remove NonExistentType that doesn't exist in base
 -NonExistentType

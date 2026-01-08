@@ -307,6 +307,6 @@ Project {
 ## Related Documentation
 
 - [Core Concepts](1-core-concepts.md) - CDM fundamentals
-- [Context System](3-context-system.md) - Local file inheritance with `@extends`
+- [Context System](3-context-system.md) - Local file inheritance with `extends`
 - [Plugins and Code Generation](4-plugins-and-code-generation.md) - Using plugins with templates
 - [Templates Specification](../specs/templates.md) - Full technical specification

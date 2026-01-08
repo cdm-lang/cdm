@@ -63,8 +63,8 @@ pub struct FieldInfo {
 /// A resolved ancestor file with its symbol table and field information.
 /// 
 /// Built by the caller (CLI, LSP, etc.) by parsing and analyzing parent files
-/// in the `@extends` chain. The caller is responsible for:
-/// 1. Parsing the source to find `@extends` directives
+/// in the `extends` chain. The caller is responsible for:
+/// 1. Parsing the source to find `extends` directives
 /// 2. Resolving file paths
 /// 3. Recursively loading/parsing ancestor files
 /// 4. Building `Ancestor` structs for each

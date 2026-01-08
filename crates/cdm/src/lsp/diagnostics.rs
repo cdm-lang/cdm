@@ -4,7 +4,7 @@ use crate::{validate, Diagnostic as CdmDiagnostic, Severity};
 /// Compute diagnostics for a CDM document
 pub fn compute_diagnostics(text: &str, _uri: &Url) -> Vec<Diagnostic> {
     // For now, validate without ancestors (single-file validation)
-    // TODO: In the future, we should resolve @extends and pass ancestors
+    // TODO: In the future, we should resolve extends and pass ancestors
     let ancestors = vec![];
 
     let validation_result = validate(text, &ancestors);

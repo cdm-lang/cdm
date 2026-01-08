@@ -61,7 +61,7 @@ cdm build schema.cdm
 This command:
 
 1. Validates the supplied file
-2. Resolves that file and its ancestor chain (via `@extends`, if present)
+2. Resolves that file and its ancestor chain (via `extends`, if present)
 3. Produces a fully resolved schema
 4. Executes each plugin’s build step
 5. Writes generated files to disk
@@ -78,7 +78,7 @@ You may build multiple schema or context files at once:
 cdm build cdm/*.cdm
 ```
 
-Each file is resolved independently, including its own `@extends` chain, and built separately.
+Each file is resolved independently, including its own `extends` chain, and built separately.
 
 This is commonly used when generating outputs for multiple environments (e.g. base, API, client).
 

@@ -158,7 +158,7 @@ import custom from ./local/template
 #[test]
 fn test_extract_mixed_directives() {
     let source = r#"
-@extends ./base.cdm
+extends ./base.cdm
 extends cdm/auth
 import sql from sql/postgres-types
 @typescript { build_output: "./src/types" }
@@ -173,10 +173,17 @@ User {
 
     assert_eq!(imports.len(), 1);
     assert_eq!(imports[0].namespace, "sql");
-    assert_eq!(extends.len(), 1);
+    // Now both local and registry extends are captured
+    assert_eq!(extends.len(), 2);
+    // First is local path
     match &extends[0].source {
+        TemplateSource::Local { path } => assert!(path.ends_with("base.cdm")),
+        _ => panic!("Expected Local source for first extends"),
+    }
+    // Second is registry
+    match &extends[1].source {
         TemplateSource::Registry { name } => assert_eq!(name, "cdm/auth"),
-        _ => panic!("Expected Registry source"),
+        _ => panic!("Expected Registry source for second extends"),
     }
 }
 

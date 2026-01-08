@@ -168,7 +168,7 @@ fn create_type_alias_action(
     let root = tree.root_node();
     let next_id = calculate_next_entity_id(&root, text);
 
-    // Insert at the beginning of the file (after any @extends or @plugin directives)
+    // Insert at the beginning of the file (after any extends or @plugin directives)
     let insert_position = find_type_alias_insert_position(&root, text)?;
 
     let edit = TextEdit {
@@ -273,7 +273,7 @@ fn find_type_alias_insert_position(root: &Node, text: &str) -> Option<Position> 
 
     for child in root.children(&mut cursor) {
         match child.kind() {
-            "extends_directive" | "plugin_import" => {
+            "extends_template" | "plugin_import" | "template_import" => {
                 last_directive_end = child.end_byte();
             }
             "type_alias" | "model_definition" => {

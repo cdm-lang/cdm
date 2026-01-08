@@ -65,10 +65,6 @@
       "members": [
         {
           "type": "SYMBOL",
-          "name": "extends_directive"
-        },
-        {
-          "type": "SYMBOL",
           "name": "extends_template"
         },
         {
@@ -307,27 +303,6 @@
     "registry_name": {
       "type": "PATTERN",
       "value": "[a-zA-Z][a-zA-Z0-9_-]*(\\/[a-zA-Z][a-zA-Z0-9_-]*)?"
-    },
-    "extends_directive": {
-      "type": "SEQ",
-      "members": [
-        {
-          "type": "STRING",
-          "value": "@extends"
-        },
-        {
-          "type": "FIELD",
-          "name": "path",
-          "content": {
-            "type": "SYMBOL",
-            "name": "path"
-          }
-        }
-      ]
-    },
-    "path": {
-      "type": "PATTERN",
-      "value": "[^\\s\\n]+"
     },
     "model_removal": {
       "type": "SEQ",
@@ -1432,5 +1407,6 @@
   "precedences": [],
   "externals": [],
   "inline": [],
-  "supertypes": []
+  "supertypes": [],
+  "reserved": {}
 }

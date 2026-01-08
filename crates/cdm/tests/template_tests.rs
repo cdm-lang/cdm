@@ -169,7 +169,7 @@ fn test_parse_template_extends_with_config() {
 
 #[test]
 fn test_parse_multiple_directives() {
-    let source = r#"@extends ./base.cdm
+    let source = r#"extends ./base.cdm
 extends cdm/auth { version: "^2.0.0" }
 import sql from sql/postgres-types
 @typescript { build_output: "./src/types" }
@@ -197,7 +197,8 @@ User {
     assert_eq!(imports.len(), 1);
     assert_eq!(imports[0].namespace, "sql");
 
-    assert_eq!(extends.len(), 1);
+    // Now both local file and registry extends are captured
+    assert_eq!(extends.len(), 2);
 }
 
 // =============================================================================

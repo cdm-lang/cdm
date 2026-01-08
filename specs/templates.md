@@ -911,12 +911,12 @@ Two entity IDs only collide if they have the **same source AND same local ID**. 
 
 | Source Type | Description | Identity |
 |-------------|-------------|----------|
-| `Local` | Definitions in the current schema (including `@extends` file inheritance) | N/A |
+| `Local` | Definitions in the current schema (including `extends` file inheritance) | N/A |
 | `Registry` | From a registry template | Registry name (e.g., `cdm/auth`) |
 | `Git` | From a git template | URL + optional path |
 | `LocalTemplate` | From a local filesystem template (with `cdm-template.json`) | Path relative to project root |
 
-**Important:** Files without a `cdm-template.json` manifest are NOT templates. They are treated as part of the local schema when used with `@extends` file inheritance.
+**Important:** Files without a `cdm-template.json` manifest are NOT templates. They are treated as part of the local schema when used with `extends` file inheritance.
 
 ### 14.4 Source Identity Rules
 

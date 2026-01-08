@@ -214,7 +214,7 @@ cdm migrate schema.cdm --name "add_avatar"
 - ✅ File loading and resolution (fully implemented in FileResolver)
 
 ### 7.2 Extends Directive
-- ✅ `@extends` directive parsing
+- ✅ `extends` directive parsing
 - ✅ Relative path resolution (implemented in FileResolver)
 - ✅ File loading from extends paths (recursive loading implemented)
 
@@ -352,7 +352,7 @@ cdm migrate schema.cdm --name "add_avatar"
 
 #### File Structure (E001-E003)
 - ✅ E001: Plugin imports before definitions (enforced by grammar)
-- ✅ E002: @extends before plugin imports (enforced by grammar - repeat() allows multiple extends)
+- ✅ E002: extends before plugin imports (enforced by grammar - repeat() allows multiple extends)
 - ⏳ E003: Reserved for future use
 
 #### Type Definitions (E101-E103)
@@ -588,7 +588,7 @@ cdm migrate schema.cdm --name "add_avatar"
 
 ### File Structure Errors
 - ✅ E001: Plugin imports before definitions (enforced by grammar)
-- ✅ E002: @extends before plugin imports (enforced by grammar)
+- ✅ E002: extends before plugin imports (enforced by grammar)
 - ⏳ E003: Reserved for future use
 
 ### Type Errors
@@ -696,7 +696,7 @@ cdm migrate schema.cdm --name "add_avatar"
 
 **Phase 1: Core Build System** ✅ 100% COMPLETE
 1. ✅ Implement schema builder (AST → Schema JSON) - **COMPLETE**
-2. ✅ Implement file resolver (@extends path resolution) - **COMPLETE**
+2. ✅ Implement file resolver (extends path resolution) - **COMPLETE**
 3. ✅ Implement plugin loader (load WASM from local paths) - **COMPLETE**
 4. ✅ Implement `cdm build` command - **COMPLETE** (full pipeline, commit 20508cf)
 5. ✅ Integrate plugin loading and execution - **COMPLETE** (build() called, output files written)
@@ -742,7 +742,7 @@ cdm migrate schema.cdm --name "add_avatar"
   - Entity IDs: 100% complete (parsing, validation, serialization, 52 tests)
   - Validation: 98% complete (all critical errors E101-E503 + W005-W006 implemented)
   - Plugin system: 95% complete (WASM execution, validation, build + migrate pipelines)
-  - Context system: 100% complete (full @extends support)
+  - Context system: 100% complete (full extends support)
   - Build command: 100% complete (full pipeline, config threading, multi-plugin support)
   - Migrate command: 100% complete (delta computation, ID-based rename detection, 34 tests)
   - Format command: 100% complete (ID assignment, whitespace formatting, 20 tests)
@@ -1333,7 +1333,7 @@ cdm format schema.cdm --assign-ids --indent 4
 ### 2025-12-24: Build Command Complete - Production Ready! 🎉
 - ✅ **Build command fully implemented** - Complete end-to-end pipeline in [build.rs](../crates/cdm/src/build.rs) (623 lines)
 - ✅ **All 6 build stages working**:
-  1. File tree loading with @extends resolution
+  1. File tree loading with extends resolution
   2. Full schema validation with error reporting
   3. Plugin import extraction from all ancestors
   4. Schema building with inheritance merging
@@ -1407,7 +1407,7 @@ cdm format schema.cdm --assign-ids --indent 4
 - ✅ **New grammar_parser module** - Separate parsing logic from file I/O and validation
 - ✅ **GrammarParser struct** - Wraps LoadedFile and provides cached tree-sitter parsing
 - ✅ **parse() method** - Parses source using tree-sitter, returns Ref to cached tree
-- ✅ **extract_extends_paths() method** - Extracts @extends from parsed tree (cached)
+- ✅ **extract_extends_paths() method** - Extracts extends from parsed tree (cached)
 - ✅ **Removed extract_extends_paths from validate** - Eliminates code duplication
 - ✅ **FileResolver uses GrammarParser** - Clean dependency: FileResolver → GrammarParser
 - ✅ **File existence check** - FileResolver verifies files exist before creating LoadedFile
@@ -1415,7 +1415,7 @@ cdm format schema.cdm --assign-ids --indent 4
 - ✅ All 230 tests passing (removed 5 duplicate extract_extends tests from validate)
 - ✅ **Three-layer architecture**:
   - Layer 1: FileResolver (file I/O, path resolution, circular detection)
-  - Layer 2: GrammarParser (tree-sitter parsing, @extends extraction)
+  - Layer 2: GrammarParser (tree-sitter parsing, extends extraction)
   - Layer 3: Validate (semantic validation, symbol table building)
 - ✅ Exported `GrammarParser` in public API
 
@@ -1426,7 +1426,7 @@ cdm format schema.cdm --assign-ids --indent 4
 - ✅ **Validation moved to validate module**:
   - New `validate_tree(LoadedFileTree)` function in validate module
   - Streaming validation of ancestors (minimizes memory usage)
-  - FileResolver only handles file I/O and @extends resolution
+  - FileResolver only handles file I/O and extends resolution
 - ✅ **Single public API**: `FileResolver::load()` → `LoadedFileTree` (lazy, no validation)
 - ✅ **Clean architecture**:
   - FileResolver: File I/O, path resolution, circular dependency detection
@@ -1457,7 +1457,7 @@ cdm format schema.cdm --assign-ids --indent 4
 - ✅ Test fixtures created in `test_fixtures/file_resolver/`:
   - Single file without extends
   - Single extends with field additions/removals
-  - Multiple @extends in one file
+  - Multiple extends in one file
   - Nested extends chains (3 levels deep)
   - Circular dependency detection
   - File not found error handling
@@ -1466,11 +1466,11 @@ cdm format schema.cdm --assign-ids --indent 4
 
 ### 2025-12-20: Grammar Ordering Fix & Multiple Extends Support
 - ✅ Fixed grammar to enforce correct file structure ordering
-- ✅ `@extends` directives must now appear at the top (before plugin imports)
-- ✅ **Multiple `@extends` directives are now allowed** (all at the top)
+- ✅ `extends` directives must now appear at the top (before plugin imports)
+- ✅ **Multiple `extends` directives are now allowed** (all at the top)
 - ✅ Plugin imports must come before definitions
 - ✅ Enforces error codes E001, E002 at parse time
-- ✅ Updated `source_file` rule to: `repeat(@extends) → repeat(plugin_import) → repeat(definition)`
+- ✅ Updated `source_file` rule to: `repeat(extends) → repeat(plugin_import) → repeat(definition)`
 - ✅ Removed `extends_directive` from `_definition` choice
 - ✅ Updated test cases to match new ordering requirements
 - ✅ Updated spec to reflect multiple extends capability
