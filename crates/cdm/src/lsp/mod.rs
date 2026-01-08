@@ -63,7 +63,7 @@ impl CdmLanguageServer {
 #[tower_lsp::async_trait]
 impl LanguageServer for CdmLanguageServer {
     async fn initialize(&self, params: InitializeParams) -> Result<InitializeResult> {
-        eprintln!("Initializing CDM Language Server");
+        eprintln!("Initializing CDM Language Server v{}", env!("CARGO_PKG_VERSION"));
         eprintln!("  Root URI: {:?}", params.root_uri);
         eprintln!("  Client: {:?}", params.client_info);
 
@@ -145,9 +145,10 @@ impl LanguageServer for CdmLanguageServer {
     }
 
     async fn initialized(&self, _: InitializedParams) {
-        eprintln!("CDM Language Server initialized");
+        let version_msg = format!("CDM Language Server v{} initialized", env!("CARGO_PKG_VERSION"));
+        eprintln!("{}", version_msg);
         self.client
-            .log_message(MessageType::INFO, "CDM Language Server initialized")
+            .log_message(MessageType::INFO, version_msg)
             .await;
     }
 
@@ -506,7 +507,7 @@ impl LanguageServer for CdmLanguageServer {
 /// Run the CDM Language Server
 pub async fn run() {
     // Set up logging to stderr (LSP uses stdout for JSON-RPC)
-    eprintln!("Starting CDM Language Server...");
+    eprintln!("Starting CDM Language Server v{}...", env!("CARGO_PKG_VERSION"));
 
     let stdin = tokio::io::stdin();
     let stdout = tokio::io::stdout();

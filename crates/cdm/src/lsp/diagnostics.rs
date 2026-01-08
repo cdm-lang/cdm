@@ -1,13 +1,65 @@
+use std::path::Path;
 use tower_lsp::lsp_types::*;
-use crate::{validate, Diagnostic as CdmDiagnostic, Severity};
+use crate::{
+    validate::validate_with_templates,
+    template_resolver::extract_template_imports,
+    template_validation::validate_template_imports,
+    Diagnostic as CdmDiagnostic, Severity,
+};
 
 /// Compute diagnostics for a CDM document
-pub fn compute_diagnostics(text: &str, _uri: &Url) -> Vec<Diagnostic> {
-    // For now, validate without ancestors (single-file validation)
-    // TODO: In the future, we should resolve extends and pass ancestors
-    let ancestors = vec![];
+pub fn compute_diagnostics(text: &str, uri: &Url) -> Vec<Diagnostic> {
+    // Get the file path for resolving relative imports
+    let source_path = uri.to_file_path().unwrap_or_default();
 
-    let validation_result = validate(text, &ancestors);
+    // Parse to extract template imports
+    let mut parser = tree_sitter::Parser::new();
+    parser
+        .set_language(&grammar::LANGUAGE.into())
+        .expect("Failed to load grammar");
+
+    let namespaces = if let Some(tree) = parser.parse(text, None) {
+        let template_imports = extract_template_imports(
+            tree.root_node(),
+            text,
+            &source_path,
+        );
+
+        // Validate template imports
+        let template_diagnostics = validate_template_imports(&template_imports);
+        if template_diagnostics.iter().any(|d| d.severity == Severity::Error) {
+            // Return early with template import errors
+            return template_diagnostics
+                .iter()
+                .map(|diag| cdm_diagnostic_to_lsp(diag))
+                .collect();
+        }
+
+        // Load template namespaces
+        let project_root = source_path.parent().unwrap_or_else(|| Path::new("."));
+        let mut load_diagnostics = Vec::new();
+        let ns = crate::validate::load_template_namespaces(
+            &template_imports,
+            project_root,
+            &mut load_diagnostics,
+        );
+
+        // If there were loading errors, include them in diagnostics
+        if !load_diagnostics.is_empty() {
+            return load_diagnostics
+                .iter()
+                .map(|diag| cdm_diagnostic_to_lsp(diag))
+                .collect();
+        }
+
+        ns
+    } else {
+        vec![]
+    };
+
+    // Validate with template namespaces
+    let ancestors = vec![];
+    let validation_result = validate_with_templates(text, &ancestors, namespaces);
 
     // Convert CDM diagnostics to LSP diagnostics
     validation_result
