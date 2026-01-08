@@ -8,7 +8,7 @@
 
 // Import PostgreSQL types from the sql-types template
 // Using local path since registry resolution requires network access
-import pg from ../templates/sql-types/postgres.cdm
+import pg from "../templates/sql-types/postgres.cdm"
 
 // =============================================================================
 // PLUGIN CONFIGURATION
@@ -16,14 +16,14 @@ import pg from ../templates/sql-types/postgres.cdm
 
 // Local plugin from file system (for development or custom plugins)
 // TypeScript plugin generates type definitions from the schema
-@typescript from ./plugins/typescript {
+@typescript from "./plugins/typescript" {
   build_output: "./build"
 }
 
 // Local SQL plugin for database schema and migrations
 // Note: Registry plugins (@sql without "from") are available but this example
 // uses local plugins to demonstrate development workflow
-@sql from ./plugins/sql {
+@sql from "./plugins/sql" {
   dialect: "postgresql",
   schema: "public",
   build_output: "./build",

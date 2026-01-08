@@ -18,12 +18,12 @@ Plugins are imported at the top of CDM files using `@name` syntax. All imports m
 }
 
 // External plugin from git
-@analytics from git:https://github.com/myorg/cdm-analytics.git {
+@analytics from "git:https://github.com/myorg/cdm-analytics.git" {
     version: "1.0.0"
 }
 
 // Local plugin (for development)
-@custom from ./plugins/my-plugin {
+@custom from "./plugins/my-plugin" {
     debug: true
 }
 ```
@@ -55,8 +55,8 @@ Official and curated plugins resolved by name:
 Any accessible git repository:
 
 ```cdm
-@plugin from git:https://github.com/user/repo.git { version: "1.0.0" }
-@plugin from git:git@github.com:org/private-repo.git { version: "main" }
+@plugin from "git:https://github.com/user/repo.git" { version: "1.0.0" }
+@plugin from "git:git@github.com:org/private-repo.git" { version: "main" }
 ```
 
 Version can be a tag (`1.0.0`, `v2.0.0`), branch (`main`), or commit SHA.
@@ -66,8 +66,8 @@ Version can be a tag (`1.0.0`, `v2.0.0`), branch (`main`), or commit SHA.
 Filesystem paths for development:
 
 ```cdm
-@custom from ./plugins/my-plugin
-@shared from ../shared-plugins/common
+@custom from "./plugins/my-plugin"
+@shared from "../shared-plugins/common"
 ```
 
 ## Configuration Levels
@@ -435,7 +435,7 @@ cargo build --release --target wasm32-wasip1
 Reference your plugin from a CDM file:
 
 ```cdm
-@my-plugin from ./path/to/cdm-plugin-my-plugin {
+@my-plugin from "./path/to/cdm-plugin-my-plugin" {
     output_format: "yaml"
 }
 

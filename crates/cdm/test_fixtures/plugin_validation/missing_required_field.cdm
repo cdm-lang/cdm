@@ -1,4 +1,4 @@
-@docs from ../../../../crates/cdm-plugin-docs {
+@docs from "../../../../crates/cdm-plugin-docs" {
   title: "My Schema",
   build_output: "./docs"
 }

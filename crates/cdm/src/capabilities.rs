@@ -293,7 +293,7 @@ BaseModel {
         // Create child file that extends base
         let child_path = temp_dir.path().join("child.cdm");
         fs::write(&child_path, r#"
-extends ./base.cdm
+extends "./base.cdm"
 
 User extends BaseModel {
     name: string #10

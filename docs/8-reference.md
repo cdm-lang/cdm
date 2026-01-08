@@ -211,11 +211,11 @@ Removing non-existent fields is an error.
 ### `extends`
 
 ```cdm
-extends ./base.cdm
+extends "./base.cdm"
 ```
 
 * Must appear at the top of the file
-* Paths are resolved relative to the file
+* Paths are quoted strings resolved relative to the file
 * Circular chains are disallowed
 
 For detailed context usage, see [Section 3: Context System](3-context-system.md).

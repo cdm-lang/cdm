@@ -192,25 +192,30 @@ fn parse_template_extends(
     })
 }
 
-/// Parse a template_source node into TemplateSource enum
+/// Parse a string_literal node into TemplateSource enum
+///
+/// The source string determines the type:
+/// - Starts with "git:" → Git source (URL after "git:")
+/// - Starts with "./" or "../" → Local path
+/// - Otherwise → Registry name
 fn parse_template_source(node: tree_sitter::Node, source: &str) -> Option<TemplateSource> {
-    let child = node.child(0)?;
+    // Node is a string_literal, extract the text and strip quotes
+    let text = node.utf8_text(source.as_bytes()).ok()?;
 
-    match child.kind() {
-        "git_reference" => {
-            let url_node = child.child_by_field_name("url")?;
-            let url = url_node.utf8_text(source.as_bytes()).ok()?.to_string();
-            Some(TemplateSource::Git { url })
-        }
-        "local_path" => {
-            let path = child.utf8_text(source.as_bytes()).ok()?.to_string();
-            Some(TemplateSource::Local { path })
-        }
-        "registry_name" => {
-            let name = child.utf8_text(source.as_bytes()).ok()?.to_string();
-            Some(TemplateSource::Registry { name })
-        }
-        _ => None,
+    // Strip surrounding quotes
+    let value = if text.len() >= 2 && text.starts_with('"') && text.ends_with('"') {
+        &text[1..text.len()-1]
+    } else {
+        return None;
+    };
+
+    // Determine source type based on string content
+    if let Some(url) = value.strip_prefix("git:") {
+        Some(TemplateSource::Git { url: url.to_string() })
+    } else if value.starts_with("./") || value.starts_with("../") {
+        Some(TemplateSource::Local { path: value.to_string() })
+    } else {
+        Some(TemplateSource::Registry { name: value.to_string() })
     }
 }
 

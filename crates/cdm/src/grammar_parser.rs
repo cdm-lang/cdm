@@ -110,16 +110,18 @@ impl<'a> GrammarParser<'a> {
         for node in root.children(&mut cursor) {
             if node.kind() == "extends_template" {
                 if let Some(source_node) = node.child_by_field_name("source") {
-                    // source_node is template_source, which contains local_path, git_reference, or registry_name
+                    // source_node is now a string_literal
                     // Only extract local paths (./path or ../path), not registry names or git refs
-                    let mut inner_cursor = source_node.walk();
-                    for child in source_node.children(&mut inner_cursor) {
-                        if child.kind() == "local_path" {
-                            let path_text = child
-                                .utf8_text(source.as_bytes())
-                                .unwrap_or("")
-                                .to_string();
-                            paths.push(path_text);
+                    if source_node.kind() == "string_literal" {
+                        let text = source_node
+                            .utf8_text(source.as_bytes())
+                            .unwrap_or("");
+                        // Strip quotes and check if it's a local path
+                        if text.len() >= 2 && text.starts_with('"') && text.ends_with('"') {
+                            let path = &text[1..text.len()-1];
+                            if path.starts_with("./") || path.starts_with("../") {
+                                paths.push(path.to_string());
+                            }
                         }
                     }
                 }

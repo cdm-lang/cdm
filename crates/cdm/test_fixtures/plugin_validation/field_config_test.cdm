@@ -1,5 +1,5 @@
 
-@docs from ../../../../crates/cdm-plugin-docs {
+@docs from "../../../../crates/cdm-plugin-docs" {
   format: "markdown",
   build_output: "./docs"
 }

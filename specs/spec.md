@@ -754,12 +754,12 @@ A context file begins with the `extends` directive:
 
 ```cdm
 // api.cdm
-extends ./base.cdm
+extends "./base.cdm"
 
 // Modifications follow...
 ```
 
-The path is relative to the current file.
+The path is a quoted string, relative to the current file.
 
 ### 7.3 Context Capabilities
 
@@ -769,7 +769,7 @@ Context files can define new types and models:
 
 ```cdm
 // api.cdm
-extends ./base.cdm
+extends "./base.cdm"
 
 // New type alias
 ApiToken: string {
@@ -790,7 +790,7 @@ Use the `-` prefix to remove models or type aliases:
 
 ```cdm
 // api.cdm
-extends ./base.cdm
+extends "./base.cdm"
 
 -InternalAuditLog    // Remove model
 -SystemConfig        // Remove model
@@ -805,7 +805,7 @@ Use the model name with a block to modify an inherited model:
 
 ```cdm
 // api.cdm
-extends ./base.cdm
+extends "./base.cdm"
 
 User {
   -password_hash      // Remove inherited field
@@ -837,7 +837,7 @@ Admin { contact_email: Email #1 } #11
 
 ```cdm
 // api.cdm
-extends ./base.cdm
+extends "./base.cdm"
 
 Email: string {
   @validation { format: "email" }  // Simpler validation for API
@@ -870,7 +870,7 @@ When a context file extends another, plugin configurations are merged.
 
 ```cdm
 // child.cdm
-extends ./base.cdm
+extends "./base.cdm"
 
 @sql {
   schema: "api",
@@ -906,11 +906,11 @@ User {
 } #10
 
 // client.cdm
-extends ./base.cdm
+extends "./base.cdm"
 User { -password_hash }
 
 // mobile.cdm
-extends ./client.cdm
+extends "./client.cdm"
 User { device_token?: string #4 }
 ```
 
@@ -939,7 +939,7 @@ Status: "active" | "inactive" #1
 User { status: Status #1 } #10
 
 // api.cdm
-extends ./base.cdm
+extends "./base.cdm"
 Status: "active" | "inactive" | "pending" #1  // Override
 ```
 
@@ -976,14 +976,14 @@ Plugins are imported at the top of CDM files, before any type or model definitio
 }
 
 // Git plugin with build capability
-@analytics from git:https://github.com/myorg/cdm-analytics.git {
+@analytics from "git:https://github.com/myorg/cdm-analytics.git" {
   version: "1.0.0",
   endpoint: "https://analytics.example.com",
   build_output: "./analytics"
 }
 
 // Local plugin for development with build capability
-@custom from ./plugins/my-plugin {
+@custom from "./plugins/my-plugin" {
   debug: true,
   build_output: "./generated/custom"
 }
@@ -1009,10 +1009,10 @@ Plugins can be loaded from any git repository:
 
 ```cdm
 // HTTPS
-@plugin from git:https://github.com/user/repo.git
+@plugin from "git:https://github.com/user/repo.git"
 
 // SSH (private repos)
-@plugin from git:git@github.com:org/private-repo.git
+@plugin from "git:git@github.com:org/private-repo.git"
 ```
 
 #### Local Plugins
@@ -1020,8 +1020,8 @@ Plugins can be loaded from any git repository:
 Plugins can be loaded from the local filesystem:
 
 ```cdm
-@custom from ./plugins/my-plugin
-@shared from ../shared-plugins/common
+@custom from "./plugins/my-plugin"
+@shared from "../shared-plugins/common"
 ```
 
 ### 8.4 Plugin Configuration
@@ -1090,7 +1090,7 @@ When a context file extends another, plugin configurations merge:
 @sql { dialect: "postgres", schema: "public" }
 
 // api.cdm
-extends ./base.cdm
+extends "./base.cdm"
 @sql { schema: "api" }  // Merges with parent config
 ```
 
@@ -1257,8 +1257,8 @@ Paths in `extends` directives and local plugin references are resolved relative 
 
 ```cdm
 // In /project/cdm/contexts/api.cdm
-extends ../base.cdm           // Resolves to /project/cdm/base.cdm
-@custom from ../../plugins/my-plugin  // Resolves to /project/plugins/my-plugin
+extends "../base.cdm"                   // Resolves to /project/cdm/base.cdm
+@custom from "../../plugins/my-plugin"  // Resolves to /project/plugins/my-plugin
 ```
 
 ### 10.5 Build Outputs
@@ -1852,7 +1852,7 @@ cargo build --release --target wasm32-wasip1
 Reference a local plugin during development:
 
 ```cdm
-@my-plugin from ./path/to/cdm-plugin-my-plugin {
+@my-plugin from "./path/to/cdm-plugin-my-plugin" {
   debug: true
 }
 ```
@@ -1882,7 +1882,8 @@ Plugins run with resource limits:
 
 ```ebnf
 (* Top-level structure *)
-source_file = { newlines }, { extends_directive , newlines }, { plugin_import , newlines }, { definition , [ newlines ] } ;
+source_file = { newlines }, { directive , newlines }, { definition , [ newlines ] } ;
+directive = extends_directive | template_import | plugin_import ;
 definition = model_removal | type_alias | model_definition ;
 
 (* Whitespace *)
@@ -1893,13 +1894,13 @@ newlines = newline , { newline } ;
 comment = "//" , { any_char - newline } ;
 
 (* Plugin imports *)
-plugin_import = "@" , identifier , [ "from" , plugin_source ] , [ object_literal ] ;
-plugin_source = git_reference | plugin_path ;
-git_reference = "git:" , url ;
-plugin_path = ( "./" | "../" ) , path_segment , { "/" , path_segment } ;
+plugin_import = "@" , identifier , [ "from" , string_literal ] , [ object_literal ] ;
+
+(* Template imports *)
+template_import = "import" , identifier , "from" , string_literal , [ object_literal ] ;
 
 (* Directives *)
-extends_directive = "extends" , file_path ;
+extends_directive = "extends" , string_literal ;
 model_removal = "-" , identifier ;
 
 (* Entity IDs *)

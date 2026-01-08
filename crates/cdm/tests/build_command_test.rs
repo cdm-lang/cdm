@@ -106,7 +106,7 @@ fn test_build_with_typescript_plugin_configs() {
     fs::copy(&plugin_wasm, &wasm_dest).unwrap();
 
     // Create a CDM schema with model and field level configs
-    let schema = r#"@typescript from ./typescript-plugin {
+    let schema = r#"@typescript from "./typescript-plugin" {
     build_output: "./generated"
 }
 

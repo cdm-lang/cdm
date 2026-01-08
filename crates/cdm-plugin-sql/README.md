@@ -911,7 +911,7 @@ make watch
 Use this plugin from any CDM file with a relative path:
 
 ```cdm
-@sql from ./path/to/cdm-plugin-sql {
+@sql from "./path/to/cdm-plugin-sql" {
   dialect: "postgresql",
   build_output: "./generated"
 }

@@ -1,5 +1,5 @@
 // Test extends with template
-extends ./auth_template
+extends "./auth_template"
 
 // Extend the User model from auth
 User {

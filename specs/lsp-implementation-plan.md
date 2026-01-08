@@ -1368,7 +1368,7 @@ suite('CDM Extension E2E', () => {
 
     const apiDoc = await vscode.workspace.openTextDocument({
       language: 'cdm',
-      content: 'extends ./base.cdm\n\nUser { email: Email #1 } #10'
+      content: 'extends "./base.cdm"\n\nUser { email: Email #1 } #10'
     });
 
     await vscode.window.showTextDocument(apiDoc);

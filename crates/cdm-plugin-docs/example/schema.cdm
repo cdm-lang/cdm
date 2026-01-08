@@ -2,7 +2,7 @@
 // This file shows how to use the plugin with different configuration levels
 
 // Import the docs plugin with global configuration
-@docs from ../ {
+@docs from "../" {
     format: "markdown"
     include_examples: true
     include_inheritance: true

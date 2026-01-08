@@ -90,7 +90,7 @@
         "required": true,
         "types": [
           {
-            "type": "template_source",
+            "type": "string_literal",
             "named": true
           }
         ]
@@ -228,27 +228,6 @@
         ]
       }
     }
-  },
-  {
-    "type": "git_reference",
-    "named": true,
-    "fields": {
-      "url": {
-        "multiple": false,
-        "required": true,
-        "types": [
-          {
-            "type": "git_url",
-            "named": true
-          }
-        ]
-      }
-    }
-  },
-  {
-    "type": "local_path",
-    "named": true,
-    "fields": {}
   },
   {
     "type": "model_body",
@@ -470,35 +449,11 @@
         "required": false,
         "types": [
           {
-            "type": "plugin_source",
+            "type": "string_literal",
             "named": true
           }
         ]
       }
-    }
-  },
-  {
-    "type": "plugin_path",
-    "named": true,
-    "fields": {}
-  },
-  {
-    "type": "plugin_source",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": false,
-      "required": true,
-      "types": [
-        {
-          "type": "git_reference",
-          "named": true
-        },
-        {
-          "type": "plugin_path",
-          "named": true
-        }
-      ]
     }
   },
   {
@@ -615,34 +570,11 @@
         "required": true,
         "types": [
           {
-            "type": "template_source",
+            "type": "string_literal",
             "named": true
           }
         ]
       }
-    }
-  },
-  {
-    "type": "template_source",
-    "named": true,
-    "fields": {},
-    "children": {
-      "multiple": false,
-      "required": true,
-      "types": [
-        {
-          "type": "git_reference",
-          "named": true
-        },
-        {
-          "type": "local_path",
-          "named": true
-        },
-        {
-          "type": "registry_name",
-          "named": true
-        }
-      ]
     }
   },
   {
@@ -807,14 +739,6 @@
     "named": false
   },
   {
-    "type": "git:",
-    "named": false
-  },
-  {
-    "type": "git_url",
-    "named": true
-  },
-  {
     "type": "identifier",
     "named": true
   },
@@ -824,10 +748,6 @@
   },
   {
     "type": "number_literal",
-    "named": true
-  },
-  {
-    "type": "registry_name",
     "named": true
   },
   {

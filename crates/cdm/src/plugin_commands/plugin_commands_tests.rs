@@ -18,7 +18,7 @@ fn test_extract_plugin_imports_from_file_valid() {
 
     let content = r#"
 @test_plugin
-@another_plugin from git:https://github.com/user/repo.git
+@another_plugin from "git:https://github.com/user/repo.git"
 
 User {
     name: string #1

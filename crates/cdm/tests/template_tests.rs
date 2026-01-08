@@ -43,7 +43,7 @@ fn test_span() -> Span {
 
 #[test]
 fn test_parse_template_import_basic() {
-    let source = "import sql from sql/postgres-types\n";
+    let source = "import sql from \"sql/postgres-types\"\n";
     let tree = parse(source);
 
     assert!(!tree.root_node().has_error());
@@ -64,7 +64,7 @@ fn test_parse_template_import_basic() {
 
 #[test]
 fn test_parse_template_import_with_version() {
-    let source = r#"import auth from cdm/auth { version: "^2.0.0" }
+    let source = r#"import auth from "cdm/auth" { version: "^2.0.0" }
 "#;
     let tree = parse(source);
 
@@ -85,7 +85,7 @@ fn test_parse_template_import_with_version() {
 
 #[test]
 fn test_parse_template_import_git() {
-    let source = r#"import custom from git:https://github.com/org/repo.git { git_ref: "v1.0.0" }
+    let source = r#"import custom from "git:https://github.com/org/repo.git" { git_ref: "v1.0.0" }
 "#;
     let tree = parse(source);
 
@@ -108,7 +108,7 @@ fn test_parse_template_import_git() {
 
 #[test]
 fn test_parse_template_import_local() {
-    let source = "import local from ./templates/shared\n";
+    let source = "import local from \"./templates/shared\"\n";
     let tree = parse(source);
 
     assert!(!tree.root_node().has_error());
@@ -130,7 +130,7 @@ fn test_parse_template_import_local() {
 
 #[test]
 fn test_parse_template_extends_basic() {
-    let source = "extends cdm/auth\n";
+    let source = "extends \"cdm/auth\"\n";
     let tree = parse(source);
 
     assert!(!tree.root_node().has_error());
@@ -150,7 +150,7 @@ fn test_parse_template_extends_basic() {
 
 #[test]
 fn test_parse_template_extends_with_config() {
-    let source = r#"extends cdm/auth { version: "^2.1.0" }
+    let source = r#"extends "cdm/auth" { version: "^2.1.0" }
 "#;
     let tree = parse(source);
 
@@ -169,9 +169,9 @@ fn test_parse_template_extends_with_config() {
 
 #[test]
 fn test_parse_multiple_directives() {
-    let source = r#"extends ./base.cdm
-extends cdm/auth { version: "^2.0.0" }
-import sql from sql/postgres-types
+    let source = r#"extends "./base.cdm"
+extends "cdm/auth" { version: "^2.0.0" }
+import sql from "sql/postgres-types"
 @typescript { build_output: "./src/types" }
 
 User {
@@ -207,7 +207,7 @@ User {
 
 #[test]
 fn test_parse_qualified_type_reference() {
-    let source = r#"import sql from sql/postgres-types
+    let source = r#"import sql from "sql/postgres-types"
 
 User {
   id: sql.UUID #1
@@ -428,7 +428,7 @@ fn test_template_manifest_minimal() {
 #[test]
 fn test_full_template_usage_scenario() {
     // Simulate a file that imports SQL types and uses them
-    let source = r#"import sql from sql/postgres-types { version: "^1.0.0" }
+    let source = r#"import sql from "sql/postgres-types" { version: "^1.0.0" }
 
 User {
   id: sql.UUID #1

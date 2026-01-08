@@ -504,8 +504,8 @@ fn test_parse_file_with_template_import() {
     std::fs::write(
         &temp_file,
         r#"
-import sql from sql/postgres-types
-import auth from cdm/auth { version: "^2.0.0" }
+import sql from "sql/postgres-types"
+import auth from "cdm/auth" { version: "^2.0.0" }
 
 User {
   id: sql.UUID #1
@@ -534,7 +534,7 @@ fn test_parse_file_with_extends_template() {
     std::fs::write(
         &temp_file,
         r#"
-extends cdm/auth { version: "^2.0.0" }
+extends "cdm/auth" { version: "^2.0.0" }
 
 User extends AuthUser {
   profile_pic: string #10
@@ -562,7 +562,7 @@ fn test_parse_file_with_qualified_types() {
     std::fs::write(
         &temp_file,
         r#"
-import sql from ./sql_types
+import sql from "./sql_types"
 
 User {
   id: sql.UUID #1
@@ -688,9 +688,9 @@ fn test_extract_extends_with_mixed_directives() {
     std::fs::write(
         &temp_file,
         r#"
-extends ./base1.cdm
+extends "./base1.cdm"
 @sql { dialect: "postgres" }
-extends ./base2.cdm
+extends "./base2.cdm"
 @typescript { output_dir: "./types" }
 
 User {
@@ -720,7 +720,7 @@ fn test_extract_extends_ignores_extends_keyword() {
     std::fs::write(
         &temp_file,
         r#"
-extends ./base.cdm
+extends "./base.cdm"
 
 // extends keyword for model inheritance is different from extends
 User extends BaseModel {
@@ -749,8 +749,8 @@ fn test_extract_extends_ignores_extends_template() {
     std::fs::write(
         &temp_file,
         r#"
-extends ./local_file.cdm
-extends cdm/auth { version: "^2.0.0" }
+extends "./local_file.cdm"
+extends "cdm/auth" { version: "^2.0.0" }
 
 User {
   id: number #1

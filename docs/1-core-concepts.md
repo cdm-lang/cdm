@@ -108,7 +108,7 @@ Instead of copying schemas for different environments (database, API, client), C
 
 ```cdm
 // api.cdm
-extends ./base.cdm
+extends "./base.cdm"
 
 User {
   -password_hash

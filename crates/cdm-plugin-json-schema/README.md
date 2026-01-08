@@ -1050,7 +1050,7 @@ make watch
 Use this plugin from any CDM file with a relative path:
 
 ```cdm
-@jsonschema from ./path/to/cdm-plugin-json-schema {
+@jsonschema from "./path/to/cdm-plugin-json-schema" {
   build_output: "./schemas"
 }
 

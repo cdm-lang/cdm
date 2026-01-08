@@ -135,7 +135,7 @@
                   "name": "source",
                   "content": {
                     "type": "SYMBOL",
-                    "name": "plugin_source"
+                    "name": "string_literal"
                   }
                 }
               ]
@@ -163,44 +163,6 @@
         }
       ]
     },
-    "plugin_source": {
-      "type": "CHOICE",
-      "members": [
-        {
-          "type": "SYMBOL",
-          "name": "git_reference"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "plugin_path"
-        }
-      ]
-    },
-    "git_reference": {
-      "type": "SEQ",
-      "members": [
-        {
-          "type": "STRING",
-          "value": "git:"
-        },
-        {
-          "type": "FIELD",
-          "name": "url",
-          "content": {
-            "type": "SYMBOL",
-            "name": "git_url"
-          }
-        }
-      ]
-    },
-    "git_url": {
-      "type": "PATTERN",
-      "value": "[^\\s\\n{}]+"
-    },
-    "plugin_path": {
-      "type": "PATTERN",
-      "value": "\\.\\.?\\/[^\\s\\n{}]+"
-    },
     "template_import": {
       "type": "SEQ",
       "members": [
@@ -225,7 +187,7 @@
           "name": "source",
           "content": {
             "type": "SYMBOL",
-            "name": "template_source"
+            "name": "string_literal"
           }
         },
         {
@@ -258,7 +220,7 @@
           "name": "source",
           "content": {
             "type": "SYMBOL",
-            "name": "template_source"
+            "name": "string_literal"
           }
         },
         {
@@ -278,31 +240,6 @@
           ]
         }
       ]
-    },
-    "template_source": {
-      "type": "CHOICE",
-      "members": [
-        {
-          "type": "SYMBOL",
-          "name": "git_reference"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "local_path"
-        },
-        {
-          "type": "SYMBOL",
-          "name": "registry_name"
-        }
-      ]
-    },
-    "local_path": {
-      "type": "PATTERN",
-      "value": "\\.\\.?\\/[^\\s\\n{}]+"
-    },
-    "registry_name": {
-      "type": "PATTERN",
-      "value": "[a-zA-Z][a-zA-Z0-9_-]*(\\/[a-zA-Z][a-zA-Z0-9_-]*)?"
     },
     "model_removal": {
       "type": "SEQ",

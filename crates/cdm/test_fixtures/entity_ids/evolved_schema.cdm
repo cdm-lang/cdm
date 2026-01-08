@@ -1,4 +1,4 @@
-extends ./base_schema.cdm
+extends "./base_schema.cdm"
 
 // Evolved schema with entity IDs for migration tracking
 // This represents a schema at version 2

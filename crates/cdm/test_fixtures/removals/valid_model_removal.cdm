@@ -1,4 +1,4 @@
-extends ./base.cdm
+extends "./base.cdm"
 
 // Valid: Post can be removed (nothing references it)
 -Post

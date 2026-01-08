@@ -1,4 +1,4 @@
-@docs from ../../../../../crates/cdm-plugin-docs {
+@docs from "../../../../../crates/cdm-plugin-docs" {
   format: "markdown",
   title: "Base Schema",
   build_output: "./docs"

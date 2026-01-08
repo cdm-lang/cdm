@@ -13,7 +13,7 @@ Instead of duplicating models, contexts **extend and modify** existing schemas i
 A context is a CDM file that **extends another CDM file** and applies changes to it.
 
 ```cdm
-extends ./base.cdm
+extends "./base.cdm"
 ```
 
 A context can:
@@ -53,7 +53,7 @@ A context file begins with an `extends` directive:
 
 ```cdm
 // api.cdm
-extends ./base.cdm
+extends "./base.cdm"
 ```
 
 Rules:
@@ -147,7 +147,7 @@ Email: string {
 
 ```cdm
 // api.cdm
-extends ./base.cdm
+extends "./base.cdm"
 
 Email: string {
   @validation { format: "email" }
@@ -204,7 +204,7 @@ User {
 
 ```cdm
 // api.cdm
-extends ./base.cdm
+extends "./base.cdm"
 
 User {
   -password_hash
@@ -213,7 +213,7 @@ User {
 
 ```cdm
 // mobile.cdm
-extends ./api.cdm
+extends "./api.cdm"
 
 User {
   device_token?: string
@@ -243,7 +243,7 @@ Each layer only expresses what changes.
 
 ```cdm
 // api.cdm
-extends ./base.cdm
+extends "./base.cdm"
 
 @typescript {
   strict_nulls: false

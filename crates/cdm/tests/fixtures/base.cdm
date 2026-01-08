@@ -2,11 +2,11 @@
 // This file demonstrates plugin usage for integration testing
 
 // Local plugins for testing
-@typescript from ./plugins/typescript {
+@typescript from "./plugins/typescript" {
   build_output: "./build"
 }
 
-@sql from ./plugins/sql {
+@sql from "./plugins/sql" {
   dialect: "postgresql",
   schema: "public",
   build_output: "./build",

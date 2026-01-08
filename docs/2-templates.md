@@ -6,7 +6,7 @@ Templates are reusable CDM schema packages that can be imported into any project
 
 ```cdm
 // Import SQL types under a namespace
-import sql from sql/postgres-types
+import sql from "sql/postgres-types"
 
 // Use namespaced types in your models
 User {
@@ -25,7 +25,7 @@ CDM provides two ways to use templates:
 Brings template definitions into scope under a namespace. Imported definitions are **not** included in your schema output - they're only available for type references.
 
 ```cdm
-import sql from sql/postgres-types
+import sql from "sql/postgres-types"
 
 User {
   id: sql.UUID #1           // Reference type from namespace
@@ -38,7 +38,7 @@ User {
 Merges template definitions directly into your schema. All models and types become part of your output, and you can modify them.
 
 ```cdm
-extends cdm/auth
+extends "cdm/auth"
 
 // User model from auth template is now in your schema
 // You can extend or modify it
@@ -53,8 +53,8 @@ User {
 Both can be used together:
 
 ```cdm
-import sql from sql/postgres-types    // For type references
-extends cdm/auth                       // Merge auth models
+import sql from "sql/postgres-types"    // For type references
+extends "cdm/auth"                       // Merge auth models
 
 User {
   id: sql.UUID #100                   // Use SQL type
@@ -74,15 +74,15 @@ Post {
 Published templates from the CDM registry:
 
 ```cdm
-import sql from sql/postgres-types
-import auth from cdm/auth
+import sql from "sql/postgres-types"
+import auth from "cdm/auth"
 ```
 
 With version constraints:
 
 ```cdm
-import sql from sql/postgres-types { version: "^1.0.0" }
-extends cdm/auth { version: "~2.1.0" }
+import sql from "sql/postgres-types" { version: "^1.0.0" }
+extends "cdm/auth" { version: "~2.1.0" }
 ```
 
 Version constraint formats:
@@ -96,13 +96,13 @@ Version constraint formats:
 Templates from git repositories:
 
 ```cdm
-import custom from git:https://github.com/org/cdm-types.git
+import custom from "git:https://github.com/org/cdm-types.git"
 ```
 
 With git reference pinning:
 
 ```cdm
-import custom from git:https://github.com/org/cdm-types.git {
+import custom from "git:https://github.com/org/cdm-types.git" {
   git_ref: "v2.0.0"
 }
 ```
@@ -110,7 +110,7 @@ import custom from git:https://github.com/org/cdm-types.git {
 For monorepos, specify a subdirectory:
 
 ```cdm
-import types from git:https://github.com/org/monorepo.git {
+import types from "git:https://github.com/org/monorepo.git" {
   git_ref: "main",
   git_path: "packages/cdm-types"
 }
@@ -122,11 +122,11 @@ Templates from the local filesystem:
 
 ```cdm
 // Reference a template directory (requires cdm-template.json manifest)
-import shared from ./templates/shared
-import common from ../common-schemas
+import shared from "./templates/shared"
+import common from "../common-schemas"
 
 // Reference a CDM file directly (no manifest required)
-import pg from ../templates/sql-types/postgres.cdm
+import pg from "../templates/sql-types/postgres.cdm"
 ```
 
 Paths are resolved relative to the importing file. Direct `.cdm` file references are useful for development or when you don't need the full template manifest structure.
@@ -136,7 +136,7 @@ Paths are resolved relative to the importing file. Direct `.cdm` file references
 Access namespaced types using dot notation:
 
 ```cdm
-import sql from sql/postgres-types
+import sql from "sql/postgres-types"
 
 User {
   id: sql.UUID #1
@@ -151,7 +151,7 @@ User {
 Add configuration when using namespaced types:
 
 ```cdm
-import sql from sql/postgres-types
+import sql from "sql/postgres-types"
 
 User {
   name: sql.Varchar {
@@ -194,7 +194,7 @@ my-template/
 `index.cdm`:
 
 ```cdm
-import sql from sql/postgres-types
+import sql from "sql/postgres-types"
 
 // Re-export commonly used types
 UUID: sql.UUID #1
@@ -220,10 +220,10 @@ Pin versions in production schemas:
 
 ```cdm
 // Good - pinned version
-extends cdm/auth { version: "2.1.0" }
+extends "cdm/auth" { version: "2.1.0" }
 
 // Risky - uses latest
-extends cdm/auth
+extends "cdm/auth"
 ```
 
 ### Namespace Naming
@@ -232,13 +232,13 @@ Choose clear, descriptive namespaces:
 
 ```cdm
 // Good - clear what each namespace contains
-import pg from sql/postgres-types
-import mysql from sql/mysql-types
-import auth from cdm/auth
+import pg from "sql/postgres-types"
+import mysql from "sql/mysql-types"
+import auth from "cdm/auth"
 
 // Bad - ambiguous
-import t1 from sql/postgres-types
-import t2 from sql/mysql-types
+import t1 from "sql/postgres-types"
+import t2 from "sql/mysql-types"
 ```
 
 ### Avoid Conflicts
@@ -247,12 +247,12 @@ Each namespace must be unique:
 
 ```cdm
 // Error: duplicate namespace 'sql'
-import sql from sql/postgres-types
-import sql from sql/mysql-types
+import sql from "sql/postgres-types"
+import sql from "sql/mysql-types"
 
 // Fixed: use different namespaces
-import pg from sql/postgres-types
-import mysql from sql/mysql-types
+import pg from "sql/postgres-types"
+import mysql from "sql/mysql-types"
 ```
 
 ## Directive Ordering
@@ -261,9 +261,9 @@ All `extends`, `import`, and plugin directives must appear at the top of a file,
 
 ```cdm
 // Directives first (order among them is flexible)
-extends ./base.cdm
-extends cdm/auth { version: "^2.0.0" }
-import sql from sql/postgres-types
+extends "./base.cdm"
+extends "cdm/auth" { version: "^2.0.0" }
+import sql from "sql/postgres-types"
 @sql { dialect: "postgres" }
 @typescript { build_output: "./src/types" }
 
@@ -276,9 +276,9 @@ User {
 ## Example: Multi-Tenant SaaS
 
 ```cdm
-extends cdm/multi-tenant { version: "^1.0.0" }
-extends cdm/auth { version: "^2.1.0" }
-import sql from sql/postgres-types
+extends "cdm/multi-tenant" { version: "^1.0.0" }
+extends "cdm/auth" { version: "^2.1.0" }
+import sql from "sql/postgres-types"
 
 @sql { dialect: "postgres", build_output: "./db" }
 

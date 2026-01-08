@@ -264,7 +264,7 @@ cargo test -- --nocapture  # Show println! output
 Create a CDM file that imports your plugin from a local path:
 
 ```cdm
-@myplugin from ./path/to/cdm-plugin-myplugin {
+@myplugin from "./path/to/cdm-plugin-myplugin" {
     output_format: "json"
 }
 

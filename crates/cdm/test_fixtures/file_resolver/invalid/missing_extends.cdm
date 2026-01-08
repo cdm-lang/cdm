@@ -1,4 +1,4 @@
-extends ./nonexistent.cdm
+extends "./nonexistent.cdm"
 
 Test {
   id: number

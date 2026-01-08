@@ -159,7 +159,7 @@ You can combine git reference pinning with subdirectory paths:
 Plugins can be loaded from the local filesystem:
 
 ```cdm
-@custom from ./plugins/my-plugin
+@custom from "./plugins/my-plugin"
 ```
 
 This is useful for development, experimentation, and internal generators.
@@ -208,7 +208,7 @@ Merge rules:
 
 ```cdm
 // api.cdm
-extends ./base.cdm
+extends "./base.cdm"
 
 @typescript {
   strict_nulls: false

@@ -34,8 +34,8 @@ Templates can be loaded from the same sources as plugins:
 Templates published to the CDM template registry:
 
 ```cdm
-import sql from sql/postgres-types
-import auth from cdm/auth
+import sql from "sql/postgres-types"
+import auth from "cdm/auth"
 ```
 
 Registry template names can optionally include `/` characters for organizational scoping:
@@ -50,8 +50,8 @@ Scoping is optional but recommended for clarity and to avoid naming conflicts.
 Templates loaded from git repositories:
 
 ```cdm
-import auth from git:https://github.com/cdm-lang/cdm-template-auth.git
-import internal from git:git@github.com:myorg/cdm-schemas.git
+import auth from "git:https://github.com/cdm-lang/cdm-template-auth.git"
+import internal from "git:git@github.com:myorg/cdm-schemas.git"
 ```
 
 #### Git Reference Pinning
@@ -59,7 +59,7 @@ import internal from git:git@github.com:myorg/cdm-schemas.git
 Git templates can specify a git reference using the `git_ref` config key:
 
 ```cdm
-import auth from git:https://github.com/cdm-lang/cdm-template-auth.git {
+import auth from "git:https://github.com/cdm-lang/cdm-template-auth.git" {
   git_ref: "v2.1.0"
 }
 ```
@@ -76,7 +76,7 @@ If no `git_ref` is specified, the `main` branch is used by default.
 For monorepos or repositories where the template is nested within a subdirectory, use the `git_path` config key:
 
 ```cdm
-import types from git:https://github.com/my-org/monorepo.git {
+import types from "git:https://github.com/my-org/monorepo.git" {
   git_path: "packages/cdm-types"
 }
 ```
@@ -86,7 +86,7 @@ The `git_path` specifies the directory containing the `cdm-template.json` manife
 You can combine git reference pinning with subdirectory paths:
 
 ```cdm
-import types from git:https://github.com/my-org/monorepo.git {
+import types from "git:https://github.com/my-org/monorepo.git" {
   git_ref: "v2.0.0",
   git_path: "packages/cdm-types"
 }
@@ -97,8 +97,8 @@ import types from git:https://github.com/my-org/monorepo.git {
 Templates loaded from the local filesystem:
 
 ```cdm
-import shared from ./templates/shared
-import common from ../common-schemas
+import shared from "./templates/shared"
+import common from "../common-schemas"
 ```
 
 Paths are resolved relative to the importing file.
@@ -122,8 +122,8 @@ import <namespace> from <source> [{ <config> }]
 **Example:**
 
 ```cdm
-import sql from sql/postgres-types
-import auth from cdm/auth
+import sql from "sql/postgres-types"
+import auth from "cdm/auth"
 
 User {
   id: sql.UUID #1
@@ -152,16 +152,16 @@ extends <source> [{ <config> }]
 
 ```cdm
 // Local file (current behavior)
-extends ./base.cdm
+extends "./base.cdm"
 
 // Registry template
-extends cdm/auth
+extends "cdm/auth"
 
 // Git template
-extends git:https://github.com/cdm-lang/cdm-template-auth.git
+extends "git:https://github.com/cdm-lang/cdm-template-auth.git"
 
 // With version pinning
-extends cdm/auth { version: "2.1.0" }
+extends "cdm/auth" { version: "2.1.0" }
 ```
 
 **Behavior:**
@@ -176,10 +176,10 @@ Both keywords can be used together:
 
 ```cdm
 // Import SQL types as a namespace (for type references)
-import sql from sql/postgres-types
+import sql from "sql/postgres-types"
 
 // Merge auth models into our schema (we want to extend them)
-extends cdm/auth
+extends "cdm/auth"
 
 // Auth's User model is now in our schema, we can extend it
 User {
@@ -211,10 +211,10 @@ All `extends`, `import`, and plugin directives must appear at the top of a CDM f
 
 ```cdm
 // These can appear in any order, as long as they're before definitions
-extends ./base.cdm
-extends cdm/auth { version: "^2.0.0" }
-import sql from sql/postgres-types
-import analytics from git:https://github.com/org/analytics.git
+extends "./base.cdm"
+extends "cdm/auth" { version: "^2.0.0" }
+import sql from "sql/postgres-types"
+import analytics from "git:https://github.com/org/analytics.git"
 @sql { dialect: "postgres", build_output: "./db" }
 @typescript { build_output: "./src/types" }
 
@@ -233,7 +233,7 @@ User {
 Namespaced definitions are accessed using dot notation:
 
 ```cdm
-import sql from sql/postgres-types
+import sql from "sql/postgres-types"
 
 User {
   id: sql.UUID #1
@@ -249,7 +249,7 @@ If a template re-exports another template, nested access is supported:
 
 ```cdm
 // If cdm/auth internally imports and re-exports sql/postgres-types as "types"
-import auth from cdm/auth
+import auth from "cdm/auth"
 
 User {
   id: auth.types.UUID #1  // Access nested namespace
@@ -260,7 +260,7 @@ However, templates SHOULD re-export commonly used types at the top level for con
 
 ```cdm
 // Better: auth re-exports UUID directly
-import auth from cdm/auth
+import auth from "cdm/auth"
 
 User {
   id: auth.UUID #1  // Cleaner access
@@ -272,7 +272,7 @@ User {
 When using a namespaced type, you can add field-level plugin configuration:
 
 ```cdm
-import sql from sql/postgres-types
+import sql from "sql/postgres-types"
 
 User {
   // sql.Varchar provides @sql { type: "VARCHAR" }
@@ -347,13 +347,13 @@ The `exports` field allows templates to expose multiple entry points. Consumers 
 
 ```cdm
 // Import everything from the main entry
-import auth from cdm/auth
+import auth from "cdm/auth"
 
 // Import only types (if template exports "./types")
-import authTypes from cdm/auth/types
+import authTypes from "cdm/auth/types"
 
 // Import only models (if template exports "./models")
-import authModels from cdm/auth/models
+import authModels from "cdm/auth/models"
 ```
 
 This is useful when:
@@ -408,7 +408,7 @@ Boolean: boolean {
 // index.cdm for cdm/auth
 
 // Import SQL types for use in our models
-import sql from sql/postgres-types
+import sql from "sql/postgres-types"
 
 // Re-export commonly used types
 UUID: sql.UUID #1
@@ -458,15 +458,15 @@ UserRole {
 When two imports use the same namespace, it's an error:
 
 ```cdm
-import sql from sql/postgres-types
-import sql from sql/mysql-types  // Error: duplicate namespace 'sql'
+import sql from "sql/postgres-types"
+import sql from "sql/mysql-types"  // Error: duplicate namespace 'sql'
 ```
 
 **Solution:** Use different namespaces:
 
 ```cdm
-import pg from sql/postgres-types
-import mysql from sql/mysql-types
+import pg from "sql/postgres-types"
+import mysql from "sql/mysql-types"
 ```
 
 ### 7.2 Merged Definition Conflicts
@@ -474,15 +474,15 @@ import mysql from sql/mysql-types
 When extending multiple templates that define the same model or type alias, the **last template wins** (consistent with multiple inheritance):
 
 ```cdm
-extends cdm/auth             // Defines User
-extends myorg/extended-auth  // Also defines User - this one wins
+extends "cdm/auth"             // Defines User
+extends "myorg/extended-auth"  // Also defines User - this one wins
 ```
 
 You can always override explicitly in your schema:
 
 ```cdm
-extends cdm/auth
-extends myorg/extended-auth
+extends "cdm/auth"
+extends "myorg/extended-auth"
 
 // Explicit override takes precedence
 User {
@@ -495,8 +495,8 @@ User {
 If the same template is both imported and extended, both are valid:
 
 ```cdm
-extends cdm/auth             // Merge User, Session, Role into schema
-import auth from cdm/auth    // Also available as auth.User, auth.Session
+extends "cdm/auth"             // Merge User, Session, Role into schema
+import auth from "cdm/auth"    // Also available as auth.User, auth.Session
 
 // Both work:
 author: User #1        // From merged extends
@@ -524,8 +524,8 @@ Template dependencies are declared via `import` and `extends` statements in the 
 Version constraints follow semantic versioning and can be specified in the `import` or `extends` config block:
 
 ```cdm
-import sql from sql/postgres-types { version: "^1.0.0" }
-extends cdm/auth { version: "~2.1.0" }
+import sql from "sql/postgres-types" { version: "^1.0.0" }
+extends "cdm/auth" { version: "~2.1.0" }
 ```
 
 | Constraint | Meaning                                        |
@@ -539,8 +539,8 @@ extends cdm/auth { version: "~2.1.0" }
 **Note:** The `version` config key applies only to registry templates. For git templates, use `git_ref` instead:
 
 ```cdm
-import custom from git:https://github.com/org/repo.git { git_ref: "main" }
-import custom from git:https://github.com/org/repo.git { git_ref: "a1b2c3d" }
+import custom from "git:https://github.com/org/repo.git" { git_ref: "main" }
+import custom from "git:https://github.com/org/repo.git" { git_ref: "a1b2c3d" }
 ```
 
 ### 8.3 Version Conflicts
@@ -687,7 +687,7 @@ cdm template clear-cache cdm/auth
 ### 12.1 Using SQL Types
 
 ```cdm
-import sql from sql/postgres-types
+import sql from "sql/postgres-types"
 
 @sql { dialect: "postgres", build_output: "./db" }
 
@@ -710,8 +710,8 @@ User {
 ### 12.2 Extending an Auth Template
 
 ```cdm
-extends cdm/auth { version: "^2.1.0" }
-import sql from sql/postgres-types
+extends "cdm/auth" { version: "^2.1.0" }
+import sql from "sql/postgres-types"
 
 @sql { dialect: "postgres", build_output: "./db" }
 
@@ -737,9 +737,9 @@ Post {
 ### 12.3 Multi-Tenant SaaS Starter
 
 ```cdm
-extends cdm/multi-tenant { version: "^1.0.0" }
-extends cdm/auth { version: "^2.1.0" }
-import sql from sql/postgres-types
+extends "cdm/multi-tenant" { version: "^1.0.0" }
+extends "cdm/auth" { version: "^2.1.0" }
+import sql from "sql/postgres-types"
 
 @sql { dialect: "postgres", build_output: "./db" }
 
@@ -795,7 +795,7 @@ my-company-schemas/
 **index.cdm:**
 
 ```cdm
-import sql from sql/postgres-types
+import sql from "sql/postgres-types"
 
 // Re-export SQL types we commonly use
 UUID: sql.UUID #1
@@ -819,8 +819,8 @@ BaseModel extends Auditable {
 **Using the custom template:**
 
 ```cdm
-extends mycompany/base
-import sql from sql/postgres-types
+extends "mycompany/base"
+import sql from "sql/postgres-types"
 
 @sql { dialect: "postgres", build_output: "./db" }
 
@@ -866,14 +866,14 @@ Templates should use stable entity IDs to enable reliable migrations in consumin
 Production schemas should pin template versions:
 
 ```cdm
-extends cdm/auth { version: "2.1.0" }  // Pinned to exact version
-extends cdm/auth { version: "^2.1.0" } // Pinned to compatible range
+extends "cdm/auth" { version: "2.1.0" }  // Pinned to exact version
+extends "cdm/auth" { version: "^2.1.0" } // Pinned to compatible range
 ```
 
 Rather than using unpinned (latest):
 
 ```cdm
-extends cdm/auth  // Uses latest - risky for production
+extends "cdm/auth"  // Uses latest - risky for production
 ```
 
 ---
@@ -892,8 +892,8 @@ User { id: string #1 } #10
 Invoice { id: string #1 } #10
 
 // Consumer schema:
-extends cdm/auth
-extends cdm/billing
+extends "cdm/auth"
+extends "cdm/billing"
 // Without collision prevention: #10 refers to both User and Invoice!
 ```
 
@@ -930,7 +930,7 @@ Two entity IDs only collide if they have the **same source AND same local ID**. 
 Field entity IDs belong to the model where they are defined:
 
 ```cdm
-extends cdm/auth
+extends "cdm/auth"
 // cdm/auth defines: User { id: string #1, email: string #2 } #10
 
 User {
@@ -949,7 +949,7 @@ Templates may re-export types from other templates. Re-exported definitions get 
 
 ```cdm
 // cdm/auth/index.cdm
-import sql from sql/postgres-types
+import sql from "sql/postgres-types"
 
 // Re-export creates a NEW type alias with cdm/auth as source
 UUID: sql.UUID #1  // This #1 belongs to cdm/auth, not sql/postgres-types
@@ -970,8 +970,8 @@ Entity ID validation checks for collisions **within the same source**:
 
 ```cdm
 // These DON'T collide (different sources):
-extends cdm/auth      // User #10
-extends cdm/billing   // Invoice #10
+extends "cdm/auth"      // User #10
+extends "cdm/billing"   // Invoice #10
 LocalModel { } #10    // Local #10
 
 // These DO collide (same source - Local):

@@ -11,7 +11,7 @@ fn parse(source: &str) -> tree_sitter::Tree {
 #[test]
 fn test_extract_template_import_registry() {
     let source = r#"
-import sql from sql/postgres-types
+import sql from "sql/postgres-types"
 "#;
     let tree = parse(source);
     let imports = extract_template_imports(tree.root_node(), source, Path::new("test.cdm"));
@@ -30,7 +30,7 @@ import sql from sql/postgres-types
 #[test]
 fn test_extract_template_import_with_config() {
     let source = r#"
-import auth from cdm/auth { version: "^2.0.0" }
+import auth from "cdm/auth" { version: "^2.0.0" }
 "#;
     let tree = parse(source);
     let imports = extract_template_imports(tree.root_node(), source, Path::new("test.cdm"));
@@ -51,7 +51,7 @@ import auth from cdm/auth { version: "^2.0.0" }
 #[test]
 fn test_extract_template_import_git() {
     let source = r#"
-import custom from git:https://github.com/org/repo.git { git_ref: "v1.0.0" }
+import custom from "git:https://github.com/org/repo.git" { git_ref: "v1.0.0" }
 "#;
     let tree = parse(source);
     let imports = extract_template_imports(tree.root_node(), source, Path::new("test.cdm"));
@@ -71,7 +71,7 @@ import custom from git:https://github.com/org/repo.git { git_ref: "v1.0.0" }
 #[test]
 fn test_extract_template_import_local() {
     let source = r#"
-import local from ./templates/shared
+import local from "./templates/shared"
 "#;
     let tree = parse(source);
     let imports = extract_template_imports(tree.root_node(), source, Path::new("test.cdm"));
@@ -89,7 +89,7 @@ import local from ./templates/shared
 #[test]
 fn test_extract_template_extends_registry() {
     let source = r#"
-extends cdm/auth { version: "^2.0.0" }
+extends "cdm/auth" { version: "^2.0.0" }
 "#;
     let tree = parse(source);
     let extends = extract_template_extends(tree.root_node(), source, Path::new("test.cdm"));
@@ -108,7 +108,7 @@ extends cdm/auth { version: "^2.0.0" }
 #[test]
 fn test_extract_template_extends_git() {
     let source = r#"
-extends git:https://github.com/org/repo.git
+extends "git:https://github.com/org/repo.git"
 "#;
     let tree = parse(source);
     let extends = extract_template_extends(tree.root_node(), source, Path::new("test.cdm"));
@@ -125,7 +125,7 @@ extends git:https://github.com/org/repo.git
 #[test]
 fn test_extract_template_extends_local() {
     let source = r#"
-extends ./templates/base
+extends "./templates/base"
 "#;
     let tree = parse(source);
     let extends = extract_template_extends(tree.root_node(), source, Path::new("test.cdm"));
@@ -142,9 +142,9 @@ extends ./templates/base
 #[test]
 fn test_extract_multiple_imports() {
     let source = r#"
-import sql from sql/postgres-types
-import auth from cdm/auth { version: "^2.0.0" }
-import custom from ./local/template
+import sql from "sql/postgres-types"
+import auth from "cdm/auth" { version: "^2.0.0" }
+import custom from "./local/template"
 "#;
     let tree = parse(source);
     let imports = extract_template_imports(tree.root_node(), source, Path::new("test.cdm"));
@@ -158,9 +158,9 @@ import custom from ./local/template
 #[test]
 fn test_extract_mixed_directives() {
     let source = r#"
-extends ./base.cdm
-extends cdm/auth
-import sql from sql/postgres-types
+extends "./base.cdm"
+extends "cdm/auth"
+import sql from "sql/postgres-types"
 @typescript { build_output: "./src/types" }
 
 User {
@@ -459,7 +459,7 @@ User {
 
 #[test]
 fn test_import_span_populated() {
-    let source = r#"import sql from sql/postgres-types"#;
+    let source = r#"import sql from "sql/postgres-types""#;
     let tree = parse(source);
     let imports = extract_template_imports(tree.root_node(), source, Path::new("test.cdm"));
 
@@ -471,7 +471,7 @@ fn test_import_span_populated() {
 
 #[test]
 fn test_extends_span_populated() {
-    let source = r#"extends cdm/auth"#;
+    let source = r#"extends "cdm/auth""#;
     let tree = parse(source);
     let extends = extract_template_extends(tree.root_node(), source, Path::new("test.cdm"));
 
@@ -483,7 +483,7 @@ fn test_extends_span_populated() {
 
 #[test]
 fn test_source_file_path_preserved() {
-    let source = r#"import sql from sql/postgres-types"#;
+    let source = r#"import sql from "sql/postgres-types""#;
     let tree = parse(source);
     let source_path = Path::new("/project/schema.cdm");
     let imports = extract_template_imports(tree.root_node(), source, source_path);
@@ -495,7 +495,7 @@ fn test_source_file_path_preserved() {
 #[test]
 fn test_import_config_with_multiple_fields() {
     let source = r#"
-import sql from sql/postgres-types { version: "^1.0.0", strict: true }
+import sql from "sql/postgres-types" { version: "^1.0.0", strict: true }
 "#;
     let tree = parse(source);
     let imports = extract_template_imports(tree.root_node(), source, Path::new("test.cdm"));

@@ -3,10 +3,10 @@
  *
  * Supports:
  * - Plugin imports: @sql { dialect: "postgres" }
- * - External plugins: @analytics from git:https://github.com/myorg/cdm-analytics.git { }
- * - Local plugins: @custom from ./plugins/my-plugin { }
- * - Template imports: import sql from sql/postgres-types { version: "^1.0.0" }
- * - Template extends: extends cdm/auth { version: "^2.0.0" }
+ * - External plugins: @analytics from "git:https://github.com/myorg/cdm-analytics.git" { }
+ * - Local plugins: @custom from "./plugins/my-plugin" { }
+ * - Template imports: import sql from "sql/postgres-types" { version: "^1.0.0" }
+ * - Template extends: extends "cdm/auth" { version: "^2.0.0" }
  * - Qualified type references: sql.UUID, auth.types.Email
  * - Simple type aliases: Email: string
  * - Union types: Status: "active" | "pending" | "deleted"
@@ -18,7 +18,7 @@
  * - Array types: Post[]
  * - Plugin configurations: @sql { table: "users" }
  * - Field-level plugin overrides
- * - Context extensions: extends ./base.cdm
+ * - Context extensions: extends "./base.cdm"
  * - Model removal: -ModelName
  * - Entity IDs: User { name: string #1 } #10
  *
@@ -50,8 +50,8 @@ module.exports = grammar({
     // Top-level directives: extends, template imports, plugin imports
     _directive: ($) =>
       choice(
-        $.extends_template,      // extends ./base.cdm, extends cdm/auth { version: "^2.0.0" }
-        $.template_import,       // import sql from sql/postgres-types
+        $.extends_template,      // extends "./base.cdm", extends "cdm/auth" { version: "^2.0.0" }
+        $.template_import,       // import sql from "sql/postgres-types"
         $.plugin_import          // @sql { dialect: "postgres" }
       ),
 
@@ -69,76 +69,53 @@ module.exports = grammar({
     // PLUGIN IMPORTS (must appear before definitions)
     // =========================================================================
 
-    // Plugin import: @name [from source] [{ config }]
+    // Plugin import: @name [from "source"] [{ config }]
     // Examples:
     //   @sql
     //   @sql { dialect: "postgres", schema: "public" }
-    //   @analytics from git:https://github.com/myorg/cdm-analytics.git { endpoint: "https://..." }
-    //   @custom from ./plugins/my-plugin { debug: true }
+    //   @analytics from "git:https://github.com/myorg/cdm-analytics.git" { endpoint: "https://..." }
+    //   @custom from "./plugins/my-plugin" { debug: true }
     plugin_import: ($) =>
       seq(
         "@",
         field("name", $.identifier),
-        optional(seq("from", field("source", $.plugin_source))),
+        optional(seq("from", field("source", $.string_literal))),
         optional(field("config", $.object_literal))
       ),
-
-    // Plugin source: git URL or local path
-    plugin_source: ($) => choice($.git_reference, $.plugin_path),
-
-    // Git reference: git:<url>
-    git_reference: ($) => seq("git:", field("url", $.git_url)),
-
-    // Flexible git URL pattern
-    git_url: ($) => /[^\s\n{}]+/,
-
-    // Local plugin path: ./path or ../path
-    plugin_path: ($) => /\.\.?\/[^\s\n{}]+/,
 
     // =========================================================================
     // TEMPLATE IMPORTS
     // =========================================================================
 
-    // Template import: import <namespace> from <source> [{ config }]
+    // Template import: import <namespace> from "<source>" [{ config }]
     // Examples:
-    //   import sql from sql/postgres-types
-    //   import auth from cdm/auth { version: "^2.0.0" }
-    //   import custom from git:https://github.com/org/repo.git { git_ref: "v1.0.0" }
-    //   import local from ./templates/shared
+    //   import sql from "sql/postgres-types"
+    //   import auth from "cdm/auth" { version: "^2.0.0" }
+    //   import custom from "git:https://github.com/org/repo.git" { git_ref: "v1.0.0" }
+    //   import local from "./templates/shared"
     template_import: ($) =>
       seq(
         "import",
         field("namespace", $.identifier),
         "from",
-        field("source", $.template_source),
+        field("source", $.string_literal),
         optional(field("config", $.object_literal))
       ),
 
-    // Extends directive: extends <source> [{ config }]
+    // Extends directive: extends "<source>" [{ config }]
     // Unified syntax for both local files and templates
     // Examples:
-    //   extends ./base.cdm                    (local file)
-    //   extends ../shared/types.cdm           (local file)
-    //   extends cdm/auth                      (registry template)
-    //   extends cdm/auth { version: "^2.0.0" } (with config)
-    //   extends git:https://github.com/org/repo.git { git_ref: "main" }
+    //   extends "./base.cdm"                    (local file)
+    //   extends "../shared/types.cdm"           (local file)
+    //   extends "cdm/auth"                      (registry template)
+    //   extends "cdm/auth" { version: "^2.0.0" } (with config)
+    //   extends "git:https://github.com/org/repo.git" { git_ref: "main" }
     extends_template: ($) =>
       seq(
         "extends",
-        field("source", $.template_source),
+        field("source", $.string_literal),
         optional(field("config", $.object_literal))
       ),
-
-    // Template source: registry name, git URL, or local path
-    template_source: ($) =>
-      choice($.git_reference, $.local_path, $.registry_name),
-
-    // Local path for templates: ./path or ../path (same as plugin_path)
-    local_path: ($) => /\.\.?\/[^\s\n{}]+/,
-
-    // Registry template name: name or scope/name
-    // Examples: sql/postgres-types, cdm/auth, mytemplate
-    registry_name: ($) => /[a-zA-Z][a-zA-Z0-9_-]*(\/[a-zA-Z][a-zA-Z0-9_-]*)?/,
 
     // =========================================================================
     // TOP-LEVEL DIRECTIVES

@@ -322,27 +322,32 @@ pub fn extract_plugin_imports(
     imports
 }
 
+/// Parse a string_literal node into PluginSource
+///
+/// The source string determines the type:
+/// - Starts with "git:" → Git source (URL after "git:")
+/// - Starts with "./" or "../" → Local path
 fn parse_plugin_source(node: tree_sitter::Node, source: &str) -> PluginSource {
-    let mut cursor = node.walk();
-    for child in node.children(&mut cursor) {
-        match child.kind() {
-            "git_reference" => {
-                if let Some(url_node) = child.child_by_field_name("url") {
-                    return PluginSource::Git {
-                        url: node_text(url_node, source).to_string(),
-                        path: None, // Will be extracted from global config
-                    };
-                }
-            }
-            "plugin_path" => {
-                return PluginSource::Path {
-                    path: node_text(child, source).to_string()
-                };
-            }
-            _ => {}
+    let text = node_text(node, source);
+
+    // Strip surrounding quotes
+    let value = if text.len() >= 2 && text.starts_with('"') && text.ends_with('"') {
+        &text[1..text.len()-1]
+    } else {
+        return PluginSource::Path { path: String::new() };
+    };
+
+    // Determine source type based on string content
+    if let Some(url) = value.strip_prefix("git:") {
+        PluginSource::Git {
+            url: url.to_string(),
+            path: None, // Will be extracted from global config
+        }
+    } else {
+        PluginSource::Path {
+            path: value.to_string(),
         }
     }
-    PluginSource::Path { path: String::new() }
 }
 
 /// Parse an object_literal node into JSON

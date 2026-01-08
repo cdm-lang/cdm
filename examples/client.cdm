@@ -2,13 +2,13 @@
 // Client-facing context that removes sensitive fields and internal models
 // This demonstrates the CDM context system for creating API/client-safe views
 
-extends ./base.cdm
+extends "./base.cdm"
 
 // Import the same PostgreSQL types (inherited from base, but explicit for clarity)
-import pg from ../templates/sql-types/postgres.cdm
+import pg from "../templates/sql-types/postgres.cdm"
 
 // Override plugin config for client context
-@typescript from ./plugins/typescript {
+@typescript from "./plugins/typescript" {
   build_output: "./build/client"
 }
 

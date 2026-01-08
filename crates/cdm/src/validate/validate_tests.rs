@@ -3115,8 +3115,8 @@ mod extends_tests {
         let mixins_ancestor = make_ancestor("mixins.cdm", mixins_source);
         
         let user_source = r#"
-            extends ./types.cdm
-            extends ./mixins.cdm
+            extends "./types.cdm"
+            extends "./mixins.cdm"
             
             User extends Timestamped {
                 id: UUID
@@ -3619,7 +3619,7 @@ mod plugin_import_tests {
 
     #[test]
     fn test_plugin_import_with_git_source_no_config() {
-        let source = "@analytics from git:https://github.com/myorg/cdm-analytics.git";
+        let source = "@analytics from \"git:https://github.com/myorg/cdm-analytics.git\"";
         let tree = parse(source);
         let mut diagnostics = Vec::new();
 
@@ -3631,7 +3631,7 @@ mod plugin_import_tests {
     #[test]
     fn test_plugin_import_with_git_source_and_config() {
         let source = r#"
-            @analytics from git:https://github.com/myorg/cdm-analytics.git {
+            @analytics from "git:https://github.com/myorg/cdm-analytics.git" {
                 endpoint: "https://analytics.example.com",
                 api_key: "secret123"
             }
@@ -3646,7 +3646,7 @@ mod plugin_import_tests {
 
     #[test]
     fn test_plugin_import_with_git_ssh_url() {
-        let source = "@myPlugin from git:git@github.com:myorg/my-plugin.git";
+        let source = "@myPlugin from \"git:git@github.com:myorg/my-plugin.git\"";
         let tree = parse(source);
         let mut diagnostics = Vec::new();
 
@@ -3657,7 +3657,7 @@ mod plugin_import_tests {
 
     #[test]
     fn test_plugin_import_with_git_tag() {
-        let source = "@sql from git:https://github.com/cdm-lang/cdm-plugin-sql.git#v1.2.3";
+        let source = "@sql from \"git:https://github.com/cdm-lang/cdm-plugin-sql.git#v1.2.3\"";
         let tree = parse(source);
         let mut diagnostics = Vec::new();
 
@@ -3668,7 +3668,7 @@ mod plugin_import_tests {
 
     #[test]
     fn test_plugin_import_with_git_branch() {
-        let source = "@sql from git:https://github.com/cdm-lang/cdm-plugin-sql.git#feature/new-stuff";
+        let source = "@sql from \"git:https://github.com/cdm-lang/cdm-plugin-sql.git#feature/new-stuff\"";
         let tree = parse(source);
         let mut diagnostics = Vec::new();
 
@@ -3683,7 +3683,7 @@ mod plugin_import_tests {
 
     #[test]
     fn test_plugin_import_with_local_path_current_dir() {
-        let source = "@custom from ./plugins/my-plugin";
+        let source = "@custom from \"./plugins/my-plugin\"";
         let tree = parse(source);
         let mut diagnostics = Vec::new();
 
@@ -3694,7 +3694,7 @@ mod plugin_import_tests {
 
     #[test]
     fn test_plugin_import_with_local_path_parent_dir() {
-        let source = "@shared from ../shared-plugins/common";
+        let source = "@shared from \"../shared-plugins/common\"";
         let tree = parse(source);
         let mut diagnostics = Vec::new();
 
@@ -3706,7 +3706,7 @@ mod plugin_import_tests {
     #[test]
     fn test_plugin_import_with_local_path_and_config() {
         let source = r#"
-            @custom from ./plugins/my-plugin {
+            @custom from "./plugins/my-plugin" {
                 debug: true,
                 output_dir: "./generated"
             }
@@ -3742,8 +3742,8 @@ mod plugin_import_tests {
     fn test_plugin_imports_with_mixed_sources() {
         let source = r#"
             @sql { dialect: "postgres" }
-            @analytics from git:https://github.com/myorg/analytics.git
-            @custom from ./plugins/local
+            @analytics from "git:https://github.com/myorg/analytics.git"
+            @custom from "./plugins/local"
         "#;
         let tree = parse(source);
         let mut diagnostics = Vec::new();
@@ -3919,7 +3919,7 @@ mod plugin_import_tests {
 
     #[test]
     fn test_plugin_import_with_underscore_in_name() {
-        let source = "@my_custom_plugin from ./plugins/custom";
+        let source = "@my_custom_plugin from \"./plugins/custom\"";
         let tree = parse(source);
         let mut diagnostics = Vec::new();
 
@@ -3941,7 +3941,7 @@ mod plugin_import_tests {
 
     #[test]
     fn test_plugin_import_deeply_nested_path() {
-        let source = "@custom from ./a/b/c/d/e/plugin";
+        let source = "@custom from \"./a/b/c/d/e/plugin\"";
         let tree = parse(source);
         let mut diagnostics = Vec::new();
 
@@ -3958,12 +3958,12 @@ mod plugin_import_tests {
     fn test_full_example_with_imports_and_definitions() {
         let source = r#"
             // Plugin imports
-            @sql from git:https://github.com/cdm-lang/cdm-plugin-sql.git {
+            @sql from "git:https://github.com/cdm-lang/cdm-plugin-sql.git" {
                 dialect: "postgres",
                 schema: "app"
             }
             @typescript { strict: true }
-            @validation from ./plugins/validation
+            @validation from "./plugins/validation"
 
             // Type definitions
             Email: string {

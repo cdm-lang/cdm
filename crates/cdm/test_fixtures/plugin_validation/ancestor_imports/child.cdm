@@ -1,4 +1,4 @@
-extends ./base.cdm
+extends "./base.cdm"
 
 User extends BaseModel {
   @docs {

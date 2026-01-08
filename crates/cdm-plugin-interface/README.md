@@ -23,7 +23,7 @@ Plugins are imported at the top of CDM files using `@name` syntax. All imports m
 }
 
 // Local plugin (for development)
-@custom from ./plugins/my-plugin {
+@custom from "./plugins/my-plugin" {
     debug: true
 }
 ```
@@ -66,8 +66,8 @@ Version can be a tag (`1.0.0`, `v2.0.0`), branch (`main`), or commit SHA.
 Filesystem paths for development:
 
 ```cdm
-@custom from ./plugins/my-plugin
-@shared from ../shared-plugins/common
+@custom from "./plugins/my-plugin"
+@shared from "../shared-plugins/common"
 ```
 
 ## Configuration Levels

@@ -219,7 +219,7 @@ fn test_semantic_tokens_template_import() {
     // - "import" and "from" -> keyword (pink)
     // - "pg" (namespace) -> variable (light blue)
     // - "../templates/..." (path) -> string (orange)
-    let text = r#"import pg from ../templates/sql-types/postgres.cdm"#;
+    let text = r#"import pg from "../templates/sql-types/postgres.cdm""#;
 
     let tokens = compute_semantic_tokens(text).expect("Should parse successfully");
 

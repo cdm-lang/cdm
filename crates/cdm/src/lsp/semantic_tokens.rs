@@ -115,7 +115,7 @@ fn should_emit_token(node: &Node) -> bool {
         | "union_type" | "array_type" | "type_identifier" | "extends_clause"
         | "field_override" | "field_removal" | "model_removal" | "plugin_config"
         | "plugin_import" | "object_literal" | "array_literal" | "object_entry"
-        | "extends_template" | "plugin_source" | "git_reference" | "plugin_path" => false,
+        | "extends_template" | "template_import" => false,
         _ => !node.is_missing() && node.start_byte() < node.end_byte(),
     }
 }
@@ -162,9 +162,6 @@ fn get_token_info(node: &Node, source: &str) -> Option<(u32, u32)> {
 
         // Keywords
         "extends" | "import" | "from" => Some((TOKEN_KEYWORD, 0)),
-
-        // Template/plugin source paths (e.g., ../templates/sql-types/postgres.cdm)
-        "local_path" | "registry_name" | "git_url" => Some((TOKEN_STRING, 0)),
 
         // String literals
         "string_literal" => {

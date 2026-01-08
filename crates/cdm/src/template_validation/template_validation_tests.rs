@@ -190,8 +190,8 @@ fn test_check_unused_namespaces_warning() {
 #[test]
 fn test_collect_used_namespaces() {
     let source = r#"
-import sql from ./sql
-import auth from ./auth
+import sql from "./sql"
+import auth from "./auth"
 
 User {
   id: sql.UUID #1
@@ -211,8 +211,8 @@ User {
 #[test]
 fn test_extract_templates_from_source() {
     let source = r#"
-import sql from sql/postgres-types
-extends cdm/auth { version: "^2.0.0" }
+import sql from "sql/postgres-types"
+extends "cdm/auth" { version: "^2.0.0" }
 @typescript { build_output: "./src" }
 
 User {

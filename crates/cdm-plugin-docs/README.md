@@ -466,7 +466,7 @@ make test-wasm
 Reference the local plugin during development:
 
 ```cdm
-@docs from ./path/to/cdm-plugin-docs {
+@docs from "./path/to/cdm-plugin-docs" {
     format: "markdown"
     build_output: "./docs"
 }

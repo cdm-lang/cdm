@@ -1,4 +1,4 @@
-extends ./base.cdm
+extends "./base.cdm"
 
 // Invalid: trying to remove Email type but User.email still uses it
 -Email

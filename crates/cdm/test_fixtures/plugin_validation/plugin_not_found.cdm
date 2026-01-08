@@ -1,4 +1,4 @@
-@nonexistent from ./nonexistent.wasm
+@nonexistent from "./nonexistent.wasm"
 
 User {
   id: number

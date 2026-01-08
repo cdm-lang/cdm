@@ -203,16 +203,18 @@ fn extract_extends_directives(text: &str) -> Vec<String> {
 /// Recursively walk the tree to find extends directives
 fn walk_extends_directives(node: Node, text: &str, extends_paths: &mut Vec<String>) {
     if node.kind() == "extends_template" {
-        // Extract the file path from local_path sources only
-        // source_node is template_source, which contains local_path, git_reference, or registry_name
+        // Extract the file path from string_literal sources only
+        // source_node is now a string_literal containing the path
         if let Some(source_node) = node.child_by_field_name("source") {
-            let mut inner_cursor = source_node.walk();
-            for child in source_node.children(&mut inner_cursor) {
-                if child.kind() == "local_path" {
-                    if let Ok(path) = child.utf8_text(text.as_bytes()) {
-                        // Remove quotes if present
-                        let path = path.trim_matches('"').trim_matches('\'');
-                        extends_paths.push(path.to_string());
+            if source_node.kind() == "string_literal" {
+                if let Ok(raw_text) = source_node.utf8_text(text.as_bytes()) {
+                    // Strip surrounding quotes
+                    if raw_text.len() >= 2 && raw_text.starts_with('"') && raw_text.ends_with('"') {
+                        let path = &raw_text[1..raw_text.len()-1];
+                        // Only include local paths (not git: or registry names)
+                        if path.starts_with("./") || path.starts_with("../") {
+                            extends_paths.push(path.to_string());
+                        }
                     }
                 }
             }
