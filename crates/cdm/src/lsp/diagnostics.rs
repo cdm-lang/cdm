@@ -1,9 +1,10 @@
-use std::path::Path;
+use std::path::{Path, PathBuf};
 use tower_lsp::lsp_types::*;
 use crate::{
     validate::{validate_with_templates, load_template_namespaces},
     template_resolver::extract_template_imports,
     template_validation::validate_template_imports,
+    plugin_validation::validate_plugins,
     file_resolver::FileResolver,
     symbol_table::Ancestor,
     Diagnostic as CdmDiagnostic, Severity,
@@ -19,6 +20,9 @@ pub fn compute_diagnostics(text: &str, uri: &Url) -> Vec<Diagnostic> {
     parser
         .set_language(&grammar::LANGUAGE.into())
         .expect("Failed to load grammar");
+
+    // Track ancestor sources for plugin validation (source, path)
+    let mut ancestor_sources: Vec<(String, PathBuf)> = Vec::new();
 
     let (namespaces, ancestors) = if let Some(tree) = parser.parse(text, None) {
         // Extract and load template imports
@@ -99,6 +103,9 @@ pub fn compute_diagnostics(text: &str, uri: &Url) -> Vec<Diagnostic> {
                             continue;
                         }
 
+                        // Track source and path for plugin validation
+                        ancestor_sources.push((source.clone(), loaded_file.path.clone()));
+
                         // Convert to Ancestor
                         let ancestor = ancestor_result.into_ancestor(loaded_file.path.display().to_string());
                         prior_ancestors.push(ancestor.clone());
@@ -119,7 +126,20 @@ pub fn compute_diagnostics(text: &str, uri: &Url) -> Vec<Diagnostic> {
     };
 
     // Validate with template namespaces and ancestors
-    let validation_result = validate_with_templates(text, &ancestors, namespaces);
+    let mut validation_result = validate_with_templates(text, &ancestors, namespaces);
+
+    // Plugin validation (only if semantic validation passed and we have a parse tree)
+    if !validation_result.has_errors() {
+        if let Some(ref parse_tree) = validation_result.tree {
+            validate_plugins(
+                parse_tree,
+                text,
+                &source_path,
+                &ancestor_sources,
+                &mut validation_result.diagnostics,
+            );
+        }
+    }
 
     // Convert CDM diagnostics to LSP diagnostics
     validation_result
