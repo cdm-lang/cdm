@@ -278,13 +278,24 @@ impl LanguageServer for CdmLanguageServer {
             None => return Ok(None),
         };
 
-        // Compute completions with plugin schema cache
-        let completions = completion::compute_completions(
-            &text,
-            position,
-            Some(&self.plugin_schema_cache),
-            Some(uri),
-        );
+        // Clone data for spawn_blocking (plugin schema cache loading may trigger blocking HTTP)
+        let text_clone = text.clone();
+        let uri_clone = uri.clone();
+        let cache_clone = self.plugin_schema_cache.clone();
+
+        // Compute completions in blocking context because plugin schema loading
+        // may trigger blocking HTTP requests
+        let completions = tokio::task::spawn_blocking(move || {
+            completion::compute_completions(
+                &text_clone,
+                position,
+                Some(&cache_clone),
+                Some(&uri_clone),
+            )
+        })
+        .await
+        .ok()
+        .flatten();
 
         Ok(completions.map(CompletionResponse::Array))
     }
