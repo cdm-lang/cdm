@@ -1323,3 +1323,71 @@ Model {
         "Expected no parse errors with null values in objects and arrays"
     );
 }
+
+// =============================================================================
+// STRING LITERAL TYPE TESTS
+// =============================================================================
+
+#[test]
+fn test_parse_field_with_single_string_literal_type() {
+    let temp_dir = std::env::temp_dir();
+    let temp_file = temp_dir.join("test_string_literal_type.cdm");
+
+    // Test single string literal as a field type (constant/literal type)
+    std::fs::write(
+        &temp_file,
+        r#"
+NotFoundError {
+  error: "not_found" #1
+  message: string #2
+} #61
+"#,
+    )
+    .unwrap();
+
+    let loaded_file = LoadedFile::new_for_test(temp_file.clone());
+    let parser = GrammarParser::new(&loaded_file);
+    let result = parser.parse();
+
+    std::fs::remove_file(&temp_file).unwrap();
+
+    assert!(result.is_ok());
+    let tree = result.unwrap();
+    assert!(
+        !tree.root_node().has_error(),
+        "Expected no parse errors with single string literal as field type"
+    );
+}
+
+#[test]
+fn test_parse_type_alias_with_single_string_literal() {
+    let temp_dir = std::env::temp_dir();
+    let temp_file = temp_dir.join("test_string_literal_alias.cdm");
+
+    // Test single string literal as a type alias
+    std::fs::write(
+        &temp_file,
+        r#"
+ErrorCode: "not_found" #1
+SuccessCode: "ok" #2
+
+Response {
+  code: ErrorCode | SuccessCode #1
+} #10
+"#,
+    )
+    .unwrap();
+
+    let loaded_file = LoadedFile::new_for_test(temp_file.clone());
+    let parser = GrammarParser::new(&loaded_file);
+    let result = parser.parse();
+
+    std::fs::remove_file(&temp_file).unwrap();
+
+    assert!(result.is_ok());
+    let tree = result.unwrap();
+    assert!(
+        !tree.root_node().has_error(),
+        "Expected no parse errors with single string literal type alias"
+    );
+}

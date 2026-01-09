@@ -292,7 +292,7 @@ module.exports = grammar({
     // =========================================================================
 
     _type_expression: ($) =>
-      choice($.union_type, $.array_type, $.type_identifier),
+      choice($.union_type, $.array_type, $.type_identifier, $.string_literal),
 
     // Union type: "a" | "b" | "c" or Type1 | Type2 | "literal"
     // Supports both string literals and type references

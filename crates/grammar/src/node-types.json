@@ -184,6 +184,10 @@
             "named": true
           },
           {
+            "type": "string_literal",
+            "named": true
+          },
+          {
             "type": "type_identifier",
             "named": true
           },
@@ -636,6 +640,10 @@
             "named": true
           },
           {
+            "type": "string_literal",
+            "named": true
+          },
+          {
             "type": "type_identifier",
             "named": true
           },
@@ -735,8 +743,7 @@
   },
   {
     "type": "comment",
-    "named": true,
-    "extra": true
+    "named": true
   },
   {
     "type": "escape_sequence",
