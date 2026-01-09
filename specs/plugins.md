@@ -30,13 +30,17 @@ Plugins are imported at the top of CDM files using `@name` syntax. All imports m
 
 ### Reserved Configuration Keys
 
-CDM extracts these keys before passing config to plugins:
+CDM extracts and processes these keys internally before passing configuration to plugins. **Plugins should NOT include these keys in their configuration schema** — they will never see these values.
 
-| Key                 | Purpose                                  |
-| ------------------- | ---------------------------------------- |
-| `version`           | Version constraint for plugin resolution |
-| `build_output`   | Output directory for generated files     |
-| `migrations_output` | Output directory for migration files     |
+| Key                 | Purpose                                  | Used By          |
+| ------------------- | ---------------------------------------- | ---------------- |
+| `build_output`      | Output directory for generated files     | `cdm build`      |
+| `migrations_output` | Output directory for migration files     | `cdm migrate`    |
+| `version`           | Version constraint for plugin resolution | Plugin resolver  |
+| `git_ref`           | Git reference (tag/branch/commit) for git plugins | Plugin resolver |
+| `git_path`          | Subdirectory path within git repository  | Plugin resolver  |
+
+**Important for plugin authors:** When defining your plugin's `schema.cdm`, do not include `build_output`, `migrations_output`, `version`, `git_ref`, or `git_path` fields. CDM filters these out before validating against your schema and before calling your plugin functions. If your schema requires these fields, validation will fail because the plugin never receives them.
 
 ## Plugin Sources
 

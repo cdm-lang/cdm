@@ -134,6 +134,28 @@ This structure reflects how CDM loads and interacts with plugins.
 
 ---
 
+### Configuration Schema Guidelines
+
+The `schema.cdm` file defines what configuration your plugin accepts. When writing your schema:
+
+**Do NOT include these reserved keys in your schema:**
+
+* `build_output` — CDM uses this to determine where to write generated files
+* `migrations_output` — CDM uses this for migration output paths
+* `version` — Used by CDM for plugin version resolution
+* `git_ref` — Used by CDM for git plugin references
+* `git_path` — Used by CDM for git plugin subdirectory paths
+
+CDM processes these settings internally and filters them out before passing configuration to your plugin. If your schema requires any of these fields, validation will fail because your plugin never receives them.
+
+**Do include:**
+
+* Plugin-specific settings (format options, naming conventions, etc.)
+* Feature flags
+* Output customization options that your plugin logic uses
+
+---
+
 ### Choosing Capabilities
 
 You may implement only a subset of plugin capabilities:

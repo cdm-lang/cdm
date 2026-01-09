@@ -50,7 +50,7 @@ Plugins may support one or more of the following capabilities:
 * **Build** — generate output files
 * **Migrate** — generate migration files
 
-CDM enforces required configuration based on a plugin’s declared capabilities.
+CDM enforces required configuration based on a plugin's declared capabilities.
 
 For example:
 
@@ -58,6 +58,8 @@ For example:
 * Plugins with **migrate** capability require `migrations_output`
 
 If required configuration is missing, CDM fails validation before generation begins.
+
+> **Note:** `build_output` and `migrations_output` are CDM-level settings, not plugin settings. CDM processes these values to determine where to write files, then filters them out before passing configuration to plugins. Plugins never see these values and should not include them in their configuration schemas.
 
 ---
 
