@@ -238,6 +238,21 @@ Contexts apply changes incrementally along the extends chain.
 
 ## 8.7 [Plugin](4-plugins-and-code-generation.md) Reference
 
+### Plugin Names
+
+Plugin names:
+
+* Must begin with a letter
+* May contain letters, digits, and underscores
+* Cannot contain dashes or hyphens
+* Are case-sensitive
+
+Valid plugin names: `typescript`, `sql`, `tsRest`, `my_plugin`
+
+Invalid plugin names: `ts-rest`, `my-plugin`, `123plugin`
+
+---
+
 ### Plugin Declaration
 
 ```cdm

@@ -81,10 +81,23 @@ CDM validates all plugin configuration **before** invoking plugin logic.
 
 The easiest way to create a plugin is using the CDM CLI.
 
+### Plugin Naming Rules
+
+Plugin names:
+
+* Must begin with a letter
+* May contain letters, digits, and underscores
+* **Cannot contain dashes or hyphens**
+* Are case-sensitive
+
+For example: `typescript`, `sql`, `tsRest`, `my_plugin` are valid names, while `ts-rest` and `my-plugin` are not.
+
+---
+
 ### Creating a New Plugin
 
 ```bash
-cdm plugin new my-plugin --lang rust
+cdm plugin new myPlugin --lang rust
 ```
 
 At present, **Rust is the only supported language** for CDM plugins, and the `--lang rust` flag is required.

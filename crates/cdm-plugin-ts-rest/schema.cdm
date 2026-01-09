@@ -1,4 +1,4 @@
-// ts-rest Plugin Configuration Schema
+// tsRest Plugin Configuration Schema
 
 GlobalSettings {
   // Output directory for generated contract (required)
