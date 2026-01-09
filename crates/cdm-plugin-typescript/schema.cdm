@@ -1,3 +1,9 @@
+// TypeScript Plugin Configuration Schema
+//
+// Note: build_output and migrations_output are CDM-level settings handled by
+// the CDM CLI, not by plugins. They are automatically filtered out before
+// plugin validation. Do not include them in plugin schemas.
+
 GlobalSettings {
   output_format?: "interface" | "class" | "type"
   file_strategy?: "single" | "per_model"
