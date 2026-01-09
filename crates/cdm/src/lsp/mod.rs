@@ -45,7 +45,17 @@ impl CdmLanguageServer {
     /// Publish diagnostics for a document
     async fn publish_diagnostics(&self, uri: &Url) {
         if let Some(text) = self.documents.get(uri) {
-            let diagnostics = diagnostics::compute_diagnostics(&text, uri);
+            // Run compute_diagnostics in a blocking context because plugin validation
+            // may trigger blocking HTTP requests (reqwest::blocking) to download plugins.
+            // Running blocking code directly in an async context causes a panic when
+            // the blocking runtime is dropped inside the async runtime.
+            let text_clone = text.clone();
+            let uri_clone = uri.clone();
+            let diagnostics = tokio::task::spawn_blocking(move || {
+                diagnostics::compute_diagnostics(&text_clone, &uri_clone)
+            })
+            .await
+            .unwrap_or_default();
             self.client.publish_diagnostics(uri.clone(), diagnostics, None).await;
         }
     }
