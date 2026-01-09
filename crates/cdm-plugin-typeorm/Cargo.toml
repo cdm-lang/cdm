@@ -1,0 +1,15 @@
+[package]
+name = "cdm-plugin-typeorm"
+version = "0.1.0"
+edition = "2024"
+license = "MPL-2.0"
+description = "Generate TypeORM entities and migrations for PostgreSQL"
+
+[lib]
+crate-type = ["cdylib", "rlib"]
+
+[dependencies]
+# Uses the local version for development
+cdm-plugin-interface = { path = "../cdm-plugin-interface" }
+serde = { version = "1.0", features = ["derive"] }
+serde_json = "1.0"

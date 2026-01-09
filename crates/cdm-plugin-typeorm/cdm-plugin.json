@@ -1,0 +1,11 @@
+{
+  "name": "typeorm",
+  "version": "0.1.0",
+  "description": "Generate TypeORM entities and migrations for PostgreSQL",
+  "schema": "schema.cdm",
+  "wasm": {
+    "file": "target/wasm32-wasip1/release/cdm_plugin_typeorm.wasm",
+    "release_url": "https://github.com/cdm-lang/cdm/releases/download/cdm-plugin-typeorm-v{version}/cdm_plugin_typeorm.wasm"
+  },
+  "capabilities": ["build", "migrate"]
+}

@@ -1,0 +1,151 @@
+// TypeORM Plugin Configuration Schema
+
+GlobalSettings {
+  // File output strategy
+  entity_file_strategy: "single" | "per_model" = "per_model"
+
+  // Single file name (used when entity_file_strategy is "single")
+  entities_file_name: string = "entities.ts"
+
+  // Naming conventions (same as SQL plugin)
+  table_name_format: "snake_case" | "preserve" | "camel_case" | "pascal_case" = "snake_case"
+  column_name_format: "snake_case" | "preserve" | "camel_case" | "pascal_case" = "snake_case"
+
+  // Automatically pluralize table names (e.g., User -> users)
+  pluralize_table_names: boolean = true
+
+  // TypeORM import path (for custom installations)
+  typeorm_import_path: string = "typeorm"
+}
+
+TypeAliasSettings {
+  // Column type to use when this type alias is used as a field type
+  column_type?: string
+
+  // Skip emitting this type alias
+  skip?: boolean
+}
+
+ModelSettings {
+  // Table name override (default: model name with table_name_format applied)
+  table?: string
+
+  // Schema/namespace (PostgreSQL only)
+  schema?: string
+
+  // Indexes (excluding primary key - PKs are field-level)
+  indexes?: Index[]
+
+  // Skip entity generation for this model
+  skip?: boolean
+}
+
+FieldSettings {
+  // Column name override
+  column?: string
+
+  // SQL type override (e.g., "text", "varchar(500)", "jsonb", "uuid")
+  type?: string
+
+  // Primary key configuration (TypeORM-specific, field-level)
+  primary?: PrimaryConfig
+
+  // Relation configuration (TypeORM-specific)
+  relation?: Relation
+
+  // Column is unique
+  unique?: boolean
+
+  // Default value (SQL expression)
+  default?: string
+
+  // Override nullability (by default inferred from CDM optional syntax)
+  nullable?: boolean
+
+  // Skip this field in entity generation
+  skip?: boolean
+
+  // Column length (for string types)
+  length?: number
+
+  // Array column
+  array?: boolean
+
+  // Column comment
+  comment?: string
+}
+
+// Index configuration (reuses SQL plugin structure, without primary flag)
+Index {
+  // Field names in the index
+  fields: string[]
+
+  // UNIQUE constraint
+  unique?: boolean
+
+  // Custom index name (auto-generated if not provided)
+  name?: string
+
+  // Partial index condition (PostgreSQL: WHERE clause)
+  where?: string
+}
+
+// Primary key configuration (TypeORM-specific)
+PrimaryConfig {
+  // Primary key generation strategy
+  generation?: "increment" | "uuid" | "identity" | "rowid"
+}
+
+// Relation configuration (TypeORM-specific)
+Relation {
+  // Relation type
+  type: "one_to_one" | "one_to_many" | "many_to_one" | "many_to_many"
+
+  // Inverse property name on the target entity (for bidirectional relations)
+  inverse_side?: string
+
+  // Join column configuration (for owning side of OneToOne, ManyToOne)
+  join_column?: JoinColumn
+
+  // Join table configuration (for ManyToMany relations)
+  join_table?: JoinTable
+
+  // Cascade options
+  cascade?: boolean
+
+  // Eager loading (automatically load relation)
+  eager?: boolean
+
+  // Lazy loading (return Promise)
+  lazy?: boolean
+
+  // Relation is nullable
+  nullable?: boolean
+
+  // ON DELETE action
+  on_delete?: "CASCADE" | "SET NULL" | "RESTRICT" | "NO ACTION" | "DEFAULT"
+
+  // ON UPDATE action
+  on_update?: "CASCADE" | "SET NULL" | "RESTRICT" | "NO ACTION" | "DEFAULT"
+}
+
+// Join column configuration (similar to SQL plugin's Reference)
+JoinColumn {
+  // Foreign key column name
+  name?: string
+
+  // Referenced column name on target entity (default: "id")
+  referenced_column?: string
+}
+
+// Join table configuration for ManyToMany relations
+JoinTable {
+  // Junction table name
+  name: string
+
+  // Join column from this entity to junction table
+  join_column?: JoinColumn
+
+  // Inverse join column from junction table to target entity
+  inverse_join_column?: JoinColumn
+}
