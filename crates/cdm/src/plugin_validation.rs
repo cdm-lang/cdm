@@ -702,12 +702,16 @@ fn parse_plugin_config_node(
 }
 
 /// Filter out reserved config keys that CDM uses internally
+/// These keys are processed by CDM itself and should not be validated by plugins
 fn filter_reserved_config_keys(config: &serde_json::Value) -> serde_json::Value {
     if let Some(obj) = config.as_object() {
         let mut filtered = obj.clone();
-        filtered.remove("build_output");
-        filtered.remove("migrations_output");
-        filtered.remove("version");
+        // CDM-internal keys that plugins shouldn't see or validate
+        filtered.remove("build_output");       // Handled by CDM for build command
+        filtered.remove("migrations_output");  // Handled by CDM for migrate command
+        filtered.remove("version");            // Plugin version constraint
+        filtered.remove("git_ref");            // Git plugin source ref
+        filtered.remove("git_path");           // Git plugin path within repo
         serde_json::Value::Object(filtered)
     } else {
         config.clone()

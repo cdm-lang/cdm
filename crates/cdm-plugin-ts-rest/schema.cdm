@@ -1,9 +1,10 @@
 // tsRest Plugin Configuration Schema
+//
+// Note: build_output and migrations_output are CDM-level settings handled by
+// the CDM CLI, not by plugins. They are automatically filtered out before
+// plugin validation.
 
 GlobalSettings {
-  // Output directory for generated contract (required)
-  build_output: string
-
   // Base path prefix for all routes (e.g., "/api/v1")
   base_path?: string
 
