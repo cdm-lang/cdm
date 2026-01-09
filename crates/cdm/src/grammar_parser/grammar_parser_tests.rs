@@ -1144,3 +1144,99 @@ JSON: string #4
     assert_eq!(type_alias_count, 4, "Expected 4 type aliases");
     assert_eq!(plugin_count, 2, "Expected 2 plugin imports");
 }
+
+// =============================================================================
+// NUMERIC KEY TESTS
+// =============================================================================
+
+#[test]
+fn test_parse_plugin_config_with_numeric_keys() {
+    let temp_dir = std::env::temp_dir();
+    let temp_file = temp_dir.join("test_numeric_keys.cdm");
+
+    // Test numeric keys in plugin config (e.g., HTTP status codes)
+    std::fs::write(
+        &temp_file,
+        r#"
+@tsrest {
+  build_output: "../../apps/api/src/generated",
+  base_path: "/api/v1",
+  routes: {
+    login: {
+      method: "POST",
+      path: "/auth/login",
+      body: "LoginBody",
+      responses: {
+        200: "AuthResponse",
+        400: "BadRequest",
+        401: "Unauthorized"
+      }
+    }
+  }
+}
+
+User {
+  id: number #1
+} #10
+"#,
+    )
+    .unwrap();
+
+    let loaded_file = LoadedFile::new_for_test(temp_file.clone());
+    let parser = GrammarParser::new(&loaded_file);
+    let result = parser.parse();
+
+    std::fs::remove_file(&temp_file).unwrap();
+
+    assert!(result.is_ok());
+    let tree = result.unwrap();
+    assert!(
+        !tree.root_node().has_error(),
+        "Expected no parse errors with numeric keys in plugin config"
+    );
+}
+
+#[test]
+fn test_parse_object_literal_with_numeric_keys() {
+    let temp_dir = std::env::temp_dir();
+    let temp_file = temp_dir.join("test_numeric_object_keys.cdm");
+
+    // Test numeric keys in various object literals
+    std::fs::write(
+        &temp_file,
+        r#"
+@config {
+  status_codes: {
+    200: "OK",
+    201: "Created",
+    400: "Bad Request",
+    404: "Not Found",
+    500: "Internal Server Error"
+  },
+  ports: {
+    80: "http",
+    443: "https",
+    8080: "proxy"
+  }
+}
+
+Model {
+  id: number #1
+} #10
+"#,
+    )
+    .unwrap();
+
+    let loaded_file = LoadedFile::new_for_test(temp_file.clone());
+    let parser = GrammarParser::new(&loaded_file);
+    let result = parser.parse();
+
+    std::fs::remove_file(&temp_file).unwrap();
+
+    assert!(result.is_ok());
+    let tree = result.unwrap();
+    assert!(
+        !tree.root_node().has_error(),
+        "Expected no parse errors with numeric object keys"
+    );
+}

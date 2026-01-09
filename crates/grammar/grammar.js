@@ -372,7 +372,7 @@ module.exports = grammar({
 
     object_entry: ($) =>
       seq(
-        field("key", choice($.identifier, $.string_literal)),
+        field("key", choice($.identifier, $.string_literal, $.number_literal)),
         ":",
         field("value", $._value)
       ),
