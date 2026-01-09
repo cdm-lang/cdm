@@ -268,6 +268,11 @@ fn validate_reference(
     name: &str,
     path: &[PathSegment],
 ) -> Vec<ValidationError> {
+    // Handle builtin JSON type - accepts any valid JSON value
+    if name == "JSON" {
+        return vec![];
+    }
+
     // Check if it's a type alias first
     if let Some(alias) = schema.type_aliases.get(name) {
         let alias_type = match alias.parsed_type() {

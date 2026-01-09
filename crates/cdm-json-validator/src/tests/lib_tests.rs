@@ -387,3 +387,58 @@ fn test_validate_literal_union() {
     let errors = validate_value(&schema, &json, &union_type, &[]);
     assert_eq!(errors.len(), 0);
 }
+
+// Tests for builtin JSON type
+
+#[test]
+fn test_validate_json_builtin_accepts_string() {
+    let schema = create_test_schema();
+    let json = serde_json::json!("hello");
+    let errors = validate_value(&schema, &json, &ParsedType::Reference("JSON".to_string()), &[]);
+    assert_eq!(errors.len(), 0);
+}
+
+#[test]
+fn test_validate_json_builtin_accepts_number() {
+    let schema = create_test_schema();
+    let json = serde_json::json!(42);
+    let errors = validate_value(&schema, &json, &ParsedType::Reference("JSON".to_string()), &[]);
+    assert_eq!(errors.len(), 0);
+}
+
+#[test]
+fn test_validate_json_builtin_accepts_boolean() {
+    let schema = create_test_schema();
+    let json = serde_json::json!(true);
+    let errors = validate_value(&schema, &json, &ParsedType::Reference("JSON".to_string()), &[]);
+    assert_eq!(errors.len(), 0);
+}
+
+#[test]
+fn test_validate_json_builtin_accepts_null() {
+    let schema = create_test_schema();
+    let json = serde_json::json!(null);
+    let errors = validate_value(&schema, &json, &ParsedType::Reference("JSON".to_string()), &[]);
+    assert_eq!(errors.len(), 0);
+}
+
+#[test]
+fn test_validate_json_builtin_accepts_array() {
+    let schema = create_test_schema();
+    let json = serde_json::json!([1, "two", true, null]);
+    let errors = validate_value(&schema, &json, &ParsedType::Reference("JSON".to_string()), &[]);
+    assert_eq!(errors.len(), 0);
+}
+
+#[test]
+fn test_validate_json_builtin_accepts_object() {
+    let schema = create_test_schema();
+    let json = serde_json::json!({
+        "key": "value",
+        "nested": {
+            "array": [1, 2, 3]
+        }
+    });
+    let errors = validate_value(&schema, &json, &ParsedType::Reference("JSON".to_string()), &[]);
+    assert_eq!(errors.len(), 0);
+}
