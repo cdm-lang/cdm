@@ -1,0 +1,37 @@
+// ts-rest Plugin Configuration Schema
+
+GlobalSettings {
+  // Output directory for generated contract (required)
+  build_output: string
+
+  // Base path prefix for all routes (e.g., "/api/v1")
+  base_path?: string
+
+  // Map of route name to route configuration (required)
+  routes: JSON
+}
+
+// Note: Routes are defined as JSON objects in the CDM file because they have
+// dynamic keys (route names) and complex nested structures (responses).
+// The plugin validates the route structure at runtime.
+//
+// Route structure:
+// {
+//   method: "GET" | "POST" | "PUT" | "PATCH" | "DELETE"  // Required
+//   path: string                                          // Required (e.g., "/users/:id")
+//   summary?: string                                      // Short description
+//   description?: string                                  // Detailed description
+//   tags?: string[]                                       // Tags for grouping
+//   pathParams?: string                                   // Model name for path parameters
+//   query?: string                                        // Model name for query parameters
+//   body?: string                                         // Model name for request body
+//   responses: {                                          // Required - map of status code to response
+//     [statusCode: string]: string | string[] | null      // Model name, array of models, or null
+//   }
+// }
+//
+// Response value types:
+// - "ModelName"           - Single response model
+// - ["ModelA", "ModelB"]  - Union of response models
+// - null                  - No response body (e.g., 204 No Content)
+// - "Model[]"             - Array of models (append [] to model name)

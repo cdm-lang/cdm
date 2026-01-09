@@ -355,6 +355,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "cdm-plugin-ts-rest"
+version = "0.1.0"
+dependencies = [
+ "cdm-plugin-interface",
+ "regex",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "cdm-plugin-typeorm"
 version = "0.1.0"
 dependencies = [
