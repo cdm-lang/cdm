@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-01-09T05:56:56Z",
+  "updated_at": "2026-01-09T06:52:39Z",
   "plugins": {
     "sql": {
       "description": "Generate SQL DDL schemas and migrations for PostgreSQL and SQLite",
@@ -77,6 +77,18 @@
         }
       },
       "latest": "0.1.1"
+    },
+    "tsRest": {
+      "description": "Generate ts-rest contracts from CDM schemas",
+      "repository": "git:https://github.com/cdm-lang/cdm.git",
+      "official": true,
+      "versions": {
+        "0.1.2": {
+          "wasm_url": "https://github.com/cdm-lang/cdm/releases/download/cdm-plugin-ts-rest-v0.1.2/cdm_plugin_ts_rest.wasm",
+          "checksum": "sha256:252ca8d09968cc3377eee8140dd2d5c10d25b4809af235f792a0204bbe25ecf3"
+        }
+      },
+      "latest": "0.1.2"
     }
   }
 }
