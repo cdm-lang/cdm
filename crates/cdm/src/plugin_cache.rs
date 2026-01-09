@@ -36,7 +36,7 @@ pub fn cache_plugin(
     let wasm_path = plugin_dir.join("plugin.wasm");
 
     // Download WASM file
-    println!("Downloading plugin '{}'@{} from {}...", name, version, wasm_url);
+    eprintln!("Downloading plugin '{}'@{} from {}...", name, version, wasm_url);
 
     let client = reqwest::blocking::Client::builder()
         .timeout(std::time::Duration::from_secs(120))
@@ -81,7 +81,7 @@ pub fn cache_plugin(
     )
     .context("Failed to write metadata")?;
 
-    println!("Cached plugin to {}", wasm_path.display());
+    eprintln!("Cached plugin to {}", wasm_path.display());
 
     Ok(wasm_path)
 }
