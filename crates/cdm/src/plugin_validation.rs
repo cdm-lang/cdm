@@ -432,6 +432,7 @@ fn parse_value(node: tree_sitter::Node, source: &str) -> Option<JSON> {
                 _ => None,
             }
         }
+        "null_literal" => Some(JSON::Null),
         _ => None,
     }
 }
