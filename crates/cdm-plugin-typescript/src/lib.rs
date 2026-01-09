@@ -1,6 +1,7 @@
 mod build;
 mod type_mapper;
 mod validate;
+mod zod_mapper;
 
 use cdm_plugin_interface::schema_from_file;
 

@@ -7,6 +7,7 @@ GlobalSettings {
   export_all?: boolean
   type_name_format?: "preserve" | "pascal" | "camel" | "snake" | "kebab" | "constant"
   field_name_format?: "preserve" | "pascal" | "camel" | "snake" | "kebab" | "constant"
+  generate_zod?: boolean
 }
 
 TypeAliasSettings {
@@ -21,6 +22,7 @@ ModelSettings {
   export_name?: string
   skip?: boolean
   readonly?: boolean
+  generate_zod?: boolean
 }
 
 FieldSettings {
