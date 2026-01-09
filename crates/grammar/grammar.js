@@ -279,6 +279,7 @@ module.exports = grammar({
         $.string_literal,
         $.number_literal,
         $.boolean_literal,
+        $.null_literal,
         $.array_literal,
         $.object_literal
       ),
@@ -331,6 +332,7 @@ module.exports = grammar({
         $.string_literal,
         $.number_literal,
         $.boolean_literal,
+        $.null_literal,
         $.array_literal,
         $.object_literal
       ),
@@ -424,6 +426,9 @@ module.exports = grammar({
 
     // Boolean
     boolean_literal: ($) => choice("true", "false"),
+
+    // Null
+    null_literal: ($) => "null",
 
     // Identifier: starts with letter or underscore
     identifier: ($) => /[a-zA-Z_][a-zA-Z0-9_]*/,

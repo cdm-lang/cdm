@@ -1240,3 +1240,86 @@ Model {
         "Expected no parse errors with numeric object keys"
     );
 }
+
+#[test]
+fn test_parse_plugin_config_with_null_values() {
+    let temp_dir = std::env::temp_dir();
+    let temp_file = temp_dir.join("test_null_values.cdm");
+
+    // Test null values in plugin config (e.g., HTTP 204 No Content responses)
+    std::fs::write(
+        &temp_file,
+        r#"
+@tsrest {
+  build_output: "../../apps/api/src/generated",
+  base_path: "/api/v1",
+  routes: {
+    logout: {
+      method: "POST",
+      path: "/auth/logout",
+      responses: {
+        204: null
+      }
+    }
+  }
+}
+
+User {
+  id: number #1
+} #10
+"#,
+    )
+    .unwrap();
+
+    let loaded_file = LoadedFile::new_for_test(temp_file.clone());
+    let parser = GrammarParser::new(&loaded_file);
+    let result = parser.parse();
+
+    std::fs::remove_file(&temp_file).unwrap();
+
+    assert!(result.is_ok());
+    let tree = result.unwrap();
+    assert!(
+        !tree.root_node().has_error(),
+        "Expected no parse errors with null values in plugin config"
+    );
+}
+
+#[test]
+fn test_parse_object_literal_with_null_values() {
+    let temp_dir = std::env::temp_dir();
+    let temp_file = temp_dir.join("test_null_object_values.cdm");
+
+    // Test null values in various positions
+    std::fs::write(
+        &temp_file,
+        r#"
+@config {
+  optional_field: null,
+  nested: {
+    value: null,
+    other: "not null"
+  },
+  array_with_null: [null, "value", null]
+}
+
+Model {
+  id: number #1
+} #10
+"#,
+    )
+    .unwrap();
+
+    let loaded_file = LoadedFile::new_for_test(temp_file.clone());
+    let parser = GrammarParser::new(&loaded_file);
+    let result = parser.parse();
+
+    std::fs::remove_file(&temp_file).unwrap();
+
+    assert!(result.is_ok());
+    let tree = result.unwrap();
+    assert!(
+        !tree.root_node().has_error(),
+        "Expected no parse errors with null values in objects and arrays"
+    );
+}
