@@ -13,14 +13,22 @@ use std::collections::{HashMap, HashSet};
 use super::position::byte_span_to_lsp_range;
 
 /// Compute code actions for the given range in the document
+///
+/// # Arguments
+/// * `text` - The document text
+/// * `range` - The range where code actions are requested (cursor position)
+/// * `cursor_diagnostics` - Diagnostics at the cursor position (from client)
+/// * `all_diagnostics` - All diagnostics in the document (for checking other missing plugins)
+/// * `uri` - The document URI
 pub fn compute_code_actions(
     text: &str,
     range: Range,
-    diagnostics: &[Diagnostic],
+    cursor_diagnostics: &[Diagnostic],
+    all_diagnostics: &[Diagnostic],
     uri: &Url,
 ) -> Option<Vec<CodeActionOrCommand>> {
     let mut actions = Vec::new();
-    let mut missing_plugins: HashSet<String> = HashSet::new();
+    let mut missing_plugins_at_cursor: HashSet<String> = HashSet::new();
 
     // Parse the document
     let mut parser = Parser::new();
@@ -29,7 +37,7 @@ pub fn compute_code_actions(
     let root = tree.root_node();
 
     // Check for diagnostics in the range that we can fix
-    for diagnostic in diagnostics {
+    for diagnostic in cursor_diagnostics {
         // Check if diagnostic overlaps with the requested range
         if !ranges_overlap(&diagnostic.range, &range) {
             continue;
@@ -60,8 +68,8 @@ pub fn compute_code_actions(
         if diagnostic.message.contains("E401") || diagnostic.message.contains("Plugin not found") {
             if let Some(plugin_name) = extract_plugin_name(&diagnostic.message) {
                 // Track unique plugin names to avoid duplicate actions
-                if !missing_plugins.contains(&plugin_name) {
-                    missing_plugins.insert(plugin_name.clone());
+                if !missing_plugins_at_cursor.contains(&plugin_name) {
+                    missing_plugins_at_cursor.insert(plugin_name.clone());
 
                     // Create action to download this specific plugin
                     let action = create_download_plugin_action(&plugin_name);
@@ -71,8 +79,16 @@ pub fn compute_code_actions(
         }
     }
 
-    // If there are multiple missing plugins, add a "download all" action
-    if missing_plugins.len() > 1 {
+    // Count all missing plugins in the document (not just at cursor)
+    let all_missing_plugins: HashSet<String> = all_diagnostics
+        .iter()
+        .filter(|d| d.message.contains("E401") || d.message.contains("Plugin not found"))
+        .filter_map(|d| extract_plugin_name(&d.message))
+        .collect();
+
+    // Show "download all" if there are missing plugins at cursor AND at least one other
+    // missing plugin elsewhere in the document (i.e., total > plugins at cursor)
+    if !missing_plugins_at_cursor.is_empty() && all_missing_plugins.len() > missing_plugins_at_cursor.len() {
         let download_all_action = create_download_all_plugins_action();
         actions.push(CodeActionOrCommand::CodeAction(download_all_action));
     }

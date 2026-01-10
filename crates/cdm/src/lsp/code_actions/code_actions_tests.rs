@@ -194,7 +194,7 @@ fn test_compute_code_actions_no_diagnostics() {
     let diagnostics = vec![];
     let uri = Url::parse("file:///test.cdm").unwrap();
 
-    let result = compute_code_actions(text, range, &diagnostics, &uri);
+    let result = compute_code_actions(text, range, &diagnostics, &diagnostics, &uri);
     assert_eq!(result, None);
 }
 
@@ -210,7 +210,7 @@ fn test_compute_code_actions_w005_missing_entity_id() {
     }];
     let uri = Url::parse("file:///test.cdm").unwrap();
 
-    let result = compute_code_actions(text, range, &diagnostics, &uri);
+    let result = compute_code_actions(text, range, &diagnostics, &diagnostics, &uri);
     assert!(result.is_some());
     let actions = result.unwrap();
     assert_eq!(actions.len(), 1);
@@ -232,7 +232,7 @@ fn test_compute_code_actions_w006_missing_field_id() {
     }];
     let uri = Url::parse("file:///test.cdm").unwrap();
 
-    let result = compute_code_actions(text, range, &diagnostics, &uri);
+    let result = compute_code_actions(text, range, &diagnostics, &diagnostics, &uri);
     assert!(result.is_some());
     let actions = result.unwrap();
     assert_eq!(actions.len(), 1);
@@ -254,7 +254,7 @@ fn test_compute_code_actions_undefined_type() {
     }];
     let uri = Url::parse("file:///test.cdm").unwrap();
 
-    let result = compute_code_actions(text, range, &diagnostics, &uri);
+    let result = compute_code_actions(text, range, &diagnostics, &diagnostics, &uri);
     assert!(result.is_some());
     let actions = result.unwrap();
     assert_eq!(actions.len(), 1);
@@ -278,7 +278,7 @@ fn test_compute_code_actions_non_overlapping_diagnostic() {
     }];
     let uri = Url::parse("file:///test.cdm").unwrap();
 
-    let result = compute_code_actions(text, requested_range, &diagnostics, &uri);
+    let result = compute_code_actions(text, requested_range, &diagnostics, &diagnostics, &uri);
     assert_eq!(result, None);
 }
 
@@ -341,7 +341,7 @@ fn test_compute_code_actions_e401_plugin_not_found() {
     }];
     let uri = Url::parse("file:///test.cdm").unwrap();
 
-    let result = compute_code_actions(text, range, &diagnostics, &uri);
+    let result = compute_code_actions(text, range, &diagnostics, &diagnostics, &uri);
     assert!(result.is_some());
     let actions = result.unwrap();
     assert_eq!(actions.len(), 1);
@@ -381,11 +381,12 @@ fn test_compute_code_actions_multiple_missing_plugins() {
     ];
     let uri = Url::parse("file:///test.cdm").unwrap();
 
-    let result = compute_code_actions(text, range, &diagnostics, &uri);
+    let result = compute_code_actions(text, range, &diagnostics, &diagnostics, &uri);
     assert!(result.is_some());
     let actions = result.unwrap();
-    // Should have 2 individual download actions + 1 download all action
-    assert_eq!(actions.len(), 3);
+    // Should have 2 individual download actions only (no "download all" since cursor is on both)
+    // The "download all" only appears when there are OTHER missing plugins not at cursor
+    assert_eq!(actions.len(), 2);
 
     // Check that we have download actions for both plugins
     let titles: Vec<String> = actions.iter().filter_map(|a| {
@@ -398,5 +399,68 @@ fn test_compute_code_actions_multiple_missing_plugins() {
 
     assert!(titles.iter().any(|t| t == "Download plugin 'typescript'"));
     assert!(titles.iter().any(|t| t == "Download plugin 'sql'"));
-    assert!(titles.iter().any(|t| t == "Download all missing plugins (run build)"));
+}
+
+#[test]
+fn test_compute_code_actions_download_all_with_other_missing_plugins() {
+    // Test that "download all" appears when there are missing plugins at cursor
+    // AND other missing plugins elsewhere in the document
+    let text = r#"@typescript {}
+@sql {}"#;
+    // Cursor is only on the first line (typescript)
+    let cursor_range = Range::new(Position::new(0, 0), Position::new(0, 14));
+
+    // Diagnostic at cursor (typescript)
+    let cursor_diagnostics = vec![
+        Diagnostic {
+            range: Range::new(Position::new(0, 0), Position::new(0, 14)),
+            severity: Some(tower_lsp::lsp_types::DiagnosticSeverity::ERROR),
+            message: "E401: Plugin not found: 'typescript' - Plugin 'typescript' not found in cache".to_string(),
+            ..Default::default()
+        },
+    ];
+
+    // All diagnostics in the document (both typescript and sql)
+    let all_diagnostics = vec![
+        Diagnostic {
+            range: Range::new(Position::new(0, 0), Position::new(0, 14)),
+            severity: Some(tower_lsp::lsp_types::DiagnosticSeverity::ERROR),
+            message: "E401: Plugin not found: 'typescript' - Plugin 'typescript' not found in cache".to_string(),
+            ..Default::default()
+        },
+        Diagnostic {
+            range: Range::new(Position::new(1, 0), Position::new(1, 7)),
+            severity: Some(tower_lsp::lsp_types::DiagnosticSeverity::ERROR),
+            message: "E401: Plugin not found: 'sql' - Plugin 'sql' not found in cache".to_string(),
+            ..Default::default()
+        },
+    ];
+    let uri = Url::parse("file:///test.cdm").unwrap();
+
+    let result = compute_code_actions(text, cursor_range, &cursor_diagnostics, &all_diagnostics, &uri);
+    assert!(result.is_some());
+    let actions = result.unwrap();
+
+    // Should have 1 download action for typescript + 1 "download all" action
+    // (because sql is missing elsewhere in the document)
+    assert_eq!(actions.len(), 2, "Expected 2 actions, got: {:?}",
+        actions.iter().filter_map(|a| {
+            if let CodeActionOrCommand::CodeAction(action) = a {
+                Some(action.title.clone())
+            } else {
+                None
+            }
+        }).collect::<Vec<_>>()
+    );
+
+    let titles: Vec<String> = actions.iter().filter_map(|a| {
+        if let CodeActionOrCommand::CodeAction(action) = a {
+            Some(action.title.clone())
+        } else {
+            None
+        }
+    }).collect();
+
+    assert!(titles.iter().any(|t| t == "Download plugin 'typescript'"), "Missing typescript action");
+    assert!(titles.iter().any(|t| t == "Download all missing plugins (run build)"), "Missing download all action");
 }

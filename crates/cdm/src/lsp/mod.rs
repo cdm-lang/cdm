@@ -468,16 +468,25 @@ impl LanguageServer for CdmLanguageServer {
             None => return Ok(None),
         };
 
-        // Get diagnostics from the params (provided by client)
-        let diagnostics: Vec<Diagnostic> = params
+        // Get diagnostics from the params (provided by client) - these are at cursor position
+        let cursor_diagnostics: Vec<Diagnostic> = params
             .context
             .diagnostics
             .iter()
             .cloned()
             .collect();
 
+        // Also compute all diagnostics for the document to check for other missing plugins
+        let text_clone = text.clone();
+        let uri_clone = uri.clone();
+        let all_diagnostics = tokio::task::spawn_blocking(move || {
+            diagnostics::compute_diagnostics(&text_clone, &uri_clone)
+        })
+        .await
+        .unwrap_or_default();
+
         // Compute code actions
-        let actions = code_actions::compute_code_actions(&text, range, &diagnostics, uri);
+        let actions = code_actions::compute_code_actions(&text, range, &cursor_diagnostics, &all_diagnostics, uri);
 
         Ok(actions)
     }
