@@ -1,0 +1,10 @@
+{
+  "name": "typescript",
+  "version": "0.1.0",
+  "description": "Generate TypeScript types from CDM schemas",
+  "schema": "schema.cdm",
+  "wasm": {
+    "file": "cdm_plugin_typescript.wasm"
+  },
+  "capabilities": ["build"]
+}
