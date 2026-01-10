@@ -1,11 +1,13 @@
 {
   "name": "jsonschema",
-  "version": "0.1.0",
+  "version": "0.1.1",
   "description": "Generate JSON Schema definitions from CDM models and type aliases",
   "schema": "schema.cdm",
   "wasm": {
     "file": "../../target/wasm32-wasip1/release/cdm_plugin_json_schema.wasm",
     "release_url": "https://github.com/cdm-lang/cdm-plugin-json-schema/releases/download/v{version}/plugin.wasm"
   },
-  "capabilities": ["build"]
+  "capabilities": [
+    "build"
+  ]
 }
