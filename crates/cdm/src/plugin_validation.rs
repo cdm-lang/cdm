@@ -31,7 +31,10 @@ pub struct PluginImport {
     pub name: String,
     pub source: Option<PluginSource>,
     pub global_config: Option<JSON>,
+    /// The span of the entire plugin import (including config block)
     pub span: Span,
+    /// The span of just the plugin name (for targeted error highlighting)
+    pub name_span: Span,
     /// The absolute path of the CDM file this import is from (for resolving relative paths)
     pub source_file: PathBuf,
 }
@@ -108,7 +111,7 @@ impl PluginCache {
                 diagnostics.push(Diagnostic {
                     message: format!("{}: Plugin not found: '{}' - {}", E401_PLUGIN_NOT_FOUND, import.name, msg),
                     severity: Severity::Error,
-                    span: import.span,
+                    span: import.name_span,
                 });
                 return None;
             }
@@ -121,7 +124,7 @@ impl PluginCache {
                 diagnostics.push(Diagnostic {
                     message: format!("{}: Failed to load plugin '{}': {}", E401_PLUGIN_NOT_FOUND, import.name, e),
                     severity: Severity::Error,
-                    span: import.span,
+                    span: import.name_span,
                 });
                 return None;
             }
@@ -137,7 +140,7 @@ impl PluginCache {
                         E403_MISSING_PLUGIN_EXPORT, import.name, e
                     ),
                     severity: Severity::Error,
-                    span: import.span,
+                    span: import.name_span,
                 });
                 return None;
             }
@@ -323,9 +326,13 @@ pub fn extract_plugin_imports(
 
     for node in root.children(&mut cursor) {
         if node.kind() == "plugin_import" {
-            let name = node.child_by_field_name("name")
+            let name_node = node.child_by_field_name("name");
+            let name = name_node
                 .map(|n| node_text(n, source).to_string())
                 .unwrap_or_default();
+
+            // Use name node span if available, otherwise fall back to full node span
+            let name_span = name_node.map(|n| node_span(n)).unwrap_or_else(|| node_span(node));
 
             let source_opt = node.child_by_field_name("source")
                 .map(|s| parse_plugin_source(s, source));
@@ -338,6 +345,7 @@ pub fn extract_plugin_imports(
                 source: source_opt,
                 global_config,
                 span: node_span(node),
+                name_span,
                 source_file: source_file_path.to_path_buf(),
             });
         }

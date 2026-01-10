@@ -4850,6 +4850,10 @@ fn test_plugin_resolution_from_registry() {
             start: cdm_utils::Position { line: 0, column: 0 },
             end: cdm_utils::Position { line: 0, column: 0 },
         },
+        name_span: cdm_utils::Span {
+            start: cdm_utils::Position { line: 0, column: 0 },
+            end: cdm_utils::Position { line: 0, column: 0 },
+        },
     };
 
     // This should succeed by downloading from registry (or using cached version)
@@ -4894,6 +4898,10 @@ fn test_plugin_resolution_cached_registry() {
         })),
         source_file: source_file.clone(),
         span: cdm_utils::Span {
+            start: cdm_utils::Position { line: 0, column: 0 },
+            end: cdm_utils::Position { line: 0, column: 0 },
+        },
+        name_span: cdm_utils::Span {
             start: cdm_utils::Position { line: 0, column: 0 },
             end: cdm_utils::Position { line: 0, column: 0 },
         },

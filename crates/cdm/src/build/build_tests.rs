@@ -287,6 +287,7 @@ fn test_resolve_plugin_path_with_cdm_plugin_json() {
         source_file: source_file.clone(),
         global_config: None,
         span: test_span(),
+        name_span: test_span(),
     };
 
     let result = crate::plugin_resolver::resolve_plugin_path(&import);
@@ -314,6 +315,7 @@ fn test_resolve_plugin_path_missing_cdm_plugin_json() {
         source_file: source_file.clone(),
         global_config: None,
         span: test_span(),
+        name_span: test_span(),
     };
 
     let result = crate::plugin_resolver::resolve_plugin_path(&import);
@@ -334,6 +336,7 @@ fn test_resolve_plugin_path_file_not_found() {
         source_file: source_file.clone(),
         global_config: None,
         span: test_span(),
+        name_span: test_span(),
     };
 
     let result = crate::plugin_resolver::resolve_plugin_path(&import);
@@ -356,6 +359,7 @@ fn test_resolve_plugin_path_registry_plugin() {
         })),
         source_file: source_file.clone(),
         span: test_span(),
+        name_span: test_span(),
     };
 
     let result = crate::plugin_resolver::resolve_plugin_path(&import);
@@ -398,6 +402,7 @@ fn test_resolve_plugin_path_registry_plugin_cached() {
         })),
         source_file: source_file.clone(),
         span: test_span(),
+        name_span: test_span(),
     };
 
     // First resolution
@@ -425,6 +430,7 @@ fn test_resolve_plugin_path_default_not_found() {
         global_config: None,
         source_file: source_file.clone(),
         span: test_span(),
+        name_span: test_span(),
     };
 
     let result = crate::plugin_resolver::resolve_plugin_path(&import);
@@ -445,6 +451,7 @@ fn test_load_plugin_nonexistent_file() {
         source_file: source_file.clone(),
         global_config: None,
         span: test_span(),
+        name_span: test_span(),
     };
 
     let result = load_plugin(&import);

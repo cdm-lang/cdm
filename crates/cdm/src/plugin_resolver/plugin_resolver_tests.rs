@@ -20,6 +20,7 @@ fn create_test_import(name: &str, source: Option<PluginSource>) -> PluginImport 
         source,
         global_config: None,
         span: test_span(),
+        name_span: test_span(),
         source_file: PathBuf::from("/test/schema.cdm"),
     }
 }
@@ -37,6 +38,7 @@ fn test_resolve_plugin_path_local_no_manifest() {
         }),
         global_config: None,
         span: test_span(),
+        name_span: test_span(),
         source_file: temp_dir.path().join("schema.cdm"),
     };
 
@@ -62,6 +64,7 @@ fn test_resolve_plugin_path_local_invalid_json() {
         }),
         global_config: None,
         span: test_span(),
+        name_span: test_span(),
         source_file: temp_dir.path().join("schema.cdm"),
     };
 
@@ -91,6 +94,7 @@ fn test_resolve_plugin_path_local_no_wasm_field() {
         }),
         global_config: None,
         span: test_span(),
+        name_span: test_span(),
         source_file: temp_dir.path().join("schema.cdm"),
     };
 
@@ -123,6 +127,7 @@ fn test_resolve_plugin_path_local_wasm_not_found() {
         }),
         global_config: None,
         span: test_span(),
+        name_span: test_span(),
         source_file: temp_dir.path().join("schema.cdm"),
     };
 
@@ -159,6 +164,7 @@ fn test_resolve_plugin_path_local_success() {
         }),
         global_config: None,
         span: test_span(),
+        name_span: test_span(),
         source_file: temp_dir.path().join("schema.cdm"),
     };
 
@@ -196,6 +202,7 @@ fn test_resolve_plugin_path_local_nested_wasm() {
         }),
         global_config: None,
         span: test_span(),
+        name_span: test_span(),
         source_file: temp_dir.path().join("schema.cdm"),
     };
 
@@ -235,6 +242,7 @@ fn test_resolve_plugin_path_local_default_location() {
         source: None,
         global_config: None,
         span: test_span(),
+        name_span: test_span(),
         source_file: temp_dir.path().join("schema.cdm"),
     };
 
@@ -320,6 +328,7 @@ fn test_resolve_plugin_path_git_source() {
         }),
         global_config: None,
         span: test_span(),
+        name_span: test_span(),
         source_file: PathBuf::from("/test/schema.cdm"),
     };
 
@@ -343,6 +352,7 @@ fn test_resolve_git_plugin_with_git_path() {
             "git_path": "crates/nonexistent-plugin"
         })),
         span: test_span(),
+        name_span: test_span(),
         source_file: PathBuf::from("/test/schema.cdm"),
     };
 
@@ -371,6 +381,7 @@ fn test_resolve_git_plugin_with_git_path_success() {
             "git_path": "crates/cdm-plugin-sql"
         })),
         span: test_span(),
+        name_span: test_span(),
         source_file: PathBuf::from("/test/schema.cdm"),
     };
 
@@ -399,6 +410,7 @@ fn test_resolve_plugin_path_source_file_no_parent() {
         }),
         global_config: None,
         span: test_span(),
+        name_span: test_span(),
         source_file: PathBuf::from("/"),
     };
 
@@ -440,6 +452,7 @@ fn test_resolve_plugin_path_relative_path_resolution() {
         }),
         global_config: None,
         span: test_span(),
+        name_span: test_span(),
         source_file: schema_dir.join("schema.cdm"),
     };
 
@@ -479,6 +492,7 @@ fn test_resolve_git_plugin_from_repo_root_success() {
         }),
         global_config: None,
         span: test_span(),
+        name_span: test_span(),
         source_file: PathBuf::from("/test/schema.cdm"),
     };
 
@@ -504,6 +518,7 @@ fn test_resolve_git_plugin_from_nested_path_success() {
             "git_path": "nested"
         })),
         span: test_span(),
+        name_span: test_span(),
         source_file: PathBuf::from("/test/schema.cdm"),
     };
 

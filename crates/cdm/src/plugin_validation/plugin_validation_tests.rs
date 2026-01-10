@@ -1,4 +1,5 @@
 use crate::{validate_tree, FileResolver, LoadedFileTree, Diagnostic};
+use crate::plugin_validation::extract_plugin_imports;
 use std::path::PathBuf;
 
 // Helper to get the path to test fixtures
@@ -306,4 +307,89 @@ fn test_missing_build_output_error() {
         "Expected E406 error about missing build_output, got: {:?}",
         diagnostics
     );
+}
+
+#[test]
+fn test_extract_plugin_imports_name_span() {
+    // Test that name_span correctly points to just the plugin name, not the whole block
+    let source = "@typescript { build_output: \"out.ts\" }\n";
+    let mut parser = tree_sitter::Parser::new();
+    parser.set_language(&grammar::LANGUAGE.into()).unwrap();
+    let tree = parser.parse(source, None).unwrap();
+
+    let imports = extract_plugin_imports(
+        tree.root_node(),
+        source,
+        &PathBuf::from("/test/schema.cdm"),
+    );
+
+    assert_eq!(imports.len(), 1, "Expected 1 import");
+    let import = &imports[0];
+
+    // The full span should cover the entire plugin import
+    // @typescript { build_output: "out.ts" }
+    // ^                                    ^
+    // 0                                   38
+    assert_eq!(import.span.start.column, 0, "Full span should start at column 0");
+    assert!(import.span.end.column > 10, "Full span should extend past the plugin name");
+
+    // The name_span should only cover "typescript"
+    // @typescript
+    //  ^        ^
+    //  1       11
+    assert_eq!(import.name_span.start.column, 1, "Name span should start after @");
+    assert_eq!(import.name_span.end.column, 11, "Name span should end after 'typescript'");
+    assert_eq!(import.name, "typescript");
+}
+
+#[test]
+fn test_extract_plugin_imports_name_span_simple() {
+    // Test with a simple plugin import without config
+    let source = "@sql\n";
+    let mut parser = tree_sitter::Parser::new();
+    parser.set_language(&grammar::LANGUAGE.into()).unwrap();
+    let tree = parser.parse(source, None).unwrap();
+
+    let imports = extract_plugin_imports(
+        tree.root_node(),
+        source,
+        &PathBuf::from("/test/schema.cdm"),
+    );
+
+    assert_eq!(imports.len(), 1, "Expected 1 import");
+    let import = &imports[0];
+
+    // For simple imports, both spans should cover @sql
+    // @sql
+    //  ^  ^
+    //  1  4
+    assert_eq!(import.name_span.start.column, 1, "Name span should start after @");
+    assert_eq!(import.name_span.end.column, 4, "Name span should end after 'sql'");
+    assert_eq!(import.name, "sql");
+}
+
+#[test]
+fn test_plugin_not_found_error_span_only_covers_name() {
+    // This test verifies that E401 error span only covers the plugin name, not the config block
+    let tree = load_fixture("plugin_not_found_with_config.cdm").expect("Failed to load fixture");
+    let result = validate_tree(tree);
+
+    assert!(result.is_err(), "Expected validation to fail");
+
+    let diagnostics = result.unwrap_err();
+
+    // Find the E401 error
+    let e401_error = diagnostics.iter().find(|d| d.message.contains("E401"));
+    assert!(e401_error.is_some(), "Expected E401 error, got: {:?}", diagnostics);
+
+    let error = e401_error.unwrap();
+
+    // The fixture file has:
+    // @nonexistent { some_config: "value", another: 123 }
+    //  ^         ^
+    //  1        12
+    // The error span should only cover "nonexistent", not the whole config block
+    assert_eq!(error.span.start.line, 0, "Error should be on line 0");
+    assert_eq!(error.span.start.column, 1, "Error span should start after @");
+    assert_eq!(error.span.end.column, 12, "Error span should end after 'nonexistent', not extend to config block");
 }

@@ -1,0 +1,5 @@
+@nonexistent { some_config: "value", another: 123 }
+
+User {
+  id: number
+}

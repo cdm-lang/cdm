@@ -51,6 +51,7 @@ fn test_resolve_plugin_path_registry_plugin() {
         })),
         source_file: source_file.clone(),
         span: test_span(),
+        name_span: test_span(),
     };
 
     let result = crate::plugin_resolver::resolve_plugin_path(&import);
@@ -93,6 +94,7 @@ fn test_resolve_plugin_path_registry_plugin_cached() {
         })),
         source_file: source_file.clone(),
         span: test_span(),
+        name_span: test_span(),
     };
 
     // First resolution
