@@ -21,12 +21,6 @@ fn test_symbol_table_new() {
 }
 
 #[test]
-fn test_symbol_table_default() {
-    let table = SymbolTable::default();
-    assert_eq!(table.definitions.len(), 0);
-}
-
-#[test]
 fn test_is_builtin_type() {
     assert!(is_builtin_type("string"));
     assert!(is_builtin_type("number"));

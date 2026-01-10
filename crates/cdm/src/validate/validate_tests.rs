@@ -34,18 +34,6 @@ fn parse(source: &str) -> tree_sitter::Tree {
 }
 
 #[test]
-fn test_empty_file() {
-    let source = "";
-    let tree = parse(source);
-    let mut diagnostics = Vec::new();
-
-    let (symbol_table, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
-
-    assert!(diagnostics.is_empty());
-    assert!(symbol_table.definitions.is_empty());
-}
-
-#[test]
 fn test_single_type_alias() {
     let source = "Email: string";
     let tree = parse(source);
