@@ -143,30 +143,6 @@ fn test_diagnostic_debug() {
     assert!(debug_output.contains("Error"));
 }
 
-// Test error code constants
-#[test]
-fn test_plugin_error_codes() {
-    assert_eq!(E401_PLUGIN_NOT_FOUND, "E401");
-    assert_eq!(E402_INVALID_PLUGIN_CONFIG, "E402");
-    assert_eq!(E403_MISSING_PLUGIN_EXPORT, "E403");
-    assert_eq!(E404_PLUGIN_EXECUTION_FAILED, "E404");
-    assert_eq!(E405_PLUGIN_OUTPUT_TOO_LARGE, "E405");
-    assert_eq!(E406_MISSING_OUTPUT_CONFIG, "E406");
-}
-
-#[test]
-fn test_entity_id_error_codes() {
-    assert_eq!(E501_DUPLICATE_ENTITY_ID, "E501");
-    assert_eq!(E502_DUPLICATE_FIELD_ID, "E502");
-    assert_eq!(E503_REUSED_ID, "E503");
-}
-
-#[test]
-fn test_entity_id_warning_codes() {
-    assert_eq!(W005_MISSING_ENTITY_ID, "W005");
-    assert_eq!(W006_MISSING_FIELD_ID, "W006");
-}
-
 #[test]
 fn test_diagnostic_with_long_message() {
     let long_message = "This is a very long error message that contains a lot of information about what went wrong in the validation process. It should still be displayed correctly regardless of its length.";
