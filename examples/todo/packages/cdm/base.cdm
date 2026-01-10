@@ -1,4 +1,7 @@
-@typeorm
+@typeorm {
+  table_name_format: "snake_case",
+  pluralize_table_names: true
+}
 
 // Type aliases for common types
 
@@ -41,7 +44,12 @@ Session extends TimestampedIdentity {
   expires_at: Timestamp #5
   @typeorm {
     table: "sessions",
-
+    relations: [{
+      field: "user",
+      target: "User",
+      type: "many_to_one",
+      join_column: "user_id"
+    }]
   }
 } #30
 
@@ -54,6 +62,12 @@ Task extends Timestamped {
   status: "todo" | "in_progress" | "done" = "todo" #7
   @typeorm {
     table: "tasks",
+    relations: [{
+      field: "user",
+      target: "User",
+      type: "many_to_one",
+      join_column: "user_id"
+    }]
   }
 } #40
 
