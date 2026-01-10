@@ -6,7 +6,7 @@ use std::path::Path;
 use crate::{
     Ancestor, Definition, DefinitionKind, Diagnostic, FieldInfo, Severity,
     SymbolTable, ImportedNamespace, field_exists_in_parents, is_builtin_type,
-    is_type_defined, is_type_reference_defined, resolve_definition,
+    is_type_defined, is_type_reference_defined, resolve_definition, node_span,
 };
 use crate::diagnostics::{
     E501_DUPLICATE_ENTITY_ID, E502_DUPLICATE_FIELD_ID,
@@ -541,21 +541,6 @@ fn collect_syntax_errors(node: tree_sitter::Node, source: &str, diagnostics: &mu
 
 fn get_node_text<'a>(node: tree_sitter::Node, source: &'a str) -> &'a str {
     node.utf8_text(source.as_bytes()).unwrap_or("")
-}
-
-fn node_span(node: tree_sitter::Node) -> Span {
-    let start = node.start_position();
-    let end = node.end_position();
-    Span {
-        start: Position {
-            line: start.row,
-            column: start.column,
-        },
-        end: Position {
-            line: end.row,
-            column: end.column,
-        },
-    }
 }
 
 /// Extract entity ID from a node if it has an "id" field.

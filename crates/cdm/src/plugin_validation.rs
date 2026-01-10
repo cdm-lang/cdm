@@ -1,11 +1,11 @@
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
-use crate::{Diagnostic, Severity, PluginRunner, ResolvedSchema, validate};
+use crate::{Diagnostic, Severity, PluginRunner, ResolvedSchema, validate, node_span};
 use crate::diagnostics::{
     E401_PLUGIN_NOT_FOUND, E402_INVALID_PLUGIN_CONFIG, E403_MISSING_PLUGIN_EXPORT,
     E404_PLUGIN_EXECUTION_FAILED, E406_MISSING_OUTPUT_CONFIG,
 };
-use cdm_utils::{Span, Position};
+use cdm_utils::Span;
 use serde_json::Value as JSON;
 
 /// Structured plugin configuration data extracted from the AST
@@ -929,19 +929,4 @@ fn validate_config_with_plugin(
 
 fn node_text<'a>(node: tree_sitter::Node, source: &'a str) -> &'a str {
     node.utf8_text(source.as_bytes()).unwrap_or("")
-}
-
-fn node_span(node: tree_sitter::Node) -> Span {
-    let start = node.start_position();
-    let end = node.end_position();
-    Span {
-        start: Position {
-            line: start.row,
-            column: start.column,
-        },
-        end: Position {
-            line: end.row,
-            column: end.column,
-        },
-    }
 }
