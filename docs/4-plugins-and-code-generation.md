@@ -50,14 +50,17 @@ Plugins may support one or more of the following capabilities:
 * **Build** — generate output files
 * **Migrate** — generate migration files
 
-CDM enforces required configuration based on a plugin's declared capabilities.
+CDM uses these settings to determine output locations:
 
-For example:
+* `build_output` — specifies where build output files are written
+* `migrations_output` — specifies where migration files are written
 
-* Plugins with **build** capability require `build_output`
-* Plugins with **migrate** capability require `migrations_output`
+These settings are **optional**. If omitted, the plugin will be skipped during the corresponding phase:
 
-If required configuration is missing, CDM fails validation before generation begins.
+* If `build_output` is missing, the plugin is skipped during `cdm build`
+* If `migrations_output` is missing, the plugin is skipped during `cdm migrate`
+
+This allows you to import a plugin purely for configuration inheritance without generating output. For example, a base schema might import a plugin to define model-level configs that child schemas inherit, without producing any output itself.
 
 > **Note:** `build_output` and `migrations_output` are CDM-level settings, not plugin settings. CDM processes these values to determine where to write files, then filters them out before passing configuration to plugins. Plugins never see these values and should not include them in their configuration schemas.
 

@@ -82,6 +82,15 @@ pub fn build(path: &Path) -> Result<()> {
         let global_config = plugin_import.global_config.clone()
             .unwrap_or(serde_json::json!({}));
 
+        // Extract build_output from config - skip plugin if not specified
+        let build_output = match global_config.get("build_output").and_then(|v| v.as_str()) {
+            Some(s) if !s.is_empty() => PathBuf::from(s),
+            _ => {
+                println!("  Skipped: Plugin '{}' has no 'build_output' configured", plugin_import.name);
+                continue;
+            }
+        };
+
         // Build schema with this plugin's configs extracted
         let plugin_schema = build_cdm_schema_for_plugin(
             &validation_result,
@@ -89,25 +98,17 @@ pub fn build(path: &Path) -> Result<()> {
             &plugin_import.name
         )?;
 
-        // Extract build_output from config (if specified)
-        let build_output = global_config
-            .get("build_output")
-            .and_then(|v| v.as_str())
-            .map(|s| PathBuf::from(s));
-
         // Call the plugin's build function
         match runner.build(plugin_schema, global_config) {
             Ok(mut output_files) => {
                 println!("  Generated {} file(s)", output_files.len());
 
-                // If build_output is specified, prepend it to all output file paths
-                if let Some(ref build_dir) = build_output {
-                    for file in &mut output_files {
-                        let file_path = Path::new(&file.path);
-                        // Only prepend if the path is relative
-                        if file_path.is_relative() {
-                            file.path = build_dir.join(file_path).to_string_lossy().to_string();
-                        }
+                // Prepend build_output to all output file paths
+                for file in &mut output_files {
+                    let file_path = Path::new(&file.path);
+                    // Only prepend if the path is relative
+                    if file_path.is_relative() {
+                        file.path = build_output.join(file_path).to_string_lossy().to_string();
                     }
                 }
 

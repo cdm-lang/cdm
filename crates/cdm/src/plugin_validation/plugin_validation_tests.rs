@@ -284,7 +284,10 @@ fn test_plugin_imported_in_ancestor() {
 }
 
 #[test]
-fn test_missing_build_output_error() {
+fn test_missing_build_output_allowed() {
+    // This test verifies that plugins can be imported without build_output/migrations_output.
+    // When these are missing, the build/migrate phases will simply skip that plugin,
+    // but validation should still pass so plugins can be used for configuration inheritance.
     if !docs_plugin_exists() {
         eprintln!("Skipping test - cdm_plugin_docs.wasm not found");
         return;
@@ -293,19 +296,17 @@ fn test_missing_build_output_error() {
     let tree = load_fixture("missing_build_output.cdm").expect("Failed to load fixture");
     let result = validate_tree(tree);
 
-    assert!(result.is_err(), "Expected validation to fail when build_output is missing");
-
-    let diagnostics = result.unwrap_err();
-
-    // Should contain E406 error about missing build_output
-    let has_e406_error = diagnostics.iter().any(|d| {
-        d.message.contains("E406") && d.message.contains("build_output")
-    });
-
     assert!(
-        has_e406_error,
-        "Expected E406 error about missing build_output, got: {:?}",
-        diagnostics
+        result.is_ok(),
+        "Expected validation to succeed without build_output (plugin will be skipped during build), got: {:?}",
+        result.err()
+    );
+
+    let validation_result = result.unwrap();
+    assert!(
+        !validation_result.has_errors(),
+        "Expected no errors when build_output is missing (plugin will be skipped during build), got: {:?}",
+        validation_result.diagnostics
     );
 }
 

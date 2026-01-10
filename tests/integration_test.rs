@@ -224,6 +224,81 @@ fn test_cli_build_help() {
 }
 
 // =============================================================================
+// PLUGIN SKIP BEHAVIOR TESTS
+// =============================================================================
+
+#[test]
+#[serial_test::serial]
+fn test_build_skips_plugin_without_build_output() {
+    let binary = build_cli();
+    let examples = examples_dir();
+
+    cleanup_generated_files();
+
+    // Create a test file with a plugin that has no build_output
+    let test_file = examples.join("test_no_build_output.cdm");
+    let cdm_content = r#"@typescript {}
+
+User {
+  id: number
+  name: string
+}
+"#;
+    fs::write(&test_file, cdm_content).expect("Should write test file");
+
+    let result = run_cdm(&binary, &["build", "./test_no_build_output.cdm"], &examples);
+
+    // Clean up test file
+    fs::remove_file(&test_file).ok();
+    cleanup_generated_files();
+
+    // Build should succeed (no validation error)
+    assert!(
+        result.is_ok(),
+        "Build should succeed when plugin has no build_output: {:?}",
+        result.err()
+    );
+
+    // Output should mention that the plugin was skipped
+    let output = result.unwrap();
+    assert!(
+        output.contains("Skipped") && output.contains("build_output"),
+        "Output should indicate plugin was skipped due to missing build_output. Got: {}",
+        output
+    );
+}
+
+#[test]
+#[serial_test::serial]
+fn test_validation_allows_plugin_without_build_output() {
+    let binary = build_cli();
+    let examples = examples_dir();
+
+    // Create a test file with a plugin that has no build_output
+    let test_file = examples.join("test_validate_no_build_output.cdm");
+    let cdm_content = r#"@typescript {}
+
+User {
+  id: number
+  name: string
+}
+"#;
+    fs::write(&test_file, cdm_content).expect("Should write test file");
+
+    let result = run_cdm(&binary, &["validate", "./test_validate_no_build_output.cdm"], &examples);
+
+    // Clean up test file
+    fs::remove_file(&test_file).ok();
+
+    // Validation should succeed (no E406 error)
+    assert!(
+        result.is_ok(),
+        "Validation should succeed when plugin has no build_output: {:?}",
+        result.err()
+    );
+}
+
+// =============================================================================
 // OUTPUT VERIFICATION TESTS
 // =============================================================================
 

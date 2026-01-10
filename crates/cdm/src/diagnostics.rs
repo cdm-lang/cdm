@@ -39,6 +39,7 @@ pub const E403_MISSING_PLUGIN_EXPORT: &str = "E403";
 pub const E404_PLUGIN_EXECUTION_FAILED: &str = "E404";
 #[allow(dead_code)]
 pub const E405_PLUGIN_OUTPUT_TOO_LARGE: &str = "E405";
+#[allow(dead_code)]
 pub const E406_MISSING_OUTPUT_CONFIG: &str = "E406";
 
 // Entity ID error codes

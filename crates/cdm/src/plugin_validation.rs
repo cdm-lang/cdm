@@ -3,7 +3,7 @@ use std::path::{Path, PathBuf};
 use crate::{Diagnostic, Severity, PluginRunner, ResolvedSchema, validate, node_span};
 use crate::diagnostics::{
     E401_PLUGIN_NOT_FOUND, E402_INVALID_PLUGIN_CONFIG, E403_MISSING_PLUGIN_EXPORT,
-    E404_PLUGIN_EXECUTION_FAILED, E406_MISSING_OUTPUT_CONFIG,
+    E404_PLUGIN_EXECUTION_FAILED,
 };
 use cdm_utils::Span;
 use serde_json::Value as JSON;
@@ -229,18 +229,6 @@ pub fn validate_plugins(
     }
 
     // If any plugins failed to load, stop (fail fast)
-    if diagnostics.iter().any(|d| d.severity == Severity::Error) {
-        return;
-    }
-
-    // Step 5.5: Validate that required output configs are present
-    for import in &all_plugin_imports {
-        if let Some(cached_plugin) = cache.plugins.get(&import.name) {
-            validate_output_config_requirements(import, cached_plugin, diagnostics);
-        }
-    }
-
-    // If any required configs are missing, stop (fail fast)
     if diagnostics.iter().any(|d| d.severity == Severity::Error) {
         return;
     }
@@ -750,56 +738,6 @@ fn filter_reserved_config_keys(config: &serde_json::Value) -> serde_json::Value 
     }
 }
 
-/// Validate that plugins with build/migrate capabilities have required output configs
-fn validate_output_config_requirements(
-    import: &PluginImport,
-    cached_plugin: &CachedPlugin,
-    diagnostics: &mut Vec<Diagnostic>,
-) {
-    let global_config = import.global_config.as_ref().unwrap_or(&serde_json::Value::Null);
-
-    // Check if plugin has build capability and requires build_output
-    if let Ok(has_build) = cached_plugin.runner.has_build() {
-        if has_build {
-            let has_build_output = global_config.get("build_output")
-                .and_then(|v| v.as_str())
-                .map(|s| !s.is_empty())
-                .unwrap_or(false);
-
-            if !has_build_output {
-                diagnostics.push(Diagnostic {
-                    message: format!(
-                        "{}: Plugin '{}' requires 'build_output' in global config",
-                        E406_MISSING_OUTPUT_CONFIG, import.name
-                    ),
-                    severity: Severity::Error,
-                    span: import.span,
-                });
-            }
-        }
-    }
-
-    // Check if plugin has migrate capability and requires migrations_output
-    if let Ok(has_migrate) = cached_plugin.runner.has_migrate() {
-        if has_migrate {
-            let has_migrations_output = global_config.get("migrations_output")
-                .and_then(|v| v.as_str())
-                .map(|s| !s.is_empty())
-                .unwrap_or(false);
-
-            if !has_migrations_output {
-                diagnostics.push(Diagnostic {
-                    message: format!(
-                        "{}: Plugin '{}' requires 'migrations_output' in global config",
-                        E406_MISSING_OUTPUT_CONFIG, import.name
-                    ),
-                    severity: Severity::Error,
-                    span: import.span,
-                });
-            }
-        }
-    }
-}
 
 /// Validate config using two-level validation:
 /// Level 1: Validate against plugin's schema (structural)

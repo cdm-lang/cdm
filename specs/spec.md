@@ -1051,14 +1051,14 @@ CDM extracts these keys before passing config to plugins:
 | `version`           | `string` | Registry plugins | No                             | Semver version constraint (see Appendix C.2 for syntax)      |
 | `git_ref`           | `string` | Git plugins      | No (defaults to `"main"`)      | Git reference: tag, branch name, or commit SHA               |
 | `git_path`          | `string` | Git plugins      | No                             | Subdirectory path containing `cdm-plugin.json` manifest      |
-| `build_output`      | `string` | All plugins      | Yes, if plugin has `build()`   | Output directory for generated files                         |
-| `migrations_output` | `string` | All plugins      | Yes, if plugin has `migrate()` | Output directory for migration files                         |
+| `build_output`      | `string` | All plugins      | No                             | Output directory for generated files (if omitted, plugin is skipped during build) |
+| `migrations_output` | `string` | All plugins      | No                             | Output directory for migration files (if omitted, plugin is skipped during migrate) |
 
-**Validation Rules:**
+**Behavior:**
 
-- If a plugin exports a `build()` function, the global config **must** include `build_output`
-- If a plugin exports a `migrate()` function, the global config **must** include `migrations_output`
-- CDM validates these requirements after loading the plugin and reports error E406 if required keys are missing
+- If a plugin exports a `build()` function but `build_output` is not configured, the plugin is skipped during `cdm build`
+- If a plugin exports a `migrate()` function but `migrations_output` is not configured, the plugin is skipped during `cdm migrate`
+- This allows importing plugins purely for configuration inheritance without generating output (e.g., a base schema defining model configs that child schemas inherit)
 
 ### 8.5 Configuration Levels
 
@@ -1156,7 +1156,7 @@ CDM validation occurs in multiple phases:
 | Missing required plugin export | E403  |
 | Plugin execution failed        | E404  |
 | Plugin output too large        | E405  |
-| Missing required output config | E406  |
+| _(Reserved)_                   | E406  |
 
 #### Entity IDs
 
@@ -2007,7 +2007,7 @@ See `grammar.js` in the CDM repository for the complete tree-sitter grammar impl
 | E403 | Plugin missing required export: '{function}'                 | WASM module doesn't export required function (\_schema) |
 | E404 | Plugin execution failed: {details}                           | Plugin function threw error or timed out                |
 | E405 | Plugin output too large: {size} exceeds {limit}              | Output size limit exceeded                              |
-| E406 | Plugin '{name}' requires '{key}' in global config            | Plugin has capability but missing required output path  |
+| E406 | _(Reserved)_                                                 | _(No longer used — output configs are now optional)_    |
 
 ### B.6 Entity ID Errors
 

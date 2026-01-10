@@ -148,6 +148,17 @@ pub fn migrate(
             let global_config = plugin_import.global_config.clone()
                 .unwrap_or(serde_json::json!({}));
 
+            // Skip plugin if no migrations_output configured and no CLI override
+            let has_migrations_output = global_config.get("migrations_output")
+                .and_then(|v| v.as_str())
+                .map(|s| !s.is_empty())
+                .unwrap_or(false);
+
+            if output_dir.is_none() && !has_migrations_output {
+                println!("  Skipped: Plugin '{}' has no 'migrations_output' configured", plugin_import.name);
+                continue;
+            }
+
             let plugin_schema = build_cdm_schema_for_plugin(
                 &validation_result,
                 &ancestors,
