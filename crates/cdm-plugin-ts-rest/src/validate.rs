@@ -30,17 +30,8 @@ pub fn validate_config(level: ConfigLevel, config: JSON, _utils: &Utils) -> Vec<
 }
 
 fn validate_global_config(config: &JSON, errors: &mut Vec<ValidationError>) {
-    // V001: build_output is required
-    if config.get("build_output").is_none() {
-        errors.push(ValidationError {
-            path: vec![PathSegment {
-                kind: "global".to_string(),
-                name: "build_output".to_string(),
-            }],
-            message: "build_output is required".to_string(),
-            severity: Severity::Error,
-        });
-    }
+    // Note: build_output is handled by CDM, not by plugins.
+    // CDM filters it out before passing config to plugins.
 
     // Validate routes
     match config.get("routes") {

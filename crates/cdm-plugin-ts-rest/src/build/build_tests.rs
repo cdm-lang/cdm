@@ -223,7 +223,6 @@ fn create_test_schema() -> Schema {
 fn test_build_generates_single_file() {
     let schema = create_test_schema();
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "getUser": {
                 "method": "GET",
@@ -239,14 +238,13 @@ fn test_build_generates_single_file() {
 
     let files = build(schema, config, &utils());
     assert_eq!(files.len(), 1);
-    assert_eq!(files[0].path, "./generated/contract.ts");
+    assert_eq!(files[0].path, "contract.ts");
 }
 
 #[test]
 fn test_build_includes_header_comment() {
     let schema = create_test_schema();
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "getUser": {
                 "method": "GET",
@@ -268,7 +266,6 @@ fn test_build_includes_header_comment() {
 fn test_build_imports_ts_rest() {
     let schema = create_test_schema();
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "getUser": {
                 "method": "GET",
@@ -290,7 +287,6 @@ fn test_build_imports_ts_rest() {
 fn test_build_imports_schemas() {
     let schema = create_test_schema();
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "getUser": {
                 "method": "GET",
@@ -321,7 +317,6 @@ fn test_build_imports_schemas() {
 fn test_build_generates_route_with_method() {
     let schema = create_test_schema();
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "getUser": {
                 "method": "GET",
@@ -342,7 +337,6 @@ fn test_build_generates_route_with_method() {
 fn test_build_generates_route_with_path() {
     let schema = create_test_schema();
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "getUser": {
                 "method": "GET",
@@ -363,7 +357,6 @@ fn test_build_generates_route_with_path() {
 fn test_build_applies_base_path() {
     let schema = create_test_schema();
     let config = json!({
-        "build_output": "./generated",
         "base_path": "/api/v1",
         "routes": {
             "getUser": {
@@ -385,7 +378,6 @@ fn test_build_applies_base_path() {
 fn test_build_generates_path_params() {
     let schema = create_test_schema();
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "getUser": {
                 "method": "GET",
@@ -406,7 +398,6 @@ fn test_build_generates_path_params() {
 fn test_build_generates_query_params() {
     let schema = create_test_schema();
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "listUsers": {
                 "method": "GET",
@@ -427,7 +418,6 @@ fn test_build_generates_query_params() {
 fn test_build_generates_body() {
     let schema = create_test_schema();
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "createUser": {
                 "method": "POST",
@@ -448,7 +438,6 @@ fn test_build_generates_body() {
 fn test_build_generates_summary() {
     let schema = create_test_schema();
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "getUser": {
                 "method": "GET",
@@ -474,7 +463,6 @@ fn test_build_generates_summary() {
 fn test_build_generates_single_response() {
     let schema = create_test_schema();
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "getUser": {
                 "method": "GET",
@@ -495,7 +483,6 @@ fn test_build_generates_single_response() {
 fn test_build_generates_array_response() {
     let schema = create_test_schema();
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "listUsers": {
                 "method": "GET",
@@ -515,7 +502,6 @@ fn test_build_generates_array_response() {
 fn test_build_generates_union_response() {
     let schema = create_test_schema();
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "createUser": {
                 "method": "POST",
@@ -539,7 +525,6 @@ fn test_build_generates_union_response() {
 fn test_build_generates_void_response() {
     let schema = create_test_schema();
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "deleteUser": {
                 "method": "DELETE",
@@ -564,7 +549,6 @@ fn test_build_generates_void_response() {
 fn test_build_exports_types() {
     let schema = create_test_schema();
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "getUser": {
                 "method": "GET",
@@ -593,7 +577,6 @@ fn test_build_exports_types() {
 fn test_build_creates_contract_router() {
     let schema = create_test_schema();
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "getUser": {
                 "method": "GET",
@@ -615,7 +598,6 @@ fn test_build_creates_contract_router() {
 fn test_build_with_multiple_routes() {
     let schema = create_test_schema();
     let config = json!({
-        "build_output": "./generated",
         "base_path": "/api/v1",
         "routes": {
             "getUser": {
@@ -681,7 +663,6 @@ fn test_build_with_multiple_routes() {
 fn test_build_with_empty_routes() {
     let schema = create_test_schema();
     let config = json!({
-        "build_output": "./generated",
         "routes": {}
     });
 
@@ -692,9 +673,7 @@ fn test_build_with_empty_routes() {
 #[test]
 fn test_build_without_routes() {
     let schema = create_test_schema();
-    let config = json!({
-        "build_output": "./generated"
-    });
+    let config = json!({});
 
     let files = build(schema, config, &utils());
     assert!(files.is_empty());
@@ -704,7 +683,6 @@ fn test_build_without_routes() {
 fn test_build_escapes_special_chars_in_summary() {
     let schema = create_test_schema();
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "getUser": {
                 "method": "GET",
@@ -723,23 +701,6 @@ fn test_build_escapes_special_chars_in_summary() {
     assert!(content.contains("Get user\\'s profile"));
 }
 
-#[test]
-fn test_build_output_path_formatting() {
-    let schema = create_test_schema();
-
-    // Test with trailing slash
-    let config = json!({
-        "build_output": "./generated/",
-        "routes": {
-            "getUser": {
-                "method": "GET",
-                "path": "/users/:id",
-                "pathParams": "GetUserPathParams",
-                "responses": { "200": "User" }
-            }
-        }
-    });
-
-    let files = build(schema, config, &utils());
-    assert_eq!(files[0].path, "./generated/contract.ts");
-}
+// Note: test_build_output_path_formatting was removed because build_output
+// is now handled by CDM, not plugins. Plugins return relative paths like
+// "contract.ts" and CDM prepends the configured output directory.

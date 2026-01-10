@@ -100,46 +100,8 @@ fn test_collect_model_references() {
     assert!(refs.contains("InvalidInputError"));
 }
 
-// ============================================================================
-// V001: build_output is required
-// ============================================================================
-
-#[test]
-fn test_v001_build_output_required() {
-    let config = json!({
-        "routes": {
-            "getUser": {
-                "method": "GET",
-                "path": "/users/:id",
-                "responses": { "200": "User" }
-            }
-        }
-    });
-
-    let errors = validate_config(ConfigLevel::Global, config, &utils());
-    let error = errors.iter().find(|e| e.message.contains("build_output is required"));
-    assert!(error.is_some(), "Expected V001 error");
-    assert_eq!(error.unwrap().severity, Severity::Error);
-}
-
-#[test]
-fn test_v001_build_output_provided() {
-    let config = json!({
-        "build_output": "./generated",
-        "routes": {
-            "getUser": {
-                "method": "GET",
-                "path": "/users/:id",
-                "pathParams": "GetUserParams",
-                "responses": { "200": "User" }
-            }
-        }
-    });
-
-    let errors = validate_config(ConfigLevel::Global, config, &utils());
-    let error = errors.iter().find(|e| e.message.contains("build_output is required"));
-    assert!(error.is_none());
-}
+// Note: build_output validation was removed - CDM handles this, not plugins.
+// See docs/7-plugin-development.md for details on reserved config keys.
 
 // ============================================================================
 // V002: routes must contain at least one route
@@ -147,9 +109,7 @@ fn test_v001_build_output_provided() {
 
 #[test]
 fn test_v002_routes_required() {
-    let config = json!({
-        "build_output": "./generated"
-    });
+    let config = json!({});
 
     let errors = validate_config(ConfigLevel::Global, config, &utils());
     let error = errors.iter().find(|e| e.message.contains("routes is required"));
@@ -159,7 +119,6 @@ fn test_v002_routes_required() {
 #[test]
 fn test_v002_routes_empty() {
     let config = json!({
-        "build_output": "./generated",
         "routes": {}
     });
 
@@ -177,7 +136,6 @@ fn test_v002_routes_empty() {
 #[test]
 fn test_v003_method_required() {
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "getUser": {
                 "path": "/users/:id",
@@ -200,7 +158,6 @@ fn test_v003_method_required() {
 #[test]
 fn test_v004_path_required() {
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "getUser": {
                 "method": "GET",
@@ -223,7 +180,6 @@ fn test_v004_path_required() {
 #[test]
 fn test_v005_responses_required() {
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "getUser": {
                 "method": "GET",
@@ -246,7 +202,6 @@ fn test_v005_responses_required() {
 #[test]
 fn test_v202_path_params_without_model() {
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "getUser": {
                 "method": "GET",
@@ -266,7 +221,6 @@ fn test_v202_path_params_without_model() {
 #[test]
 fn test_v202_path_params_with_model() {
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "getUser": {
                 "method": "GET",
@@ -291,7 +245,6 @@ fn test_v202_path_params_with_model() {
 #[test]
 fn test_v301_invalid_method() {
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "getUser": {
                 "method": "INVALID",
@@ -311,8 +264,7 @@ fn test_v301_invalid_method() {
 fn test_v301_valid_methods() {
     for method in &["GET", "POST", "PUT", "PATCH", "DELETE", "get", "post"] {
         let config = json!({
-            "build_output": "./generated",
-            "routes": {
+                "routes": {
                 "testRoute": {
                     "method": method,
                     "path": "/test",
@@ -335,7 +287,6 @@ fn test_v301_valid_methods() {
 #[test]
 fn test_v302_get_with_body_warning() {
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "getUser": {
                 "method": "GET",
@@ -357,7 +308,6 @@ fn test_v302_get_with_body_warning() {
 #[test]
 fn test_v303_delete_with_body_warning() {
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "deleteUser": {
                 "method": "DELETE",
@@ -383,7 +333,6 @@ fn test_v303_delete_with_body_warning() {
 #[test]
 fn test_v304_post_without_body_warning() {
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "createUser": {
                 "method": "POST",
@@ -403,7 +352,6 @@ fn test_v304_post_without_body_warning() {
 #[test]
 fn test_v305_put_without_body_warning() {
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "updateUser": {
                 "method": "PUT",
@@ -424,7 +372,6 @@ fn test_v305_put_without_body_warning() {
 #[test]
 fn test_v306_patch_without_body_warning() {
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "patchUser": {
                 "method": "PATCH",
@@ -449,7 +396,6 @@ fn test_v306_patch_without_body_warning() {
 #[test]
 fn test_v401_invalid_status_code_non_numeric() {
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "getUser": {
                 "method": "GET",
@@ -467,7 +413,6 @@ fn test_v401_invalid_status_code_non_numeric() {
 #[test]
 fn test_v401_invalid_status_code_out_of_range() {
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "getUser": {
                 "method": "GET",
@@ -491,7 +436,6 @@ fn test_v401_invalid_status_code_out_of_range() {
 #[test]
 fn test_v402_unusual_status_code_warning() {
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "getUser": {
                 "method": "GET",
@@ -519,7 +463,6 @@ fn test_v402_unusual_status_code_warning() {
 #[test]
 fn test_v403_no_success_response_warning() {
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "getUser": {
                 "method": "GET",
@@ -546,7 +489,6 @@ fn test_v403_no_success_response_warning() {
 #[test]
 fn test_v501_identical_routes() {
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "getUser1": {
                 "method": "GET",
@@ -577,7 +519,6 @@ fn test_v501_identical_routes() {
 #[test]
 fn test_v502_ambiguous_routes_different_param_names() {
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "getUser1": {
                 "method": "GET",
@@ -604,7 +545,6 @@ fn test_v502_ambiguous_routes_different_param_names() {
 #[test]
 fn test_v502_ambiguous_routes_param_vs_literal() {
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "getUser": {
                 "method": "GET",
@@ -634,7 +574,6 @@ fn test_v502_ambiguous_routes_param_vs_literal() {
 #[test]
 fn test_valid_complete_config() {
     let config = json!({
-        "build_output": "./generated",
         "base_path": "/api/v1",
         "routes": {
             "getUser": {
@@ -696,7 +635,6 @@ fn test_valid_complete_config() {
 #[test]
 fn test_invalid_response_type() {
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "getUser": {
                 "method": "GET",
@@ -718,7 +656,6 @@ fn test_invalid_response_type() {
 #[test]
 fn test_invalid_response_union_item() {
     let config = json!({
-        "build_output": "./generated",
         "routes": {
             "getUser": {
                 "method": "GET",

@@ -199,14 +199,7 @@ export type {
 
 Configure the plugin at import time.
 
-### `build_output` (required)
-
-- **Type:** `string`
-- **Description:** Output directory for generated contract file.
-
-```cdm
-@tsRest { build_output: "./generated" }
-```
+> **Note:** `build_output` is a CDM-level setting, not a plugin setting. Configure it at the plugin import but it is processed by CDM, not the plugin. See CDM documentation for details.
 
 ### `base_path`
 
@@ -347,7 +340,6 @@ The plugin validates your configuration and reports errors/warnings:
 
 | Rule | Message |
 |------|---------|
-| V001 | `build_output` is required |
 | V002 | `routes` must contain at least one route |
 | V003 | Route is missing required field `method` |
 | V004 | Route is missing required field `path` |

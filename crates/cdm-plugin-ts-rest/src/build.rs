@@ -33,10 +33,8 @@ enum ResponseType {
 
 /// Generates ts-rest contract from the schema
 pub fn build(schema: Schema, config: JSON, _utils: &Utils) -> Vec<OutputFile> {
-    let build_output = config
-        .get("build_output")
-        .and_then(|v| v.as_str())
-        .unwrap_or("./generated");
+    // Note: build_output is handled by CDM, not by plugins.
+    // Plugins return relative paths; CDM prepends the output directory.
 
     let base_path = config
         .get("base_path")
@@ -71,7 +69,7 @@ pub fn build(schema: Schema, config: JSON, _utils: &Utils) -> Vec<OutputFile> {
     let content = generate_contract(&routes, &model_refs, &valid_models);
 
     vec![OutputFile {
-        path: format!("{}/contract.ts", build_output.trim_end_matches('/')),
+        path: "contract.ts".to_string(),
         content,
     }]
 }
