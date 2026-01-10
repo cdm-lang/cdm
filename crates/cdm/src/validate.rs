@@ -487,7 +487,7 @@ pub fn validate_tree_with_options(tree: LoadedFileTree, check_ids: bool) -> Resu
 
     // Plugin validation (only if semantic validation passed)
     if let Some(ref parse_tree) = result.tree {
-        validate_plugins(parse_tree, &main_source, &main_path, &ancestor_sources, &mut result.diagnostics);
+        validate_plugins(parse_tree, &main_source, &main_path, &ancestor_sources, &mut result.diagnostics, false);
     }
 
     // Check for plugin validation errors

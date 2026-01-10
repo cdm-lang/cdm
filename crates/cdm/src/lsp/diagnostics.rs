@@ -129,6 +129,7 @@ pub fn compute_diagnostics(text: &str, uri: &Url) -> Vec<Diagnostic> {
     let mut validation_result = validate_with_templates(text, &ancestors, namespaces);
 
     // Plugin validation (only if semantic validation passed and we have a parse tree)
+    // Use cache_only=true to avoid blocking on network requests in the LSP
     if !validation_result.has_errors() {
         if let Some(ref parse_tree) = validation_result.tree {
             validate_plugins(
@@ -137,6 +138,7 @@ pub fn compute_diagnostics(text: &str, uri: &Url) -> Vec<Diagnostic> {
                 &source_path,
                 &ancestor_sources,
                 &mut validation_result.diagnostics,
+                true, // cache_only - don't download plugins, show error if not cached
             );
         }
     }

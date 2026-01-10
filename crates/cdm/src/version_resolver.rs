@@ -149,6 +149,48 @@ fn find_matching_version(
     matching.last().map(|v| v.to_string())
 }
 
+/// Check if a version string matches a version constraint
+pub fn version_matches(constraint: &VersionConstraint, version: &str) -> bool {
+    match constraint {
+        VersionConstraint::Latest => true,
+        VersionConstraint::Exact(v) => version == v,
+        VersionConstraint::Caret(v) => {
+            let req_str = format!("^{}", v);
+            if let (Ok(req), Ok(ver)) = (VersionReq::parse(&req_str), Version::parse(version)) {
+                req.matches(&ver)
+            } else {
+                false
+            }
+        }
+        VersionConstraint::Tilde(v) => {
+            let req_str = format!("~{}", v);
+            if let (Ok(req), Ok(ver)) = (VersionReq::parse(&req_str), Version::parse(version)) {
+                req.matches(&ver)
+            } else {
+                false
+            }
+        }
+        VersionConstraint::Range(min, max) => {
+            let req_str = format!(">={}, <{}", min, max);
+            if let (Ok(req), Ok(ver)) = (VersionReq::parse(&req_str), Version::parse(version)) {
+                req.matches(&ver)
+            } else {
+                false
+            }
+        }
+    }
+}
+
+/// Compare two version strings, returns Ordering
+pub fn compare_versions(a: &str, b: &str) -> std::cmp::Ordering {
+    match (Version::parse(a), Version::parse(b)) {
+        (Ok(va), Ok(vb)) => va.cmp(&vb),
+        (Ok(_), Err(_)) => std::cmp::Ordering::Greater,
+        (Err(_), Ok(_)) => std::cmp::Ordering::Less,
+        (Err(_), Err(_)) => a.cmp(b),
+    }
+}
+
 #[cfg(test)]
 #[path = "version_resolver/version_resolver_tests.rs"]
 mod version_resolver_tests;

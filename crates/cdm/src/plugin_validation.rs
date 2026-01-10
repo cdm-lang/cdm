@@ -64,6 +64,8 @@ pub enum ConfigLevel {
 /// In-memory cache for loaded plugins during validation session
 pub struct PluginCache {
     plugins: HashMap<String, CachedPlugin>,
+    /// If true, only use cached plugins, don't download missing ones
+    cache_only: bool,
 }
 
 pub(crate) struct CachedPlugin {
@@ -75,6 +77,15 @@ impl PluginCache {
     pub fn new() -> Self {
         Self {
             plugins: HashMap::new(),
+            cache_only: false,
+        }
+    }
+
+    /// Create a cache that only uses cached plugins, never downloads
+    pub fn new_cache_only() -> Self {
+        Self {
+            plugins: HashMap::new(),
+            cache_only: true,
         }
     }
 
@@ -159,18 +170,27 @@ impl PluginCache {
     }
 
     fn resolve_plugin_path(&self, import: &PluginImport) -> Result<PathBuf, String> {
-        crate::plugin_resolver::resolve_plugin_path(import)
-            .map_err(|e| e.to_string())
+        if self.cache_only {
+            crate::plugin_resolver::resolve_plugin_path_cache_only(import)
+                .map_err(|e| e.to_string())
+        } else {
+            crate::plugin_resolver::resolve_plugin_path(import)
+                .map_err(|e| e.to_string())
+        }
     }
 }
 
 /// Main plugin validation function - call after semantic validation
+///
+/// If `cache_only` is true, only uses cached plugins and won't download missing ones.
+/// This is useful for LSP where we don't want to block on network requests.
 pub fn validate_plugins(
     tree: &tree_sitter::Tree,
     source: &str,
     main_file_path: &Path,
     ancestor_sources: &[(String, PathBuf)],  // (source, file_path) pairs
     diagnostics: &mut Vec<Diagnostic>,
+    cache_only: bool,
 ) {
     let root = tree.root_node();
 
@@ -194,7 +214,11 @@ pub fn validate_plugins(
     }
 
     // Step 4: Create plugin cache
-    let mut cache = PluginCache::new();
+    let mut cache = if cache_only {
+        PluginCache::new_cache_only()
+    } else {
+        PluginCache::new()
+    };
 
     // Step 5: Load all plugins (fail fast on E401)
     for import in &all_plugin_imports {

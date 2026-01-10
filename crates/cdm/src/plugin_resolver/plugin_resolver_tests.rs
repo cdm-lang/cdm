@@ -323,7 +323,7 @@ fn test_resolve_plugin_path_git_source() {
         source_file: PathBuf::from("/test/schema.cdm"),
     };
 
-    let result = resolve_plugin_path_with_cache_path(&import, temp_dir.path());
+    let result = resolve_plugin_path_with_cache_path(&import, temp_dir.path(), false);
     // Will fail because no cdm-plugin.json in root
     assert!(result.is_err());
 }
@@ -346,7 +346,7 @@ fn test_resolve_git_plugin_with_git_path() {
         source_file: PathBuf::from("/test/schema.cdm"),
     };
 
-    let result = resolve_plugin_path_with_cache_path(&import, temp_dir.path());
+    let result = resolve_plugin_path_with_cache_path(&import, temp_dir.path(), false);
 
     // Will fail because the subdirectory doesn't have a cdm-plugin.json
     assert!(result.is_err());
@@ -374,7 +374,7 @@ fn test_resolve_git_plugin_with_git_path_success() {
         source_file: PathBuf::from("/test/schema.cdm"),
     };
 
-    let result = resolve_plugin_path_with_cache_path(&import, temp_dir.path());
+    let result = resolve_plugin_path_with_cache_path(&import, temp_dir.path(), false);
 
     // Will fail either because:
     // 1. Git clone fails (transient network/filesystem issues)
@@ -482,7 +482,7 @@ fn test_resolve_git_plugin_from_repo_root_success() {
         source_file: PathBuf::from("/test/schema.cdm"),
     };
 
-    let result = resolve_plugin_path_with_cache_path(&import, temp_dir.path());
+    let result = resolve_plugin_path_with_cache_path(&import, temp_dir.path(), false);
 
     assert!(result.is_ok(), "Failed to resolve plugin from GitHub repo root: {:?}", result.err());
     let wasm_path = result.unwrap();
@@ -507,7 +507,7 @@ fn test_resolve_git_plugin_from_nested_path_success() {
         source_file: PathBuf::from("/test/schema.cdm"),
     };
 
-    let result = resolve_plugin_path_with_cache_path(&import, temp_dir.path());
+    let result = resolve_plugin_path_with_cache_path(&import, temp_dir.path(), false);
 
     assert!(result.is_ok(), "Failed to resolve plugin from nested path: {:?}", result.err());
     let wasm_path = result.unwrap();

@@ -20,11 +20,21 @@ use std::fs;
 pub fn resolve_plugin_path(import: &PluginImport) -> Result<PathBuf> {
     use crate::registry;
     let cache_path = registry::get_cache_path()?;
-    resolve_plugin_path_with_cache_path(import, &cache_path)
+    resolve_plugin_path_with_cache_path(import, &cache_path, false)
+}
+
+/// Resolve plugin path using only cached plugins (no downloads)
+///
+/// This is useful for LSP/editor integration where we don't want to block
+/// on network requests. Returns an error if the plugin is not in cache.
+pub fn resolve_plugin_path_cache_only(import: &PluginImport) -> Result<PathBuf> {
+    use crate::registry;
+    let cache_path = registry::get_cache_path()?;
+    resolve_plugin_path_with_cache_path(import, &cache_path, true)
 }
 
 /// Resolve plugin path with explicit cache path (for testing)
-pub(crate) fn resolve_plugin_path_with_cache_path(import: &PluginImport, cache_path: &std::path::Path) -> Result<PathBuf> {
+pub(crate) fn resolve_plugin_path_with_cache_path(import: &PluginImport, cache_path: &std::path::Path, cache_only: bool) -> Result<PathBuf> {
     match &import.source {
         Some(PluginSource::Path { path }) => {
             let source_dir = import.source_file.parent()
@@ -90,13 +100,80 @@ pub(crate) fn resolve_plugin_path_with_cache_path(import: &PluginImport, cache_p
 
             if local.exists() {
                 Ok(local)
+            } else if cache_only {
+                // In cache_only mode, just check cache without downloading
+                resolve_from_registry_cache_only(&import.name, &import.global_config, cache_path)
+                    .map_err(|e| anyhow::anyhow!("{}", e))
             } else {
-                // Try to resolve from registry
+                // Try to resolve from registry (may download)
                 resolve_from_registry(&import.name, &import.global_config)
                     .map_err(|e| anyhow::anyhow!("{}", e))
             }
         }
     }
+}
+
+/// Resolve a plugin from cache only (no network requests)
+///
+/// This function only checks the local plugin cache. If the plugin isn't cached,
+/// it returns an error suggesting to run `cdm build` to download it.
+fn resolve_from_registry_cache_only(plugin_name: &str, config: &Option<JSON>, cache_path: &std::path::Path) -> Result<PathBuf, String> {
+    use crate::{plugin_cache, version_resolver};
+
+    // Extract version constraint from config
+    let version_constraint = config
+        .as_ref()
+        .and_then(|c| c.get("version"))
+        .and_then(|v| v.as_str());
+
+    // List cached plugins to find matching version
+    let cached_plugins = plugin_cache::list_cached_plugins_with_cache_path(cache_path)
+        .map_err(|e| format!("Failed to read plugin cache: {}", e))?;
+
+    // Find any cached version of this plugin
+    let matching_plugins: Vec<_> = cached_plugins
+        .iter()
+        .filter(|(name, _, _)| name == plugin_name)
+        .collect();
+
+    if matching_plugins.is_empty() {
+        return Err(format!(
+            "Plugin '{}' not found in cache. Run 'cdm build' or 'cdm plugin install {}' to download it.",
+            plugin_name, plugin_name
+        ));
+    }
+
+    // If specific version requested, try to find it
+    if let Some(version_str) = version_constraint {
+        if let Ok(constraint) = version_resolver::parse_version_constraint(version_str) {
+            for (_, version, _) in &matching_plugins {
+                if version_resolver::version_matches(&constraint, version) {
+                    if let Ok(Some(path)) = plugin_cache::get_cached_plugin_with_cache_path(plugin_name, version, cache_path) {
+                        return Ok(path);
+                    }
+                }
+            }
+            return Err(format!(
+                "Plugin '{}' version '{}' not found in cache. Run 'cdm build' to download it.",
+                plugin_name, version_str
+            ));
+        }
+    }
+
+    // Return latest cached version (highest version number)
+    let mut versions: Vec<_> = matching_plugins.iter().map(|(_, v, _)| v.as_str()).collect();
+    versions.sort_by(|a, b| version_resolver::compare_versions(b, a));
+
+    if let Some(version) = versions.first() {
+        if let Ok(Some(path)) = plugin_cache::get_cached_plugin_with_cache_path(plugin_name, version, cache_path) {
+            return Ok(path);
+        }
+    }
+
+    Err(format!(
+        "Plugin '{}' cache corrupted. Run 'cdm plugin clear-cache' and then 'cdm build' to re-download.",
+        plugin_name
+    ))
 }
 
 /// Resolve a plugin from the CDM registry
