@@ -350,6 +350,27 @@ fn test_v304_post_without_body_warning() {
 }
 
 #[test]
+fn test_v304_post_with_body_null_no_warning() {
+    // body: null explicitly indicates no body, suppressing the warning
+    let config = json!({
+        "routes": {
+            "logout": {
+                "method": "POST",
+                "path": "/logout",
+                "body": null,
+                "responses": { "204": null }
+            }
+        }
+    });
+
+    let errors = validate_config(ConfigLevel::Global, config, &utils());
+    let warning = errors
+        .iter()
+        .find(|e| e.message.contains("POST request without body"));
+    assert!(warning.is_none(), "body: null should suppress the warning");
+}
+
+#[test]
 fn test_v305_put_without_body_warning() {
     let config = json!({
         "routes": {

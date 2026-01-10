@@ -244,7 +244,8 @@ fn validate_route(route_name: &str, route_config: &JSON, errors: &mut Vec<Valida
     validate_optional_string_field(route_config, "description", &route_path, errors);
     validate_optional_string_field(route_config, "pathParams", &route_path, errors);
     validate_optional_string_field(route_config, "query", &route_path, errors);
-    validate_optional_string_field(route_config, "body", &route_path, errors);
+    // body can be string (model name) or null (explicitly no body)
+    validate_optional_string_or_null_field(route_config, "body", &route_path, errors);
 
     // Validate tags is array of strings if present
     if let Some(tags) = route_config.get("tags") {
@@ -278,7 +279,12 @@ fn validate_route(route_name: &str, route_config: &JSON, errors: &mut Vec<Valida
     }
 
     // V302/V303: Warn about unusual body usage
-    let has_body = route_config.get("body").is_some();
+    // body: null means explicitly no body (suppress warning)
+    // body: "Model" means has body
+    // no body field means no body (triggers warning for POST/PUT/PATCH)
+    let body_value = route_config.get("body");
+    let has_body = body_value.map(|v| !v.is_null()).unwrap_or(false);
+    let body_explicitly_null = body_value.map(|v| v.is_null()).unwrap_or(false);
     if let Some(ref method) = method {
         match method.as_str() {
             "GET" if has_body => {
@@ -298,22 +304,22 @@ fn validate_route(route_name: &str, route_config: &JSON, errors: &mut Vec<Valida
                     severity: Severity::Warning,
                 });
             }
-            // V304/V305/V306: Warn about missing body
-            "POST" if !has_body => {
+            // V304/V305/V306: Warn about missing body (unless explicitly set to null)
+            "POST" if !has_body && !body_explicitly_null => {
                 errors.push(ValidationError {
                     path: route_path.clone(),
                     message: format!("Route '{}': POST request without body", route_name),
                     severity: Severity::Warning,
                 });
             }
-            "PUT" if !has_body => {
+            "PUT" if !has_body && !body_explicitly_null => {
                 errors.push(ValidationError {
                     path: route_path.clone(),
                     message: format!("Route '{}': PUT request without body", route_name),
                     severity: Severity::Warning,
                 });
             }
-            "PATCH" if !has_body => {
+            "PATCH" if !has_body && !body_explicitly_null => {
                 errors.push(ValidationError {
                     path: route_path.clone(),
                     message: format!("Route '{}': PATCH request without body", route_name),
@@ -491,6 +497,28 @@ fn validate_optional_string_field(
             errors.push(ValidationError {
                 path,
                 message: format!("{} must be a string", field_name),
+                severity: Severity::Error,
+            });
+        }
+    }
+}
+
+fn validate_optional_string_or_null_field(
+    config: &JSON,
+    field_name: &str,
+    route_path: &[PathSegment],
+    errors: &mut Vec<ValidationError>,
+) {
+    if let Some(value) = config.get(field_name) {
+        if !value.is_string() && !value.is_null() {
+            let mut path = route_path.to_vec();
+            path.push(PathSegment {
+                kind: "field".to_string(),
+                name: field_name.to_string(),
+            });
+            errors.push(ValidationError {
+                path,
+                message: format!("{} must be a string or null", field_name),
                 severity: Severity::Error,
             });
         }
