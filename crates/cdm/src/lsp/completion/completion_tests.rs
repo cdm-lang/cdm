@@ -895,8 +895,16 @@ fn test_compute_completions_whitespace_only() {
     let position = Position { line: 1, character: 0 };
 
     let completions = compute_completions(text, position, None, None);
-    // Should not panic
-    assert!(completions.is_some() || completions.is_none());
+    // Whitespace-only document at top level should return Some completions
+    // (model/type snippets for top-level) or None is acceptable
+    if let Some(items) = completions {
+        // If completions are returned, verify they're valid top-level suggestions
+        assert!(
+            items.iter().any(|i| i.label == "model" || i.label == "type" || i.label == "string"),
+            "Whitespace-only doc should suggest top-level completions like model, type, or string"
+        );
+    }
+    // Note: None is also acceptable for whitespace-only content
 }
 
 #[test]

@@ -218,11 +218,18 @@ fn test_extract_wasm_from_repo_subdir_not_found() {
 }
 
 #[test]
-fn test_clone_git_plugin_creates_cache_dir() {
-    // This test would require mocking git commands or using a real git repository
-    // Since it involves external commands, we'll test the sanitization instead
+fn test_get_cache_path_returns_valid_path() {
+    // Test that get_cache_path returns a valid path that can be used for caching
     use crate::registry;
 
     let cache_path = registry::get_cache_path();
-    assert!(cache_path.is_ok());
+    assert!(cache_path.is_ok(), "get_cache_path should return Ok");
+
+    let path = cache_path.unwrap();
+    // The path should contain "cdm" somewhere (platform-specific cache location)
+    assert!(
+        path.to_string_lossy().contains("cdm"),
+        "Cache path should contain 'cdm': {}",
+        path.display()
+    );
 }

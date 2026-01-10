@@ -77,8 +77,21 @@ fn test_list_plugins_no_registry() {
     // This test verifies list_plugins can handle registry loading
     // The actual behavior depends on whether registry exists
     let result = list_plugins(false);
-    // Should either succeed or fail with a meaningful error
-    assert!(result.is_ok() || result.is_err());
+    // Should either succeed with a list or fail with an error about registry
+    match result {
+        Ok(_) => {
+            // Successfully listed plugins (registry was available)
+        }
+        Err(e) => {
+            // Should fail with a meaningful error about registry/fetch
+            let error_msg = e.to_string();
+            assert!(
+                error_msg.contains("registry") || error_msg.contains("fetch") || error_msg.contains("HTTP"),
+                "Expected registry-related error, got: {}",
+                error_msg
+            );
+        }
+    }
 }
 
 #[test]
@@ -93,6 +106,20 @@ fn test_plugin_info_nonexistent() {
 #[test]
 fn test_clear_cache_cmd_with_name() {
     let result = clear_cache_cmd(Some("test-plugin"));
-    // Should succeed or fail gracefully
-    assert!(result.is_ok() || result.is_err());
+    // Should succeed (clears cache for plugin, even if it doesn't exist)
+    // or fail with a meaningful error about cache access
+    match result {
+        Ok(_) => {
+            // Successfully cleared cache (or plugin wasn't cached)
+        }
+        Err(e) => {
+            // Should fail with a meaningful error about cache access
+            let error_msg = e.to_string();
+            assert!(
+                error_msg.contains("cache") || error_msg.contains("permission") || error_msg.contains("directory"),
+                "Expected cache-related error, got: {}",
+                error_msg
+            );
+        }
+    }
 }

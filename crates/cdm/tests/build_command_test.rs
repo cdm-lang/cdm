@@ -88,15 +88,27 @@ fn test_build_with_typescript_plugin_configs() {
         .parent().unwrap()
         .join("crates/cdm-plugin-typescript");
 
+    // Verify the plugin directory exists with cdm-plugin.json
+    let plugin_json = plugin_dir.join("cdm-plugin.json");
+    if !plugin_json.exists() {
+        panic!(
+            "Plugin directory is missing cdm-plugin.json at {:?}. \
+            Make sure cdm-plugin-typescript is properly set up.",
+            plugin_json
+        );
+    }
+
     // Create a symlink to the plugin directory in the temp directory
     let plugin_link = temp_dir.join("typescript-plugin");
     #[cfg(unix)]
     {
-        let _ = std::os::unix::fs::symlink(&plugin_dir, &plugin_link);
+        std::os::unix::fs::symlink(&plugin_dir, &plugin_link)
+            .expect("Failed to create symlink to typescript plugin directory");
     }
     #[cfg(windows)]
     {
-        let _ = std::os::windows::fs::symlink_dir(&plugin_dir, &plugin_link);
+        std::os::windows::fs::symlink_dir(&plugin_dir, &plugin_link)
+            .expect("Failed to create symlink to typescript plugin directory");
     }
 
     // Copy the WASM file to the expected location within the symlinked plugin directory

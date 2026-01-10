@@ -97,8 +97,10 @@ fn test_migrate_with_model_added() {
     // and handle serialization/deserialization
     match result {
         Ok(files) => {
-            // If the plugin implements migrate, we should get output files
-            assert!(files.is_empty() || !files.is_empty());
+            // If the plugin implements migrate, verify output files have valid structure
+            for file in &files {
+                assert!(!file.path.is_empty(), "Output file path should not be empty");
+            }
         }
         Err(e) => {
             // Expected if the plugin doesn't export _migrate
@@ -177,7 +179,10 @@ fn test_migrate_with_field_added() {
     // Similar to the previous test, verify the call works
     match result {
         Ok(files) => {
-            assert!(files.is_empty() || !files.is_empty());
+            // Verify output files have valid structure
+            for file in &files {
+                assert!(!file.path.is_empty(), "Output file path should not be empty");
+            }
         }
         Err(e) => {
             let error_msg = format!("{:?}", e);
@@ -257,7 +262,10 @@ fn test_migrate_with_multiple_deltas() {
 
     match result {
         Ok(files) => {
-            assert!(files.is_empty() || !files.is_empty());
+            // Verify output files have valid structure
+            for file in &files {
+                assert!(!file.path.is_empty(), "Output file path should not be empty");
+            }
         }
         Err(e) => {
             let error_msg = format!("{:?}", e);
@@ -272,8 +280,14 @@ fn test_migrate_with_multiple_deltas() {
 
 #[test]
 fn test_plugin_runner_creation() {
-    // This test will fail until we have a real WASM file
-    // It's here as a placeholder for future tests
+    // Test that plugin runner can be created when plugin exists
+    if !test_plugin_exists() {
+        eprintln!("Skipping test - test plugin not found");
+        return;
+    }
+
+    let runner = PluginRunner::new(get_test_plugin_path());
+    assert!(runner.is_ok(), "Should successfully create plugin runner from valid WASM file");
 }
 
 #[test]
@@ -369,8 +383,25 @@ fn test_validate_empty_config() {
     let config = serde_json::json!({});
     let result = runner.validate(ConfigLevel::Global, config);
 
-    // Should either succeed with empty errors or fail gracefully
-    assert!(result.is_ok() || result.is_err());
+    // Should either succeed with empty/valid errors or fail gracefully with meaningful error
+    match result {
+        Ok(errors) => {
+            // Validation succeeded - errors list should be a valid structure
+            // (may be empty if config is valid, or contain validation messages)
+            for error in &errors {
+                assert!(!error.message.is_empty(), "Validation error messages should not be empty");
+            }
+        }
+        Err(e) => {
+            // If error, it should be a meaningful error about the validate function
+            let error_msg = format!("{:?}", e);
+            assert!(
+                error_msg.contains("validate") || error_msg.contains("function"),
+                "Unexpected error: {}",
+                error_msg
+            );
+        }
+    }
 }
 
 #[test]
@@ -394,8 +425,11 @@ fn test_build_empty_schema() {
     // Should either succeed or fail with a meaningful error
     match result {
         Ok(files) => {
-            // Empty schema might produce no files
-            assert!(files.is_empty() || !files.is_empty());
+            // Empty schema might produce no files or minimal output
+            // Verify any output files have valid structure
+            for file in &files {
+                assert!(!file.path.is_empty(), "Output file path should not be empty");
+            }
         }
         Err(e) => {
             let error_msg = format!("{:?}", e);
@@ -431,8 +465,11 @@ fn test_migrate_empty_deltas() {
     // Empty deltas should either produce no files or fail gracefully
     match result {
         Ok(files) => {
-            // No deltas might produce no files
-            assert!(files.is_empty() || !files.is_empty());
+            // No deltas should produce no migration files
+            // Verify any output files have valid structure
+            for file in &files {
+                assert!(!file.path.is_empty(), "Output file path should not be empty");
+            }
         }
         Err(e) => {
             let error_msg = format!("{:?}", e);
