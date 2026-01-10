@@ -358,6 +358,15 @@ pub fn validate_tree(tree: LoadedFileTree) -> Result<ValidationResult, Vec<Diagn
 }
 
 pub fn validate_tree_with_options(tree: LoadedFileTree, check_ids: bool) -> Result<ValidationResult, Vec<Diagnostic>> {
+    validate_tree_full(tree, check_ids, false)
+}
+
+/// Validate tree with cache-only plugin resolution (no network downloads)
+pub fn validate_tree_cache_only(tree: LoadedFileTree) -> Result<ValidationResult, Vec<Diagnostic>> {
+    validate_tree_full(tree, false, true)
+}
+
+fn validate_tree_full(tree: LoadedFileTree, check_ids: bool, plugins_cache_only: bool) -> Result<ValidationResult, Vec<Diagnostic>> {
     // Validate all ancestors in streaming fashion
     let mut ancestors = Vec::new();
     let mut ancestor_sources = Vec::new();
@@ -487,7 +496,7 @@ pub fn validate_tree_with_options(tree: LoadedFileTree, check_ids: bool) -> Resu
 
     // Plugin validation (only if semantic validation passed)
     if let Some(ref parse_tree) = result.tree {
-        validate_plugins(parse_tree, &main_source, &main_path, &ancestor_sources, &mut result.diagnostics, false);
+        validate_plugins(parse_tree, &main_source, &main_path, &ancestor_sources, &mut result.diagnostics, plugins_cache_only);
     }
 
     // Check for plugin validation errors

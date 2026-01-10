@@ -544,6 +544,30 @@ async function restartServer() {
   }
 }
 
+/**
+ * Refresh plugin caches in the LSP without restarting the server
+ */
+async function refreshPlugins(): Promise<void> {
+  if (!client) {
+    outputChannel.appendLine('Cannot refresh plugins: LSP client not initialized');
+    return;
+  }
+
+  try {
+    outputChannel.appendLine('Sending cdm.refreshPlugins command to LSP...');
+    await client.sendRequest('workspace/executeCommand', {
+      command: 'cdm.refreshPlugins'
+    });
+    outputChannel.appendLine('Plugin cache refreshed');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    outputChannel.appendLine(`Failed to refresh plugins: ${message}`);
+    // Fall back to restart if the command fails
+    outputChannel.appendLine('Falling back to server restart...');
+    await restartServer();
+  }
+}
+
 async function runBuild(): Promise<void> {
   const editor = vscode.window.activeTextEditor;
   if (!editor || editor.document.languageId !== 'cdm') {
@@ -734,10 +758,8 @@ async function downloadPlugin(pluginName: string): Promise<void> {
       if (result.stdout) {
         outputChannel.appendLine(result.stdout);
       }
-      // Small delay to ensure file writes are complete before restart
-      await new Promise(resolve => setTimeout(resolve, 500));
-      // Restart the language server to pick up the new plugin
-      await restartServer();
+      // Refresh the LSP's plugin cache to pick up the new plugin
+      await refreshPlugins();
     } else {
       vscode.window.showErrorMessage(`Failed to download plugin '${pluginName}'. See output for details.`);
       outputChannel.appendLine(`✗ Failed to download plugin '${pluginName}'`);
@@ -798,10 +820,8 @@ async function downloadAllPlugins(): Promise<void> {
       if (result.stdout) {
         outputChannel.appendLine(result.stdout);
       }
-      // Small delay to ensure file writes are complete before restart
-      await new Promise(resolve => setTimeout(resolve, 500));
-      // Restart the language server to pick up the new plugins
-      await restartServer();
+      // Refresh the LSP's plugin cache to pick up the new plugins
+      await refreshPlugins();
     } else {
       vscode.window.showErrorMessage('Failed to cache plugins. See output for details.');
       outputChannel.appendLine('✗ Failed to cache plugins');

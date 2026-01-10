@@ -68,6 +68,14 @@ impl CdmLanguageServer {
             self.publish_diagnostics(&dependent_uri).await;
         }
     }
+
+    /// Re-validate all open documents
+    async fn revalidate_all_documents(&self) {
+        let uris: Vec<Url> = self.documents.all_uris();
+        for uri in uris {
+            self.publish_diagnostics(&uri).await;
+        }
+    }
 }
 
 #[tower_lsp::async_trait]
@@ -129,6 +137,11 @@ impl LanguageServer for CdmLanguageServer {
                 })),
                 // Code actions
                 code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
+                // Execute command (for plugin refresh)
+                execute_command_provider: Some(ExecuteCommandOptions {
+                    commands: vec!["cdm.refreshPlugins".to_string()],
+                    work_done_progress_options: WorkDoneProgressOptions::default(),
+                }),
                 // Folding ranges
                 folding_range_provider: Some(FoldingRangeProviderCapability::Simple(true)),
                 // Semantic tokens
@@ -531,6 +544,32 @@ impl LanguageServer for CdmLanguageServer {
                 data,
             })
         }))
+    }
+
+    async fn execute_command(&self, params: ExecuteCommandParams) -> Result<Option<serde_json::Value>> {
+        eprintln!("Execute command: {}", params.command);
+
+        match params.command.as_str() {
+            "cdm.refreshPlugins" => {
+                eprintln!("Refreshing plugins: clearing schema cache and revalidating documents");
+
+                // Clear the in-memory plugin schema cache
+                self.plugin_schema_cache.clear();
+
+                // Re-validate all open documents to clear stale diagnostics
+                self.revalidate_all_documents().await;
+
+                self.client
+                    .log_message(MessageType::INFO, "Plugin cache refreshed")
+                    .await;
+
+                Ok(None)
+            }
+            _ => {
+                eprintln!("Unknown command: {}", params.command);
+                Ok(None)
+            }
+        }
     }
 }
 

@@ -39,8 +39,8 @@ pub fn capabilities(path: &Path) -> Result<CapabilitiesResult> {
     // Extract main path before consuming tree
     let main_path = tree.main.path.clone();
 
-    // Validate the tree (consumes tree)
-    let validation_result = crate::validate_tree(tree).map_err(|diagnostics| {
+    // Validate the tree with cache-only plugin resolution (no downloads)
+    let validation_result = crate::validate_tree_cache_only(tree).map_err(|diagnostics| {
         for diagnostic in &diagnostics {
             eprintln!("{}", diagnostic);
         }
@@ -55,15 +55,16 @@ pub fn capabilities(path: &Path) -> Result<CapabilitiesResult> {
     let mut can_migrate = false;
 
     for plugin_import in &plugin_imports {
-        // Try to load the plugin and check its capabilities
-        let (has_build, has_migrate) = match PluginRunner::from_import(plugin_import) {
+        // Try to load the plugin and check its capabilities (cache only, no downloads)
+        let (has_build, has_migrate) = match PluginRunner::from_import_cache_only(plugin_import) {
             Ok(runner) => {
                 let build = runner.has_build().unwrap_or(false);
                 let migrate = runner.has_migrate().unwrap_or(false);
                 (build, migrate)
             }
-            Err(_) => {
-                // If we can't load the plugin, assume no capabilities
+            Err(e) => {
+                // If we can't load the plugin, report the error and assume no capabilities
+                eprintln!("E401: Plugin not found: '{}' - {}", plugin_import.name, e);
                 (false, false)
             }
         };

@@ -39,6 +39,12 @@ impl DocumentStore {
         let docs = self.documents.read().unwrap();
         docs.contains_key(uri)
     }
+
+    /// Get all document URIs
+    pub fn all_uris(&self) -> Vec<Url> {
+        let docs = self.documents.read().unwrap();
+        docs.keys().cloned().collect()
+    }
 }
 
 

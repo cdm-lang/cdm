@@ -39,6 +39,13 @@ impl PluginRunner {
             .with_context(|| format!("Failed to load plugin '{}'", import.name))
     }
 
+    /// Create a new plugin runner from a plugin import specification (cache only, no downloads)
+    pub fn from_import_cache_only(import: &PluginImport) -> Result<Self> {
+        let wasm_path = crate::plugin_resolver::resolve_plugin_path_cache_only(import)?;
+        Self::new(&wasm_path)
+            .with_context(|| format!("Failed to load plugin '{}'", import.name))
+    }
+
     /// Get the plugin's schema definition
     pub fn schema(&mut self) -> Result<String> {
         // Call the WASM function (no arguments)
