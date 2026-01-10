@@ -1,4 +1,4 @@
-@typeorm {}
+@typeorm
 
 // Type aliases for common types
 
@@ -31,20 +31,6 @@ User extends TimestampedIdentity {
   email: Email #4
   name: string #5
   password_hash: string #6
-  @sql {
-    table_name: "users",
-    indexes: [
-      { fields: ["id"], primary: true },
-      { fields: ["email"], unique: true }
-    ],
-    constraints: [
-      {
-        type: "check",
-        fields: ["email"],
-        expression: "email ~* '^[A-Za-z0-9._%-]+@[A-Za-z0-9.-]+[.][A-Za-z]+"
-      }
-    ]
-  }
   @typeorm { table: "users" }
 } #20
 
@@ -53,22 +39,9 @@ User extends TimestampedIdentity {
 Session extends TimestampedIdentity {
   user_id: UUID #4
   expires_at: Timestamp #5
-  @sql {
-    table_name: "sessions",
-    indexes: [
-      { fields: ["id"], primary: true },
-      { fields: ["user_id"] },
-      { fields: ["expires_at"] }
-    ]
-  }
   @typeorm {
     table: "sessions",
-    relations: [{
-      field: "user",
-      target: "User",
-      type: "many_to_one",
-      join_column: "user_id"
-    }]
+
   }
 } #30
 
@@ -79,23 +52,8 @@ Task extends Timestamped {
   title: string #5
   description?: string #6
   status: "todo" | "in_progress" | "done" = "todo" #7
-  @sql {
-    table_name: "tasks",
-    indexes: [
-      { fields: ["id"], primary: true },
-      { fields: ["user_id"] },
-      { fields: ["status"] },
-      { fields: ["created_at"] }
-    ]
-  }
   @typeorm {
     table: "tasks",
-    relations: [{
-      field: "user",
-      target: "User",
-      type: "many_to_one",
-      join_column: "user_id"
-    }]
   }
 } #40
 

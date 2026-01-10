@@ -39,4 +39,5 @@ CDM (Contextual Data Models) is a schema language and toolchain for defining a s
 
 - When making any code changes ensure that the full code still builds without errors/warnings. If there are any, fix them.
 - When making code changes be sure that all relevant tests run. `just test` may not be able to fully run inside the docker container, but you should run any specific tests related to the changed code and ensure that they still pass.
+- When making code changes, start by adding tests that assert the bug is fixed or feature is working. Then make the changes. Then ensure that those tests (along with others) pass.
 - When running tests in editors/cdm-extension, you may need to run npm install before running the tests.

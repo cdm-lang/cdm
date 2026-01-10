@@ -27,8 +27,7 @@ pub fn get_node_text<'a>(node: tree_sitter::Node, source: &'a str) -> &'a str
 
 We should ensure that we can't name plugins "extends" (it's a reserved word). For example `extends from ./plugins/my-plugin` should not be allowed.
 
-- Fix code highlighting for imports and extends
-- Fix error in examples/client.cdm when removing a field
+- Add relation and hooks settings to typeorm?
 
 ## Features
 
