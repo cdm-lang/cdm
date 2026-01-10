@@ -159,84 +159,6 @@ list-plugins:
     fi
   done
 
-# Release the LSP server (creates and optionally pushes a version tag)
-# Usage: just release-lsp <version>
-# Example: just release-lsp 0.1.0
-release-lsp version:
-  #!/usr/bin/env bash
-  set -e
-
-  # Validate version format
-  if ! [[ {{version}} =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-    echo "Error: Version must be in format X.Y.Z (e.g., 0.1.0)"
-    exit 1
-  fi
-
-  # Create tag name
-  TAG="cdm-lsp-v{{version}}"
-
-  echo "Creating release for CDM LSP version {{version}}"
-  echo "Tag: $TAG"
-  echo ""
-
-  # Check if tag already exists
-  if git rev-parse "$TAG" >/dev/null 2>&1; then
-    echo "Error: Tag $TAG already exists"
-    echo ""
-    echo "To remove the existing tag and try again:"
-    echo "  # Delete local tag"
-    echo "  git tag -d $TAG"
-    echo ""
-    echo "  # If already pushed, delete remote tag"
-    echo "  git push --delete origin $TAG"
-    echo ""
-    echo "  # Then run this command again"
-    echo "  just release-lsp {{version}}"
-    exit 1
-  fi
-
-  # Check for uncommitted changes
-  if ! git diff-index --quiet HEAD --; then
-    echo ""
-    echo "Warning: You have uncommitted changes"
-    git status --short
-    echo ""
-    read -p "Continue anyway? (y/N) " -n 1 -r
-    echo
-    if [[ ! $REPLY =~ ^[Yy]$ ]]; then
-      echo "Cancelled"
-      exit 0
-    fi
-  fi
-
-  # Update version in Cargo.toml
-  echo "Updating version in crates/cdm-lsp/Cargo.toml..."
-  sed -i.bak 's/^version = ".*"/version = "{{version}}"/' crates/cdm-lsp/Cargo.toml
-  rm crates/cdm-lsp/Cargo.toml.bak
-
-  # Update Cargo.lock
-  echo "Updating Cargo.lock..."
-  cargo check --manifest-path crates/cdm-lsp/Cargo.toml
-
-  # Commit the version update
-  echo "Committing version update..."
-  git add crates/cdm-lsp/Cargo.toml Cargo.lock
-  git commit -m "Release CDM LSP {{version}}"
-
-  # Create tag
-  echo "Creating tag $TAG..."
-  git tag -a "$TAG" -m "Release CDM LSP v{{version}}"
-
-  echo ""
-  echo "✓ Tag created successfully!"
-  echo ""
-  echo "To push the commit and tag to trigger the release workflow, run:"
-  echo "  git push origin main $TAG"
-  echo ""
-  echo "To undo if you made a mistake, run:"
-  echo "  git tag -d $TAG"
-  echo "  git reset --soft HEAD~1"
-
 # Release the VS Code extension (creates and optionally pushes a version tag)
 # Usage: just release-extension <version>
 # Example: just release-extension 0.2.0
@@ -615,23 +537,6 @@ check-releases:
     echo -e "  ${GREEN}CLI${NC}: No changes since $CLI_TAG"
   fi
 
-  # Check LSP
-  echo -e "${BLUE}Checking LSP...${NC}"
-  LSP_TAG=$(get_latest_tag "cdm-lsp-v*")
-  LSP_VERSION=$(extract_version "$LSP_TAG")
-  if has_changes_since_tag "$LSP_TAG" "crates/cdm-lsp/"; then
-    if [ -n "$LSP_VERSION" ]; then
-      LSP_NEW_VERSION=$(bump_patch "$LSP_VERSION")
-      echo -e "  ${YELLOW}LSP${NC}: Changes detected since $LSP_TAG -> needs release v$LSP_NEW_VERSION"
-      NEEDS_RELEASE+=("lsp:$LSP_NEW_VERSION")
-    else
-      echo -e "  ${YELLOW}LSP${NC}: No previous release found, needs initial release"
-      NEEDS_RELEASE+=("lsp:0.1.0")
-    fi
-  else
-    echo -e "  ${GREEN}LSP${NC}: No changes since $LSP_TAG"
-  fi
-
   # Check Extension
   echo -e "${BLUE}Checking Extension...${NC}"
   EXT_TAG=$(get_latest_tag "cdm-extension-v*")
@@ -713,9 +618,6 @@ check-releases:
       cli)
         echo "  - CLI -> v${PARTS[1]}"
         ;;
-      lsp)
-        echo "  - LSP -> v${PARTS[1]}"
-        ;;
       extension)
         echo "  - Extension -> v${PARTS[1]}"
         ;;
@@ -736,9 +638,6 @@ check-releases:
     case "$TYPE" in
       cli)
         echo "  just release-cli ${PARTS[1]}"
-        ;;
-      lsp)
-        echo "  just release-lsp ${PARTS[1]}"
         ;;
       extension)
         echo "  just release-extension ${PARTS[1]}"
@@ -854,10 +753,6 @@ show-changes component="":
         TAG=$(get_latest_tag "cdm-cli-v*")
         show_component_changes "CLI" "$TAG" "crates/cdm/"
         ;;
-      lsp)
-        TAG=$(get_latest_tag "cdm-lsp-v*")
-        show_component_changes "LSP" "$TAG" "crates/cdm-lsp/"
-        ;;
       extension)
         TAG=$(get_latest_tag "cdm-extension-v*")
         show_component_changes "Extension" "$TAG" "editors/cdm-extension/"
@@ -880,7 +775,7 @@ show-changes component="":
           echo -e "${RED}Error: Unknown component '$FILTER'${NC}"
           echo ""
           echo "Available components:"
-          echo "  cli, lsp, extension"
+          echo "  cli, extension"
           echo "  Plugins:"
           for dir in crates/cdm-plugin-*; do
             if [ -f "$dir/cdm-plugin.json" ]; then
@@ -910,13 +805,6 @@ show-changes component="":
   CLI_TAG=$(get_latest_tag "cdm-cli-v*")
   if has_changes_since_tag "$CLI_TAG" "crates/cdm/"; then
     show_component_changes "CLI" "$CLI_TAG" "crates/cdm/"
-    FOUND_CHANGES=true
-  fi
-
-  # Check LSP
-  LSP_TAG=$(get_latest_tag "cdm-lsp-v*")
-  if has_changes_since_tag "$LSP_TAG" "crates/cdm-lsp/"; then
-    show_component_changes "LSP" "$LSP_TAG" "crates/cdm-lsp/"
     FOUND_CHANGES=true
   fi
 
@@ -1025,18 +913,6 @@ release-all:
     NEEDS_RELEASE+=("cli:$CLI_NEW_VERSION")
   fi
 
-  # Check LSP
-  LSP_TAG=$(get_latest_tag "cdm-lsp-v*")
-  LSP_VERSION=$(extract_version "$LSP_TAG")
-  if has_changes_since_tag "$LSP_TAG" "crates/cdm-lsp/"; then
-    if [ -n "$LSP_VERSION" ]; then
-      LSP_NEW_VERSION=$(bump_patch "$LSP_VERSION")
-    else
-      LSP_NEW_VERSION="0.1.0"
-    fi
-    NEEDS_RELEASE+=("lsp:$LSP_NEW_VERSION")
-  fi
-
   # Check Extension
   EXT_TAG=$(get_latest_tag "cdm-extension-v*")
   EXT_VERSION=$(extract_version "$EXT_TAG")
@@ -1102,9 +978,6 @@ release-all:
       cli)
         echo "  - CLI v${PARTS[1]} (tag: cdm-cli-v${PARTS[1]})"
         ;;
-      lsp)
-        echo "  - LSP v${PARTS[1]} (tag: cdm-lsp-v${PARTS[1]})"
-        ;;
       extension)
         echo "  - Extension v${PARTS[1]} (tag: cdm-extension-v${PARTS[1]})"
         ;;
@@ -1119,7 +992,7 @@ release-all:
   echo ""
 
   # Ask for confirmation
-  read -p "Proceed with creating these releases? (y/N) " -n 1 -r
+  read -p "Proceed with creating these releases? (y/N) " -n 1 -r < /dev/tty
   echo
   if [[ ! $REPLY =~ ^[Yy]$ ]]; then
     echo "Cancelled"
@@ -1150,27 +1023,6 @@ release-all:
         git add crates/cdm/Cargo.toml Cargo.lock 2>/dev/null || true
         git commit -m "Release CDM CLI $VERSION" 2>/dev/null || true
         git tag -a "$TAG" -m "Release CDM CLI v$VERSION"
-
-        TAGS_TO_PUSH+=("$TAG")
-        echo -e "${GREEN}  Created tag $TAG${NC}"
-        ;;
-
-      lsp)
-        VERSION="${PARTS[1]}"
-        TAG="cdm-lsp-v$VERSION"
-        echo -e "${BLUE}Releasing LSP v$VERSION...${NC}"
-
-        # Update version in Cargo.toml
-        sed -i.bak 's/^version = ".*"/version = "'"$VERSION"'"/' crates/cdm-lsp/Cargo.toml
-        rm -f crates/cdm-lsp/Cargo.toml.bak
-
-        # Update Cargo.lock
-        cargo check --manifest-path crates/cdm-lsp/Cargo.toml 2>/dev/null || true
-
-        # Commit and tag
-        git add crates/cdm-lsp/Cargo.toml Cargo.lock 2>/dev/null || true
-        git commit -m "Release CDM LSP $VERSION" 2>/dev/null || true
-        git tag -a "$TAG" -m "Release CDM LSP v$VERSION"
 
         TAGS_TO_PUSH+=("$TAG")
         echo -e "${GREEN}  Created tag $TAG${NC}"
@@ -1293,7 +1145,7 @@ release-all:
   echo ""
 
   # Ask to push tags
-  read -p "Push all commits and tags to origin? (y/N) " -n 1 -r
+  read -p "Push all commits and tags to origin? (y/N) " -n 1 -r < /dev/tty
   echo
   if [[ $REPLY =~ ^[Yy]$ ]]; then
     echo ""
