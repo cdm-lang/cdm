@@ -1,0 +1,27 @@
+extends "./base.cdm"
+
+@typescript {
+  build_output: "../../apps/database/src/generated",
+  generate_zod: false,
+  output_format: "interface"
+}
+
+@sql {
+  dialect: "postgresql",
+  schema: "public",
+  build_output: "../../apps/database/schema",
+  migrations_output: "../../apps/database/migrations",
+  table_name_format: "snake_case",
+  column_name_format: "snake_case",
+  pluralize_table_names: true,
+  infer_not_null: true
+}
+
+@typeorm {
+  build_output: "../../apps/database/src/entities",
+  migrations_output: "../../apps/database/src/entities",
+  entity_file_strategy: "per_model",
+  table_name_format: "snake_case",
+  column_name_format: "snake_case",
+  pluralize_table_names: true
+}
