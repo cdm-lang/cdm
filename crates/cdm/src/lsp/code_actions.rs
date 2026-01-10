@@ -4,10 +4,11 @@
 //! - Add missing entity ID (W005)
 //! - Add missing field ID (W006)
 //! - Create type alias for undefined types
+//! - Download missing plugin (E401)
 
 use tower_lsp::lsp_types::*;
 use tree_sitter::{Node, Parser};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use super::position::byte_span_to_lsp_range;
 
@@ -19,6 +20,7 @@ pub fn compute_code_actions(
     uri: &Url,
 ) -> Option<Vec<CodeActionOrCommand>> {
     let mut actions = Vec::new();
+    let mut missing_plugins: HashSet<String> = HashSet::new();
 
     // Parse the document
     let mut parser = Parser::new();
@@ -53,12 +55,91 @@ pub fn compute_code_actions(
                 actions.push(CodeActionOrCommand::CodeAction(action));
             }
         }
+
+        // Handle E401: Plugin not found (missing plugin)
+        if diagnostic.message.contains("E401") || diagnostic.message.contains("Plugin not found") {
+            if let Some(plugin_name) = extract_plugin_name(&diagnostic.message) {
+                // Track unique plugin names to avoid duplicate actions
+                if !missing_plugins.contains(&plugin_name) {
+                    missing_plugins.insert(plugin_name.clone());
+
+                    // Create action to download this specific plugin
+                    let action = create_download_plugin_action(&plugin_name);
+                    actions.push(CodeActionOrCommand::CodeAction(action));
+                }
+            }
+        }
+    }
+
+    // If there are multiple missing plugins, add a "download all" action
+    if missing_plugins.len() > 1 {
+        let download_all_action = create_download_all_plugins_action();
+        actions.push(CodeActionOrCommand::CodeAction(download_all_action));
     }
 
     if actions.is_empty() {
         None
     } else {
         Some(actions)
+    }
+}
+
+/// Extract plugin name from error messages like:
+/// - "E401: Plugin not found: 'typescript' - Plugin 'typescript' not found in cache..."
+/// - "Plugin 'typescript' not found in cache..."
+fn extract_plugin_name(message: &str) -> Option<String> {
+    // Try to match "Plugin 'name' not found"
+    if let Some(start) = message.find("Plugin '") {
+        let rest = &message[start + 8..];
+        if let Some(end) = rest.find('\'') {
+            return Some(rest[..end].to_string());
+        }
+    }
+
+    // Try to match "Plugin not found: 'name'"
+    if let Some(start) = message.find("Plugin not found: '") {
+        let rest = &message[start + 19..];
+        if let Some(end) = rest.find('\'') {
+            return Some(rest[..end].to_string());
+        }
+    }
+
+    None
+}
+
+/// Create a code action to download a missing plugin
+fn create_download_plugin_action(plugin_name: &str) -> CodeAction {
+    CodeAction {
+        title: format!("Download plugin '{}'", plugin_name),
+        kind: Some(CodeActionKind::QUICKFIX),
+        diagnostics: None,
+        edit: None,
+        command: Some(Command {
+            title: format!("Download plugin '{}'", plugin_name),
+            command: "cdm.downloadPlugin".to_string(),
+            arguments: Some(vec![serde_json::Value::String(plugin_name.to_string())]),
+        }),
+        is_preferred: Some(true),
+        disabled: None,
+        data: None,
+    }
+}
+
+/// Create a code action to download all missing plugins
+fn create_download_all_plugins_action() -> CodeAction {
+    CodeAction {
+        title: "Download all missing plugins (run build)".to_string(),
+        kind: Some(CodeActionKind::QUICKFIX),
+        diagnostics: None,
+        edit: None,
+        command: Some(Command {
+            title: "Download all missing plugins".to_string(),
+            command: "cdm.downloadAllPlugins".to_string(),
+            arguments: None,
+        }),
+        is_preferred: Some(false),
+        disabled: None,
+        data: None,
     }
 }
 

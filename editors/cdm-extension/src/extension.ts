@@ -52,6 +52,7 @@ export async function activate(context: vscode.ExtensionContext) {
   outputChannel.appendLine('CDM extension is now active');
 
   // Register commands
+  outputChannel.appendLine('Registering commands...');
   context.subscriptions.push(
     vscode.commands.registerCommand('cdm.restartServer', async () => {
       await restartServer();
@@ -66,21 +67,28 @@ export async function activate(context: vscode.ExtensionContext) {
       await runMigrate();
     }),
     vscode.commands.registerCommand('cdm.downloadPlugin', async (pluginName: string) => {
+      outputChannel.appendLine(`cdm.downloadPlugin called with: ${pluginName}`);
       await downloadPlugin(pluginName);
     }),
     vscode.commands.registerCommand('cdm.downloadAllPlugins', async () => {
+      outputChannel.appendLine('cdm.downloadAllPlugins called');
       await downloadAllPlugins();
     })
   );
+  outputChannel.appendLine('Commands registered: cdm.restartServer, cdm.updateCli, cdm.build, cdm.migrate, cdm.downloadPlugin, cdm.downloadAllPlugins');
 
   // Register code action provider for plugin download quick fixes
+  const codeActionProvider = new PluginDownloadCodeActionProvider();
   context.subscriptions.push(
     vscode.languages.registerCodeActionsProvider(
       { scheme: 'file', language: 'cdm' },
-      new PluginDownloadCodeActionProvider(),
-      { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] }
+      codeActionProvider,
+      {
+        providedCodeActionKinds: PluginDownloadCodeActionProvider.providedCodeActionKinds
+      }
     )
   );
+  outputChannel.appendLine('Registered plugin download code action provider');
 
   // Register on-save handler for auto-assigning entity IDs
   context.subscriptions.push(
@@ -708,7 +716,7 @@ async function downloadPlugin(pluginName: string): Promise<void> {
   }
 
   outputChannel.appendLine(`--- Downloading plugin: ${pluginName} ---`);
-  outputChannel.appendLine(`Command: ${resolvedCliPath} plugin install ${pluginName}`);
+  outputChannel.appendLine(`Command: ${resolvedCliPath} plugin cache ${pluginName}`);
   outputChannel.show();
 
   try {
@@ -719,7 +727,7 @@ async function downloadPlugin(pluginName: string): Promise<void> {
         cancellable: false
       },
       async () => {
-        return await runCliCommand(resolvedCliPath!, ['plugin', 'install', pluginName]);
+        return await runCliCommand(resolvedCliPath!, ['plugin', 'cache', pluginName]);
       }
     );
 
@@ -749,7 +757,7 @@ async function downloadPlugin(pluginName: string): Promise<void> {
 }
 
 /**
- * Download all missing plugins by running cdm build (which downloads plugins as needed)
+ * Download all missing plugins using cdm plugin cache --all
  */
 async function downloadAllPlugins(): Promise<void> {
   const editor = vscode.window.activeTextEditor;
@@ -770,7 +778,7 @@ async function downloadAllPlugins(): Promise<void> {
 
   outputChannel.appendLine(`--- Downloading all plugins ---`);
   outputChannel.appendLine(`File: ${filePath}`);
-  outputChannel.appendLine(`Command: ${resolvedCliPath} build "${filePath}"`);
+  outputChannel.appendLine(`Command: ${resolvedCliPath} plugin cache --all`);
   outputChannel.show();
 
   try {
@@ -781,21 +789,21 @@ async function downloadAllPlugins(): Promise<void> {
         cancellable: false
       },
       async () => {
-        return await runCliCommand(resolvedCliPath!, ['build', filePath]);
+        return await runCliCommand(resolvedCliPath!, ['plugin', 'cache', '--all']);
       }
     );
 
     if (result.exitCode === 0) {
-      vscode.window.showInformationMessage('All plugins downloaded and build completed successfully');
-      outputChannel.appendLine('✓ Plugins downloaded and build completed');
+      vscode.window.showInformationMessage('All plugins cached successfully');
+      outputChannel.appendLine('✓ All plugins cached');
       if (result.stdout) {
         outputChannel.appendLine(result.stdout);
       }
       // Restart the language server to pick up the new plugins
       await restartServer();
     } else {
-      vscode.window.showErrorMessage('Failed to download plugins. See output for details.');
-      outputChannel.appendLine('✗ Failed to download plugins');
+      vscode.window.showErrorMessage('Failed to cache plugins. See output for details.');
+      outputChannel.appendLine('✗ Failed to cache plugins');
       if (result.stderr) {
         outputChannel.appendLine(result.stderr);
       }
@@ -805,8 +813,8 @@ async function downloadAllPlugins(): Promise<void> {
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
-    vscode.window.showErrorMessage(`Failed to download plugins: ${message}`);
-    outputChannel.appendLine(`✗ Download error: ${message}`);
+    vscode.window.showErrorMessage(`Failed to cache plugins: ${message}`);
+    outputChannel.appendLine(`✗ Cache error: ${message}`);
   }
 }
 
@@ -814,24 +822,47 @@ async function downloadAllPlugins(): Promise<void> {
  * Code action provider that offers quick fixes to download missing plugins
  */
 class PluginDownloadCodeActionProvider implements vscode.CodeActionProvider {
+  public static readonly providedCodeActionKinds = [
+    vscode.CodeActionKind.QuickFix
+  ];
+
   provideCodeActions(
     document: vscode.TextDocument,
     range: vscode.Range | vscode.Selection,
     context: vscode.CodeActionContext
   ): vscode.CodeAction[] | undefined {
     const actions: vscode.CodeAction[] = [];
-    const missingPlugins = new Set<string>();
+    const pluginDiagnostics = new Map<string, vscode.Diagnostic[]>();
+
+    // Debug: log that we're being called
+    outputChannel.appendLine(`[CodeAction] Provider called for ${document.uri.fsPath}`);
+    outputChannel.appendLine(`[CodeAction] Range: ${range.start.line}:${range.start.character} - ${range.end.line}:${range.end.character}`);
+    outputChannel.appendLine(`[CodeAction] Context diagnostics count: ${context.diagnostics.length}`);
+    outputChannel.appendLine(`[CodeAction] Context only: ${context.only?.value || '(none)'}`);
+    outputChannel.appendLine(`[CodeAction] Context triggerKind: ${context.triggerKind}`);
 
     // Find diagnostics about missing plugins
     for (const diagnostic of context.diagnostics) {
+      const truncatedMsg = diagnostic.message.length > 100
+        ? diagnostic.message.substring(0, 100) + '...'
+        : diagnostic.message;
+      outputChannel.appendLine(`[CodeAction]   Diagnostic at ${diagnostic.range.start.line}:${diagnostic.range.start.character}: ${truncatedMsg}`);
+      outputChannel.appendLine(`[CodeAction]   Source: ${diagnostic.source || '(unknown)'}, Code: ${JSON.stringify(diagnostic.code) || '(none)'}`);
+
       const pluginName = this.extractPluginName(diagnostic.message);
+      outputChannel.appendLine(`[CodeAction]   Extracted plugin: ${pluginName || '(none)'}`);
+
       if (pluginName) {
-        missingPlugins.add(pluginName);
+        if (!pluginDiagnostics.has(pluginName)) {
+          pluginDiagnostics.set(pluginName, []);
+        }
+        pluginDiagnostics.get(pluginName)!.push(diagnostic);
       }
     }
 
     // Create actions for each missing plugin
-    for (const pluginName of missingPlugins) {
+    for (const [pluginName, diagnostics] of pluginDiagnostics) {
+      outputChannel.appendLine(`[CodeAction] Creating action for plugin: ${pluginName}`);
       const action = new vscode.CodeAction(
         `Download plugin '${pluginName}'`,
         vscode.CodeActionKind.QuickFix
@@ -841,12 +872,18 @@ class PluginDownloadCodeActionProvider implements vscode.CodeActionProvider {
         title: `Download plugin '${pluginName}'`,
         arguments: [pluginName]
       };
-      action.isPreferred = missingPlugins.size === 1;
+      action.diagnostics = diagnostics;
+      action.isPreferred = pluginDiagnostics.size === 1;
       actions.push(action);
     }
 
     // If there are missing plugins, also offer to download all
-    if (missingPlugins.size > 0) {
+    if (pluginDiagnostics.size > 0) {
+      const allDiagnostics: vscode.Diagnostic[] = [];
+      for (const diagnostics of pluginDiagnostics.values()) {
+        allDiagnostics.push(...diagnostics);
+      }
+
       const downloadAllAction = new vscode.CodeAction(
         'Download all missing plugins (run build)',
         vscode.CodeActionKind.QuickFix
@@ -855,11 +892,12 @@ class PluginDownloadCodeActionProvider implements vscode.CodeActionProvider {
         command: 'cdm.downloadAllPlugins',
         title: 'Download all missing plugins'
       };
-      // Prefer individual download if only one plugin is missing
+      downloadAllAction.diagnostics = allDiagnostics;
       downloadAllAction.isPreferred = false;
       actions.push(downloadAllAction);
     }
 
+    outputChannel.appendLine(`[CodeAction] Returning ${actions.length} actions`);
     return actions;
   }
 

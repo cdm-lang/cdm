@@ -307,3 +307,96 @@ fn test_find_field_at_range_not_found() {
     let result = find_field_at_range(&root, text, &range);
     assert!(result.is_none());
 }
+
+#[test]
+fn test_extract_plugin_name_from_cache_message() {
+    let msg = "E401: Plugin not found: 'typescript' - Plugin 'typescript' not found in cache. Run 'cdm build' to download it.";
+    let result = extract_plugin_name(msg);
+    assert_eq!(result, Some("typescript".to_string()));
+}
+
+#[test]
+fn test_extract_plugin_name_from_not_found_message() {
+    let msg = "Plugin not found: 'sql'";
+    let result = extract_plugin_name(msg);
+    assert_eq!(result, Some("sql".to_string()));
+}
+
+#[test]
+fn test_extract_plugin_name_no_match() {
+    let msg = "W005: Model is missing entity ID";
+    let result = extract_plugin_name(msg);
+    assert_eq!(result, None);
+}
+
+#[test]
+fn test_compute_code_actions_e401_plugin_not_found() {
+    let text = r#"@typescript {}"#;
+    let range = Range::new(Position::new(0, 0), Position::new(0, 14));
+    let diagnostics = vec![Diagnostic {
+        range,
+        severity: Some(tower_lsp::lsp_types::DiagnosticSeverity::ERROR),
+        message: "E401: Plugin not found: 'typescript' - Plugin 'typescript' not found in cache".to_string(),
+        ..Default::default()
+    }];
+    let uri = Url::parse("file:///test.cdm").unwrap();
+
+    let result = compute_code_actions(text, range, &diagnostics, &uri);
+    assert!(result.is_some());
+    let actions = result.unwrap();
+    assert_eq!(actions.len(), 1);
+
+    if let CodeActionOrCommand::CodeAction(action) = &actions[0] {
+        assert_eq!(action.title, "Download plugin 'typescript'");
+        assert!(action.command.is_some());
+        let cmd = action.command.as_ref().unwrap();
+        assert_eq!(cmd.command, "cdm.downloadPlugin");
+        assert!(cmd.arguments.is_some());
+        let args = cmd.arguments.as_ref().unwrap();
+        assert_eq!(args.len(), 1);
+        assert_eq!(args[0], serde_json::Value::String("typescript".to_string()));
+    } else {
+        panic!("Expected CodeAction");
+    }
+}
+
+#[test]
+fn test_compute_code_actions_multiple_missing_plugins() {
+    let text = r#"@typescript {}
+@sql {}"#;
+    let range = Range::new(Position::new(0, 0), Position::new(1, 7));
+    let diagnostics = vec![
+        Diagnostic {
+            range: Range::new(Position::new(0, 0), Position::new(0, 14)),
+            severity: Some(tower_lsp::lsp_types::DiagnosticSeverity::ERROR),
+            message: "E401: Plugin not found: 'typescript' - Plugin 'typescript' not found in cache".to_string(),
+            ..Default::default()
+        },
+        Diagnostic {
+            range: Range::new(Position::new(1, 0), Position::new(1, 7)),
+            severity: Some(tower_lsp::lsp_types::DiagnosticSeverity::ERROR),
+            message: "E401: Plugin not found: 'sql' - Plugin 'sql' not found in cache".to_string(),
+            ..Default::default()
+        },
+    ];
+    let uri = Url::parse("file:///test.cdm").unwrap();
+
+    let result = compute_code_actions(text, range, &diagnostics, &uri);
+    assert!(result.is_some());
+    let actions = result.unwrap();
+    // Should have 2 individual download actions + 1 download all action
+    assert_eq!(actions.len(), 3);
+
+    // Check that we have download actions for both plugins
+    let titles: Vec<String> = actions.iter().filter_map(|a| {
+        if let CodeActionOrCommand::CodeAction(action) = a {
+            Some(action.title.clone())
+        } else {
+            None
+        }
+    }).collect();
+
+    assert!(titles.iter().any(|t| t == "Download plugin 'typescript'"));
+    assert!(titles.iter().any(|t| t == "Download plugin 'sql'"));
+    assert!(titles.iter().any(|t| t == "Download all missing plugins (run build)"));
+}

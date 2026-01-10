@@ -23,7 +23,9 @@
     "code generation"
   ],
   "activationEvents": [
-    "onLanguage:cdm"
+    "onLanguage:cdm",
+    "onCommand:cdm.downloadPlugin",
+    "onCommand:cdm.downloadAllPlugins"
   ],
   "main": "./out/extension.js",
   "contributes": {
