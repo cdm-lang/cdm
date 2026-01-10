@@ -9,7 +9,7 @@ export const window = {
 export const workspace = {
   getConfiguration: jest.fn(() => ({
     get: jest.fn((key: string) => {
-      if (key === 'server.path') return 'cdm-lsp';
+      if (key === 'server.path') return 'cdm';
       if (key === 'trace.server') return 'off';
       return undefined;
     }),

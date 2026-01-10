@@ -73,19 +73,20 @@ The extension will automatically download and use the LSP server. However, if yo
 
 1. Open your editor's settings (Cmd+, or Ctrl+,)
 2. Search for "cdm server path"
-3. Set `cdm.server.path` to the absolute path of your LSP server:
+3. Set `cdm.server.path` to the absolute path of the CDM CLI:
    ```
-   /Users/yourname/projects/cdm/target/release/cdm-lsp
+   /Users/yourname/projects/cdm/target/release/cdm
    ```
 
-### Building the LSP Server Manually
+### Building the CDM CLI Manually
 
 If you're developing the LSP server or want to build from source:
 
 ```bash
 # From the CDM repository root
-cargo build -p cdm-lsp --release
-# The binary will be at: target/release/cdm-lsp
+cargo build -p cdm --release
+# The binary will be at: target/release/cdm
+# The extension runs: cdm lsp
 ```
 
 ## Testing
@@ -175,10 +176,10 @@ User {
 
 #### "Language server not found"
 
-**Solution**: Make sure `cdm-lsp` is in PATH or set the full path in settings:
+**Solution**: Make sure `cdm` is in PATH or set the full path in settings:
 ```json
 {
-  "cdm.server.path": "/absolute/path/to/cdm-lsp"
+  "cdm.server.path": "/absolute/path/to/cdm"
 }
 ```
 
@@ -207,8 +208,8 @@ User {
 
 ### Making Changes to the LSP Server
 
-1. Edit Rust code in `crates/cdm-lsp/`
-2. Rebuild: `cargo build -p cdm-lsp --release`
+1. Edit Rust code in `crates/cdm/src/lsp/`
+2. Rebuild: `cargo build -p cdm --release`
 3. Restart the language server:
    - Press Cmd+Shift+P (or Ctrl+Shift+P) → "CDM: Restart Language Server"
 

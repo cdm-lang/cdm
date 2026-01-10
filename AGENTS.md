@@ -4,13 +4,12 @@
 CDM (Contextual Data Models) is a schema language and toolchain for defining a single data model and generating context-specific outputs (SQL, TypeScript, docs, etc.) via plugins. The core reference is the language spec in `specs/spec.md`, and user-facing docs live under `docs/`.
 
 ## Key areas in this repo
-- **CLI + core engine**: `crates/cdm/`
+- **CLI + core engine + LSP**: `crates/cdm/` (includes `cdm lsp` subcommand)
 - **Grammar + parser**: `crates/grammar/` (Tree-sitter grammar and generated parser)
 - **Plugin interface**: `crates/cdm-plugin-interface/`
 - **Official plugins**: `crates/cdm-plugin-*` (SQL, TypeScript, docs, JSON schema, etc.)
 - **JSON validator**: `crates/cdm-json-validator/`
 - **Utilities**: `crates/cdm-utils/`
-- **LSP**: `crates/cdm-lsp/`
 - **Editor tooling**: `editors/` (Editor extension in `editors/cdm-extension/`)
 - **Docs & specs**: `docs/`, `specs/`
 - **Examples**: `examples/`
