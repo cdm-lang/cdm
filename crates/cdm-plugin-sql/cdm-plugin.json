@@ -1,11 +1,14 @@
 {
   "name": "sql",
-  "version": "0.1.0",
+  "version": "0.1.4",
   "description": "Generate SQL DDL schemas and migrations for PostgreSQL and SQLite",
   "schema": "schema.cdm",
   "wasm": {
     "file": "target/wasm32-wasip1/release/cdm_plugin_sql.wasm",
     "release_url": "https://github.com/cdm-lang/cdm/releases/download/cdm-plugin-sql-v{version}/cdm_plugin_sql.wasm"
   },
-  "capabilities": ["build", "migrate"]
+  "capabilities": [
+    "build",
+    "migrate"
+  ]
 }
