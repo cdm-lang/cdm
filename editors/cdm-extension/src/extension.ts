@@ -64,7 +64,22 @@ export async function activate(context: vscode.ExtensionContext) {
     }),
     vscode.commands.registerCommand('cdm.migrate', async () => {
       await runMigrate();
+    }),
+    vscode.commands.registerCommand('cdm.downloadPlugin', async (pluginName: string) => {
+      await downloadPlugin(pluginName);
+    }),
+    vscode.commands.registerCommand('cdm.downloadAllPlugins', async () => {
+      await downloadAllPlugins();
     })
+  );
+
+  // Register code action provider for plugin download quick fixes
+  context.subscriptions.push(
+    vscode.languages.registerCodeActionsProvider(
+      { scheme: 'file', language: 'cdm' },
+      new PluginDownloadCodeActionProvider(),
+      { providedCodeActionKinds: [vscode.CodeActionKind.QuickFix] }
+    )
   );
 
   // Register on-save handler for auto-assigning entity IDs
@@ -681,6 +696,192 @@ function runCliCommand(cliPath: string, args: string[]): Promise<CliResult> {
       });
     });
   });
+}
+
+/**
+ * Download a specific plugin using the CDM CLI
+ */
+async function downloadPlugin(pluginName: string): Promise<void> {
+  if (!resolvedCliPath) {
+    vscode.window.showErrorMessage('CDM CLI not found. Please install it first.');
+    return;
+  }
+
+  outputChannel.appendLine(`--- Downloading plugin: ${pluginName} ---`);
+  outputChannel.appendLine(`Command: ${resolvedCliPath} plugin install ${pluginName}`);
+  outputChannel.show();
+
+  try {
+    const result = await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `Downloading plugin '${pluginName}'...`,
+        cancellable: false
+      },
+      async () => {
+        return await runCliCommand(resolvedCliPath!, ['plugin', 'install', pluginName]);
+      }
+    );
+
+    if (result.exitCode === 0) {
+      vscode.window.showInformationMessage(`Plugin '${pluginName}' downloaded successfully`);
+      outputChannel.appendLine(`✓ Plugin '${pluginName}' downloaded successfully`);
+      if (result.stdout) {
+        outputChannel.appendLine(result.stdout);
+      }
+      // Restart the language server to pick up the new plugin
+      await restartServer();
+    } else {
+      vscode.window.showErrorMessage(`Failed to download plugin '${pluginName}'. See output for details.`);
+      outputChannel.appendLine(`✗ Failed to download plugin '${pluginName}'`);
+      if (result.stderr) {
+        outputChannel.appendLine(result.stderr);
+      }
+      if (result.stdout) {
+        outputChannel.appendLine(result.stdout);
+      }
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    vscode.window.showErrorMessage(`Failed to download plugin: ${message}`);
+    outputChannel.appendLine(`✗ Download error: ${message}`);
+  }
+}
+
+/**
+ * Download all missing plugins by running cdm build (which downloads plugins as needed)
+ */
+async function downloadAllPlugins(): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || editor.document.languageId !== 'cdm') {
+    vscode.window.showErrorMessage('Please open a CDM file first');
+    return;
+  }
+
+  if (!resolvedCliPath) {
+    vscode.window.showErrorMessage('CDM CLI not found. Please install it first.');
+    return;
+  }
+
+  // Save the document first
+  await editor.document.save();
+
+  const filePath = editor.document.uri.fsPath;
+
+  outputChannel.appendLine(`--- Downloading all plugins ---`);
+  outputChannel.appendLine(`File: ${filePath}`);
+  outputChannel.appendLine(`Command: ${resolvedCliPath} build "${filePath}"`);
+  outputChannel.show();
+
+  try {
+    const result = await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: 'Downloading plugins...',
+        cancellable: false
+      },
+      async () => {
+        return await runCliCommand(resolvedCliPath!, ['build', filePath]);
+      }
+    );
+
+    if (result.exitCode === 0) {
+      vscode.window.showInformationMessage('All plugins downloaded and build completed successfully');
+      outputChannel.appendLine('✓ Plugins downloaded and build completed');
+      if (result.stdout) {
+        outputChannel.appendLine(result.stdout);
+      }
+      // Restart the language server to pick up the new plugins
+      await restartServer();
+    } else {
+      vscode.window.showErrorMessage('Failed to download plugins. See output for details.');
+      outputChannel.appendLine('✗ Failed to download plugins');
+      if (result.stderr) {
+        outputChannel.appendLine(result.stderr);
+      }
+      if (result.stdout) {
+        outputChannel.appendLine(result.stdout);
+      }
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    vscode.window.showErrorMessage(`Failed to download plugins: ${message}`);
+    outputChannel.appendLine(`✗ Download error: ${message}`);
+  }
+}
+
+/**
+ * Code action provider that offers quick fixes to download missing plugins
+ */
+class PluginDownloadCodeActionProvider implements vscode.CodeActionProvider {
+  provideCodeActions(
+    document: vscode.TextDocument,
+    range: vscode.Range | vscode.Selection,
+    context: vscode.CodeActionContext
+  ): vscode.CodeAction[] | undefined {
+    const actions: vscode.CodeAction[] = [];
+    const missingPlugins = new Set<string>();
+
+    // Find diagnostics about missing plugins
+    for (const diagnostic of context.diagnostics) {
+      const pluginName = this.extractPluginName(diagnostic.message);
+      if (pluginName) {
+        missingPlugins.add(pluginName);
+      }
+    }
+
+    // Create actions for each missing plugin
+    for (const pluginName of missingPlugins) {
+      const action = new vscode.CodeAction(
+        `Download plugin '${pluginName}'`,
+        vscode.CodeActionKind.QuickFix
+      );
+      action.command = {
+        command: 'cdm.downloadPlugin',
+        title: `Download plugin '${pluginName}'`,
+        arguments: [pluginName]
+      };
+      action.isPreferred = missingPlugins.size === 1;
+      actions.push(action);
+    }
+
+    // If there are missing plugins, also offer to download all
+    if (missingPlugins.size > 0) {
+      const downloadAllAction = new vscode.CodeAction(
+        'Download all missing plugins (run build)',
+        vscode.CodeActionKind.QuickFix
+      );
+      downloadAllAction.command = {
+        command: 'cdm.downloadAllPlugins',
+        title: 'Download all missing plugins'
+      };
+      // Prefer individual download if only one plugin is missing
+      downloadAllAction.isPreferred = false;
+      actions.push(downloadAllAction);
+    }
+
+    return actions;
+  }
+
+  /**
+   * Extract plugin name from error message like:
+   * "E401: Plugin not found: 'typescript' - Plugin 'typescript' not found in cache..."
+   */
+  private extractPluginName(message: string): string | null {
+    // Match pattern: Plugin 'name' not found in cache
+    const cacheMatch = message.match(/Plugin '([^']+)' not found in cache/);
+    if (cacheMatch) {
+      return cacheMatch[1];
+    }
+
+    // Match pattern: Plugin not found: 'name'
+    const notFoundMatch = message.match(/Plugin not found: '([^']+)'/);
+    if (notFoundMatch) {
+      return notFoundMatch[1];
+    }
+
+    return null;
+  }
 }
 
 /**

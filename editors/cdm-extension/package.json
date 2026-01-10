@@ -93,6 +93,14 @@
         "command": "cdm.migrate",
         "title": "CDM: Generate Migration",
         "icon": "$(git-compare)"
+      },
+      {
+        "command": "cdm.downloadPlugin",
+        "title": "CDM: Download Plugin"
+      },
+      {
+        "command": "cdm.downloadAllPlugins",
+        "title": "CDM: Download All Missing Plugins"
       }
     ],
     "menus": {
