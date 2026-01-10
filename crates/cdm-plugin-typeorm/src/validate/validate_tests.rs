@@ -348,3 +348,303 @@ fn test_is_valid_identifier() {
     assert!(!is_valid_identifier("class")); // reserved word
     assert!(!is_valid_identifier("function")); // reserved word
 }
+
+// Hooks validation tests
+
+#[test]
+fn test_validate_model_config_valid_hooks() {
+    let config = serde_json::json!({
+        "hooks": {
+            "before_insert": "setDefaults",
+            "after_load": "computeFields"
+        }
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Model {
+            name: "User".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert!(errors.is_empty());
+}
+
+#[test]
+fn test_validate_model_config_all_hooks() {
+    let config = serde_json::json!({
+        "hooks": {
+            "before_insert": "beforeInsertHandler",
+            "after_insert": "afterInsertHandler",
+            "before_update": "beforeUpdateHandler",
+            "after_update": "afterUpdateHandler",
+            "before_remove": "beforeRemoveHandler",
+            "after_remove": "afterRemoveHandler",
+            "after_load": "afterLoadHandler",
+            "before_soft_remove": "beforeSoftRemoveHandler",
+            "after_soft_remove": "afterSoftRemoveHandler",
+            "after_recover": "afterRecoverHandler"
+        }
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Model {
+            name: "User".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert!(errors.is_empty());
+}
+
+#[test]
+fn test_validate_model_config_hooks_empty_method_name() {
+    let config = serde_json::json!({
+        "hooks": {
+            "before_insert": ""
+        }
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Model {
+            name: "User".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert_eq!(errors.len(), 1);
+    assert!(errors[0].message.contains("cannot be empty"));
+}
+
+#[test]
+fn test_validate_model_config_hooks_invalid_identifier() {
+    let config = serde_json::json!({
+        "hooks": {
+            "before_insert": "invalid-name"
+        }
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Model {
+            name: "User".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert_eq!(errors.len(), 1);
+    assert!(errors[0].message.contains("valid JavaScript identifier"));
+}
+
+#[test]
+fn test_validate_model_config_hooks_reserved_word() {
+    let config = serde_json::json!({
+        "hooks": {
+            "after_load": "class"
+        }
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Model {
+            name: "User".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert_eq!(errors.len(), 1);
+    assert!(errors[0].message.contains("valid JavaScript identifier"));
+}
+
+#[test]
+fn test_validate_model_config_hooks_non_string_value() {
+    let config = serde_json::json!({
+        "hooks": {
+            "before_insert": 123
+        }
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Model {
+            name: "User".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert_eq!(errors.len(), 1);
+    assert!(errors[0].message.contains("must be a string or an object"));
+}
+
+// Hook object format tests
+
+#[test]
+fn test_validate_model_config_hooks_object_format_valid() {
+    let config = serde_json::json!({
+        "hooks": {
+            "before_insert": {
+                "method": "setDefaults",
+                "import": "./hooks/userHooks"
+            }
+        }
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Model {
+            name: "User".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert!(errors.is_empty());
+}
+
+#[test]
+fn test_validate_model_config_hooks_object_missing_method() {
+    let config = serde_json::json!({
+        "hooks": {
+            "before_insert": {
+                "import": "./hooks/userHooks"
+            }
+        }
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Model {
+            name: "User".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert_eq!(errors.len(), 1);
+    assert!(errors[0].message.contains("must have a 'method' field"));
+}
+
+#[test]
+fn test_validate_model_config_hooks_object_missing_import() {
+    let config = serde_json::json!({
+        "hooks": {
+            "before_insert": {
+                "method": "setDefaults"
+            }
+        }
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Model {
+            name: "User".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert_eq!(errors.len(), 1);
+    assert!(errors[0].message.contains("must have an 'import' field"));
+}
+
+#[test]
+fn test_validate_model_config_hooks_object_empty_method() {
+    let config = serde_json::json!({
+        "hooks": {
+            "before_insert": {
+                "method": "",
+                "import": "./hooks"
+            }
+        }
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Model {
+            name: "User".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert!(errors.iter().any(|e| e.message.contains("method cannot be empty")));
+}
+
+#[test]
+fn test_validate_model_config_hooks_object_empty_import() {
+    let config = serde_json::json!({
+        "hooks": {
+            "before_insert": {
+                "method": "setDefaults",
+                "import": ""
+            }
+        }
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Model {
+            name: "User".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert!(errors.iter().any(|e| e.message.contains("import cannot be empty")));
+}
+
+#[test]
+fn test_validate_model_config_hooks_object_invalid_method_identifier() {
+    let config = serde_json::json!({
+        "hooks": {
+            "before_insert": {
+                "method": "invalid-name",
+                "import": "./hooks"
+            }
+        }
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Model {
+            name: "User".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert!(errors.iter().any(|e| e.message.contains("valid JavaScript identifier")));
+}
+
+#[test]
+fn test_validate_model_config_hooks_mixed_formats() {
+    let config = serde_json::json!({
+        "hooks": {
+            "before_insert": "stubMethod",
+            "after_load": {
+                "method": "computeFields",
+                "import": "./hooks/compute"
+            }
+        }
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Model {
+            name: "User".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert!(errors.is_empty());
+}

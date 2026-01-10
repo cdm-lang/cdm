@@ -111,6 +111,58 @@ impl DecoratorBuilder {
         builder
     }
 
+    // Lifecycle hook decorators
+
+    /// Create a @BeforeInsert decorator
+    pub fn before_insert() -> Self {
+        Self::new("BeforeInsert")
+    }
+
+    /// Create an @AfterInsert decorator
+    pub fn after_insert() -> Self {
+        Self::new("AfterInsert")
+    }
+
+    /// Create a @BeforeUpdate decorator
+    pub fn before_update() -> Self {
+        Self::new("BeforeUpdate")
+    }
+
+    /// Create an @AfterUpdate decorator
+    pub fn after_update() -> Self {
+        Self::new("AfterUpdate")
+    }
+
+    /// Create a @BeforeRemove decorator
+    pub fn before_remove() -> Self {
+        Self::new("BeforeRemove")
+    }
+
+    /// Create an @AfterRemove decorator
+    pub fn after_remove() -> Self {
+        Self::new("AfterRemove")
+    }
+
+    /// Create an @AfterLoad decorator
+    pub fn after_load() -> Self {
+        Self::new("AfterLoad")
+    }
+
+    /// Create a @BeforeSoftRemove decorator
+    pub fn before_soft_remove() -> Self {
+        Self::new("BeforeSoftRemove")
+    }
+
+    /// Create an @AfterSoftRemove decorator
+    pub fn after_soft_remove() -> Self {
+        Self::new("AfterSoftRemove")
+    }
+
+    /// Create an @AfterRecover decorator
+    pub fn after_recover() -> Self {
+        Self::new("AfterRecover")
+    }
+
     /// Add a positional argument
     #[allow(dead_code)]
     pub fn arg(mut self, value: String) -> Self {

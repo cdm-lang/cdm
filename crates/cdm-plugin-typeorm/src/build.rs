@@ -55,6 +55,8 @@ impl Config {
 struct ImportCollector {
     typeorm_imports: BTreeSet<String>,
     entity_imports: BTreeSet<String>,
+    /// Custom imports for hook functions: (function_name, import_path)
+    hook_imports: BTreeSet<(String, String)>,
 }
 
 impl ImportCollector {
@@ -68,6 +70,11 @@ impl ImportCollector {
 
     fn add_entity(&mut self, name: &str) {
         self.entity_imports.insert(name.to_string());
+    }
+
+    fn add_hook_import(&mut self, function_name: &str, import_path: &str) {
+        self.hook_imports
+            .insert((function_name.to_string(), import_path.to_string()));
     }
 
     fn to_import_statements(&self, typeorm_path: &str, current_entity: &str) -> String {
@@ -88,6 +95,19 @@ impl ImportCollector {
             if entity != current_entity {
                 result.push_str(&format!("import {{ {} }} from \"./{}\"\n", entity, entity));
             }
+        }
+
+        // Hook function imports - group by import path
+        let mut imports_by_path: std::collections::BTreeMap<&str, Vec<&str>> =
+            std::collections::BTreeMap::new();
+        for (func_name, import_path) in &self.hook_imports {
+            imports_by_path
+                .entry(import_path.as_str())
+                .or_default()
+                .push(func_name.as_str());
+        }
+        for (path, funcs) in imports_by_path {
+            result.push_str(&format!("import {{ {} }} from \"{}\"\n", funcs.join(", "), path));
         }
 
         if !result.is_empty() {
@@ -237,6 +257,12 @@ fn generate_entity(
 
         let field_code = generate_field(field, name, cfg, utils, type_mapper, imports);
         result.push_str(&field_code);
+    }
+
+    // Generate hook methods
+    if let Some(hooks) = model.config.get("hooks") {
+        let hook_code = generate_hooks(hooks, imports);
+        result.push_str(&hook_code);
     }
 
     result.push('}');
@@ -467,6 +493,80 @@ fn generate_relation_field(
     let ts_type = type_mapper.map_to_typescript_type(&field.field_type);
     let optional_marker = if field.optional { "?" } else { "" };
     result.push_str(&format!("    {}{}: {}\n\n", field.name, optional_marker, ts_type));
+
+    result
+}
+
+/// Parsed hook configuration
+struct HookInfo {
+    method_name: String,
+    import_path: Option<String>,
+}
+
+impl HookInfo {
+    fn from_json(value: &JSON) -> Option<Self> {
+        if let Some(method_str) = value.as_str() {
+            // String format: just the method name
+            Some(HookInfo {
+                method_name: method_str.to_string(),
+                import_path: None,
+            })
+        } else if value.is_object() {
+            // Object format: { method: string, import: string }
+            let method_name = value.get("method")?.as_str()?.to_string();
+            let import_path = value.get("import")?.as_str().map(|s| s.to_string());
+            Some(HookInfo {
+                method_name,
+                import_path,
+            })
+        } else {
+            None
+        }
+    }
+}
+
+fn generate_hooks(hooks: &JSON, imports: &mut ImportCollector) -> String {
+    use crate::decorator_builder::DecoratorBuilder;
+
+    let mut result = String::new();
+
+    // Process each hook type
+    let hook_configs: &[(&str, &str, fn() -> DecoratorBuilder)] = &[
+        ("before_insert", "BeforeInsert", DecoratorBuilder::before_insert),
+        ("after_insert", "AfterInsert", DecoratorBuilder::after_insert),
+        ("before_update", "BeforeUpdate", DecoratorBuilder::before_update),
+        ("after_update", "AfterUpdate", DecoratorBuilder::after_update),
+        ("before_remove", "BeforeRemove", DecoratorBuilder::before_remove),
+        ("after_remove", "AfterRemove", DecoratorBuilder::after_remove),
+        ("after_load", "AfterLoad", DecoratorBuilder::after_load),
+        ("before_soft_remove", "BeforeSoftRemove", DecoratorBuilder::before_soft_remove),
+        ("after_soft_remove", "AfterSoftRemove", DecoratorBuilder::after_soft_remove),
+        ("after_recover", "AfterRecover", DecoratorBuilder::after_recover),
+    ];
+
+    for (config_key, import_name, builder_fn) in hook_configs {
+        if let Some(hook_value) = hooks.get(*config_key) {
+            if let Some(hook_info) = HookInfo::from_json(hook_value) {
+                imports.add_typeorm(import_name);
+                let decorator = builder_fn().build();
+
+                if let Some(import_path) = &hook_info.import_path {
+                    // With import: generate method that delegates to imported function
+                    imports.add_hook_import(&hook_info.method_name, import_path);
+                    result.push_str(&format!(
+                        "    {}\n    {}() {{\n        {}.call(this)\n    }}\n\n",
+                        decorator, hook_info.method_name, hook_info.method_name
+                    ));
+                } else {
+                    // Without import: generate stub method
+                    result.push_str(&format!(
+                        "    {}\n    {}() {{\n        // Implementation required\n    }}\n\n",
+                        decorator, hook_info.method_name
+                    ));
+                }
+            }
+        }
+    }
 
     result
 }

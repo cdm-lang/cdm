@@ -166,9 +166,225 @@ fn validate_model_config(config: &JSON, model_name: &str, errors: &mut Vec<Valid
         }
     }
 
+    // Validate hooks
+    if let Some(hooks) = config.get("hooks") {
+        validate_hooks(hooks, model_name, errors);
+    }
+
     // Note: We don't warn about missing primary keys here since that validation
     // requires schema context (to check all fields). The user explicitly chose
     // "require explicit configuration" so we trust they will configure PKs.
+}
+
+fn validate_hooks(hooks: &JSON, model_name: &str, errors: &mut Vec<ValidationError>) {
+    const HOOK_NAMES: &[&str] = &[
+        "before_insert",
+        "after_insert",
+        "before_update",
+        "after_update",
+        "before_remove",
+        "after_remove",
+        "after_load",
+        "before_soft_remove",
+        "after_soft_remove",
+        "after_recover",
+    ];
+
+    for hook_name in HOOK_NAMES {
+        if let Some(hook_value) = hooks.get(*hook_name) {
+            // Hook can be either a string (method name) or an object { method, import }
+            if let Some(method_str) = hook_value.as_str() {
+                // String format: just the method name
+                validate_hook_method_name(method_str, hook_name, model_name, errors);
+            } else if hook_value.is_object() {
+                // Object format: { method: string, import: string }
+                validate_hook_config_object(hook_value, hook_name, model_name, errors);
+            } else {
+                errors.push(ValidationError {
+                    path: vec![
+                        PathSegment {
+                            kind: "model".to_string(),
+                            name: model_name.to_string(),
+                        },
+                        PathSegment {
+                            kind: "config".to_string(),
+                            name: format!("hooks.{}", hook_name),
+                        },
+                    ],
+                    message: format!(
+                        "{} must be a string or an object with 'method' and 'import' fields",
+                        hook_name
+                    ),
+                    severity: Severity::Error,
+                });
+            }
+        }
+    }
+}
+
+fn validate_hook_method_name(
+    method_str: &str,
+    hook_name: &str,
+    model_name: &str,
+    errors: &mut Vec<ValidationError>,
+) {
+    if method_str.is_empty() {
+        errors.push(ValidationError {
+            path: vec![
+                PathSegment {
+                    kind: "model".to_string(),
+                    name: model_name.to_string(),
+                },
+                PathSegment {
+                    kind: "config".to_string(),
+                    name: format!("hooks.{}", hook_name),
+                },
+            ],
+            message: format!("{} method name cannot be empty", hook_name),
+            severity: Severity::Error,
+        });
+    } else if !is_valid_identifier(method_str) {
+        errors.push(ValidationError {
+            path: vec![
+                PathSegment {
+                    kind: "model".to_string(),
+                    name: model_name.to_string(),
+                },
+                PathSegment {
+                    kind: "config".to_string(),
+                    name: format!("hooks.{}", hook_name),
+                },
+            ],
+            message: format!("{} must be a valid JavaScript identifier", hook_name),
+            severity: Severity::Error,
+        });
+    }
+}
+
+fn validate_hook_config_object(
+    hook_config: &JSON,
+    hook_name: &str,
+    model_name: &str,
+    errors: &mut Vec<ValidationError>,
+) {
+    // Validate 'method' field
+    if let Some(method) = hook_config.get("method") {
+        if let Some(method_str) = method.as_str() {
+            if method_str.is_empty() {
+                errors.push(ValidationError {
+                    path: vec![
+                        PathSegment {
+                            kind: "model".to_string(),
+                            name: model_name.to_string(),
+                        },
+                        PathSegment {
+                            kind: "config".to_string(),
+                            name: format!("hooks.{}.method", hook_name),
+                        },
+                    ],
+                    message: format!("{}.method cannot be empty", hook_name),
+                    severity: Severity::Error,
+                });
+            } else if !is_valid_identifier(method_str) {
+                errors.push(ValidationError {
+                    path: vec![
+                        PathSegment {
+                            kind: "model".to_string(),
+                            name: model_name.to_string(),
+                        },
+                        PathSegment {
+                            kind: "config".to_string(),
+                            name: format!("hooks.{}.method", hook_name),
+                        },
+                    ],
+                    message: format!("{}.method must be a valid JavaScript identifier", hook_name),
+                    severity: Severity::Error,
+                });
+            }
+        } else {
+            errors.push(ValidationError {
+                path: vec![
+                    PathSegment {
+                        kind: "model".to_string(),
+                        name: model_name.to_string(),
+                    },
+                    PathSegment {
+                        kind: "config".to_string(),
+                        name: format!("hooks.{}.method", hook_name),
+                    },
+                ],
+                message: format!("{}.method must be a string", hook_name),
+                severity: Severity::Error,
+            });
+        }
+    } else {
+        errors.push(ValidationError {
+            path: vec![
+                PathSegment {
+                    kind: "model".to_string(),
+                    name: model_name.to_string(),
+                },
+                PathSegment {
+                    kind: "config".to_string(),
+                    name: format!("hooks.{}", hook_name),
+                },
+            ],
+            message: format!("{} object must have a 'method' field", hook_name),
+            severity: Severity::Error,
+        });
+    }
+
+    // Validate 'import' field
+    if let Some(import_path) = hook_config.get("import") {
+        if let Some(import_str) = import_path.as_str() {
+            if import_str.is_empty() {
+                errors.push(ValidationError {
+                    path: vec![
+                        PathSegment {
+                            kind: "model".to_string(),
+                            name: model_name.to_string(),
+                        },
+                        PathSegment {
+                            kind: "config".to_string(),
+                            name: format!("hooks.{}.import", hook_name),
+                        },
+                    ],
+                    message: format!("{}.import cannot be empty", hook_name),
+                    severity: Severity::Error,
+                });
+            }
+        } else {
+            errors.push(ValidationError {
+                path: vec![
+                    PathSegment {
+                        kind: "model".to_string(),
+                        name: model_name.to_string(),
+                    },
+                    PathSegment {
+                        kind: "config".to_string(),
+                        name: format!("hooks.{}.import", hook_name),
+                    },
+                ],
+                message: format!("{}.import must be a string", hook_name),
+                severity: Severity::Error,
+            });
+        }
+    } else {
+        errors.push(ValidationError {
+            path: vec![
+                PathSegment {
+                    kind: "model".to_string(),
+                    name: model_name.to_string(),
+                },
+                PathSegment {
+                    kind: "config".to_string(),
+                    name: format!("hooks.{}", hook_name),
+                },
+            ],
+            message: format!("{} object must have an 'import' field", hook_name),
+            severity: Severity::Error,
+        });
+    }
 }
 
 fn validate_field_config(

@@ -42,6 +42,9 @@ ModelSettings {
 
   // Skip entity generation for this model
   skip?: boolean
+
+  // Entity lifecycle hooks
+  hooks?: Hooks
 }
 
 FieldSettings {
@@ -152,4 +155,49 @@ JoinTable {
 
   // Inverse join column from junction table to target entity
   inverse_join_column?: JoinColumn
+}
+
+// Entity lifecycle hooks - method names for each hook type
+// Each hook can be either:
+// - A string: method name (generates stub method)
+// - An object: { method: string, import: string } (imports and delegates to external function)
+Hooks {
+  // Called before entity insertion
+  before_insert?: string | HookConfig
+
+  // Called after entity insertion
+  after_insert?: string | HookConfig
+
+  // Called before entity update
+  before_update?: string | HookConfig
+
+  // Called after entity update
+  after_update?: string | HookConfig
+
+  // Called before entity removal
+  before_remove?: string | HookConfig
+
+  // Called after entity removal
+  after_remove?: string | HookConfig
+
+  // Called after entity is loaded from database
+  after_load?: string | HookConfig
+
+  // Called before soft removal
+  before_soft_remove?: string | HookConfig
+
+  // Called after soft removal
+  after_soft_remove?: string | HookConfig
+
+  // Called after entity recovery from soft removal
+  after_recover?: string | HookConfig
+}
+
+// Hook configuration with import path
+HookConfig {
+  // Method/function name to call
+  method: string
+
+  // Import path for the function (e.g., "./hooks", "./utils/userHooks")
+  import: string
 }

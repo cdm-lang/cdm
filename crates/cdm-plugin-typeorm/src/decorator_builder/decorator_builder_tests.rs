@@ -145,3 +145,65 @@ fn test_relation_options() {
     assert!(decorator.contains("nullable: false"));
     assert!(decorator.contains("onDelete: \"CASCADE\""));
 }
+
+// Lifecycle hook decorator tests
+
+#[test]
+fn test_before_insert_decorator() {
+    let decorator = DecoratorBuilder::before_insert().build();
+    assert_eq!(decorator, "@BeforeInsert()");
+}
+
+#[test]
+fn test_after_insert_decorator() {
+    let decorator = DecoratorBuilder::after_insert().build();
+    assert_eq!(decorator, "@AfterInsert()");
+}
+
+#[test]
+fn test_before_update_decorator() {
+    let decorator = DecoratorBuilder::before_update().build();
+    assert_eq!(decorator, "@BeforeUpdate()");
+}
+
+#[test]
+fn test_after_update_decorator() {
+    let decorator = DecoratorBuilder::after_update().build();
+    assert_eq!(decorator, "@AfterUpdate()");
+}
+
+#[test]
+fn test_before_remove_decorator() {
+    let decorator = DecoratorBuilder::before_remove().build();
+    assert_eq!(decorator, "@BeforeRemove()");
+}
+
+#[test]
+fn test_after_remove_decorator() {
+    let decorator = DecoratorBuilder::after_remove().build();
+    assert_eq!(decorator, "@AfterRemove()");
+}
+
+#[test]
+fn test_after_load_decorator() {
+    let decorator = DecoratorBuilder::after_load().build();
+    assert_eq!(decorator, "@AfterLoad()");
+}
+
+#[test]
+fn test_before_soft_remove_decorator() {
+    let decorator = DecoratorBuilder::before_soft_remove().build();
+    assert_eq!(decorator, "@BeforeSoftRemove()");
+}
+
+#[test]
+fn test_after_soft_remove_decorator() {
+    let decorator = DecoratorBuilder::after_soft_remove().build();
+    assert_eq!(decorator, "@AfterSoftRemove()");
+}
+
+#[test]
+fn test_after_recover_decorator() {
+    let decorator = DecoratorBuilder::after_recover().build();
+    assert_eq!(decorator, "@AfterRecover()");
+}
