@@ -181,9 +181,28 @@ async function resolveServerPath(context: vscode.ExtensionContext): Promise<stri
 }
 
 function getDownloadedServerPath(context: vscode.ExtensionContext): string {
-  const platform = getPlatformIdentifier();
-  const binaryName = platform.includes('windows') ? 'cdm.exe' : 'cdm';
-  return path.join(context.globalStorageUri.fsPath, 'bin', binaryName);
+  return path.join(context.globalStorageUri.fsPath, 'bin', getBinaryName());
+}
+
+function getBinaryName(): string {
+  return os.platform() === 'win32' ? 'cdm.exe' : 'cdm';
+}
+
+async function downloadAndInstallBinary(
+  context: vscode.ExtensionContext,
+  platformInfo: PlatformInfo
+): Promise<string> {
+  const binDir = path.join(context.globalStorageUri.fsPath, 'bin');
+  await fs.promises.mkdir(binDir, { recursive: true });
+
+  const destPath = path.join(binDir, getBinaryName());
+  await downloadFile(platformInfo.url, destPath);
+
+  if (os.platform() !== 'win32') {
+    await fs.promises.chmod(destPath, 0o755);
+  }
+
+  return destPath;
 }
 
 function getPlatformIdentifier(): string {
@@ -235,20 +254,7 @@ async function downloadLatestServer(context: vscode.ExtensionContext): Promise<s
 
       progress.report({ message: `Downloading v${manifest.latest}...` });
 
-      // Create the bin directory
-      const binDir = path.join(context.globalStorageUri.fsPath, 'bin');
-      await fs.promises.mkdir(binDir, { recursive: true });
-
-      // Download the binary
-      const binaryName = platform.includes('windows') ? 'cdm.exe' : 'cdm';
-      const destPath = path.join(binDir, binaryName);
-
-      await downloadFile(platformInfo.url, destPath);
-
-      // Make executable on Unix
-      if (os.platform() !== 'win32') {
-        await fs.promises.chmod(destPath, 0o755);
-      }
+      const destPath = await downloadAndInstallBinary(context, platformInfo);
 
       // Save the version
       await saveCurrentCliVersion(context, manifest.latest);
@@ -330,20 +336,7 @@ async function updateCli(context: vscode.ExtensionContext): Promise<void> {
 
         progress.report({ message: `Downloading v${manifest.latest}...` });
 
-        // Create the bin directory
-        const binDir = path.join(context.globalStorageUri.fsPath, 'bin');
-        await fs.promises.mkdir(binDir, { recursive: true });
-
-        // Download the binary
-        const binaryName = platform.includes('windows') ? 'cdm.exe' : 'cdm';
-        const destPath = path.join(binDir, binaryName);
-
-        await downloadFile(platformInfo.url, destPath);
-
-        // Make executable on Unix
-        if (os.platform() !== 'win32') {
-          await fs.promises.chmod(destPath, 0o755);
-        }
+        const destPath = await downloadAndInstallBinary(context, platformInfo);
 
         // Save the version
         await saveCurrentCliVersion(context, manifest.latest);
