@@ -66,8 +66,10 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('cdm.migrate', async () => {
       await runMigrate();
     }),
-    vscode.commands.registerCommand('cdm.downloadPlugin', async (pluginName: string) => {
-      outputChannel.appendLine(`cdm.downloadPlugin called with: ${pluginName}`);
+    vscode.commands.registerCommand('cdm.downloadPlugin', async (...args: unknown[]) => {
+      outputChannel.appendLine(`cdm.downloadPlugin called with args: ${JSON.stringify(args)}`);
+      const pluginName = args[0] as string;
+      outputChannel.appendLine(`Extracted pluginName: ${pluginName}`);
       await downloadPlugin(pluginName);
     }),
     vscode.commands.registerCommand('cdm.downloadAllPlugins', async () => {
@@ -702,7 +704,15 @@ async function downloadPlugin(pluginName: string): Promise<void> {
     return;
   }
 
+  // Validate plugin name
+  if (!pluginName || typeof pluginName !== 'string' || pluginName.trim() === '') {
+    outputChannel.appendLine(`ERROR: Invalid plugin name received: ${JSON.stringify(pluginName)}`);
+    vscode.window.showErrorMessage('Invalid plugin name. Cannot download.');
+    return;
+  }
+
   outputChannel.appendLine(`--- Downloading plugin: ${pluginName} ---`);
+  outputChannel.appendLine(`Plugin name type: ${typeof pluginName}, value: "${pluginName}"`);
   outputChannel.appendLine(`Command: ${resolvedCliPath} plugin cache ${pluginName}`);
   outputChannel.show();
 
@@ -724,6 +734,8 @@ async function downloadPlugin(pluginName: string): Promise<void> {
       if (result.stdout) {
         outputChannel.appendLine(result.stdout);
       }
+      // Small delay to ensure file writes are complete before restart
+      await new Promise(resolve => setTimeout(resolve, 500));
       // Restart the language server to pick up the new plugin
       await restartServer();
     } else {
@@ -786,6 +798,8 @@ async function downloadAllPlugins(): Promise<void> {
       if (result.stdout) {
         outputChannel.appendLine(result.stdout);
       }
+      // Small delay to ensure file writes are complete before restart
+      await new Promise(resolve => setTimeout(resolve, 500));
       // Restart the language server to pick up the new plugins
       await restartServer();
     } else {

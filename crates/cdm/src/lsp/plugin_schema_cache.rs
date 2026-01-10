@@ -161,8 +161,8 @@ impl PluginSchemaCache {
 
     /// Load schema from a plugin import
     fn load_schema_from_import(&self, import: &PluginImport) -> Option<PluginSettingsSchema> {
-        // Resolve plugin path
-        let wasm_path = crate::plugin_resolver::resolve_plugin_path(import).ok()?;
+        // Resolve plugin path (cache_only to avoid blocking on network requests in LSP)
+        let wasm_path = crate::plugin_resolver::resolve_plugin_path_cache_only(import).ok()?;
 
         // Load WASM and get schema
         let runner = PluginRunner::new(&wasm_path).ok()?;
