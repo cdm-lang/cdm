@@ -319,7 +319,7 @@ dependencies = [
 
 [[package]]
 name = "cdm-plugin-docs"
-version = "0.1.0"
+version = "0.1.1"
 dependencies = [
  "cdm-plugin-interface",
  "serde",
