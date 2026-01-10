@@ -144,7 +144,7 @@ fn create_download_plugin_action(plugin_name: &str) -> CodeAction {
 /// Create a code action to download all missing plugins
 fn create_download_all_plugins_action() -> CodeAction {
     CodeAction {
-        title: "Download all missing plugins (run build)".to_string(),
+        title: "Download all missing plugins".to_string(),
         kind: Some(CodeActionKind::QUICKFIX),
         diagnostics: None,
         edit: None,

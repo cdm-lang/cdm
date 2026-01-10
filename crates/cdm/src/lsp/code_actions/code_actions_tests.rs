@@ -462,5 +462,5 @@ fn test_compute_code_actions_download_all_with_other_missing_plugins() {
     }).collect();
 
     assert!(titles.iter().any(|t| t == "Download plugin 'typescript'"), "Missing typescript action");
-    assert!(titles.iter().any(|t| t == "Download all missing plugins (run build)"), "Missing download all action");
+    assert!(titles.iter().any(|t| t == "Download all missing plugins"), "Missing download all action");
 }
