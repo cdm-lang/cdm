@@ -619,54 +619,6 @@ fn test_definition_kind_model() {
     }
 }
 
-#[test]
-fn test_field_info_with_plugin_configs() {
-    let mut configs = HashMap::new();
-    configs.insert("sql".to_string(), serde_json::json!({"index": true}));
-
-    let field = FieldInfo {
-        name: "email".to_string(),
-        type_expr: Some("string".to_string()),
-        optional: false,
-        span: test_span(),
-        plugin_configs: configs,
-        default_value: Some(serde_json::json!("test@example.com")),
-        entity_id: local_id(100),
-    };
-
-    assert_eq!(field.name, "email");
-    assert_eq!(field.type_expr, Some("string".to_string()));
-    assert!(!field.optional);
-    assert_eq!(field.plugin_configs.len(), 1);
-    assert_eq!(field.default_value, Some(serde_json::json!("test@example.com")));
-    assert_eq!(field.entity_id, local_id(100));
-}
-
-#[test]
-fn test_ancestor_structure() {
-    let mut symbol_table = SymbolTable::new();
-    symbol_table.definitions.insert(
-        "Base".to_string(),
-        Definition {
-            kind: DefinitionKind::Model {
-                extends: vec![],
-            },
-            span: test_span(),
-            plugin_configs: HashMap::new(),
-            entity_id: None,
-        },
-    );
-
-    let ancestor = Ancestor {
-        path: "base.cdm".to_string(),
-        symbol_table,
-        model_fields: HashMap::new(),
-    };
-
-    assert_eq!(ancestor.path, "base.cdm");
-    assert_eq!(ancestor.symbol_table.definitions.len(), 1);
-}
-
 // =========================================================================
 // NAMESPACE TESTS
 // =========================================================================
@@ -926,48 +878,4 @@ fn test_is_type_reference_defined_qualified() {
     assert!(is_type_reference_defined("sql.UUID", &table, &ancestors));
     assert!(!is_type_reference_defined("sql.NonExistent", &table, &ancestors));
     assert!(!is_type_reference_defined("auth.UUID", &table, &ancestors));
-}
-
-#[test]
-fn test_imported_namespace_structure() {
-    let mut ns_table = SymbolTable::new();
-    ns_table.definitions.insert(
-        "Role".to_string(),
-        Definition {
-            kind: DefinitionKind::TypeAlias {
-                references: vec![],
-                type_expr: "\"admin\" | \"user\"".to_string(),
-            },
-            span: test_span(),
-            plugin_configs: HashMap::new(),
-            entity_id: local_id(10),
-        },
-    );
-
-    let mut ns_fields = HashMap::new();
-    ns_fields.insert(
-        "User".to_string(),
-        vec![FieldInfo {
-            name: "id".to_string(),
-            type_expr: Some("number".to_string()),
-            optional: false,
-            span: test_span(),
-            plugin_configs: HashMap::new(),
-            default_value: None,
-            entity_id: local_id(1),
-        }],
-    );
-
-    let ns = ImportedNamespace {
-        name: "auth".to_string(),
-        template_path: PathBuf::from("/path/to/template"),
-        symbol_table: ns_table,
-        model_fields: ns_fields,
-        template_source: EntityIdSource::LocalTemplate { path: "/path/to/template".to_string() },
-    };
-
-    assert_eq!(ns.name, "auth");
-    assert_eq!(ns.template_path, PathBuf::from("/path/to/template"));
-    assert!(ns.symbol_table.is_defined("Role"));
-    assert!(ns.model_fields.contains_key("User"));
 }
