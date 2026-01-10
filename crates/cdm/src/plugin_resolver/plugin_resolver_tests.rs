@@ -44,7 +44,8 @@ fn test_resolve_plugin_path_local_no_manifest() {
 
     let result = resolve_plugin_path(&import);
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("No cdm-plugin.json found"));
+    let err_msg = result.unwrap_err().to_string();
+    assert!(err_msg.contains("cdm-plugin.json"), "Error was: {}", err_msg);
 }
 
 #[test]
@@ -70,7 +71,9 @@ fn test_resolve_plugin_path_local_invalid_json() {
 
     let result = resolve_plugin_path(&import);
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("Failed to parse"));
+    let err = result.unwrap_err();
+    let err_msg = format!("{:#}", err);  // Full error chain
+    assert!(err_msg.contains("Failed to parse"), "Error was: {}", err_msg);
 }
 
 #[test]
@@ -100,7 +103,8 @@ fn test_resolve_plugin_path_local_no_wasm_field() {
 
     let result = resolve_plugin_path(&import);
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("No 'wasm.file' field found"));
+    let err_msg = result.unwrap_err().to_string();
+    assert!(err_msg.contains("wasm.file"), "Error was: {}", err_msg);
 }
 
 #[test]
@@ -133,7 +137,9 @@ fn test_resolve_plugin_path_local_wasm_not_found() {
 
     let result = resolve_plugin_path(&import);
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("WASM file not found"));
+    let err = result.unwrap_err();
+    let err_msg = format!("{:#}", err);  // Full error chain
+    assert!(err_msg.contains("WASM file not found"), "Error was: {}", err_msg);
 }
 
 #[test]

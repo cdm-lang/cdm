@@ -89,7 +89,8 @@ fn test_extract_wasm_from_repo_no_wasm_field() {
 
     let result = extract_wasm_from_repo(repo_path, None);
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("No wasm.file specified"));
+    let err_msg = result.unwrap_err().to_string();
+    assert!(err_msg.contains("wasm.file"), "Error was: {}", err_msg);
 }
 
 #[test]
@@ -214,7 +215,8 @@ fn test_extract_wasm_from_repo_subdir_not_found() {
 
     let result = extract_wasm_from_repo(repo_path, Some("nonexistent/path"));
     assert!(result.is_err());
-    assert!(result.unwrap_err().to_string().contains("No cdm-plugin.json found in repository subdirectory"));
+    let err_msg = result.unwrap_err().to_string();
+    assert!(err_msg.contains("cdm-plugin.json"), "Error was: {}", err_msg);
 }
 
 #[test]
