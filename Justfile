@@ -483,7 +483,7 @@ unrelease-cli version:
   echo ""
 
   # Check if version exists in manifest
-  if ! jq -e '.releases["{{version}}"]' cli-releases.json > /dev/null 2>&1; then
+  if ! jq -e --arg v "{{version}}" '.releases[$v]' cli-releases.json > /dev/null 2>&1; then
     echo "Error: Version {{version}} not found in cli-releases.json"
     exit 1
   fi
@@ -519,7 +519,7 @@ unrelease-cli version:
 
   # Remove version from manifest
   echo "Removing {{version}} from cli-releases.json..."
-  jq 'del(.releases["{{version}}"])' cli-releases.json > cli-releases.json.tmp
+  jq --arg v "{{version}}" 'del(.releases[$v])' cli-releases.json > cli-releases.json.tmp
   mv cli-releases.json.tmp cli-releases.json
 
   # Update timestamp
