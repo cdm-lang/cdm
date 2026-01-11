@@ -484,12 +484,15 @@ unrelease-cli version:
 
   # Use Python for JSON manipulation (available on macOS by default)
   # Check if version exists in manifest
+  VERSION="{{version}}"
   if ! python3 -c "
 import json, sys
+version = sys.argv[1]
 with open('cli-releases.json') as f:
     data = json.load(f)
-sys.exit(0 if '{{version}}' in data.get('releases', {}) else 1)
-" 2>/dev/null; then
+releases = data.get('releases') or dict()
+sys.exit(0 if version in releases else 1)
+" "$VERSION" 2>/dev/null; then
     echo "Error: Version {{version}} not found in cli-releases.json"
     exit 1
   fi
@@ -522,7 +525,8 @@ with open('cli-releases.json', 'r') as f:
 # Check if we need to update latest
 if data.get('latest') == version_to_remove:
     # Find the highest remaining version
-    remaining = [v for v in data.get('releases', {}).keys() if v != version_to_remove]
+    releases = data.get('releases') or dict()
+    remaining = [v for v in releases.keys() if v != version_to_remove]
     if remaining:
         # Sort versions properly (convert to tuples of ints)
         def version_key(v):
@@ -537,7 +541,8 @@ if data.get('latest') == version_to_remove:
         print("  Warning: No other versions found")
 
 # Remove the version
-if version_to_remove in data.get('releases', {}):
+releases_dict = data.get('releases') or dict()
+if version_to_remove in releases_dict:
     del data['releases'][version_to_remove]
     print(f"  Removed {version_to_remove} from releases")
 
