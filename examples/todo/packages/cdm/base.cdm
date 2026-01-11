@@ -1,5 +1,6 @@
 @typeorm {
   table_name_format: "snake_case",
+  column_name_format: "snake_case",
   pluralize_table_names: true
 }
 
@@ -18,8 +19,14 @@ Timestamped {
   updated_at: Timestamp #2
   @typeorm {
     hooks: {
-      before_insert: "this.created_at = new Date().toISOString()",
-      before_update: "this.updated_at = new Date().toISOString()"
+      before_insert: {
+        method: "setCreatedAt",
+        import: "./hooks/timestamps"
+      },
+      before_update: {
+        method: "setUpdatedAt",
+        import: "./hooks/timestamps"
+      }
     }
   }
 } #10
@@ -33,7 +40,6 @@ TimestampedIdentity extends Timestamped {
 User extends TimestampedIdentity {
   email: Email #4
   name: string #5
-  password_hash: string #6
   @typeorm { table: "users" }
 } #20
 
@@ -42,15 +48,15 @@ User extends TimestampedIdentity {
 Session extends TimestampedIdentity {
   user_id: UUID #4
   expires_at: Timestamp #5
-  @typeorm {
-    table: "sessions",
-    relations: [{
-      field: "user",
-      target: "User",
-      type: "many_to_one",
-      join_column: "user_id"
-    }]
-  }
+  user: User {
+    @typeorm {
+      relation: {
+        type: "many_to_one",
+        inverse_side: "sessions",
+        join_column: { name: "user_id" }
+      },
+    }
+  } #6
 } #30
 
 // Task model
@@ -60,14 +66,14 @@ Task extends Timestamped {
   title: string #5
   description?: string #6
   status: "todo" | "in_progress" | "done" = "todo" #7
-  @typeorm {
-    table: "tasks",
-    relations: [{
-      field: "user",
-      target: "User",
-      type: "many_to_one",
-      join_column: "user_id"
-    }]
-  }
+  user: User {
+    @typeorm {
+      relation: {
+        type: "many_to_one",
+        inverse_side: "tasks",
+        join_column: { name: "user_id" }
+      },
+    }
+  } #8
 } #40
 

@@ -112,12 +112,6 @@ extends "./base.cdm"
   }
 }
 
-// Remove password_hash from User model
-
-User {
-  -password_hash
-} #62
-
 // API DTOs
 
 RegisterBody {

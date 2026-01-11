@@ -4,6 +4,7 @@
 /crates/cdm/types.ts
 /editors/cdm-extension/coverage
 /examples/build
+/examples/todo/apps/web/src/generated
 .DS_Store
 
 # npm package artifacts
