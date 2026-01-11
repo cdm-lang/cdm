@@ -393,13 +393,39 @@ User {
 Post {
   id: string
   title: string
+  author: User
 }
 ```
 
 Generates:
 - `types.ts` - Contains the `Email` type alias
-- `User.ts` - Contains the `User` interface
-- `Post.ts` - Contains the `Post` interface
+- `User.ts` - Contains the `User` interface with imports for referenced type aliases
+- `Post.ts` - Contains the `Post` interface with imports for referenced models
+
+When using `per_model` file strategy, the plugin automatically generates import statements for:
+- **Model references** - When a model field references another model, an import is generated (e.g., `import { User } from "./User"`)
+- **Type alias references** - When a model uses a type alias, an import from `types.ts` is generated (e.g., `import { Email } from "./types"`)
+
+For example, `User.ts` would contain:
+```typescript
+import { Email } from "./types"
+
+export interface User {
+  id: string;
+  email: Email;
+}
+```
+
+And `Post.ts` would contain:
+```typescript
+import { User } from "./User"
+
+export interface Post {
+  id: string;
+  title: string;
+  author: User;
+}
+```
 
 ### Field Name Formatting
 

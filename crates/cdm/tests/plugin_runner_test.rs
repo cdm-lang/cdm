@@ -4,21 +4,37 @@ use serde_json::json;
 use std::collections::HashMap;
 use std::path::PathBuf;
 use std::process::Command;
+use std::sync::OnceLock;
 
-const WASM_PATH: &str = "../../target/wasm32-wasip1/release/cdm_plugin_docs.wasm";
+/// Returns the path to the docs plugin WASM file, respecting CARGO_TARGET_DIR
+fn get_wasm_path() -> PathBuf {
+    static WASM_PATH: OnceLock<PathBuf> = OnceLock::new();
+    WASM_PATH.get_or_init(|| {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        // CARGO_MANIFEST_DIR is crates/cdm, so we need parent().parent() to get project root
+        let project_root = manifest_dir.parent().unwrap().parent().unwrap();
+
+        // Respect CARGO_TARGET_DIR if set
+        let target_dir = std::env::var("CARGO_TARGET_DIR")
+            .map(PathBuf::from)
+            .unwrap_or_else(|_| project_root.join("target"));
+
+        target_dir.join("wasm32-wasip1/release/cdm_plugin_docs.wasm")
+    }).clone()
+}
 
 /// Ensures the docs plugin WASM is built before running tests
 fn ensure_docs_plugin_built() {
-    let wasm_path = PathBuf::from(WASM_PATH);
+    let wasm_path = get_wasm_path();
 
     if !wasm_path.exists() {
-        // Determine the project root (2 levels up from the test binary location)
+        // Determine the project root (2 levels up from CARGO_MANIFEST_DIR which is crates/cdm)
         let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-        let project_root = manifest_dir.parent().unwrap();
+        let project_root = manifest_dir.parent().unwrap().parent().unwrap();
 
         let build_result = Command::new("cargo")
             .current_dir(project_root)
-            .args(&[
+            .args([
                 "build",
                 "--release",
                 "--target", "wasm32-wasip1",
@@ -38,13 +54,22 @@ fn ensure_docs_plugin_built() {
             }
         }
     }
+
+    // Verify the WASM file exists after build attempt
+    if !wasm_path.exists() {
+        panic!(
+            "WASM file not found at {:?} after build. \
+            Make sure 'wasm32-wasip1' target is installed with: rustup target add wasm32-wasip1",
+            wasm_path
+        );
+    }
 }
 
 #[test]
 fn test_load_docs_plugin() {
     ensure_docs_plugin_built();
-    let wasm_path = "../../target/wasm32-wasip1/release/cdm_plugin_docs.wasm";
-    let result = PluginRunner::new(wasm_path);
+    let wasm_path = get_wasm_path();
+    let result = PluginRunner::new(&wasm_path);
     assert!(
         result.is_ok(),
         "Failed to load plugin: {:?}",
@@ -55,8 +80,8 @@ fn test_load_docs_plugin() {
 #[test]
 fn test_get_schema() {
     ensure_docs_plugin_built();
-    let wasm_path = WASM_PATH;
-    let mut runner = PluginRunner::new(wasm_path).expect("Failed to load plugin");
+    let wasm_path = get_wasm_path();
+    let mut runner = PluginRunner::new(&wasm_path).expect("Failed to load plugin");
 
     let schema = runner.schema().expect("Failed to get schema");
 
@@ -86,8 +111,8 @@ fn test_get_schema() {
 #[test]
 fn test_validate_global_config_valid() {
     ensure_docs_plugin_built();
-    let wasm_path = WASM_PATH;
-    let mut runner = PluginRunner::new(wasm_path).expect("Failed to load plugin");
+    let wasm_path = get_wasm_path();
+    let mut runner = PluginRunner::new(&wasm_path).expect("Failed to load plugin");
 
     let config = json!({
         "format": "markdown",
@@ -110,8 +135,8 @@ fn test_validate_global_config_valid() {
 #[test]
 fn test_validate_global_config_invalid_format() {
     ensure_docs_plugin_built();
-    let wasm_path = WASM_PATH;
-    let mut runner = PluginRunner::new(wasm_path).expect("Failed to load plugin");
+    let wasm_path = get_wasm_path();
+    let mut runner = PluginRunner::new(&wasm_path).expect("Failed to load plugin");
 
     let config = json!({
         "format": "invalid_format"
@@ -135,8 +160,8 @@ fn test_validate_global_config_invalid_format() {
 #[test]
 fn test_generate_markdown() {
     ensure_docs_plugin_built();
-    let wasm_path = WASM_PATH;
-    let mut runner = PluginRunner::new(wasm_path).expect("Failed to load plugin");
+    let wasm_path = get_wasm_path();
+    let mut runner = PluginRunner::new(&wasm_path).expect("Failed to load plugin");
 
     let schema = Schema {
         models: HashMap::from([(
@@ -184,8 +209,8 @@ fn test_generate_markdown() {
 #[test]
 fn test_generate_html() {
     ensure_docs_plugin_built();
-    let wasm_path = WASM_PATH;
-    let mut runner = PluginRunner::new(wasm_path).expect("Failed to load plugin");
+    let wasm_path = get_wasm_path();
+    let mut runner = PluginRunner::new(&wasm_path).expect("Failed to load plugin");
 
     let schema = Schema {
         models: HashMap::from([(
@@ -241,8 +266,8 @@ fn test_generate_html() {
 #[test]
 fn test_validate_model_config() {
     ensure_docs_plugin_built();
-    let wasm_path = WASM_PATH;
-    let mut runner = PluginRunner::new(wasm_path).expect("Failed to load plugin");
+    let wasm_path = get_wasm_path();
+    let mut runner = PluginRunner::new(&wasm_path).expect("Failed to load plugin");
 
     let config = json!({
         "description": "A user model",
@@ -269,8 +294,8 @@ fn test_validate_model_config() {
 #[test]
 fn test_validate_field_config() {
     ensure_docs_plugin_built();
-    let wasm_path = WASM_PATH;
-    let mut runner = PluginRunner::new(wasm_path).expect("Failed to load plugin");
+    let wasm_path = get_wasm_path();
+    let mut runner = PluginRunner::new(&wasm_path).expect("Failed to load plugin");
 
     let config = json!({
         "description": "User ID field",
@@ -302,8 +327,8 @@ fn test_validate_config_is_optional() {
     // the validate() method returns an empty error array instead of failing.
     // Since cdm-plugin-docs DOES have validate_config, this test
     // serves as documentation of the expected behavior.
-    let wasm_path = WASM_PATH;
-    let mut runner = PluginRunner::new(wasm_path).expect("Failed to load plugin");
+    let wasm_path = get_wasm_path();
+    let mut runner = PluginRunner::new(&wasm_path).expect("Failed to load plugin");
 
     let config = json!({
         "format": "markdown"

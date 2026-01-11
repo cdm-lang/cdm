@@ -47,7 +47,14 @@ pub fn extract_wasm_from_repo(repo_path: &Path, subdir: Option<&str>) -> Result<
 fn clone_git_repo(url: &str, dest: &Path, git_ref: &str) -> Result<()> {
     println!("Cloning git repository {} (ref: {})...", url, git_ref);
 
+    // Get the parent directory of the destination to use as working directory
+    // This ensures git runs in a valid directory even if the process's cwd is invalid
+    let work_dir = dest
+        .parent()
+        .context("Destination path has no parent directory")?;
+
     let output = Command::new("git")
+        .current_dir(work_dir)
         .env("GIT_TERMINAL_PROMPT", "0")
         .arg("clone")
         .arg("--depth=1")

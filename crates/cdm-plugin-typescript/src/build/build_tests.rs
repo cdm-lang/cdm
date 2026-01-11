@@ -763,3 +763,396 @@ fn test_skipped_type_alias_no_zod() {
     // But StatusSchema should still be generated
     assert!(content.contains("StatusSchema"));
 }
+
+// Import generation tests for per_model strategy
+
+#[test]
+fn test_per_model_imports_model_reference() {
+    let mut schema = create_test_schema();
+
+    // Add a Post model that references User
+    schema.models.insert(
+        "Post".to_string(),
+        ModelDefinition {
+            name: "Post".to_string(),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "title".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(1),
+                },
+                FieldDefinition {
+                    name: "author".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "User".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(2),
+                },
+            ],
+            config: json!({}),
+            entity_id: local_id(11),
+        },
+    );
+
+    let config = json!({ "file_strategy": "per_model" });
+    let utils = Utils;
+
+    let output = build(schema, config, &utils);
+
+    // Find Post.ts file
+    let post_file = output.iter().find(|f| f.path == "Post.ts").unwrap();
+
+    // Post.ts should import User from "./User"
+    assert!(
+        post_file.content.contains("import { User } from \"./User\""),
+        "Post.ts should import User. Content:\n{}",
+        post_file.content
+    );
+}
+
+#[test]
+fn test_per_model_imports_type_alias_reference() {
+    let schema = create_test_schema();
+
+    let config = json!({ "file_strategy": "per_model" });
+    let utils = Utils;
+
+    let output = build(schema, config, &utils);
+
+    // Find User.ts file
+    let user_file = output.iter().find(|f| f.path == "User.ts").unwrap();
+
+    // User.ts should import Email from "./types"
+    assert!(
+        user_file.content.contains("import { Email } from \"./types\""),
+        "User.ts should import Email from types. Content:\n{}",
+        user_file.content
+    );
+}
+
+#[test]
+fn test_per_model_imports_array_of_models() {
+    let mut schema = create_test_schema();
+
+    // Add a Team model that has an array of Users
+    schema.models.insert(
+        "Team".to_string(),
+        ModelDefinition {
+            name: "Team".to_string(),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "name".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(1),
+                },
+                FieldDefinition {
+                    name: "members".to_string(),
+                    field_type: TypeExpression::Array {
+                        element_type: Box::new(TypeExpression::Identifier {
+                            name: "User".to_string(),
+                        }),
+                    },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(2),
+                },
+            ],
+            config: json!({}),
+            entity_id: local_id(12),
+        },
+    );
+
+    let config = json!({ "file_strategy": "per_model" });
+    let utils = Utils;
+
+    let output = build(schema, config, &utils);
+
+    // Find Team.ts file
+    let team_file = output.iter().find(|f| f.path == "Team.ts").unwrap();
+
+    // Team.ts should import User from "./User"
+    assert!(
+        team_file.content.contains("import { User } from \"./User\""),
+        "Team.ts should import User for array field. Content:\n{}",
+        team_file.content
+    );
+}
+
+#[test]
+fn test_per_model_no_self_import() {
+    let mut schema = create_test_schema();
+
+    // Add a Node model that references itself (tree structure)
+    schema.models.insert(
+        "Node".to_string(),
+        ModelDefinition {
+            name: "Node".to_string(),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "value".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(1),
+                },
+                FieldDefinition {
+                    name: "parent".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "Node".to_string(),
+                    },
+                    optional: true,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(2),
+                },
+            ],
+            config: json!({}),
+            entity_id: local_id(13),
+        },
+    );
+
+    let config = json!({ "file_strategy": "per_model" });
+    let utils = Utils;
+
+    let output = build(schema, config, &utils);
+
+    // Find Node.ts file
+    let node_file = output.iter().find(|f| f.path == "Node.ts").unwrap();
+
+    // Node.ts should NOT import Node from itself
+    assert!(
+        !node_file.content.contains("import { Node } from \"./Node\""),
+        "Node.ts should NOT self-import. Content:\n{}",
+        node_file.content
+    );
+}
+
+#[test]
+fn test_per_model_imports_multiple_types() {
+    let mut schema = create_test_schema();
+
+    // Add a Comment model that references User and uses Email type alias
+    schema.models.insert(
+        "Comment".to_string(),
+        ModelDefinition {
+            name: "Comment".to_string(),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "text".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(1),
+                },
+                FieldDefinition {
+                    name: "author".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "User".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(2),
+                },
+                FieldDefinition {
+                    name: "authorEmail".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "Email".to_string(),
+                    },
+                    optional: true,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(3),
+                },
+            ],
+            config: json!({}),
+            entity_id: local_id(14),
+        },
+    );
+
+    let config = json!({ "file_strategy": "per_model" });
+    let utils = Utils;
+
+    let output = build(schema, config, &utils);
+
+    // Find Comment.ts file
+    let comment_file = output.iter().find(|f| f.path == "Comment.ts").unwrap();
+
+    // Comment.ts should import User from "./User"
+    assert!(
+        comment_file.content.contains("import { User } from \"./User\""),
+        "Comment.ts should import User. Content:\n{}",
+        comment_file.content
+    );
+
+    // Comment.ts should import Email from "./types"
+    assert!(
+        comment_file.content.contains("import { Email } from \"./types\""),
+        "Comment.ts should import Email from types. Content:\n{}",
+        comment_file.content
+    );
+}
+
+#[test]
+fn test_per_model_imports_with_zod() {
+    let mut schema = create_test_schema();
+
+    // Add a Post model that references User
+    schema.models.insert(
+        "Post".to_string(),
+        ModelDefinition {
+            name: "Post".to_string(),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "title".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(1),
+                },
+                FieldDefinition {
+                    name: "author".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "User".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(2),
+                },
+            ],
+            config: json!({}),
+            entity_id: local_id(11),
+        },
+    );
+
+    let config = json!({ "file_strategy": "per_model", "generate_zod": true });
+    let utils = Utils;
+
+    let output = build(schema, config, &utils);
+
+    // Find Post.ts file
+    let post_file = output.iter().find(|f| f.path == "Post.ts").unwrap();
+
+    // Post.ts should have both zod import and User import
+    assert!(
+        post_file.content.contains("import { z } from 'zod'"),
+        "Post.ts should have zod import. Content:\n{}",
+        post_file.content
+    );
+    assert!(
+        post_file.content.contains("import { User, UserSchema } from \"./User\""),
+        "Post.ts should import User and UserSchema. Content:\n{}",
+        post_file.content
+    );
+}
+
+#[test]
+fn test_per_model_imports_zod_type_alias() {
+    let schema = create_test_schema();
+
+    let config = json!({ "file_strategy": "per_model", "generate_zod": true });
+    let utils = Utils;
+
+    let output = build(schema, config, &utils);
+
+    // Find User.ts file
+    let user_file = output.iter().find(|f| f.path == "User.ts").unwrap();
+
+    // User.ts should import Email and EmailSchema from types
+    assert!(
+        user_file.content.contains("import { Email, EmailSchema } from \"./types\""),
+        "User.ts should import Email and EmailSchema from types. Content:\n{}",
+        user_file.content
+    );
+}
+
+#[test]
+fn test_per_model_grouped_files_no_imports_within_same_file() {
+    let mut schema = create_test_schema();
+
+    // Add Post model in same file as User
+    schema.models.get_mut("User").unwrap().config = json!({ "file_name": "models.ts" });
+
+    schema.models.insert(
+        "Post".to_string(),
+        ModelDefinition {
+            name: "Post".to_string(),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "title".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(1),
+                },
+                FieldDefinition {
+                    name: "author".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "User".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(2),
+                },
+            ],
+            config: json!({ "file_name": "models.ts" }),
+            entity_id: local_id(11),
+        },
+    );
+
+    let config = json!({ "file_strategy": "per_model" });
+    let utils = Utils;
+
+    let output = build(schema, config, &utils);
+
+    // Find models.ts file (both User and Post should be in this file)
+    let models_file = output.iter().find(|f| f.path == "models.ts").unwrap();
+
+    // models.ts should NOT have an import for User since Post and User are in same file
+    assert!(
+        !models_file.content.contains("import { User }"),
+        "models.ts should NOT import User since they're in same file. Content:\n{}",
+        models_file.content
+    );
+
+    // But should still import type alias from types.ts
+    assert!(
+        models_file.content.contains("import { Email } from \"./types\""),
+        "models.ts should import Email from types. Content:\n{}",
+        models_file.content
+    );
+}

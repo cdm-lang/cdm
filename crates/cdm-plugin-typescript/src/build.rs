@@ -1,8 +1,147 @@
-use cdm_plugin_interface::{CaseFormat, OutputFile, Schema, Utils, JSON};
-use std::collections::HashMap;
+use cdm_plugin_interface::{CaseFormat, OutputFile, Schema, TypeExpression, Utils, JSON};
+use std::collections::{BTreeSet, HashMap};
 
 use crate::type_mapper::map_type_to_typescript;
 use crate::zod_mapper::map_type_to_zod;
+
+/// Tracks imports needed for a TypeScript file
+#[derive(Debug, Default)]
+struct ImportCollector {
+    /// Model imports: model name -> file name (without .ts extension)
+    model_imports: BTreeSet<String>,
+    /// Type alias imports from types.ts
+    type_alias_imports: BTreeSet<String>,
+    /// Whether Zod import is needed
+    needs_zod: bool,
+    /// Whether to include Schema imports for Zod
+    include_zod_schemas: bool,
+}
+
+impl ImportCollector {
+    fn new() -> Self {
+        Self::default()
+    }
+
+    fn add_model(&mut self, name: &str) {
+        self.model_imports.insert(name.to_string());
+    }
+
+    fn add_type_alias(&mut self, name: &str) {
+        self.type_alias_imports.insert(name.to_string());
+    }
+
+    fn set_needs_zod(&mut self, needs_zod: bool) {
+        self.needs_zod = needs_zod;
+    }
+
+    fn set_include_zod_schemas(&mut self, include: bool) {
+        self.include_zod_schemas = include;
+    }
+
+    /// Generate import statements for a file
+    /// `current_model` is the model name of the current file (to avoid self-import)
+    /// `model_to_file` maps model names to their file names
+    /// `models_in_current_file` is the set of model names that are in the current file
+    fn to_import_statements(
+        &self,
+        current_file: &str,
+        model_to_file: &HashMap<String, String>,
+        models_in_current_file: &BTreeSet<String>,
+    ) -> String {
+        let mut result = String::new();
+
+        // Zod import
+        if self.needs_zod {
+            result.push_str("import { z } from 'zod';\n");
+        }
+
+        // Model imports - group by file
+        let mut imports_by_file: HashMap<String, Vec<String>> = HashMap::new();
+        for model in &self.model_imports {
+            // Skip if model is in the current file
+            if models_in_current_file.contains(model) {
+                continue;
+            }
+
+            if let Some(file_name) = model_to_file.get(model) {
+                // Skip if it's the same file
+                if file_name == current_file {
+                    continue;
+                }
+
+                // Get file name without .ts extension for import path
+                let import_path = file_name.trim_end_matches(".ts");
+                let entry = imports_by_file.entry(import_path.to_string()).or_default();
+
+                entry.push(model.clone());
+                if self.include_zod_schemas {
+                    entry.push(format!("{}Schema", model));
+                }
+            }
+        }
+
+        // Sort and generate model imports
+        let mut sorted_files: Vec<_> = imports_by_file.keys().collect();
+        sorted_files.sort();
+        for file in sorted_files {
+            let mut imports = imports_by_file.get(file).unwrap().clone();
+            imports.sort();
+            imports.dedup();
+            result.push_str(&format!(
+                "import {{ {} }} from \"./{}\"\n",
+                imports.join(", "),
+                file
+            ));
+        }
+
+        // Type alias imports from types.ts
+        if !self.type_alias_imports.is_empty() {
+            let mut type_imports: Vec<String> = self.type_alias_imports.iter().cloned().collect();
+            if self.include_zod_schemas {
+                let schema_imports: Vec<String> = self
+                    .type_alias_imports
+                    .iter()
+                    .map(|t| format!("{}Schema", t))
+                    .collect();
+                type_imports.extend(schema_imports);
+            }
+            type_imports.sort();
+            result.push_str(&format!(
+                "import {{ {} }} from \"./types\"\n",
+                type_imports.join(", ")
+            ));
+        }
+
+        if !result.is_empty() {
+            result.push('\n');
+        }
+
+        result
+    }
+}
+
+/// Collect all type references from a TypeExpression
+fn collect_type_references(type_expr: &TypeExpression, references: &mut BTreeSet<String>) {
+    match type_expr {
+        TypeExpression::Identifier { name } => {
+            // Skip built-in types
+            if !matches!(name.as_str(), "string" | "number" | "boolean" | "JSON") {
+                references.insert(name.clone());
+            }
+        }
+        TypeExpression::Array { element_type } => {
+            collect_type_references(element_type, references);
+        }
+        TypeExpression::Union { types } => {
+            for t in types {
+                collect_type_references(t, references);
+            }
+        }
+        TypeExpression::StringLiteral { .. } => {
+            // String literals don't reference other types
+        }
+    }
+}
 
 #[derive(Debug, Clone)]
 struct Config {
@@ -159,6 +298,13 @@ fn build_per_model_files(schema: Schema, cfg: Config, utils: &Utils) -> Vec<Outp
     let mut model_to_file: HashMap<String, String> = HashMap::new();
     // Track which files need Zod import
     let mut files_needing_zod: std::collections::HashSet<String> = std::collections::HashSet::new();
+    // Track which models are in each file
+    let mut file_to_models: HashMap<String, BTreeSet<String>> = HashMap::new();
+
+    // Create a set of all model names for reference detection
+    let model_names: BTreeSet<String> = schema.models.keys().cloned().collect();
+    // Create a set of all type alias names
+    let type_alias_names: BTreeSet<String> = schema.type_aliases.keys().cloned().collect();
 
     // First pass: determine which models go to which files and which need Zod
     for (name, model) in &schema.models {
@@ -169,12 +315,18 @@ fn build_per_model_files(schema: Schema, cfg: Config, utils: &Utils) -> Vec<Outp
             continue;
         }
 
-        let file_name = get_file_name(model_config, &name, utils);
+        let file_name = get_file_name(model_config, name, utils);
         model_to_file.insert(name.clone(), file_name.clone());
 
         if !files.contains_key(&file_name) {
             files.insert(file_name.clone(), String::new());
         }
+
+        // Track which models are in each file
+        file_to_models
+            .entry(file_name.clone())
+            .or_default()
+            .insert(name.clone());
 
         // Track if this file needs Zod import
         if should_generate_zod(model_config, cfg.generate_zod) {
@@ -202,15 +354,19 @@ fn build_per_model_files(schema: Schema, cfg: Config, utils: &Utils) -> Vec<Outp
                 continue;
             }
 
-            let formatted_name = format_name(&name, &cfg.type_name_format, utils);
+            let formatted_name = format_name(name, &cfg.type_name_format, utils);
             let type_str = map_type_to_typescript(&alias.alias_type, cfg.strict_nulls);
 
             let export = if cfg.export_all { "export " } else { "" };
-            types_content.push_str(&format!("{}type {} = {};\n\n", export, formatted_name, type_str));
+            types_content.push_str(&format!(
+                "{}type {} = {};\n\n",
+                export, formatted_name, type_str
+            ));
 
             // Generate Zod schema for type alias if Zod is enabled
             if needs_zod {
-                types_zod_content.push_str(&generate_type_alias_zod_schema(&formatted_name, alias, &cfg));
+                types_zod_content
+                    .push_str(&generate_type_alias_zod_schema(&formatted_name, alias, &cfg));
                 types_zod_content.push_str("\n\n");
             }
         }
@@ -225,56 +381,99 @@ fn build_per_model_files(schema: Schema, cfg: Config, utils: &Utils) -> Vec<Outp
         }
     }
 
-    // Add Zod imports to files that need them
-    for file_name in &files_needing_zod {
-        if let Some(content) = files.get_mut(file_name) {
-            let import_line = "import { z } from 'zod';\n\n";
-            *content = format!("{}{}", import_line, content);
+    // Third pass: collect imports and generate models grouped by file
+    // We need to process each file separately to generate proper imports
+    let mut file_contents: HashMap<String, (ImportCollector, String)> = HashMap::new();
+
+    for (file_name, models_in_file) in &file_to_models {
+        let mut imports = ImportCollector::new();
+        let mut content = String::new();
+
+        // Check if this file needs Zod
+        let file_needs_zod = files_needing_zod.contains(file_name);
+        imports.set_needs_zod(file_needs_zod);
+        imports.set_include_zod_schemas(file_needs_zod);
+
+        // Collect all type references from all models in this file
+        for model_name in models_in_file {
+            if let Some(model) = schema.models.get(model_name) {
+                for field in &model.fields {
+                    if should_skip_field(&field.config) {
+                        continue;
+                    }
+
+                    let mut references = BTreeSet::new();
+                    collect_type_references(&field.field_type, &mut references);
+
+                    for ref_name in references {
+                        if model_names.contains(&ref_name) {
+                            imports.add_model(&ref_name);
+                        } else if type_alias_names.contains(&ref_name) {
+                            imports.add_type_alias(&ref_name);
+                        }
+                    }
+                }
+            }
         }
+
+        // Generate model code for all models in this file
+        for model_name in models_in_file {
+            if let Some(model) = schema.models.get(model_name) {
+                let model_config = &model.config;
+                let model_output_format = get_model_output_format(model_config, &cfg.output_format);
+                let formatted_name =
+                    get_export_name(model_config, model_name, &cfg.type_name_format, utils);
+
+                match model_output_format.as_str() {
+                    "interface" => {
+                        content.push_str(&generate_interface(&formatted_name, model, &cfg, utils));
+                    }
+                    "class" => {
+                        content.push_str(&generate_class(&formatted_name, model, &cfg, utils));
+                    }
+                    "type" => {
+                        content.push_str(&generate_type_alias(&formatted_name, model, &cfg, utils));
+                    }
+                    _ => {}
+                }
+                content.push('\n');
+
+                // Generate Zod schema if enabled for this model
+                if should_generate_zod(model_config, cfg.generate_zod) {
+                    content.push('\n');
+                    content.push_str(&generate_zod_schema(&formatted_name, model, &cfg, utils));
+                    content.push('\n');
+                }
+            }
+        }
+
+        file_contents.insert(file_name.clone(), (imports, content));
     }
 
-    // Third pass: generate models grouped by file
-    for (name, model) in &schema.models {
-        // Config is already filtered to this plugin by CDM core
-        let model_config = &model.config;
+    // Fourth pass: generate final file contents with imports
+    let mut result_files: Vec<OutputFile> = Vec::new();
 
-        if should_skip_model(model_config) {
-            continue;
-        }
+    for (file_name, (imports, model_content)) in file_contents {
+        let models_in_file = file_to_models.get(&file_name).cloned().unwrap_or_default();
+        let import_statements =
+            imports.to_import_statements(&file_name, &model_to_file, &models_in_file);
 
-        let file_name = model_to_file.get(name).unwrap();
-        let content = files.get_mut(file_name).unwrap();
-
-        let model_output_format = get_model_output_format(model_config, &cfg.output_format);
-        let formatted_name = get_export_name(model_config, &name, &cfg.type_name_format, utils);
-
-        match model_output_format.as_str() {
-            "interface" => {
-                content.push_str(&generate_interface(&formatted_name, model, &cfg, utils));
-            }
-            "class" => {
-                content.push_str(&generate_class(&formatted_name, model, &cfg, utils));
-            }
-            "type" => {
-                content.push_str(&generate_type_alias(&formatted_name, model, &cfg, utils));
-            }
-            _ => {}
-        }
-        content.push('\n');
-
-        // Generate Zod schema if enabled for this model
-        if should_generate_zod(model_config, cfg.generate_zod) {
-            content.push('\n');
-            content.push_str(&generate_zod_schema(&formatted_name, model, &cfg, utils));
-            content.push('\n');
-        }
+        let content = format!("{}{}", import_statements, model_content);
+        result_files.push(OutputFile {
+            path: file_name,
+            content,
+        });
     }
 
-    // Convert HashMap to Vec<OutputFile>
-    files
-        .into_iter()
-        .map(|(path, content)| OutputFile { path, content })
-        .collect()
+    // Add the types.ts file if it exists
+    if let Some(types_content) = files.remove("types.ts") {
+        result_files.push(OutputFile {
+            path: "types.ts".to_string(),
+            content: types_content,
+        });
+    }
+
+    result_files
 }
 
 fn generate_interface(

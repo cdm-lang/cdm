@@ -51,17 +51,21 @@ fn test_build_with_typescript_plugin_configs() {
 
     // Build the typescript plugin WASM if it doesn't exist
     let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
-    let plugin_wasm = manifest_dir
-        .parent().unwrap()
-        .parent().unwrap()
-        .join("target/wasm32-wasip1/release/cdm_plugin_typescript.wasm");
+    let project_root = manifest_dir.parent().unwrap().parent().unwrap();
+
+    // Determine the target directory - respect CARGO_TARGET_DIR if set
+    let target_dir = std::env::var("CARGO_TARGET_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| project_root.join("target"));
+
+    let plugin_wasm = target_dir
+        .join("wasm32-wasip1/release/cdm_plugin_typescript.wasm");
 
     // Build the plugin if it doesn't exist
     if !plugin_wasm.exists() {
-        let project_root = manifest_dir.parent().unwrap().parent().unwrap();
         let build_result = Command::new("cargo")
             .current_dir(project_root)
-            .args(&[
+            .args([
                 "build",
                 "--release",
                 "--target", "wasm32-wasip1",
@@ -80,6 +84,15 @@ fn test_build_with_typescript_plugin_configs() {
                 panic!("Failed to execute cargo build for TypeScript plugin: {}. Make sure 'wasm32-wasip1' target is installed with: rustup target add wasm32-wasip1", e);
             }
         }
+    }
+
+    // Verify the WASM file exists after build attempt
+    if !plugin_wasm.exists() {
+        panic!(
+            "WASM file not found at {:?} after build. \
+            Make sure 'wasm32-wasip1' target is installed with: rustup target add wasm32-wasip1",
+            plugin_wasm
+        );
     }
 
     // Get the path to the actual plugin directory (not the WASM file)
