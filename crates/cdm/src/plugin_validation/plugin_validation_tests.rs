@@ -1,5 +1,5 @@
 use crate::{validate_tree, FileResolver, LoadedFileTree, Diagnostic};
-use crate::plugin_validation::extract_plugin_imports;
+use crate::plugin_validation::{extract_plugin_imports, extract_merged_plugin_imports};
 use std::path::PathBuf;
 
 // Helper to get the path to test fixtures
@@ -467,5 +467,72 @@ fn test_plugin_config_child_overrides_parent() {
         !validation_result.has_errors(),
         "Expected no errors when child overrides parent plugin config, got: {:?}",
         validation_result.diagnostics
+    );
+}
+
+#[test]
+fn test_extract_merged_plugin_imports_merges_configs() {
+    // This test verifies that extract_merged_plugin_imports properly merges configs from
+    // ancestors and the main file.
+    //
+    // Scenario:
+    // - base_api.cdm has @tsRest with { routes: {...} } but no build_output
+    // - client.cdm extends base_api.cdm and has @tsRest with { build_output: "..." }
+    //
+    // Expected: The merged config should have BOTH routes and build_output.
+    // This is the critical fix for the build command not generating ts-rest output files.
+    if !ts_rest_plugin_exists() {
+        eprintln!("Skipping test - cdm_plugin_ts_rest.wasm not found");
+        return;
+    }
+
+    let path = fixture_path("config_merge/client.cdm");
+    let tree = FileResolver::load(&path).expect("Failed to load fixture");
+
+    // Extract ancestor paths before consuming tree
+    let ancestor_paths: Vec<PathBuf> = tree.ancestors.iter()
+        .map(|a| a.path.clone())
+        .collect();
+
+    let result = validate_tree(tree);
+    assert!(result.is_ok(), "Validation should succeed, got: {:?}", result.err());
+
+    let validation_result = result.unwrap();
+
+    // Now test the merged imports function
+    let merged_imports = extract_merged_plugin_imports(
+        &validation_result,
+        &path,
+        &ancestor_paths,
+    ).expect("Failed to extract merged imports");
+
+    // Should have exactly one import for tsRest (deduplicated)
+    let ts_rest_import = merged_imports.iter()
+        .find(|i| i.name == "tsRest")
+        .expect("Expected tsRest import in merged imports");
+
+    let config = ts_rest_import.global_config.as_ref()
+        .expect("Expected merged config for tsRest");
+
+    // The merged config should have BOTH:
+    // 1. build_output from client.cdm
+    // 2. routes from base_api.cdm
+    assert!(
+        config.get("build_output").is_some(),
+        "Merged config should contain build_output from child, got: {:?}",
+        config
+    );
+    assert!(
+        config.get("routes").is_some(),
+        "Merged config should contain routes from parent, got: {:?}",
+        config
+    );
+
+    // Verify the routes contain the expected data
+    let routes = config.get("routes").unwrap();
+    assert!(
+        routes.get("listUsers").is_some(),
+        "routes should contain listUsers from parent, got: {:?}",
+        routes
     );
 }

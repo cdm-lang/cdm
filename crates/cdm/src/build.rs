@@ -1,5 +1,5 @@
 use crate::{FileResolver, PluginRunner, build_cdm_schema_for_plugin};
-use crate::plugin_validation::{extract_plugin_imports_from_validation_result, PluginImport};
+use crate::plugin_validation::{extract_merged_plugin_imports, PluginImport};
 use anyhow::{Result, Context};
 use cdm_plugin_interface::OutputFile;
 use std::path::{Path, PathBuf};
@@ -42,8 +42,8 @@ pub fn build(path: &Path) -> Result<()> {
         return Err(anyhow::anyhow!("Cannot build: validation errors found"));
     }
 
-    // Step 1: Extract plugin imports
-    let plugin_imports = extract_plugin_imports_from_validation_result(&validation_result, &main_path)?;
+    // Step 1: Extract plugin imports (merged from all ancestors + main file)
+    let plugin_imports = extract_merged_plugin_imports(&validation_result, &main_path, &ancestors)?;
 
     if plugin_imports.is_empty() {
         println!("No plugins configured - nothing to build");

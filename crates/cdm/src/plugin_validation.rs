@@ -277,7 +277,7 @@ pub fn validate_plugins(
 ///
 /// Returns a HashMap of plugin_name -> (merged_config, span of last import with config).
 /// The span is used for error reporting and points to the most recent import.
-fn merge_global_configs(imports: &[PluginImport]) -> HashMap<String, (JSON, Span)> {
+pub fn merge_global_configs(imports: &[PluginImport]) -> HashMap<String, (JSON, Span)> {
     let mut merged: HashMap<String, (JSON, Span)> = HashMap::new();
 
     // Process imports in order (ancestors first, then current file)
@@ -327,7 +327,7 @@ fn deep_merge_json(base: &JSON, overlay: &JSON) -> JSON {
 }
 
 /// Extract plugin imports from a source string (for ancestors)
-fn extract_plugin_imports_from_source(source: &str, source_file_path: &Path) -> Vec<PluginImport> {
+pub fn extract_plugin_imports_from_source(source: &str, source_file_path: &Path) -> Vec<PluginImport> {
     // Parse the source using tree-sitter
     let mut parser = tree_sitter::Parser::new();
     parser.set_language(&grammar::LANGUAGE.into()).expect("Failed to load CDM grammar");
@@ -360,6 +360,71 @@ pub fn extract_plugin_imports_from_validation_result(
 
     let root = parsed_tree.root_node();
     Ok(extract_plugin_imports(root, &main_source, main_path))
+}
+
+/// Extract and merge plugin imports from main file and all ancestors.
+///
+/// This function properly merges plugin configs from the entire `extends` chain.
+/// Each plugin's config is deep-merged from ancestors (furthest first) to the main file,
+/// so child configs override parent configs on a key-by-key basis.
+///
+/// Used by build.rs and migrate.rs to get the complete, merged plugin configuration.
+pub fn extract_merged_plugin_imports(
+    validation_result: &crate::ValidationResult,
+    main_path: &Path,
+    ancestor_paths: &[PathBuf],
+) -> anyhow::Result<Vec<PluginImport>> {
+    use anyhow::Context;
+    use std::fs;
+
+    // Step 1: Extract plugin imports from ancestors (furthest ancestor first)
+    let mut all_imports = Vec::new();
+    for ancestor_path in ancestor_paths.iter().rev() {
+        let ancestor_source = fs::read_to_string(ancestor_path)
+            .with_context(|| format!("Failed to read ancestor file: {}", ancestor_path.display()))?;
+        let ancestor_imports = extract_plugin_imports_from_source(&ancestor_source, ancestor_path);
+        all_imports.extend(ancestor_imports);
+    }
+
+    // Step 2: Extract plugin imports from main file
+    let parsed_tree = validation_result.tree.as_ref()
+        .context("No parsed tree available")?;
+    let main_source = fs::read_to_string(main_path)
+        .with_context(|| format!("Failed to read source file: {}", main_path.display()))?;
+    let root = parsed_tree.root_node();
+    let main_imports = extract_plugin_imports(root, &main_source, main_path);
+    all_imports.extend(main_imports);
+
+    // Step 3: Merge configs for each plugin
+    let merged_configs = merge_global_configs(&all_imports);
+
+    // Step 4: Build result with merged configs, keeping the most recent import's metadata
+    // for each plugin (source, span, etc.)
+    let mut result = Vec::new();
+    let mut seen_plugins = std::collections::HashSet::new();
+
+    // Process in reverse order so we keep the most recent (main file) import's metadata
+    for import in all_imports.iter().rev() {
+        if seen_plugins.contains(&import.name) {
+            continue;
+        }
+        seen_plugins.insert(import.name.clone());
+
+        // Get the merged config for this plugin
+        let merged_config = merged_configs.get(&import.name)
+            .map(|(config, _)| config.clone());
+
+        result.push(PluginImport {
+            name: import.name.clone(),
+            source: import.source.clone(),
+            global_config: merged_config,
+            span: import.span,
+            name_span: import.name_span,
+            source_file: import.source_file.clone(),
+        });
+    }
+
+    Ok(result)
 }
 
 /// Extract all plugin imports from AST (public for use in build.rs)
