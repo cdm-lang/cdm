@@ -482,17 +482,8 @@ unrelease-cli version:
   echo "Unreleasing CDM CLI version {{version}}"
   echo ""
 
-  # Use Python for JSON manipulation (available on macOS by default)
-  # Check if version exists in manifest
-  VERSION="{{version}}"
-  if ! python3 -c "
-import json, sys
-version = sys.argv[1]
-with open('cli-releases.json') as f:
-    data = json.load(f)
-releases = data.get('releases') or dict()
-sys.exit(0 if version in releases else 1)
-" "$VERSION" 2>/dev/null; then
+  # Check if version exists in manifest (simple grep check)
+  if ! grep -q '"{{version}}":' cli-releases.json; then
     echo "Error: Version {{version}} not found in cli-releases.json"
     exit 1
   fi
@@ -511,50 +502,9 @@ sys.exit(0 if version in releases else 1)
     exit 0
   fi
 
-  # Update manifest using Python (removes version, updates latest if needed, updates timestamp)
+  # Update manifest using Python script
   echo "Updating cli-releases.json..."
-  python3 << 'PYTHON_SCRIPT'
-import json
-from datetime import datetime, timezone
-
-version_to_remove = "{{version}}"
-
-with open('cli-releases.json', 'r') as f:
-    data = json.load(f)
-
-# Check if we need to update latest
-if data.get('latest') == version_to_remove:
-    # Find the highest remaining version
-    releases = data.get('releases') or dict()
-    remaining = [v for v in releases.keys() if v != version_to_remove]
-    if remaining:
-        # Sort versions properly (convert to tuples of ints)
-        def version_key(v):
-            try:
-                return tuple(int(x) for x in v.split('.'))
-            except:
-                return (0, 0, 0)
-        remaining.sort(key=version_key)
-        data['latest'] = remaining[-1]
-        print(f"  Updated latest to {data['latest']}")
-    else:
-        print("  Warning: No other versions found")
-
-# Remove the version
-releases_dict = data.get('releases') or dict()
-if version_to_remove in releases_dict:
-    del data['releases'][version_to_remove]
-    print(f"  Removed {version_to_remove} from releases")
-
-# Update timestamp
-data['updated_at'] = datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
-
-with open('cli-releases.json', 'w') as f:
-    json.dump(data, f, indent=2)
-    f.write('\n')
-
-print("  ✓ Manifest updated")
-PYTHON_SCRIPT
+  python3 scripts/unrelease-cli.py "{{version}}"
 
   # Delete GitHub release if it exists
   echo "Deleting GitHub release $TAG..."
