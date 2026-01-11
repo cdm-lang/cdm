@@ -681,10 +681,10 @@ interface CliResult {
   stderr: string;
 }
 
-function runCliCommand(cliPath: string, args: string[]): Promise<CliResult> {
+function runCliCommand(cliPath: string, args: string[], cwd?: string): Promise<CliResult> {
   return new Promise((resolve, reject) => {
     const process = child_process.spawn(cliPath, args, {
-      cwd: vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
+      cwd: cwd ?? vscode.workspace.workspaceFolders?.[0]?.uri.fsPath
     });
 
     let stdout = '';
@@ -728,8 +728,17 @@ async function downloadPlugin(pluginName: string): Promise<void> {
     return;
   }
 
+  // Get the working directory from the active CDM file
+  const editor = vscode.window.activeTextEditor;
+  const fileDir = editor && editor.document.languageId === 'cdm'
+    ? path.dirname(editor.document.uri.fsPath)
+    : undefined;
+
   outputChannel.appendLine(`--- Downloading plugin: ${pluginName} ---`);
   outputChannel.appendLine(`Plugin name type: ${typeof pluginName}, value: "${pluginName}"`);
+  if (fileDir) {
+    outputChannel.appendLine(`Working directory: ${fileDir}`);
+  }
   outputChannel.appendLine(`Command: ${resolvedCliPath} plugin cache ${pluginName}`);
   outputChannel.show();
 
@@ -741,7 +750,7 @@ async function downloadPlugin(pluginName: string): Promise<void> {
         cancellable: false
       },
       async () => {
-        return await runCliCommand(resolvedCliPath!, ['plugin', 'cache', pluginName]);
+        return await runCliCommand(resolvedCliPath!, ['plugin', 'cache', pluginName], fileDir);
       }
     );
 
@@ -789,9 +798,11 @@ async function downloadAllPlugins(): Promise<void> {
   await editor.document.save();
 
   const filePath = editor.document.uri.fsPath;
+  const fileDir = path.dirname(filePath);
 
   outputChannel.appendLine(`--- Downloading all plugins ---`);
   outputChannel.appendLine(`File: ${filePath}`);
+  outputChannel.appendLine(`Working directory: ${fileDir}`);
   outputChannel.appendLine(`Command: ${resolvedCliPath} plugin cache --all`);
   outputChannel.show();
 
@@ -803,7 +814,7 @@ async function downloadAllPlugins(): Promise<void> {
         cancellable: false
       },
       async () => {
-        return await runCliCommand(resolvedCliPath!, ['plugin', 'cache', '--all']);
+        return await runCliCommand(resolvedCliPath!, ['plugin', 'cache', '--all'], fileDir);
       }
     );
 
