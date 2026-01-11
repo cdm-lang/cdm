@@ -78,6 +78,13 @@ jobs:
             strip dist/build/${{ matrix.target }}/release/${{ matrix.binary_name }}
           fi
 
+      - name: Re-sign binary (macOS)
+        if: runner.os == 'macOS'
+        run: |
+          # Stripping invalidates the linker-signed adhoc signature.
+          # Re-sign with a fresh adhoc signature for cross-version compatibility.
+          codesign --sign - --force dist/build/${{ matrix.target }}/release/${{ matrix.binary_name }}
+
       - name: Generate checksum
         run: |
           cd dist/build/${{ matrix.target }}/release
