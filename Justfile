@@ -464,6 +464,103 @@ release-cli version:
   echo "  git tag -d $TAG"
   echo "  git reset --soft HEAD~1"
 
+# Remove a CLI release from the manifest and optionally delete the GitHub release
+# Usage: just unrelease-cli <version>
+# Example: just unrelease-cli 0.1.30
+unrelease-cli version:
+  #!/usr/bin/env bash
+  set -e
+
+  # Validate version format
+  if ! [[ {{version}} =~ ^[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+    echo "Error: Version must be in format X.Y.Z (e.g., 0.1.30)"
+    exit 1
+  fi
+
+  TAG="cdm-cli-v{{version}}"
+
+  echo "Unreleasing CDM CLI version {{version}}"
+  echo ""
+
+  # Check if version exists in manifest
+  if ! jq -e '.releases["{{version}}"]' cli-releases.json > /dev/null 2>&1; then
+    echo "Error: Version {{version}} not found in cli-releases.json"
+    exit 1
+  fi
+
+  # Show what will be removed
+  echo "This will:"
+  echo "  1. Remove {{version}} from cli-releases.json"
+  echo "  2. Delete the GitHub release $TAG (if it exists)"
+  echo "  3. Delete the git tag $TAG (local and remote)"
+  echo ""
+
+  read -p "Continue? (y/N) " -n 1 -r
+  echo
+  if [[ ! $REPLY =~ ^[Yy]$ ]]; then
+    echo "Cancelled"
+    exit 0
+  fi
+
+  # Update latest version if we're removing the current latest
+  CURRENT_LATEST=$(jq -r '.latest' cli-releases.json)
+  if [ "$CURRENT_LATEST" = "{{version}}" ]; then
+    echo "Finding previous version to set as latest..."
+    # Get all versions, sort them, and pick the one before the current
+    NEW_LATEST=$(jq -r '.releases | keys[]' cli-releases.json | grep -v "{{version}}" | sort -V | tail -1)
+    if [ -n "$NEW_LATEST" ]; then
+      echo "Setting latest to $NEW_LATEST"
+      jq --arg new_latest "$NEW_LATEST" '.latest = $new_latest' cli-releases.json > cli-releases.json.tmp
+      mv cli-releases.json.tmp cli-releases.json
+    else
+      echo "Warning: No other versions found, latest will be invalid"
+    fi
+  fi
+
+  # Remove version from manifest
+  echo "Removing {{version}} from cli-releases.json..."
+  jq 'del(.releases["{{version}}"])' cli-releases.json > cli-releases.json.tmp
+  mv cli-releases.json.tmp cli-releases.json
+
+  # Update timestamp
+  jq --arg updated "$(date -u +%Y-%m-%dT%H:%M:%SZ)" '.updated_at = $updated' cli-releases.json > cli-releases.json.tmp
+  mv cli-releases.json.tmp cli-releases.json
+
+  # Delete GitHub release if it exists
+  echo "Deleting GitHub release $TAG..."
+  if gh release view "$TAG" > /dev/null 2>&1; then
+    gh release delete "$TAG" --yes
+    echo "  ✓ GitHub release deleted"
+  else
+    echo "  (GitHub release not found, skipping)"
+  fi
+
+  # Delete remote tag if it exists
+  echo "Deleting remote tag $TAG..."
+  if git ls-remote --tags origin | grep -q "refs/tags/$TAG"; then
+    git push --delete origin "$TAG"
+    echo "  ✓ Remote tag deleted"
+  else
+    echo "  (Remote tag not found, skipping)"
+  fi
+
+  # Delete local tag if it exists
+  echo "Deleting local tag $TAG..."
+  if git rev-parse "$TAG" > /dev/null 2>&1; then
+    git tag -d "$TAG"
+    echo "  ✓ Local tag deleted"
+  else
+    echo "  (Local tag not found, skipping)"
+  fi
+
+  echo ""
+  echo "✓ Version {{version}} has been unreleased"
+  echo ""
+  echo "To commit the manifest change, run:"
+  echo "  git add cli-releases.json"
+  echo "  git commit -m 'Remove CLI release {{version}} from manifest'"
+  echo "  git push origin main"
+
 # Check which components need releases (have changes since last release)
 # Usage: just check-releases
 check-releases:
