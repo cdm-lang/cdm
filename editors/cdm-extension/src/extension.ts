@@ -116,14 +116,13 @@ export async function activate(context: vscode.ExtensionContext) {
     })
   );
 
-  // Set initial capabilities context for current editor
-  await updateCapabilitiesContext(vscode.window.activeTextEditor);
-
   // Try to start the language server
   try {
     resolvedCliPath = await resolveServerPath(context);
     if (resolvedCliPath) {
       await startLanguageServer(context, resolvedCliPath);
+      // Set initial capabilities context AFTER CLI path is resolved
+      await updateCapabilitiesContext(vscode.window.activeTextEditor);
     }
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
