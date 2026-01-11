@@ -42,3 +42,4 @@ CDM (Contextual Data Models) is a schema language and toolchain for defining a s
 - When making code changes, start by adding tests that assert the bug is fixed or feature is working. Then make the changes. Then ensure that those tests (along with others) pass.
 - When running tests in editors/cdm-extension, you may need to run npm install before running the tests.
 - When making code changes to public facing api's be sure to update the appropriate documentation (plugin README's, cdm docs, specs, etc)
+- When you consider implementing a new function, first check if the codebase has any other similar functions that could be re-used, or refactored to support multiple use cases and prefer doing that rather than re-implementing something similar.
