@@ -394,3 +394,78 @@ fn test_plugin_not_found_error_span_only_covers_name() {
     assert_eq!(error.span.start.column, 1, "Error span should start after @");
     assert_eq!(error.span.end.column, 12, "Error span should end after 'nonexistent', not extend to config block");
 }
+
+// Helper to check if the ts-rest plugin WASM exists
+fn ts_rest_plugin_exists() -> bool {
+    PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("../../crates/cdm-plugin-ts-rest/target/wasm32-wasip1/release/cdm_plugin_ts_rest.wasm")
+        .exists()
+}
+
+#[test]
+fn test_plugin_config_merged_from_ancestor() {
+    // This test verifies that plugin configs from ancestor files are merged with child configs.
+    //
+    // Scenario:
+    // - base_api.cdm imports @tsRest with { routes: {...} } but no build_output
+    // - client.cdm extends base_api.cdm and imports @tsRest with { build_output: "..." } but no routes
+    //
+    // Expected behavior: The configs should be merged, so the child inherits routes from parent
+    // and validation passes.
+    //
+    // Bug being fixed: Without merging, the child's config is validated in isolation and fails
+    // with "Required field 'routes' is missing"
+    if !ts_rest_plugin_exists() {
+        eprintln!("Skipping test - cdm_plugin_ts_rest.wasm not found");
+        return;
+    }
+
+    let tree = load_fixture("config_merge/client.cdm").expect("Failed to load fixture");
+    let result = validate_tree(tree);
+
+    assert!(
+        result.is_ok(),
+        "Expected validation to succeed when child extends parent with plugin config, got: {:?}",
+        result.err()
+    );
+
+    let validation_result = result.unwrap();
+    assert!(
+        !validation_result.has_errors(),
+        "Expected no errors when plugin config is inherited from ancestor, got: {:?}",
+        validation_result.diagnostics
+    );
+}
+
+#[test]
+fn test_plugin_config_child_overrides_parent() {
+    // This test verifies that child configs properly override parent configs while inheriting
+    // the rest of the parent's config.
+    //
+    // Scenario:
+    // - parent_with_base_path.cdm imports @tsRest with { base_path: "/api/v1", routes: {...} }
+    // - child_with_override.cdm extends parent and imports @tsRest with { base_path: "/api/v2", build_output: "..." }
+    //
+    // Expected behavior: The child's base_path should override the parent's, but routes should
+    // still be inherited. Validation should pass.
+    if !ts_rest_plugin_exists() {
+        eprintln!("Skipping test - cdm_plugin_ts_rest.wasm not found");
+        return;
+    }
+
+    let tree = load_fixture("config_merge/child_with_override.cdm").expect("Failed to load fixture");
+    let result = validate_tree(tree);
+
+    assert!(
+        result.is_ok(),
+        "Expected validation to succeed when child overrides parent plugin config, got: {:?}",
+        result.err()
+    );
+
+    let validation_result = result.unwrap();
+    assert!(
+        !validation_result.has_errors(),
+        "Expected no errors when child overrides parent plugin config, got: {:?}",
+        validation_result.diagnostics
+    );
+}

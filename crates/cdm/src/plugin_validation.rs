@@ -233,18 +233,20 @@ pub fn validate_plugins(
         return;
     }
 
-    // Step 6: Validate global configs from plugin imports
-    for import in &all_plugin_imports {
-        if let Some(global_config) = &import.global_config {
-            if let Some(cached_plugin) = cache.plugins.get_mut(&import.name) {
-                let config = PluginConfig {
-                    plugin_name: import.name.clone(),
-                    level: ConfigLevel::Global,
-                    config: global_config.clone(),
-                    span: import.span,
-                };
-                validate_config_with_plugin(&config, cached_plugin, diagnostics);
-            }
+    // Step 6: Merge and validate global configs from plugin imports
+    // For each plugin, merge configs from all imports (ancestors first, then current file)
+    // Child configs override parent configs on a key-by-key basis
+    let merged_global_configs = merge_global_configs(&all_plugin_imports);
+
+    for (plugin_name, (merged_config, span)) in &merged_global_configs {
+        if let Some(cached_plugin) = cache.plugins.get_mut(plugin_name) {
+            let config = PluginConfig {
+                plugin_name: plugin_name.clone(),
+                level: ConfigLevel::Global,
+                config: merged_config.clone(),
+                span: *span,
+            };
+            validate_config_with_plugin(&config, cached_plugin, diagnostics);
         }
     }
 
@@ -264,6 +266,63 @@ pub fn validate_plugins(
                 span: config.span,
             });
         }
+    }
+}
+
+/// Merge global configs from plugin imports.
+///
+/// For each plugin, merges all global configs from the import chain (ancestors first,
+/// then current file). Child configs override parent configs on a key-by-key basis
+/// using a deep merge.
+///
+/// Returns a HashMap of plugin_name -> (merged_config, span of last import with config).
+/// The span is used for error reporting and points to the most recent import.
+fn merge_global_configs(imports: &[PluginImport]) -> HashMap<String, (JSON, Span)> {
+    let mut merged: HashMap<String, (JSON, Span)> = HashMap::new();
+
+    // Process imports in order (ancestors first, then current file)
+    // Later imports override earlier ones
+    for import in imports {
+        if let Some(config) = &import.global_config {
+            match merged.get(&import.name) {
+                Some((existing_config, _)) => {
+                    // Deep merge: start with existing config, overlay new config
+                    let merged_config = deep_merge_json(existing_config, config);
+                    merged.insert(import.name.clone(), (merged_config, import.span));
+                }
+                None => {
+                    // First config for this plugin
+                    merged.insert(import.name.clone(), (config.clone(), import.span));
+                }
+            }
+        }
+    }
+
+    merged
+}
+
+/// Deep merge two JSON objects.
+///
+/// For objects, keys from `overlay` override keys from `base`, with nested objects
+/// being recursively merged. For other types (arrays, primitives), `overlay` completely
+/// replaces `base`.
+fn deep_merge_json(base: &JSON, overlay: &JSON) -> JSON {
+    match (base, overlay) {
+        (JSON::Object(base_obj), JSON::Object(overlay_obj)) => {
+            let mut result = base_obj.clone();
+            for (key, value) in overlay_obj {
+                if let Some(base_value) = base_obj.get(key) {
+                    // Recursively merge if both are objects
+                    result.insert(key.clone(), deep_merge_json(base_value, value));
+                } else {
+                    // Key only exists in overlay
+                    result.insert(key.clone(), value.clone());
+                }
+            }
+            JSON::Object(result)
+        }
+        // For non-objects, overlay completely replaces base
+        _ => overlay.clone(),
     }
 }
 

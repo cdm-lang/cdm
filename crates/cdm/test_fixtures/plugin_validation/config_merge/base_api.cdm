@@ -1,0 +1,19 @@
+// Base API file with tsRest routes defined but no build_output
+// This is designed to be extended by context-specific files that add build_output
+@tsRest from "../../../../../crates/cdm-plugin-ts-rest" {
+  routes: {
+    listUsers: {
+      method: "GET",
+      path: "/users",
+      responses: {
+        "200": "User[]"
+      }
+    }
+  }
+}
+
+User {
+  id: number
+  name: string
+  email: string
+}

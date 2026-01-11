@@ -1,0 +1,9 @@
+// Client file that extends base_api and adds build_output for the client context
+// This should inherit the routes from the parent and not fail validation
+extends "./base_api.cdm"
+
+@tsRest from "../../../../../crates/cdm-plugin-ts-rest" {
+  build_output: "./generated/client.ts"
+}
+
+// No additional models needed - we're using the ones from base_api

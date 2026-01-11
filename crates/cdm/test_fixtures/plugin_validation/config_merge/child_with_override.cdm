@@ -1,0 +1,10 @@
+// Child file that overrides the base_path from parent
+// This tests that child config values properly override parent values
+extends "./parent_with_base_path.cdm"
+
+@tsRest from "../../../../../crates/cdm-plugin-ts-rest" {
+  base_path: "/api/v2",
+  build_output: "./generated/client.ts"
+}
+
+// No additional models needed - we're using the ones from parent

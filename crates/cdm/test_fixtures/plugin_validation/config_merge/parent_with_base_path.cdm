@@ -1,0 +1,19 @@
+// Parent API file with tsRest routes and base_path defined
+@tsRest from "../../../../../crates/cdm-plugin-ts-rest" {
+  base_path: "/api/v1",
+  routes: {
+    listUsers: {
+      method: "GET",
+      path: "/users",
+      responses: {
+        "200": "User[]"
+      }
+    }
+  }
+}
+
+User {
+  id: number
+  name: string
+  email: string
+}
