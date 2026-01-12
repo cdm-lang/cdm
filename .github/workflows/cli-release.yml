@@ -81,9 +81,18 @@ jobs:
       - name: Re-sign binary (macOS)
         if: runner.os == 'macOS'
         run: |
+          BINARY="dist/build/${{ matrix.target }}/release/${{ matrix.binary_name }}"
+
           # Stripping invalidates the linker-signed adhoc signature.
+          # Remove any extended attributes that could cause Gatekeeper issues
+          xattr -cr "$BINARY"
+
           # Re-sign with a fresh adhoc signature for cross-version compatibility.
-          codesign --sign - --force dist/build/${{ matrix.target }}/release/${{ matrix.binary_name }}
+          codesign --sign - --force "$BINARY"
+
+          # Verify the signature is valid
+          codesign --verify --verbose "$BINARY"
+          echo "✓ Code signature verified successfully"
 
       - name: Generate checksum
         run: |
