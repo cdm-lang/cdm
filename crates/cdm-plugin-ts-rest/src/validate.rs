@@ -29,9 +29,97 @@ pub fn validate_config(level: ConfigLevel, config: JSON, _utils: &Utils) -> Vec<
     errors
 }
 
+/// Valid strategies for import configuration
+const VALID_IMPORT_STRATEGIES: &[&str] = &["single", "per_model"];
+
+fn validate_import_config(config: &JSON, field_name: &str, errors: &mut Vec<ValidationError>) {
+    if !config.is_object() {
+        errors.push(ValidationError {
+            path: vec![PathSegment {
+                kind: "global".to_string(),
+                name: field_name.to_string(),
+            }],
+            message: format!("{} must be an object", field_name),
+            severity: Severity::Error,
+        });
+        return;
+    }
+
+    // Validate strategy
+    match config.get("strategy") {
+        Some(strategy) => {
+            if let Some(strategy_str) = strategy.as_str() {
+                if !VALID_IMPORT_STRATEGIES.contains(&strategy_str) {
+                    errors.push(ValidationError {
+                        path: vec![PathSegment {
+                            kind: "global".to_string(),
+                            name: format!("{}.strategy", field_name),
+                        }],
+                        message: format!(
+                            "invalid strategy '{}'. Must be 'single' or 'per_model'",
+                            strategy_str
+                        ),
+                        severity: Severity::Error,
+                    });
+                }
+            } else {
+                errors.push(ValidationError {
+                    path: vec![PathSegment {
+                        kind: "global".to_string(),
+                        name: format!("{}.strategy", field_name),
+                    }],
+                    message: format!("{}.strategy must be a string", field_name),
+                    severity: Severity::Error,
+                });
+            }
+        }
+        None => {
+            errors.push(ValidationError {
+                path: vec![PathSegment {
+                    kind: "global".to_string(),
+                    name: format!("{}.strategy", field_name),
+                }],
+                message: format!("{}.strategy is required", field_name),
+                severity: Severity::Error,
+            });
+        }
+    }
+
+    // Validate path
+    match config.get("path") {
+        Some(path) => {
+            if !path.is_string() {
+                errors.push(ValidationError {
+                    path: vec![PathSegment {
+                        kind: "global".to_string(),
+                        name: format!("{}.path", field_name),
+                    }],
+                    message: format!("{}.path must be a string", field_name),
+                    severity: Severity::Error,
+                });
+            }
+        }
+        None => {
+            errors.push(ValidationError {
+                path: vec![PathSegment {
+                    kind: "global".to_string(),
+                    name: format!("{}.path", field_name),
+                }],
+                message: format!("{}.path is required", field_name),
+                severity: Severity::Error,
+            });
+        }
+    }
+}
+
 fn validate_global_config(config: &JSON, errors: &mut Vec<ValidationError>) {
     // Note: build_output is handled by CDM, not by plugins.
     // CDM filters it out before passing config to plugins.
+
+    // Validate schema_import if provided
+    if let Some(schema_import) = config.get("schema_import") {
+        validate_import_config(schema_import, "schema_import", errors);
+    }
 
     // Validate routes
     match config.get("routes") {

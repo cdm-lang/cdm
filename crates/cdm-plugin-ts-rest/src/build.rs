@@ -3,6 +3,40 @@ use std::collections::BTreeSet;
 
 use crate::validate::{collect_model_references, is_array_response, strip_array_suffix};
 
+/// Import configuration for schema or type imports
+#[derive(Debug, Clone)]
+struct ImportConfig {
+    strategy: String,
+    path: String,
+}
+
+impl ImportConfig {
+    fn from_json(json: Option<&JSON>, default_path: &str) -> Self {
+        match json {
+            Some(config) => Self {
+                strategy: config
+                    .get("strategy")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or("single")
+                    .to_string(),
+                path: config
+                    .get("path")
+                    .and_then(|v| v.as_str())
+                    .unwrap_or(default_path)
+                    .to_string(),
+            },
+            None => Self {
+                strategy: "single".to_string(),
+                path: default_path.to_string(),
+            },
+        }
+    }
+
+    fn is_per_model(&self) -> bool {
+        self.strategy == "per_model"
+    }
+}
+
 /// Parsed route configuration for code generation
 #[derive(Debug, Clone)]
 struct Route {
@@ -41,6 +75,9 @@ pub fn build(schema: Schema, config: JSON, _utils: &Utils) -> Vec<OutputFile> {
         .and_then(|v| v.as_str())
         .unwrap_or("");
 
+    // Parse import configuration
+    let schema_import = ImportConfig::from_json(config.get("schema_import"), "./schemas");
+
     let routes_config = match config.get("routes") {
         Some(r) => r,
         None => return vec![],
@@ -66,7 +103,7 @@ pub fn build(schema: Schema, config: JSON, _utils: &Utils) -> Vec<OutputFile> {
         .collect();
 
     // Generate the contract file
-    let content = generate_contract(&routes, &model_refs, &valid_models);
+    let content = generate_contract(&routes, &model_refs, &valid_models, &schema_import);
 
     vec![OutputFile {
         path: "contract.ts".to_string(),
@@ -160,8 +197,9 @@ fn parse_response_type(response: &JSON) -> ResponseType {
 
 fn generate_contract(
     routes: &[Route],
-    model_refs: &std::collections::HashSet<String>,
+    _model_refs: &std::collections::HashSet<String>,
     valid_models: &std::collections::HashSet<String>,
+    schema_import: &ImportConfig,
 ) -> String {
     let mut output = String::new();
 
@@ -176,12 +214,9 @@ fn generate_contract(
     output.push_str("import { z } from 'zod';\n");
 
     // Generate schema imports
-    let schema_imports = generate_schema_imports(routes, model_refs, valid_models);
-    if !schema_imports.is_empty() {
-        output.push_str(&format!(
-            "import {{\n{}\n}} from './schemas';\n",
-            schema_imports
-        ));
+    let schema_imports_str = generate_schema_imports(routes, valid_models, schema_import);
+    if !schema_imports_str.is_empty() {
+        output.push_str(&schema_imports_str);
     }
 
     output.push('\n');
@@ -201,53 +236,44 @@ fn generate_contract(
 
     output.push_str("});\n");
 
-    // Re-export types
-    let type_exports = generate_type_exports(model_refs, valid_models);
-    if !type_exports.is_empty() {
-        output.push_str(&format!(
-            "\n// Re-export types for convenience\nexport type {{\n{}\n}} from './types';\n",
-            type_exports
-        ));
-    }
-
     output
 }
 
 fn generate_schema_imports(
     routes: &[Route],
-    _model_refs: &std::collections::HashSet<String>,
     valid_models: &std::collections::HashSet<String>,
+    schema_import: &ImportConfig,
 ) -> String {
-    // Collect all schema names that need to be imported
-    let mut schemas: BTreeSet<String> = BTreeSet::new();
+    // Collect all model names that need schema imports
+    let mut models: BTreeSet<String> = BTreeSet::new();
 
     for route in routes {
         if let Some(ref path_params) = route.path_params {
             if valid_models.contains(path_params) {
-                schemas.insert(format!("{}Schema", path_params));
+                models.insert(path_params.clone());
             }
         }
         if let Some(ref query) = route.query {
             if valid_models.contains(query) {
-                schemas.insert(format!("{}Schema", query));
+                models.insert(query.clone());
             }
         }
         if let Some(ref body) = route.body {
             if valid_models.contains(body) {
-                schemas.insert(format!("{}Schema", body));
+                models.insert(body.clone());
             }
         }
         for (_status_code, response) in &route.responses {
             match response {
                 ResponseType::Single(model) | ResponseType::Array(model) => {
                     if valid_models.contains(model) {
-                        schemas.insert(format!("{}Schema", model));
+                        models.insert(model.clone());
                     }
                 }
-                ResponseType::Union(models) => {
-                    for model in models {
+                ResponseType::Union(union_models) => {
+                    for model in union_models {
                         if valid_models.contains(model) {
-                            schemas.insert(format!("{}Schema", model));
+                            models.insert(model.clone());
                         }
                     }
                 }
@@ -256,30 +282,34 @@ fn generate_schema_imports(
         }
     }
 
-    schemas
-        .iter()
-        .map(|s| format!("  {},", s))
-        .collect::<Vec<_>>()
-        .join("\n")
-}
-
-fn generate_type_exports(
-    model_refs: &std::collections::HashSet<String>,
-    valid_models: &std::collections::HashSet<String>,
-) -> String {
-    let mut types: BTreeSet<String> = BTreeSet::new();
-
-    for model in model_refs {
-        if valid_models.contains(model) {
-            types.insert(model.clone());
-        }
+    if models.is_empty() {
+        return String::new();
     }
 
-    types
-        .iter()
-        .map(|t| format!("  {},", t))
-        .collect::<Vec<_>>()
-        .join("\n")
+    if schema_import.is_per_model() {
+        // Per-model strategy: generate separate imports for each model
+        models
+            .iter()
+            .map(|model| {
+                format!(
+                    "import {{ {}Schema }} from '{}/{}';\n",
+                    model, schema_import.path, model
+                )
+            })
+            .collect::<Vec<_>>()
+            .join("")
+    } else {
+        // Single file strategy: generate one import with all schemas
+        let schema_names: Vec<String> = models
+            .iter()
+            .map(|m| format!("  {}Schema,", m))
+            .collect();
+        format!(
+            "import {{\n{}\n}} from '{}';\n",
+            schema_names.join("\n"),
+            schema_import.path
+        )
+    }
 }
 
 fn generate_route(route: &Route) -> String {

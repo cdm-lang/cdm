@@ -10,6 +10,101 @@ fn utils() -> Utils {
 }
 
 // ============================================================================
+// Schema Import Validation Tests
+// ============================================================================
+
+#[test]
+fn test_schema_import_valid_single_strategy() {
+    let config = json!({
+        "schema_import": {
+            "strategy": "single",
+            "path": "./schemas"
+        },
+        "routes": {
+            "getUser": {
+                "method": "GET",
+                "path": "/users",
+                "responses": { "200": "User" }
+            }
+        }
+    });
+
+    let errors = validate_config(ConfigLevel::Global, config, &utils());
+    let error = errors
+        .iter()
+        .find(|e| e.message.contains("schema_import"));
+    assert!(error.is_none(), "Expected no schema_import errors");
+}
+
+#[test]
+fn test_schema_import_valid_per_model_strategy() {
+    let config = json!({
+        "schema_import": {
+            "strategy": "per_model",
+            "path": "./models"
+        },
+        "routes": {
+            "getUser": {
+                "method": "GET",
+                "path": "/users",
+                "responses": { "200": "User" }
+            }
+        }
+    });
+
+    let errors = validate_config(ConfigLevel::Global, config, &utils());
+    let error = errors
+        .iter()
+        .find(|e| e.message.contains("schema_import"));
+    assert!(error.is_none(), "Expected no schema_import errors");
+}
+
+#[test]
+fn test_schema_import_invalid_strategy() {
+    let config = json!({
+        "schema_import": {
+            "strategy": "invalid",
+            "path": "./schemas"
+        },
+        "routes": {
+            "getUser": {
+                "method": "GET",
+                "path": "/users",
+                "responses": { "200": "User" }
+            }
+        }
+    });
+
+    let errors = validate_config(ConfigLevel::Global, config, &utils());
+    let error = errors
+        .iter()
+        .find(|e| e.message.contains("invalid strategy") && e.message.contains("invalid"));
+    assert!(error.is_some(), "Expected error for invalid strategy");
+}
+
+#[test]
+fn test_schema_import_missing_path() {
+    let config = json!({
+        "schema_import": {
+            "strategy": "single"
+        },
+        "routes": {
+            "getUser": {
+                "method": "GET",
+                "path": "/users",
+                "responses": { "200": "User" }
+            }
+        }
+    });
+
+    let errors = validate_config(ConfigLevel::Global, config, &utils());
+    let error = errors
+        .iter()
+        .find(|e| e.message.contains("schema_import.path"));
+    assert!(error.is_some(), "Expected error for missing path");
+}
+
+// ============================================================================
 // Path Parameter Extraction Tests
 // ============================================================================
 

@@ -542,34 +542,6 @@ fn test_build_generates_void_response() {
 }
 
 // ============================================================================
-// Type Re-export Tests
-// ============================================================================
-
-#[test]
-fn test_build_exports_types() {
-    let schema = create_test_schema();
-    let config = json!({
-        "routes": {
-            "getUser": {
-                "method": "GET",
-                "path": "/users/:id",
-                "pathParams": "GetUserPathParams",
-                "responses": {
-                    "200": "User",
-                    "404": "NotFoundError"
-                }
-            }
-        }
-    });
-
-    let files = build(schema, config, &utils());
-    let content = &files[0].content;
-
-    assert!(content.contains("export type {"));
-    assert!(content.contains("from './types'"));
-}
-
-// ============================================================================
 // Contract Structure Tests
 // ============================================================================
 
@@ -704,3 +676,88 @@ fn test_build_escapes_special_chars_in_summary() {
 // Note: test_build_output_path_formatting was removed because build_output
 // is now handled by CDM, not plugins. Plugins return relative paths like
 // "contract.ts" and CDM prepends the configured output directory.
+
+// ============================================================================
+// Schema Import Configuration Tests
+// ============================================================================
+
+#[test]
+fn test_build_default_schema_import_path() {
+    // Default behavior: imports from './schemas'
+    let schema = create_test_schema();
+    let config = json!({
+        "routes": {
+            "getUser": {
+                "method": "GET",
+                "path": "/users/:id",
+                "pathParams": "GetUserPathParams",
+                "responses": { "200": "User" }
+            }
+        }
+    });
+
+    let files = build(schema, config, &utils());
+    let content = &files[0].content;
+
+    assert!(content.contains("from './schemas'"));
+}
+
+#[test]
+fn test_build_custom_schema_import_single_strategy() {
+    // Custom single file path for schema imports
+    let schema = create_test_schema();
+    let config = json!({
+        "schema_import": {
+            "strategy": "single",
+            "path": "./generated/zod-schemas"
+        },
+        "routes": {
+            "getUser": {
+                "method": "GET",
+                "path": "/users/:id",
+                "pathParams": "GetUserPathParams",
+                "responses": { "200": "User" }
+            }
+        }
+    });
+
+    let files = build(schema, config, &utils());
+    let content = &files[0].content;
+
+    assert!(content.contains("from './generated/zod-schemas'"));
+    assert!(!content.contains("from './schemas'"));
+}
+
+#[test]
+fn test_build_schema_import_per_model_strategy() {
+    // Per-model strategy: imports from individual files in directory
+    let schema = create_test_schema();
+    let config = json!({
+        "schema_import": {
+            "strategy": "per_model",
+            "path": "./models"
+        },
+        "routes": {
+            "getUser": {
+                "method": "GET",
+                "path": "/users/:id",
+                "pathParams": "GetUserPathParams",
+                "responses": {
+                    "200": "User",
+                    "404": "NotFoundError"
+                }
+            }
+        }
+    });
+
+    let files = build(schema, config, &utils());
+    let content = &files[0].content;
+
+    // Should import from individual model files
+    assert!(content.contains("from './models/User'"));
+    assert!(content.contains("from './models/GetUserPathParams'"));
+    assert!(content.contains("from './models/NotFoundError'"));
+    // Should NOT have a single schemas import
+    assert!(!content.contains("from './schemas'"));
+}
+

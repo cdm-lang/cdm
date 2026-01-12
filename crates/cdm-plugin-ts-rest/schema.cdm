@@ -10,6 +10,22 @@ GlobalSettings {
 
   // Map of route name to route configuration (required)
   routes: JSON
+
+  // Configuration for importing Zod schemas (from @typescript plugin with generate_zod: true)
+  schema_import?: SchemaImportConfig
+}
+
+// Configuration for how to import Zod schemas
+SchemaImportConfig {
+  // File strategy: "single" for one file, "per_model" for separate files per model
+  // Default: "single"
+  strategy: "single" | "per_model"
+
+  // Path to import from
+  // - For "single": the file path without extension (e.g., "./schemas")
+  // - For "per_model": the directory path (e.g., "./models")
+  // Default: "./schemas"
+  path: string
 }
 
 // Note: Routes are defined as JSON objects in the CDM file because they have
