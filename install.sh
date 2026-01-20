@@ -173,6 +173,13 @@ main() {
     local install_path="${INSTALL_DIR}/${BINARY_NAME}"
     mv "$tmp_binary" "$install_path"
 
+    # On macOS, remove quarantine extended attributes to prevent Gatekeeper issues.
+    # Downloaded binaries get a com.apple.quarantine attribute that can cause
+    # "killed" errors when executed without proper Developer ID signing.
+    if [ "$(uname -s)" = "Darwin" ]; then
+        xattr -c "$install_path" 2>/dev/null || true
+    fi
+
     info "CDM CLI v${version} installed successfully!"
     printf "\n"
     info "Binary location: ${install_path}"

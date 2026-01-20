@@ -60,10 +60,48 @@ fn replace_unix(current_exe: &Path, new_binary: &Path, backup_path: &Path) -> Re
             }
         })?;
 
+    // On macOS, remove quarantine attributes to prevent Gatekeeper from killing the binary.
+    // Downloaded binaries get a com.apple.quarantine extended attribute that causes
+    // "killed" errors when executed without proper Developer ID signing.
+    #[cfg(target_os = "macos")]
+    {
+        remove_quarantine_attributes(current_exe);
+    }
+
     // Clean up temporary file
     let _ = fs::remove_file(new_binary);
 
     Ok(())
+}
+
+/// Remove macOS quarantine extended attributes from a file.
+/// This prevents Gatekeeper from blocking execution of downloaded binaries.
+#[cfg(target_os = "macos")]
+fn remove_quarantine_attributes(path: &Path) {
+    use std::process::Command;
+
+    // Use xattr -c to clear all extended attributes (including com.apple.quarantine)
+    let result = Command::new("xattr")
+        .arg("-c")
+        .arg(path)
+        .output();
+
+    match result {
+        Ok(output) if output.status.success() => {
+            // Successfully removed quarantine attributes
+        }
+        Ok(output) => {
+            // xattr returned non-zero, but this is non-fatal
+            eprintln!(
+                "Warning: Failed to remove quarantine attributes: {}",
+                String::from_utf8_lossy(&output.stderr)
+            );
+        }
+        Err(e) => {
+            // Failed to run xattr, but this is non-fatal
+            eprintln!("Warning: Could not run xattr to remove quarantine: {}", e);
+        }
+    }
 }
 
 #[cfg(windows)]
@@ -276,5 +314,61 @@ mod tests {
         let exe_path = PathBuf::from("/usr/bin/cdm.tar.gz");
         let backup = get_backup_path(&exe_path).unwrap();
         assert_eq!(backup, PathBuf::from("/usr/bin/cdm.tar.gz.backup"));
+    }
+
+    // =========================================================================
+    // macOS QUARANTINE REMOVAL TESTS
+    // =========================================================================
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn test_remove_quarantine_attributes_on_file() {
+        use std::process::Command;
+
+        let temp_dir = TempDir::new().unwrap();
+        let test_file = temp_dir.path().join("test_binary");
+
+        // Create a test file
+        fs::write(&test_file, b"test content").unwrap();
+
+        // Add a quarantine attribute (simulating a downloaded file)
+        let _ = Command::new("xattr")
+            .args(["-w", "com.apple.quarantine", "0081;00000000;Test;", test_file.to_str().unwrap()])
+            .output();
+
+        // Remove quarantine attributes
+        remove_quarantine_attributes(&test_file);
+
+        // Verify quarantine attribute is removed
+        let output = Command::new("xattr")
+            .arg("-l")
+            .arg(&test_file)
+            .output()
+            .expect("Failed to run xattr");
+
+        let attrs = String::from_utf8_lossy(&output.stdout);
+        assert!(!attrs.contains("com.apple.quarantine"), "Quarantine attribute should be removed");
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn test_remove_quarantine_attributes_nonexistent_file() {
+        let nonexistent = PathBuf::from("/nonexistent/path/to/binary");
+
+        // Should not panic, just emit a warning
+        remove_quarantine_attributes(&nonexistent);
+    }
+
+    #[cfg(target_os = "macos")]
+    #[test]
+    fn test_remove_quarantine_attributes_no_attrs() {
+        let temp_dir = TempDir::new().unwrap();
+        let test_file = temp_dir.path().join("clean_file");
+
+        // Create a file without quarantine attributes
+        fs::write(&test_file, b"clean content").unwrap();
+
+        // Should succeed without error on a file with no attributes
+        remove_quarantine_attributes(&test_file);
     }
 }
