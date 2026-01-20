@@ -409,46 +409,92 @@ fn resolve_git_template(url: &str, config: &Option<JSON>) -> Result<LoadedTempla
 
 /// Resolve a registry template
 fn resolve_registry_template(name: &str, config: &Option<JSON>) -> Result<LoadedTemplate> {
-    use crate::{registry, version_resolver};
+    use crate::{template_registry, version_resolver};
 
     // Extract version constraint from config
     let version_constraint = config
         .as_ref()
         .and_then(|c| c.get("version"))
         .and_then(|v| v.as_str())
-        .map(|s| version_resolver::parse_version_constraint(s))
+        .map(version_resolver::parse_version_constraint)
         .transpose()
         .map_err(|e| anyhow::anyhow!("Invalid version constraint: {}", e))?
         .unwrap_or(version_resolver::VersionConstraint::Latest);
 
-    // For now, try to load from template registry
-    // TODO: Implement template registry similar to plugin registry
-    let cache_path = registry::get_cache_path()?;
-    let template_dir = cache_path
-        .join("templates")
-        .join(name.replace('/', "_"))
-        .join(version_constraint.to_string());
+    // Load the template registry
+    let registry = template_registry::load_template_registry()
+        .context("Failed to load template registry")?;
 
-    if template_dir.exists() {
-        let manifest_path = template_dir.join("cdm-template.json");
-        if manifest_path.exists() {
-            let manifest = load_manifest(&manifest_path)?;
-            let entry_path = template_dir.join(&manifest.entry);
-            return Ok(LoadedTemplate {
-                manifest,
-                path: template_dir,
-                entry_path,
-            });
+    // Look up the template in the registry
+    let template = template_registry::lookup_template(&registry, name)
+        .ok_or_else(|| anyhow::anyhow!("Template '{}' not found in registry", name))?;
+
+    // Resolve version constraint to a specific version
+    let resolved_version = resolve_template_version(&version_constraint, template)?;
+
+    // Get the version info
+    let version_info = template_registry::get_template_version(template, Some(&resolved_version))
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "Version '{}' not found for template '{}'",
+                resolved_version,
+                name
+            )
+        })?;
+
+    // Build config for resolve_git_template with git info from registry
+    let git_config = {
+        let mut obj = serde_json::Map::new();
+        obj.insert("git_ref".to_string(), JSON::String(version_info.git_ref.clone()));
+        if let Some(ref git_path) = version_info.git_path {
+            obj.insert("git_path".to_string(), JSON::String(git_path.clone()));
+        }
+        Some(JSON::Object(obj))
+    };
+
+    // Delegate to resolve_git_template
+    resolve_git_template(&version_info.git_url, &git_config)
+        .with_context(|| format!("Failed to resolve template '{}' version '{}'", name, resolved_version))
+}
+
+/// Resolve a version constraint to a specific version for templates
+fn resolve_template_version(
+    constraint: &crate::version_resolver::VersionConstraint,
+    template: &crate::template_registry::RegistryTemplate,
+) -> Result<String> {
+    use crate::version_resolver::{version_matches, VersionConstraint};
+    use semver::Version;
+
+    match constraint {
+        VersionConstraint::Latest => Ok(template.latest.clone()),
+        VersionConstraint::Exact(v) => {
+            if template.versions.contains_key(v) {
+                Ok(v.clone())
+            } else {
+                anyhow::bail!("Exact version '{}' not found", v)
+            }
+        }
+        _ => {
+            // For caret, tilde, or range constraints, find the highest matching version
+            let mut matching_versions: Vec<(Version, String)> = template
+                .versions
+                .keys()
+                .filter(|v| version_matches(constraint, v))
+                .filter_map(|v| Version::parse(v).ok().map(|parsed| (parsed, v.clone())))
+                .collect();
+
+            if matching_versions.is_empty() {
+                anyhow::bail!(
+                    "No version matching constraint '{}' found. Available versions: {}",
+                    constraint,
+                    template.versions.keys().cloned().collect::<Vec<_>>().join(", ")
+                )
+            }
+
+            matching_versions.sort_by(|a, b| a.0.cmp(&b.0));
+            Ok(matching_versions.last().unwrap().1.clone())
         }
     }
-
-    // Template not found in cache - would need to download
-    anyhow::bail!(
-        "Template '{}' not found in registry.\n\
-        Template registry is not yet implemented.\n\
-        Use git: or local paths instead.",
-        name
-    )
 }
 
 /// Load and parse a template manifest file

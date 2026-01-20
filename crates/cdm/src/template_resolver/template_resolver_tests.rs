@@ -525,7 +525,7 @@ fn test_resolve_local_template_not_found() {
 }
 
 #[test]
-fn test_resolve_registry_template_not_implemented() {
+fn test_resolve_registry_template_not_found() {
     let import = TemplateImport {
         namespace: "test".to_string(),
         source: TemplateSource::Registry { name: "unknown/template".to_string() },
@@ -535,8 +535,15 @@ fn test_resolve_registry_template_not_implemented() {
     };
 
     let result = resolve_template(&import);
-    // Registry templates are not fully implemented, should error
+    // Template doesn't exist in registry, should error
     assert!(result.is_err());
+    let err_msg = result.unwrap_err().to_string();
+    // Error should be about template not found or registry fetch failure
+    assert!(
+        err_msg.contains("not found") || err_msg.contains("registry") || err_msg.contains("fetch"),
+        "Unexpected error message: {}",
+        err_msg
+    );
 }
 
 #[test]
@@ -544,4 +551,126 @@ fn test_resolve_template_from_source_local() {
     let source = TemplateSource::Local { path: "./nonexistent".to_string() };
     let result = resolve_template_from_source(&source, &None, Path::new("/project/schema.cdm"));
     assert!(result.is_err());
+}
+
+// =========================================================================
+// TEMPLATE VERSION RESOLUTION TESTS
+// =========================================================================
+
+use crate::template_registry::{RegistryTemplate, RegistryTemplateVersion};
+use crate::version_resolver::VersionConstraint;
+
+fn make_test_template() -> RegistryTemplate {
+    let mut versions = std::collections::HashMap::new();
+    versions.insert(
+        "1.0.0".to_string(),
+        RegistryTemplateVersion {
+            git_url: "https://github.com/test/repo.git".to_string(),
+            git_ref: "v1.0.0".to_string(),
+            git_path: Some("templates/test".to_string()),
+        },
+    );
+    versions.insert(
+        "1.1.0".to_string(),
+        RegistryTemplateVersion {
+            git_url: "https://github.com/test/repo.git".to_string(),
+            git_ref: "v1.1.0".to_string(),
+            git_path: Some("templates/test".to_string()),
+        },
+    );
+    versions.insert(
+        "2.0.0".to_string(),
+        RegistryTemplateVersion {
+            git_url: "https://github.com/test/repo.git".to_string(),
+            git_ref: "v2.0.0".to_string(),
+            git_path: Some("templates/test".to_string()),
+        },
+    );
+
+    RegistryTemplate {
+        description: "Test template".to_string(),
+        repository: "https://github.com/test/repo".to_string(),
+        official: true,
+        versions,
+        latest: "2.0.0".to_string(),
+    }
+}
+
+#[test]
+fn test_resolve_template_version_latest() {
+    let template = make_test_template();
+    let constraint = VersionConstraint::Latest;
+
+    let result = super::resolve_template_version(&constraint, &template);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), "2.0.0");
+}
+
+#[test]
+fn test_resolve_template_version_exact() {
+    let template = make_test_template();
+    let constraint = VersionConstraint::Exact("1.1.0".to_string());
+
+    let result = super::resolve_template_version(&constraint, &template);
+    assert!(result.is_ok());
+    assert_eq!(result.unwrap(), "1.1.0");
+}
+
+#[test]
+fn test_resolve_template_version_exact_not_found() {
+    let template = make_test_template();
+    let constraint = VersionConstraint::Exact("3.0.0".to_string());
+
+    let result = super::resolve_template_version(&constraint, &template);
+    assert!(result.is_err());
+    assert!(result.unwrap_err().to_string().contains("not found"));
+}
+
+#[test]
+fn test_resolve_template_version_caret() {
+    let template = make_test_template();
+    // ^1.0.0 should match 1.0.0 and 1.1.0, but not 2.0.0
+    let constraint = VersionConstraint::Caret("1.0.0".to_string());
+
+    let result = super::resolve_template_version(&constraint, &template);
+    assert!(result.is_ok());
+    // Should return highest matching version (1.1.0)
+    assert_eq!(result.unwrap(), "1.1.0");
+}
+
+#[test]
+fn test_resolve_template_version_tilde() {
+    let template = make_test_template();
+    // ~1.0.0 should match 1.0.x only
+    let constraint = VersionConstraint::Tilde("1.0.0".to_string());
+
+    let result = super::resolve_template_version(&constraint, &template);
+    assert!(result.is_ok());
+    // Should return 1.0.0 since there's no 1.0.x other than 1.0.0
+    assert_eq!(result.unwrap(), "1.0.0");
+}
+
+#[test]
+fn test_resolve_template_version_range() {
+    let template = make_test_template();
+    // >=1.0.0 <2.0.0 should match 1.0.0 and 1.1.0
+    let constraint = VersionConstraint::Range("1.0.0".to_string(), "2.0.0".to_string());
+
+    let result = super::resolve_template_version(&constraint, &template);
+    assert!(result.is_ok());
+    // Should return highest in range (1.1.0)
+    assert_eq!(result.unwrap(), "1.1.0");
+}
+
+#[test]
+fn test_resolve_template_version_no_match() {
+    let template = make_test_template();
+    // ^3.0.0 should not match any version
+    let constraint = VersionConstraint::Caret("3.0.0".to_string());
+
+    let result = super::resolve_template_version(&constraint, &template);
+    assert!(result.is_err());
+    let err_msg = result.unwrap_err().to_string();
+    assert!(err_msg.contains("No version matching"));
+    assert!(err_msg.contains("Available versions"));
 }
