@@ -247,6 +247,7 @@ release-extension version:
 # Release a template (creates and optionally pushes a version tag)
 # Usage: just release-template <template-name> <version>
 # Example: just release-template sql-types 1.0.0
+# Creates tag: cdm-template-sql-types-v1.0.0
 release-template template_name version:
   #!/usr/bin/env bash
   set -e
@@ -283,8 +284,8 @@ release-template template_name version:
     exit 1
   fi
 
-  # Create tag name
-  TAG="{{template_name}}-v{{version}}"
+  # Create tag name (matches workflow trigger pattern: cdm-template-*-v*.*.*)
+  TAG="cdm-template-{{template_name}}-v{{version}}"
 
   echo "Creating release for template {{template_name}} version {{version}}"
   echo "Tag: $TAG"
@@ -331,33 +332,12 @@ release-template template_name version:
     fs.writeFileSync(path, JSON.stringify(data, null, 2) + '\n');
   "
 
-  # Update templates.json registry if it exists
-  if [ -f "templates.json" ]; then
-    echo "Updating templates.json registry..."
-    node -e "
-      const fs = require('fs');
-      const data = JSON.parse(fs.readFileSync('templates.json', 'utf8'));
-      if (data.templates && data.templates['{{template_name}}']) {
-        const template = data.templates['{{template_name}}'];
-        template.versions['{{version}}'] = template.versions[template.latest] || {
-          git_url: 'https://github.com/cdm-lang/cdm.git',
-          git_ref: '{{template_name}}-v{{version}}',
-          git_path: 'templates/{{template_name}}'
-        };
-        template.versions['{{version}}'].git_ref = '{{template_name}}-v{{version}}';
-        template.latest = '{{version}}';
-        data.updated_at = new Date().toISOString().split('T')[0] + 'T00:00:00Z';
-      }
-      fs.writeFileSync('templates.json', JSON.stringify(data, null, 2) + '\n');
-    "
-  fi
+  # Note: templates.json is updated automatically by the GitHub workflow
+  # after the release is created with the correct download_url and checksum
 
   # Commit the version updates
   echo "Committing version update..."
   git add "$TEMPLATE_DIR/cdm-template.json"
-  if [ -f "templates.json" ]; then
-    git add templates.json
-  fi
   git commit -m "Release template {{template_name}} {{version}}"
 
   # Create tag
@@ -659,7 +639,7 @@ check-releases:
     for dir in templates/*/; do
       if [ -f "$dir/cdm-template.json" ]; then
         TEMPLATE_NAME=$(basename "$dir")
-        TEMPLATE_TAG=$(get_latest_tag "${TEMPLATE_NAME}-v*")
+        TEMPLATE_TAG=$(get_latest_tag "cdm-template-${TEMPLATE_NAME}-v*")
         TEMPLATE_VERSION=$(extract_version "$TEMPLATE_TAG")
         if has_changes_since_tag "$TEMPLATE_TAG" "$dir"; then
           if [ -n "$TEMPLATE_VERSION" ]; then
@@ -846,7 +826,7 @@ show-changes component="":
       *)
         # Check if it's a template
         if [ -d "templates/$FILTER" ]; then
-          TAG=$(get_latest_tag "${FILTER}-v*")
+          TAG=$(get_latest_tag "cdm-template-${FILTER}-v*")
           show_component_changes "Template: $FILTER" "$TAG" "templates/$FILTER/"
         else
           echo -e "${RED}Error: Unknown component '$FILTER'${NC}"
@@ -909,7 +889,7 @@ show-changes component="":
     for dir in templates/*/; do
       if [ -f "$dir/cdm-template.json" ]; then
         TEMPLATE_NAME=$(basename "$dir")
-        TEMPLATE_TAG=$(get_latest_tag "${TEMPLATE_NAME}-v*")
+        TEMPLATE_TAG=$(get_latest_tag "cdm-template-${TEMPLATE_NAME}-v*")
         if has_changes_since_tag "$TEMPLATE_TAG" "$dir"; then
           show_component_changes "Template: $TEMPLATE_NAME" "$TEMPLATE_TAG" "$dir"
           FOUND_CHANGES=true
@@ -1024,7 +1004,7 @@ release-all:
     for dir in templates/*/; do
       if [ -f "$dir/cdm-template.json" ]; then
         TEMPLATE_NAME=$(basename "$dir")
-        TEMPLATE_TAG=$(get_latest_tag "${TEMPLATE_NAME}-v*")
+        TEMPLATE_TAG=$(get_latest_tag "cdm-template-${TEMPLATE_NAME}-v*")
         TEMPLATE_VERSION=$(extract_version "$TEMPLATE_TAG")
         if has_changes_since_tag "$TEMPLATE_TAG" "$dir"; then
           if [ -n "$TEMPLATE_VERSION" ]; then
@@ -1062,7 +1042,7 @@ release-all:
         echo "  - Plugin ${PARTS[1]} v${PARTS[2]} (tag: ${PARTS[1]}-v${PARTS[2]})"
         ;;
       template)
-        echo "  - Template ${PARTS[1]} v${PARTS[2]} (tag: ${PARTS[1]}-v${PARTS[2]})"
+        echo "  - Template ${PARTS[1]} v${PARTS[2]} (tag: cdm-template-${PARTS[1]}-v${PARTS[2]})"
         ;;
     esac
   done
@@ -1166,7 +1146,7 @@ release-all:
       template)
         TEMPLATE_NAME="${PARTS[1]}"
         VERSION="${PARTS[2]}"
-        TAG="$TEMPLATE_NAME-v$VERSION"
+        TAG="cdm-template-$TEMPLATE_NAME-v$VERSION"
         TEMPLATE_DIR="templates/$TEMPLATE_NAME"
         echo -e "${BLUE}Releasing template $TEMPLATE_NAME v$VERSION...${NC}"
 
@@ -1179,28 +1159,11 @@ release-all:
           fs.writeFileSync(path, JSON.stringify(data, null, 2) + '\n');
         " 2>/dev/null || true
 
-        # Update templates.json registry if it exists
-        if [ -f "templates.json" ]; then
-          node -e "
-            const fs = require('fs');
-            const data = JSON.parse(fs.readFileSync('templates.json', 'utf8'));
-            if (data.templates && data.templates['$TEMPLATE_NAME']) {
-              const template = data.templates['$TEMPLATE_NAME'];
-              template.versions['$VERSION'] = {
-                git_url: 'https://github.com/cdm-lang/cdm.git',
-                git_ref: '$TEMPLATE_NAME-v$VERSION',
-                git_path: 'templates/$TEMPLATE_NAME'
-              };
-              template.latest = '$VERSION';
-              data.updated_at = new Date().toISOString().split('T')[0] + 'T00:00:00Z';
-            }
-            fs.writeFileSync('templates.json', JSON.stringify(data, null, 2) + '\n');
-          " 2>/dev/null || true
-        fi
+        # Note: templates.json is updated automatically by the GitHub workflow
+        # after the release is created with the correct download_url and checksum
 
         # Commit and tag
         git add "$TEMPLATE_DIR/cdm-template.json" 2>/dev/null || true
-        git add templates.json 2>/dev/null || true
         git commit -m "Release template $TEMPLATE_NAME $VERSION" 2>/dev/null || true
         git tag -a "$TAG" -m "Release template $TEMPLATE_NAME v$VERSION"
 
