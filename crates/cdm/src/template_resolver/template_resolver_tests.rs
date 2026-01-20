@@ -565,25 +565,22 @@ fn make_test_template() -> RegistryTemplate {
     versions.insert(
         "1.0.0".to_string(),
         RegistryTemplateVersion {
-            git_url: "https://github.com/test/repo.git".to_string(),
-            git_ref: "v1.0.0".to_string(),
-            git_path: Some("templates/test".to_string()),
+            download_url: "https://example.com/v1.0.0.tar.gz".to_string(),
+            checksum: "sha256:v100hash".to_string(),
         },
     );
     versions.insert(
         "1.1.0".to_string(),
         RegistryTemplateVersion {
-            git_url: "https://github.com/test/repo.git".to_string(),
-            git_ref: "v1.1.0".to_string(),
-            git_path: Some("templates/test".to_string()),
+            download_url: "https://example.com/v1.1.0.tar.gz".to_string(),
+            checksum: "sha256:v110hash".to_string(),
         },
     );
     versions.insert(
         "2.0.0".to_string(),
         RegistryTemplateVersion {
-            git_url: "https://github.com/test/repo.git".to_string(),
-            git_ref: "v2.0.0".to_string(),
-            git_path: Some("templates/test".to_string()),
+            download_url: "https://example.com/v2.0.0.tar.gz".to_string(),
+            checksum: "sha256:v200hash".to_string(),
         },
     );
 

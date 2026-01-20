@@ -1,0 +1,204 @@
+name: Template Release
+
+on:
+  push:
+    tags:
+      - '*-v*.*.*'
+      # Exclude plugin and CLI tags
+      - '!cdm-plugin-*'
+      - '!cdm-v*'
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  release:
+    name: Create Template Release
+    runs-on: ubuntu-latest
+    # Only run if this looks like a template tag (not a plugin)
+    if: ${{ !startsWith(github.ref_name, 'cdm-plugin-') && !startsWith(github.ref_name, 'cdm-v') }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Extract template info from tag
+        id: tag_info
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          echo "tag=$TAG" >> $GITHUB_OUTPUT
+
+          # Extract template name (e.g., sql-types from sql-types-v1.0.0)
+          TEMPLATE_NAME=$(echo $TAG | sed -E 's/-v[0-9]+\.[0-9]+\.[0-9]+$//')
+          echo "template_name=$TEMPLATE_NAME" >> $GITHUB_OUTPUT
+
+          # Extract version (e.g., 1.0.0 from sql-types-v1.0.0)
+          VERSION=$(echo $TAG | sed -E 's/.*-v([0-9]+\.[0-9]+\.[0-9]+)$/\1/')
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+          echo "Releasing template: $TEMPLATE_NAME v$VERSION"
+
+      - name: Verify template exists
+        id: verify
+        run: |
+          TEMPLATE_DIR="templates/${{ steps.tag_info.outputs.template_name }}"
+
+          if [ ! -d "$TEMPLATE_DIR" ]; then
+            echo "Error: Template directory not found: $TEMPLATE_DIR"
+            exit 1
+          fi
+
+          if [ ! -f "$TEMPLATE_DIR/cdm-template.json" ]; then
+            echo "Error: cdm-template.json not found in $TEMPLATE_DIR"
+            exit 1
+          fi
+
+          echo "template_dir=$TEMPLATE_DIR" >> $GITHUB_OUTPUT
+          echo "Template verified: $TEMPLATE_DIR"
+
+      - name: Create template archive
+        id: archive
+        run: |
+          TEMPLATE_NAME="${{ steps.tag_info.outputs.template_name }}"
+          VERSION="${{ steps.tag_info.outputs.version }}"
+          TEMPLATE_DIR="${{ steps.verify.outputs.template_dir }}"
+          ARCHIVE_NAME="${TEMPLATE_NAME}-${VERSION}.tar.gz"
+
+          # Create archive from template directory
+          tar -czvf "$ARCHIVE_NAME" -C templates "$TEMPLATE_NAME"
+
+          echo "archive_name=$ARCHIVE_NAME" >> $GITHUB_OUTPUT
+          echo "Created archive: $ARCHIVE_NAME"
+          ls -la "$ARCHIVE_NAME"
+
+      - name: Generate checksum
+        id: checksum
+        run: |
+          ARCHIVE="${{ steps.archive.outputs.archive_name }}"
+          CHECKSUM=$(shasum -a 256 "$ARCHIVE" | awk '{print $1}')
+          echo "$CHECKSUM" > "${ARCHIVE}.sha256"
+          echo "checksum=$CHECKSUM" >> $GITHUB_OUTPUT
+          echo "Checksum: $CHECKSUM"
+
+      - name: Create release notes
+        run: |
+          TEMPLATE_NAME="${{ steps.tag_info.outputs.template_name }}"
+          VERSION="${{ steps.tag_info.outputs.version }}"
+          TEMPLATE_DIR="${{ steps.verify.outputs.template_dir }}"
+
+          # Read description from cdm-template.json
+          DESCRIPTION=$(jq -r '.description // "No description"' "$TEMPLATE_DIR/cdm-template.json")
+
+          cat > release_notes.md << EOF
+          # $TEMPLATE_NAME v$VERSION
+
+          $DESCRIPTION
+
+          ## Installation
+
+          This template can be used in CDM projects:
+
+          \`\`\`cdm
+          import types from "$TEMPLATE_NAME"
+          \`\`\`
+
+          To cache locally:
+
+          \`\`\`bash
+          cdm template cache $TEMPLATE_NAME
+          \`\`\`
+
+          ## Checksum
+
+          SHA256: \`${{ steps.checksum.outputs.checksum }}\`
+
+          ## Files
+
+          - \`${{ steps.archive.outputs.archive_name }}\` - Template archive
+          - \`${{ steps.archive.outputs.archive_name }}.sha256\` - SHA256 checksum
+          EOF
+
+          echo "Release notes created"
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: ${{ steps.tag_info.outputs.tag }}
+          name: ${{ steps.tag_info.outputs.template_name }} v${{ steps.tag_info.outputs.version }}
+          body_path: release_notes.md
+          files: |
+            ${{ steps.archive.outputs.archive_name }}
+            ${{ steps.archive.outputs.archive_name }}.sha256
+          draft: false
+          prerelease: false
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Update templates.json
+        run: |
+          TEMPLATE_NAME="${{ steps.tag_info.outputs.template_name }}"
+          VERSION="${{ steps.tag_info.outputs.version }}"
+          TEMPLATE_DIR="${{ steps.verify.outputs.template_dir }}"
+          ARCHIVE_NAME="${{ steps.archive.outputs.archive_name }}"
+          CHECKSUM="${{ steps.checksum.outputs.checksum }}"
+
+          # Read description from cdm-template.json
+          DESCRIPTION=$(jq -r '.description // "CDM template"' "$TEMPLATE_DIR/cdm-template.json")
+
+          # Construct download URL
+          DOWNLOAD_URL="https://github.com/${{ github.repository }}/releases/download/${{ steps.tag_info.outputs.tag }}/$ARCHIVE_NAME"
+
+          echo "Updating templates.json for: $TEMPLATE_NAME"
+          echo "Version: $VERSION"
+          echo "URL: $DOWNLOAD_URL"
+          echo "Checksum: $CHECKSUM"
+
+          # Update templates.json using jq
+          jq --arg name "$TEMPLATE_NAME" \
+             --arg version "$VERSION" \
+             --arg desc "$DESCRIPTION" \
+             --arg url "$DOWNLOAD_URL" \
+             --arg checksum "sha256:$CHECKSUM" \
+             --arg repo "git:https://github.com/${{ github.repository }}.git" \
+             --arg updated "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+             '
+             .updated_at = $updated |
+             .templates[$name] = {
+               description: $desc,
+               repository: $repo,
+               official: true,
+               versions: ((.templates[$name].versions // {}) + {
+                 ($version): {
+                   download_url: $url,
+                   checksum: $checksum
+                 }
+               }),
+               latest: $version
+             }
+             ' templates.json > templates.json.tmp
+
+          mv templates.json.tmp templates.json
+
+          echo "templates.json updated successfully"
+
+      - name: Commit templates.json update to main
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          # Fetch and checkout main branch
+          git fetch origin main
+          git checkout -B main origin/main
+
+          # Add and commit the updated registry
+          git add templates.json
+          git commit -m "Update registry: ${{ steps.tag_info.outputs.template_name }} v${{ steps.tag_info.outputs.version }}
+
+          Automatically updated templates.json for release ${{ steps.tag_info.outputs.tag }}
+
+          - Download URL: https://github.com/${{ github.repository }}/releases/download/${{ steps.tag_info.outputs.tag }}/${{ steps.archive.outputs.archive_name }}
+          - Checksum: sha256:${{ steps.checksum.outputs.checksum }}"
+
+          # Push to main
+          git push origin main

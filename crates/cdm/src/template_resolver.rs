@@ -407,6 +407,128 @@ fn resolve_git_template(url: &str, config: &Option<JSON>) -> Result<LoadedTempla
     })
 }
 
+/// Resolve a template from cache or download it
+fn resolve_cached_or_download_template(
+    name: &str,
+    version: &str,
+    download_url: &str,
+    checksum: &str,
+) -> Result<LoadedTemplate> {
+    use crate::registry;
+    use flate2::read::GzDecoder;
+    use tar::Archive;
+
+    let cache_path = registry::get_cache_path()?;
+    let templates_dir = cache_path.join("templates");
+    let template_dir = templates_dir.join(format!("{}@{}", name.replace('/', "_"), version));
+
+    // Check if already cached
+    let extracted_dir = find_cached_template_root(&template_dir);
+    if let Some(ref cached_path) = extracted_dir {
+        // Template is cached, load from disk
+        return resolve_local_template_dir(cached_path);
+    }
+
+    // Not cached, download and extract
+    std::fs::create_dir_all(&template_dir)?;
+
+    eprintln!("Downloading template {}@{} from {}...", name, version, download_url);
+
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(120))
+        .build()
+        .context("Failed to create HTTP client")?;
+
+    let response = client
+        .get(download_url)
+        .send()
+        .context("Failed to download template")?;
+
+    if !response.status().is_success() {
+        anyhow::bail!(
+            "HTTP error {} while downloading template from {}",
+            response.status(),
+            download_url
+        );
+    }
+
+    let bytes = response.bytes().context("Failed to read response bytes")?;
+
+    // Verify checksum
+    verify_template_checksum(&bytes, checksum)?;
+
+    // Extract tar.gz archive
+    let decoder = GzDecoder::new(bytes.as_ref());
+    let mut archive = Archive::new(decoder);
+
+    archive
+        .unpack(&template_dir)
+        .context("Failed to extract template archive")?;
+
+    // Find the extracted template root
+    let extracted_root = find_cached_template_root(&template_dir)
+        .ok_or_else(|| anyhow::anyhow!("Could not find cdm-template.json in extracted archive"))?;
+
+    // Load the template from the extracted directory
+    resolve_local_template_dir(&extracted_root)
+}
+
+/// Find the root directory of a cached template (where cdm-template.json is)
+fn find_cached_template_root(template_dir: &Path) -> Option<PathBuf> {
+    if !template_dir.exists() {
+        return None;
+    }
+
+    // Check if cdm-template.json is directly in template_dir
+    if template_dir.join("cdm-template.json").exists() {
+        return Some(template_dir.to_path_buf());
+    }
+
+    // Look in immediate subdirectories (tar extracts into a subdirectory)
+    if let Ok(entries) = std::fs::read_dir(template_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() && path.join("cdm-template.json").exists() {
+                return Some(path);
+            }
+        }
+    }
+
+    None
+}
+
+/// Verify checksum of downloaded data
+fn verify_template_checksum(data: &[u8], expected_checksum: &str) -> Result<()> {
+    use sha2::{Digest, Sha256};
+
+    // Parse expected checksum format: "sha256:hexstring"
+    let parts: Vec<&str> = expected_checksum.split(':').collect();
+    if parts.len() != 2 {
+        anyhow::bail!("Invalid checksum format: {}", expected_checksum);
+    }
+
+    let (algorithm, expected_hash) = (parts[0], parts[1]);
+
+    match algorithm {
+        "sha256" => {
+            let mut hasher = Sha256::new();
+            hasher.update(data);
+            let actual_hash = format!("{:x}", hasher.finalize());
+
+            if actual_hash != expected_hash {
+                anyhow::bail!(
+                    "Checksum mismatch!\n  Expected: sha256:{}\n  Actual:   sha256:{}",
+                    expected_hash,
+                    actual_hash
+                );
+            }
+        }
+        _ => anyhow::bail!("Unsupported checksum algorithm: {}", algorithm),
+    }
+
+    Ok(())
+}
+
 /// Resolve a registry template
 fn resolve_registry_template(name: &str, config: &Option<JSON>) -> Result<LoadedTemplate> {
     use crate::diagnostics::E601_TEMPLATE_NOT_FOUND;
@@ -452,19 +574,14 @@ fn resolve_registry_template(name: &str, config: &Option<JSON>) -> Result<Loaded
             )
         })?;
 
-    // Build config for resolve_git_template with git info from registry
-    let git_config = {
-        let mut obj = serde_json::Map::new();
-        obj.insert("git_ref".to_string(), JSON::String(version_info.git_ref.clone()));
-        if let Some(ref git_path) = version_info.git_path {
-            obj.insert("git_path".to_string(), JSON::String(git_path.clone()));
-        }
-        Some(JSON::Object(obj))
-    };
-
-    // Delegate to resolve_git_template
-    let mut loaded = resolve_git_template(&version_info.git_url, &git_config)
-        .with_context(|| format!("Failed to resolve template '{}' version '{}'", base_name, resolved_version))?;
+    // Resolve template from cache or download
+    let mut loaded = resolve_cached_or_download_template(
+        &base_name,
+        &resolved_version,
+        &version_info.download_url,
+        &version_info.checksum,
+    )
+    .with_context(|| format!("Failed to resolve template '{}' version '{}'", base_name, resolved_version))?;
 
     // If a subpath export was specified, resolve it to the correct entry file
     if let Some(subpath) = subpath_export {

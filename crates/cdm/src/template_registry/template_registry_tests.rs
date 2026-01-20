@@ -13,9 +13,8 @@ fn test_parse_template_registry_json() {
                 "official": true,
                 "versions": {
                     "1.0.0": {
-                        "git_url": "https://github.com/cdm-lang/cdm.git",
-                        "git_ref": "main",
-                        "git_path": "templates/sql-types"
+                        "download_url": "https://github.com/cdm-lang/cdm/releases/download/sql-types-v1.0.0/sql-types-1.0.0.tar.gz",
+                        "checksum": "sha256:abc123"
                     }
                 },
                 "latest": "1.0.0"
@@ -33,8 +32,8 @@ fn test_parse_template_registry_json() {
     assert_eq!(template.latest, "1.0.0");
 
     let version = template.versions.get("1.0.0").unwrap();
-    assert_eq!(version.git_ref, "main");
-    assert_eq!(version.git_path, Some("templates/sql-types".to_string()));
+    assert!(version.download_url.contains("sql-types"));
+    assert_eq!(version.checksum, "sha256:abc123");
 }
 
 #[test]
@@ -84,9 +83,8 @@ fn test_template_registry_serialization_round_trip() {
                 v.insert(
                     "1.0.0".to_string(),
                     RegistryTemplateVersion {
-                        git_url: "https://github.com/test/template.git".to_string(),
-                        git_ref: "v1.0.0".to_string(),
-                        git_path: Some("templates/test".to_string()),
+                        download_url: "https://github.com/test/template/releases/download/v1.0.0/test-1.0.0.tar.gz".to_string(),
+                        checksum: "sha256:abc123".to_string(),
                     },
                 );
                 v
@@ -110,16 +108,15 @@ fn test_template_registry_serialization_round_trip() {
 }
 
 #[test]
-fn test_template_version_without_git_path() {
+fn test_template_version_parsing() {
     let json = r#"{
-        "git_url": "https://github.com/test/repo.git",
-        "git_ref": "v1.0.0"
+        "download_url": "https://github.com/test/repo/releases/download/v1.0.0/template-1.0.0.tar.gz",
+        "checksum": "sha256:def456"
     }"#;
 
     let version: RegistryTemplateVersion = serde_json::from_str(json).unwrap();
-    assert_eq!(version.git_url, "https://github.com/test/repo.git");
-    assert_eq!(version.git_ref, "v1.0.0");
-    assert!(version.git_path.is_none());
+    assert!(version.download_url.contains("v1.0.0"));
+    assert_eq!(version.checksum, "sha256:def456");
 }
 
 #[test]
@@ -130,16 +127,16 @@ fn test_template_with_multiple_versions() {
         "official": false,
         "versions": {
             "1.0.0": {
-                "git_url": "https://github.com/test/repo.git",
-                "git_ref": "v1.0.0"
+                "download_url": "https://example.com/v1.0.0.tar.gz",
+                "checksum": "sha256:v1hash"
             },
             "2.0.0": {
-                "git_url": "https://github.com/test/repo.git",
-                "git_ref": "v2.0.0"
+                "download_url": "https://example.com/v2.0.0.tar.gz",
+                "checksum": "sha256:v2hash"
             },
             "2.1.0": {
-                "git_url": "https://github.com/test/repo.git",
-                "git_ref": "v2.1.0"
+                "download_url": "https://example.com/v2.1.0.tar.gz",
+                "checksum": "sha256:v21hash"
             }
         },
         "latest": "2.1.0"
@@ -181,17 +178,15 @@ fn test_get_template_version() {
     versions.insert(
         "1.0.0".to_string(),
         RegistryTemplateVersion {
-            git_url: "https://github.com/test.git".to_string(),
-            git_ref: "v1.0.0".to_string(),
-            git_path: None,
+            download_url: "https://example.com/v1.0.0.tar.gz".to_string(),
+            checksum: "sha256:v1hash".to_string(),
         },
     );
     versions.insert(
         "2.0.0".to_string(),
         RegistryTemplateVersion {
-            git_url: "https://github.com/test.git".to_string(),
-            git_ref: "v2.0.0".to_string(),
-            git_path: None,
+            download_url: "https://example.com/v2.0.0.tar.gz".to_string(),
+            checksum: "sha256:v2hash".to_string(),
         },
     );
 
@@ -206,12 +201,12 @@ fn test_get_template_version() {
     // Get specific version
     let v1 = get_template_version(&template, Some("1.0.0"));
     assert!(v1.is_some());
-    assert_eq!(v1.unwrap().git_ref, "v1.0.0");
+    assert!(v1.unwrap().download_url.contains("v1.0.0"));
 
     // Get latest version when None
     let latest = get_template_version(&template, None);
     assert!(latest.is_some());
-    assert_eq!(latest.unwrap().git_ref, "v2.0.0");
+    assert!(latest.unwrap().download_url.contains("v2.0.0"));
 
     // Get nonexistent version
     let nonexistent = get_template_version(&template, Some("3.0.0"));

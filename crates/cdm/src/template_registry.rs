@@ -28,13 +28,10 @@ pub struct RegistryTemplate {
 /// Version-specific template metadata
 #[derive(Debug, Clone, Deserialize, Serialize)]
 pub struct RegistryTemplateVersion {
-    /// Git URL for the template
-    pub git_url: String,
-    /// Git ref (tag, branch, commit) for this version
-    pub git_ref: String,
-    /// Optional subdirectory within the repository
-    #[serde(default, skip_serializing_if = "Option::is_none")]
-    pub git_path: Option<String>,
+    /// Direct download URL for the template archive (tar.gz)
+    pub download_url: String,
+    /// Checksum for verification (format: "sha256:<hash>")
+    pub checksum: String,
 }
 
 /// Template registry cache metadata

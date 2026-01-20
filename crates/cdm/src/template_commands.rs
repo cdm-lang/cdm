@@ -80,11 +80,8 @@ pub fn template_info(name: &str, show_versions: bool) -> Result<()> {
             let is_latest = version == &template.latest;
             let latest_marker = if is_latest { " (latest)" } else { "" };
             println!("  {}{}", version, latest_marker);
-            println!("    Git URL: {}", ver_info.git_url);
-            println!("    Git ref: {}", ver_info.git_ref);
-            if let Some(ref path) = ver_info.git_path {
-                println!("    Git path: {}", path);
-            }
+            println!("    Download URL: {}", ver_info.download_url);
+            println!("    Checksum: {}", ver_info.checksum);
         }
     } else {
         println!("\nUse --versions flag to see all available versions");
@@ -141,8 +138,8 @@ fn cache_single_template(name: &str) -> Result<()> {
 
     println!("Caching {}@{}...", base_name, version);
 
-    // Use git clone to cache the template
-    cache_template_from_git(&base_name, version, &ver_info.git_url, &ver_info.git_ref, ver_info.git_path.as_deref())?;
+    // Download and extract the template archive
+    cache_template_from_url(&base_name, version, &ver_info.download_url, &ver_info.checksum)?;
 
     println!("✓ Successfully cached {}@{}", base_name, version);
 
@@ -191,46 +188,72 @@ fn extract_base_template_name(name: &str) -> String {
     }
 }
 
-/// Cache a template from a git repository
-fn cache_template_from_git(
+/// Cache a template by downloading and extracting the archive
+fn cache_template_from_url(
     name: &str,
     version: &str,
-    git_url: &str,
-    git_ref: &str,
-    git_path: Option<&str>,
+    download_url: &str,
+    checksum: &str,
 ) -> Result<()> {
-    use crate::git_plugin;
     use crate::registry;
+    use flate2::read::GzDecoder;
+    use tar::Archive;
 
     let cache_path = registry::get_cache_path()?;
+    let templates_dir = cache_path.join("templates");
+    let template_dir = templates_dir.join(format!("{}@{}", name.replace('/', "_"), version));
 
-    // Clone or update git repository
-    let repo_path = git_plugin::clone_git_plugin_with_cache_path(git_url, git_ref, &cache_path)
-        .map_err(|e| anyhow::anyhow!("Failed to clone git repository '{}': {}", git_url, e))?;
+    // Create template directory
+    std::fs::create_dir_all(&template_dir)?;
 
-    // Navigate to subdirectory if specified
-    let template_dir = if let Some(path) = git_path {
-        repo_path.join(path)
-    } else {
-        repo_path
-    };
+    // Download the archive
+    eprintln!("Downloading template from {}...", download_url);
+
+    let client = reqwest::blocking::Client::builder()
+        .timeout(std::time::Duration::from_secs(120))
+        .build()
+        .context("Failed to create HTTP client")?;
+
+    let response = client
+        .get(download_url)
+        .send()
+        .context("Failed to download template")?;
+
+    if !response.status().is_success() {
+        anyhow::bail!(
+            "HTTP error {} while downloading template from {}",
+            response.status(),
+            download_url
+        );
+    }
+
+    let bytes = response.bytes().context("Failed to read response bytes")?;
+
+    // Verify checksum
+    verify_template_checksum(&bytes, checksum)?;
+
+    // Extract tar.gz archive
+    let decoder = GzDecoder::new(bytes.as_ref());
+    let mut archive = Archive::new(decoder);
+
+    // Extract to template directory
+    archive
+        .unpack(&template_dir)
+        .context("Failed to extract template archive")?;
+
+    // Find the actual template directory (archive contains a subdirectory with the template name)
+    // The archive structure is: {template-name}/cdm-template.json, etc.
+    let extracted_dir = find_template_root(&template_dir)?;
 
     // Verify cdm-template.json exists
-    let manifest_path = template_dir.join("cdm-template.json");
+    let manifest_path = extracted_dir.join("cdm-template.json");
     if !manifest_path.exists() {
         anyhow::bail!(
-            "No cdm-template.json found in template: {}\n\
-            Git URL: {}\n\
-            Git ref: {}\n\
-            {}",
-            template_dir.display(),
-            git_url,
-            git_ref,
-            if let Some(p) = git_path {
-                format!("Git path: {}", p)
-            } else {
-                String::new()
-            }
+            "No cdm-template.json found in template archive.\n\
+            Download URL: {}\n\
+            Extracted to: {}",
+            download_url,
+            template_dir.display()
         );
     }
 
@@ -246,17 +269,72 @@ fn cache_template_from_git(
     let metadata = serde_json::json!({
         "name": name,
         "version": version,
-        "git_url": git_url,
-        "git_ref": git_ref,
-        "git_path": git_path,
+        "download_url": download_url,
+        "checksum": checksum,
         "cached_at": cached_at,
-        "template_path": template_dir.to_string_lossy()
+        "template_path": extracted_dir.to_string_lossy()
     });
 
     std::fs::write(
         metadata_dir.join(format!("{}.json", version)),
         serde_json::to_string_pretty(&metadata)?,
     )?;
+
+    Ok(())
+}
+
+/// Find the root directory of the extracted template
+/// (the archive contains a subdirectory with the template files)
+fn find_template_root(template_dir: &Path) -> Result<std::path::PathBuf> {
+    // Look for cdm-template.json in immediate subdirectories
+    for entry in std::fs::read_dir(template_dir)? {
+        let entry = entry?;
+        let path = entry.path();
+        if path.is_dir() {
+            let manifest = path.join("cdm-template.json");
+            if manifest.exists() {
+                return Ok(path);
+            }
+        }
+    }
+
+    // If not found in subdirectory, check the root
+    let manifest = template_dir.join("cdm-template.json");
+    if manifest.exists() {
+        return Ok(template_dir.to_path_buf());
+    }
+
+    anyhow::bail!("Could not find cdm-template.json in extracted archive")
+}
+
+/// Verify checksum of downloaded data
+fn verify_template_checksum(data: &[u8], expected_checksum: &str) -> Result<()> {
+    use sha2::{Digest, Sha256};
+
+    // Parse expected checksum format: "sha256:hexstring"
+    let parts: Vec<&str> = expected_checksum.split(':').collect();
+    if parts.len() != 2 {
+        anyhow::bail!("Invalid checksum format: {}", expected_checksum);
+    }
+
+    let (algorithm, expected_hash) = (parts[0], parts[1]);
+
+    match algorithm {
+        "sha256" => {
+            let mut hasher = Sha256::new();
+            hasher.update(data);
+            let actual_hash = format!("{:x}", hasher.finalize());
+
+            if actual_hash != expected_hash {
+                anyhow::bail!(
+                    "Checksum mismatch!\n  Expected: sha256:{}\n  Actual:   sha256:{}",
+                    expected_hash,
+                    actual_hash
+                );
+            }
+        }
+        _ => anyhow::bail!("Unsupported checksum algorithm: {}", algorithm),
+    }
 
     Ok(())
 }
