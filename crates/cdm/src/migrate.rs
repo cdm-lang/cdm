@@ -145,8 +145,12 @@ pub fn migrate(
                 }
             }
 
-            let global_config = plugin_import.global_config.clone()
+            // Add migration_name to the config for the plugin to use
+            let mut global_config = plugin_import.global_config.clone()
                 .unwrap_or(serde_json::json!({}));
+            if let serde_json::Value::Object(ref mut map) = global_config {
+                map.insert("migration_name".to_string(), serde_json::json!(name.clone()));
+            }
 
             // Skip plugin if no migrations_output configured and no CLI override
             let has_migrations_output = global_config.get("migrations_output")
@@ -687,7 +691,26 @@ fn compute_inheritance_deltas(
 }
 
 /// Write migration files to the output directory
+///
+/// Returns an error if any migration file already exists to prevent accidental overwrites.
 fn write_migration_files(files: &[OutputFile], base_dir: &Path) -> Result<()> {
+    // First, check if any files already exist to prevent overwrites
+    let mut existing_files = Vec::new();
+    for file in files {
+        let full_path = base_dir.join(&file.path);
+        if full_path.exists() {
+            existing_files.push(full_path.display().to_string());
+        }
+    }
+
+    if !existing_files.is_empty() {
+        return Err(anyhow::anyhow!(
+            "Migration file(s) already exist and would be overwritten:\n  {}\n\nUse a different migration name or remove the existing files.",
+            existing_files.join("\n  ")
+        ));
+    }
+
+    // Now write the files
     for file in files {
         let full_path = base_dir.join(&file.path);
 

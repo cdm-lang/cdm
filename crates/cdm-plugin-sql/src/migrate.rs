@@ -21,8 +21,12 @@ pub fn migrate(
     let type_mapper = TypeMapper::new(&config, &current_schema.type_aliases);
     let dialect = type_mapper.dialect();
 
-    // Generate a simple migration number (would need to be tracked externally)
-    let migration_number = "001".to_string();
+    // Get migration name from config (passed by CDM core)
+    let migration_name = config
+        .get("migration_name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("001_migration")
+        .to_string();
 
     // Generate up and down migration contents
     let mut up_content = String::new();
@@ -529,12 +533,12 @@ pub fn migrate(
     };
 
     files.push(OutputFile {
-        path: format!("{}_migration.up.{}", migration_number, file_extension),
+        path: format!("{}.up.{}", migration_name, file_extension),
         content: up_content,
     });
 
     files.push(OutputFile {
-        path: format!("{}_migration.down.{}", migration_number, file_extension),
+        path: format!("{}.down.{}", migration_name, file_extension),
         content: down_content,
     });
 

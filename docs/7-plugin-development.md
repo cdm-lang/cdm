@@ -206,6 +206,24 @@ A plugin participates in CDM workflows as follows:
 * The plugin receives both schema and deltas
 * Migration files are generated
 
+#### Migration Name
+
+CDM passes the migration name (from the `--name` CLI flag) to plugins via the `migration_name` key in the config object. Plugins should use this to name their output files:
+
+```rust
+let migration_name = config
+    .get("migration_name")
+    .and_then(|v| v.as_str())
+    .unwrap_or("001_migration");
+
+vec![
+    OutputFile { path: format!("{}.up.sql", migration_name), content: up },
+    OutputFile { path: format!("{}.down.sql", migration_name), content: down },
+]
+```
+
+This ensures each migration has unique file names and prevents overwrites.
+
 Plugins may participate in any subset of these phases.
 
 ---

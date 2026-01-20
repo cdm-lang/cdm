@@ -1793,3 +1793,142 @@ fn test_context_isolation_prevents_cross_context_delta_pollution() {
          This indicates context isolation is broken - client is loading base's schema."
     );
 }
+
+// ============================================================================
+// Migration file overwrite prevention tests
+// ============================================================================
+
+#[test]
+fn test_write_migration_files_prevents_overwrite() {
+    // Test that write_migration_files returns an error when files already exist
+    use tempfile::TempDir;
+    use cdm_plugin_interface::OutputFile;
+
+    let temp_dir = TempDir::new().expect("Failed to create temp directory");
+    let base_dir = temp_dir.path();
+
+    // Create an existing migration file
+    let existing_file = base_dir.join("001_migration.up.postgres.sql");
+    std::fs::write(&existing_file, "-- existing content").expect("Failed to create existing file");
+
+    // Try to write a migration with the same name
+    let files = vec![
+        OutputFile {
+            path: "001_migration.up.postgres.sql".to_string(),
+            content: "-- new content".to_string(),
+        },
+        OutputFile {
+            path: "001_migration.down.postgres.sql".to_string(),
+            content: "-- new down content".to_string(),
+        },
+    ];
+
+    let result = write_migration_files(&files, base_dir);
+
+    assert!(
+        result.is_err(),
+        "write_migration_files should return error when files already exist"
+    );
+
+    let error_msg = result.unwrap_err().to_string();
+    assert!(
+        error_msg.contains("already exist"),
+        "Error message should mention files already exist: {}",
+        error_msg
+    );
+    assert!(
+        error_msg.contains("001_migration.up.postgres.sql"),
+        "Error message should mention the conflicting file: {}",
+        error_msg
+    );
+
+    // Verify the existing file was not overwritten
+    let existing_content = std::fs::read_to_string(&existing_file).expect("Failed to read file");
+    assert_eq!(
+        existing_content, "-- existing content",
+        "Existing file should not be modified when overwrite is prevented"
+    );
+}
+
+#[test]
+fn test_write_migration_files_succeeds_when_no_conflicts() {
+    // Test that write_migration_files succeeds when files don't exist
+    use tempfile::TempDir;
+    use cdm_plugin_interface::OutputFile;
+
+    let temp_dir = TempDir::new().expect("Failed to create temp directory");
+    let base_dir = temp_dir.path();
+
+    let files = vec![
+        OutputFile {
+            path: "002_add_users.up.postgres.sql".to_string(),
+            content: "-- new content".to_string(),
+        },
+        OutputFile {
+            path: "002_add_users.down.postgres.sql".to_string(),
+            content: "-- new down content".to_string(),
+        },
+    ];
+
+    let result = write_migration_files(&files, base_dir);
+
+    assert!(
+        result.is_ok(),
+        "write_migration_files should succeed when no conflicts: {:?}",
+        result.err()
+    );
+
+    // Verify files were created
+    let up_file = base_dir.join("002_add_users.up.postgres.sql");
+    let down_file = base_dir.join("002_add_users.down.postgres.sql");
+
+    assert!(up_file.exists(), "Up migration file should be created");
+    assert!(down_file.exists(), "Down migration file should be created");
+
+    let up_content = std::fs::read_to_string(&up_file).expect("Failed to read up file");
+    assert_eq!(up_content, "-- new content");
+}
+
+#[test]
+fn test_write_migration_files_lists_all_conflicting_files() {
+    // Test that when multiple files conflict, all are listed in the error
+    use tempfile::TempDir;
+    use cdm_plugin_interface::OutputFile;
+
+    let temp_dir = TempDir::new().expect("Failed to create temp directory");
+    let base_dir = temp_dir.path();
+
+    // Create both existing migration files
+    let up_file = base_dir.join("001_migration.up.postgres.sql");
+    let down_file = base_dir.join("001_migration.down.postgres.sql");
+    std::fs::write(&up_file, "-- existing up").expect("Failed to create up file");
+    std::fs::write(&down_file, "-- existing down").expect("Failed to create down file");
+
+    let files = vec![
+        OutputFile {
+            path: "001_migration.up.postgres.sql".to_string(),
+            content: "-- new up".to_string(),
+        },
+        OutputFile {
+            path: "001_migration.down.postgres.sql".to_string(),
+            content: "-- new down".to_string(),
+        },
+    ];
+
+    let result = write_migration_files(&files, base_dir);
+
+    assert!(result.is_err());
+    let error_msg = result.unwrap_err().to_string();
+
+    // Both files should be mentioned in the error
+    assert!(
+        error_msg.contains("001_migration.up.postgres.sql"),
+        "Error should mention up file: {}",
+        error_msg
+    );
+    assert!(
+        error_msg.contains("001_migration.down.postgres.sql"),
+        "Error should mention down file: {}",
+        error_msg
+    );
+}

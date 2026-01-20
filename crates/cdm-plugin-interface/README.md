@@ -249,6 +249,12 @@ pub fn migrate(
     config: JSON,
     utils: &Utils,
 ) -> Vec<OutputFile> {
+    // Get migration name from config (passed by CDM via --name flag)
+    let migration_name = config
+        .get("migration_name")
+        .and_then(|v| v.as_str())
+        .unwrap_or("001_migration");
+
     let mut up = String::new();
     let mut down = String::new();
 
@@ -268,10 +274,21 @@ pub fn migrate(
     }
 
     vec![
-        OutputFile { path: "up.sql".into(), content: up },
-        OutputFile { path: "down.sql".into(), content: down },
+        OutputFile { path: format!("{}.up.sql", migration_name), content: up },
+        OutputFile { path: format!("{}.down.sql", migration_name), content: down },
     ]
 }
+```
+
+#### Migration Name
+
+CDM passes the migration name (from `cdm migrate --name "..."`) to plugins via the `migration_name` key in the config object. Plugins should use this name when generating output file paths to ensure:
+
+- Each migration has unique file names
+- Multiple migrations don't overwrite each other
+- Users can organize migrations with meaningful names
+
+If `migration_name` is not present in config, use a sensible default (e.g., `"001_migration"`).
 ```
 
 ## Delta Types

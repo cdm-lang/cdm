@@ -91,7 +91,7 @@ Migrations describe how to evolve an existing system **when it changes**.
 ### Generating Migrations
 
 ```bash
-cdm migrate schema.cdm
+cdm migrate schema.cdm --name "add_users_table"
 ```
 
 This command:
@@ -100,9 +100,27 @@ This command:
 2. Builds the current schema
 3. Computes structural differences between the two
 4. Uses entity IDs to detect renames
-5. Invokes plugins’ migration steps
-6. Writes migration files
+5. Invokes plugins' migration steps
+6. Writes migration files (named based on the `--name` flag)
 7. Saves the current schema for future comparisons
+
+---
+
+### Migration Naming
+
+The `--name` flag specifies the migration name used for generated files:
+
+```bash
+cdm migrate schema.cdm --name "002_add_avatar_field"
+```
+
+This generates files like:
+- `002_add_avatar_field.up.postgres.sql`
+- `002_add_avatar_field.down.postgres.sql`
+
+If no name is provided, a default name is used (plugin-specific).
+
+**Overwrite Protection:** CDM will refuse to generate migrations if files with the same name already exist. This prevents accidental loss of existing migrations. Use a different name or remove the existing files first.
 
 ---
 

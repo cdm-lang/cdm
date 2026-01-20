@@ -1065,7 +1065,8 @@ fn test_migrate_multiple_deltas() {
 }
 
 #[test]
-fn test_migrate_file_naming() {
+fn test_migrate_file_naming_default() {
+    // Test default naming when no migration_name is provided
     let schema = Schema {
         type_aliases: HashMap::new(),
         models: HashMap::new(),
@@ -1082,18 +1083,59 @@ fn test_migrate_file_naming() {
         },
     }];
 
-    // Test PostgreSQL file naming
+    // Test PostgreSQL file naming with default name
     let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
     let utils = Utils;
     let files = migrate(schema.clone(), deltas.clone(), config, &utils);
     assert_eq!(files[0].path, "001_migration.up.postgres.sql");
     assert_eq!(files[1].path, "001_migration.down.postgres.sql");
 
-    // Test SQLite file naming
+    // Test SQLite file naming with default name
     let config = serde_json::json!({ "dialect": "sqlite", "pluralize_table_names": false });
     let files = migrate(schema, deltas, config, &utils);
     assert_eq!(files[0].path, "001_migration.up.sqlite.sql");
     assert_eq!(files[1].path, "001_migration.down.sqlite.sql");
+}
+
+#[test]
+fn test_migrate_file_naming_with_custom_name() {
+    // Test that migration_name from config is used for file naming
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models: HashMap::new(),
+    };
+
+    let deltas = vec![Delta::ModelAdded {
+        name: "User".to_string(),
+        after: ModelDefinition {
+            name: "User".to_string(),
+            entity_id: local_id(1),
+            parents: vec![],
+            fields: vec![],
+            config: serde_json::json!({}),
+        },
+    }];
+
+    // Test PostgreSQL with custom migration name
+    let config = serde_json::json!({
+        "dialect": "postgresql",
+        "pluralize_table_names": false,
+        "migration_name": "002_add_users_table"
+    });
+    let utils = Utils;
+    let files = migrate(schema.clone(), deltas.clone(), config, &utils);
+    assert_eq!(files[0].path, "002_add_users_table.up.postgres.sql");
+    assert_eq!(files[1].path, "002_add_users_table.down.postgres.sql");
+
+    // Test SQLite with custom migration name
+    let config = serde_json::json!({
+        "dialect": "sqlite",
+        "pluralize_table_names": false,
+        "migration_name": "003_initial_schema"
+    });
+    let files = migrate(schema, deltas, config, &utils);
+    assert_eq!(files[0].path, "003_initial_schema.up.sqlite.sql");
+    assert_eq!(files[1].path, "003_initial_schema.down.sqlite.sql");
 }
 
 #[test]

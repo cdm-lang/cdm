@@ -817,14 +817,24 @@ Location: Specified by `build_output` setting.
 
 ### Migration Files
 
+Migration files are named based on the `--name` flag passed to `cdm migrate`:
+
+```bash
+cdm migrate schema.cdm --name "002_add_users_table"
+```
+
 - **PostgreSQL:**
-  - `001_migration.up.postgres.sql`
-  - `001_migration.down.postgres.sql`
+  - `002_add_users_table.up.postgres.sql`
+  - `002_add_users_table.down.postgres.sql`
 - **SQLite:**
-  - `001_migration.up.sqlite.sql`
-  - `001_migration.down.sqlite.sql`
+  - `002_add_users_table.up.sqlite.sql`
+  - `002_add_users_table.down.sqlite.sql`
+
+If no `--name` is provided, defaults to `001_migration`.
 
 Location: Specified by `migrations_output` setting.
+
+**Note:** CDM will refuse to overwrite existing migration files. Use a unique name for each migration.
 
 ## Best Practices
 

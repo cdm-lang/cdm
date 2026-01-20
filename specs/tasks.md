@@ -17,44 +17,37 @@
 ## Known Bugs 🐛
 
 ### BUG-001: Migration `--name` flag not respected
-**Status:** 🐛 **Needs Fix**
+**Status:** ✅ **Fixed**
 **Severity:** Medium
 **Component:** `cdm migrate` command
 
 **Description:**
-The `--name` flag on the `cdm migrate` command is accepted but not used. According to the spec (Section 11.4), migration files should be organized into a subdirectory named after the migration:
+The `--name` flag on the `cdm migrate` command was accepted but not used. Migration files were always named `001_migration.{up|down}.{dialect}.sql`.
 
-```bash
-cdm migrate schema.cdm --name "add_avatar"
-# Expected: migrations/{plugin_name}/add_avatar/up.sql
-# Actual:   migrations/{plugin_name}/up.sql (no subdirectory created)
-```
+**Fix Applied:**
+- Migration name is now passed to plugins via the `migration_name` config key
+- The SQL plugin uses this name for file naming (e.g., `add_users_table.up.postgres.sql`)
+- Added file existence checking to prevent accidental overwrites
+- If a migration file already exists, CDM returns an error suggesting to use a different name
+
+**Files Modified:**
+- `crates/cdm/src/migrate.rs` - Added `migration_name` to plugin config, added file existence check
+- `crates/cdm-plugin-sql/src/migrate.rs` - Uses `migration_name` from config for file naming
 
 **Current Behavior:**
-- The `name` parameter is passed to `migrate()` function in [migrate.rs](../crates/cdm/src/migrate.rs) (line 13)
-- `resolve_migration_output_dir()` (line 674-702) determines output directory but ignores the name parameter
-- Migration files are written directly to `migrations_output/{plugin_name}/` without a named subdirectory
+```bash
+cdm migrate schema.cdm --name "add_users_table"
+# Creates: migrations/sql/add_users_table.up.postgres.sql
+# Creates: migrations/sql/add_users_table.down.postgres.sql
 
-**Expected Behavior:**
-- Migration files should be written to `{migrations_output}/{name}/`
-- Each migration gets its own timestamped or named directory
-- Allows multiple migrations to coexist without file conflicts
+# If files already exist, returns error:
+# "Migration file(s) already exist and would be overwritten"
+```
 
-**Fix Location:**
-- File: [crates/cdm/src/migrate.rs](../crates/cdm/src/migrate.rs)
-- Function: `resolve_migration_output_dir()` (line 674-702)
-- Change: Append `/{name}` to the resolved base directory
-- Alternative: Pass `name` to `write_migration_files()` and create subdirectory there
-
-**Impact:**
-- Multiple migrations overwrite each other's files
-- No version history of migrations maintained
-- Contradicts spec expectations for migration organization
-
-**Test Coverage Needed:**
-- Test that `--name foo` creates `migrations/plugin/foo/` directory
-- Test that multiple migrations with different names don't conflict
-- Test that default name (timestamp?) is used when `--name` not provided
+**Test Coverage:**
+- `test_migrate_file_naming_with_custom_name` - verifies custom name is used
+- `test_write_migration_files_prevents_overwrite` - verifies error on existing files
+- `test_write_migration_files_lists_all_conflicting_files` - verifies all conflicts reported
 
 ---
 
