@@ -484,6 +484,23 @@ fn test_extract_template_name_from_failed_to_load_message() {
 }
 
 #[test]
+fn test_extract_template_name_from_failed_to_resolve_message() {
+    // This is the actual error format when a template fails to resolve
+    // The namespace ('sql') is different from the template name ('sql-types')
+    let msg = "Failed to load template 'sql': Failed to resolve template 'sql-types' version '1.0.1'";
+    let result = extract_template_name(msg);
+    assert_eq!(result, Some("sql-types".to_string()));
+}
+
+#[test]
+fn test_extract_template_name_from_failed_to_resolve_with_subpath() {
+    // When importing "sql-types/postgres", the namespace is 'sql' but template is 'sql-types'
+    let msg = "Failed to load template 'sql': Failed to resolve template 'sql-types/postgres' version '1.0.1'";
+    let result = extract_template_name(msg);
+    assert_eq!(result, Some("sql-types".to_string()));
+}
+
+#[test]
 fn test_extract_template_name_with_subpath() {
     // When importing "sql-types/postgres", should extract just "sql-types"
     let msg = "E601: Template not found: 'sql-types/postgres' - Template 'sql-types/postgres' not found in registry";

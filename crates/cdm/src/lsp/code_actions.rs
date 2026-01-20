@@ -81,7 +81,12 @@ pub fn compute_code_actions(
         }
 
         // Handle E601: Template not found (missing template)
-        if diagnostic.message.contains("E601") || diagnostic.message.contains("Template not found") {
+        // Note: The diagnostic message may be "E601: Template not found: ..." OR
+        // "Failed to load template '...': ..." from validate.rs
+        if diagnostic.message.contains("E601")
+            || diagnostic.message.contains("Template not found")
+            || diagnostic.message.contains("Failed to load template")
+        {
             if let Some(template_name) = extract_template_name(&diagnostic.message) {
                 // Track unique template names to avoid duplicate actions
                 if !missing_templates_at_cursor.contains(&template_name) {
@@ -112,7 +117,11 @@ pub fn compute_code_actions(
     // Count all missing templates in the document (not just at cursor)
     let all_missing_templates: HashSet<String> = all_diagnostics
         .iter()
-        .filter(|d| d.message.contains("E601") || d.message.contains("Template not found"))
+        .filter(|d| {
+            d.message.contains("E601")
+                || d.message.contains("Template not found")
+                || d.message.contains("Failed to load template")
+        })
         .filter_map(|d| extract_template_name(&d.message))
         .collect();
 
@@ -237,6 +246,15 @@ fn extract_template_name(message: &str) -> Option<String> {
 
 /// Extract the full template path from error message (including any subpath)
 fn extract_full_template_path(message: &str) -> Option<String> {
+    // Try to match "Failed to resolve template 'name'" first (most specific)
+    // This appears in error chains like "Failed to load template 'sql': Failed to resolve template 'sql-types' version '1.0.1'"
+    if let Some(start) = message.find("Failed to resolve template '") {
+        let rest = &message[start + 28..];
+        if let Some(end) = rest.find('\'') {
+            return Some(rest[..end].to_string());
+        }
+    }
+
     // Try to match "Template 'name' not found"
     if let Some(start) = message.find("Template '") {
         let rest = &message[start + 10..];
@@ -253,7 +271,7 @@ fn extract_full_template_path(message: &str) -> Option<String> {
         }
     }
 
-    // Try to match "Failed to load template 'name'"
+    // Try to match "Failed to load template 'name'" (fallback)
     if let Some(start) = message.find("Failed to load template '") {
         let rest = &message[start + 25..];
         if let Some(end) = rest.find('\'') {
