@@ -7,6 +7,7 @@ on:
       # Exclude plugin and CLI tags
       - '!cdm-plugin-*'
       - '!cdm-v*'
+      - '!cdm-cli-*'
 
 permissions:
   contents: write
@@ -16,8 +17,8 @@ jobs:
   release:
     name: Create Template Release
     runs-on: ubuntu-latest
-    # Only run if this looks like a template tag (not a plugin)
-    if: ${{ !startsWith(github.ref_name, 'cdm-plugin-') && !startsWith(github.ref_name, 'cdm-v') }}
+    # Only run if this looks like a template tag (not a plugin or CLI)
+    if: ${{ !startsWith(github.ref_name, 'cdm-plugin-') && !startsWith(github.ref_name, 'cdm-v') && !startsWith(github.ref_name, 'cdm-cli-') }}
 
     steps:
       - name: Checkout code
