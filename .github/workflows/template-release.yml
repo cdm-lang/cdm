@@ -3,9 +3,14 @@ name: Template Release
 on:
   push:
     tags:
-      # Only trigger for explicit template tags: tpl-{name}-v{version}
-      # Example: tpl-sql-types-v1.0.0
-      - 'tpl-*-v*.*.*'
+      # Template tags: {template-name}-v{version}
+      # Example: sql-types-v1.0.0
+      - '*-v*.*.*'
+      # Exclude non-template tags
+      - '!cdm-plugin-*'
+      - '!cdm-cli-*'
+      - '!cdm-extension-*'
+      - '!cdm-v*'
 
 permissions:
   contents: write
@@ -15,6 +20,8 @@ jobs:
   release:
     name: Create Template Release
     runs-on: ubuntu-latest
+    # Additional check: skip if tag matches known non-template patterns
+    if: ${{ !startsWith(github.ref_name, 'cdm-plugin-') && !startsWith(github.ref_name, 'cdm-cli-') && !startsWith(github.ref_name, 'cdm-extension-') && !startsWith(github.ref_name, 'cdm-v') }}
 
     steps:
       - name: Checkout code
@@ -26,12 +33,12 @@ jobs:
           TAG=${GITHUB_REF#refs/tags/}
           echo "tag=$TAG" >> $GITHUB_OUTPUT
 
-          # Extract template name from tpl-{name}-v{version} format
-          # e.g., tpl-sql-types-v1.0.0 -> sql-types
-          TEMPLATE_NAME=$(echo $TAG | sed -E 's/^tpl-//' | sed -E 's/-v[0-9]+\.[0-9]+\.[0-9]+$//')
+          # Extract template name from {name}-v{version} format
+          # e.g., sql-types-v1.0.0 -> sql-types
+          TEMPLATE_NAME=$(echo $TAG | sed -E 's/-v[0-9]+\.[0-9]+\.[0-9]+$//')
           echo "template_name=$TEMPLATE_NAME" >> $GITHUB_OUTPUT
 
-          # Extract version (e.g., 1.0.0 from tpl-sql-types-v1.0.0)
+          # Extract version (e.g., 1.0.0 from sql-types-v1.0.0)
           VERSION=$(echo $TAG | sed -E 's/.*-v([0-9]+\.[0-9]+\.[0-9]+)$/\1/')
           echo "version=$VERSION" >> $GITHUB_OUTPUT
 
