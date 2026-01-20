@@ -117,33 +117,78 @@ pub fn cache_template_cmd(name: Option<&str>, all: bool) -> Result<()> {
 
 /// Cache a single template (latest version)
 fn cache_single_template(name: &str) -> Result<()> {
+    // Extract base template name (strip subpath exports like "/postgres")
+    let base_name = extract_base_template_name(name);
+
     let registry = template_registry::load_template_registry()?;
 
     let template = registry
         .templates
-        .get(name)
-        .ok_or_else(|| anyhow::anyhow!("Template '{}' not found in registry", name))?;
+        .get(&base_name)
+        .ok_or_else(|| anyhow::anyhow!("Template '{}' not found in registry", base_name))?;
 
     // Use latest version
     let version = &template.latest;
 
     // Check if already cached
-    if is_template_cached(name, version)? {
-        println!("✓ Template {}@{} is already cached", name, version);
+    if is_template_cached(&base_name, version)? {
+        println!("✓ Template {}@{} is already cached", base_name, version);
         return Ok(());
     }
 
     let ver_info = template.versions.get(version)
-        .ok_or_else(|| anyhow::anyhow!("Version {} not found for template {}", version, name))?;
+        .ok_or_else(|| anyhow::anyhow!("Version {} not found for template {}", version, base_name))?;
 
-    println!("Caching {}@{}...", name, version);
+    println!("Caching {}@{}...", base_name, version);
 
     // Use git clone to cache the template
-    cache_template_from_git(name, version, &ver_info.git_url, &ver_info.git_ref, ver_info.git_path.as_deref())?;
+    cache_template_from_git(&base_name, version, &ver_info.git_url, &ver_info.git_ref, ver_info.git_path.as_deref())?;
 
-    println!("✓ Successfully cached {}@{}", name, version);
+    println!("✓ Successfully cached {}@{}", base_name, version);
 
     Ok(())
+}
+
+/// Extract the base template name from a name that may include subpath exports.
+///
+/// Examples:
+/// - "sql-types" -> "sql-types"
+/// - "sql-types/postgres" -> "sql-types"
+/// - "sql-types/postgres.cdm" -> "sql-types"
+/// - "sql-types/postgres/v2" -> "sql-types"
+/// - "cdm/auth" -> "cdm/auth" (scoped name)
+/// - "cdm/auth/types" -> "cdm/auth"
+///
+/// Heuristic: A template name contains a dash (e.g., "sql-types"), while a scope
+/// is a short, simple word without dashes (e.g., "cdm", "org").
+fn extract_base_template_name(name: &str) -> String {
+    // Remove any .cdm extension
+    let name = name.trim_end_matches(".cdm");
+
+    let parts: Vec<&str> = name.split('/').collect();
+
+    if parts.len() >= 3 {
+        let first_part = parts[0];
+        // If first part has a dash, it's a template name, not a scope
+        if first_part.contains('-') {
+            // "sql-types/postgres/v2" -> "sql-types"
+            parts[0].to_string()
+        } else {
+            // "cdm/auth/types" -> "cdm/auth"
+            format!("{}/{}", parts[0], parts[1])
+        }
+    } else if parts.len() == 2 {
+        let first_part = parts[0];
+        // If first part has a dash, it's a template name (not a scope)
+        if first_part.contains('-') {
+            first_part.to_string()
+        } else {
+            // Scoped name like "cdm/auth"
+            name.to_string()
+        }
+    } else {
+        name.to_string()
+    }
 }
 
 /// Cache a template from a git repository

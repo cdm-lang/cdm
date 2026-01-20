@@ -674,3 +674,60 @@ fn test_resolve_template_version_no_match() {
     assert!(err_msg.contains("No version matching"));
     assert!(err_msg.contains("Available versions"));
 }
+
+// =========================================================================
+// TEMPLATE NAME AND SUBPATH SPLITTING TESTS
+// =========================================================================
+
+#[test]
+fn test_split_template_name_simple() {
+    let (base, subpath) = super::split_template_name_and_subpath("sql-types");
+    assert_eq!(base, "sql-types");
+    assert_eq!(subpath, None);
+}
+
+#[test]
+fn test_split_template_name_with_subpath() {
+    let (base, subpath) = super::split_template_name_and_subpath("sql-types/postgres");
+    assert_eq!(base, "sql-types");
+    assert_eq!(subpath, Some("postgres".to_string()));
+}
+
+#[test]
+fn test_split_template_name_with_subpath_and_extension() {
+    let (base, subpath) = super::split_template_name_and_subpath("sql-types/postgres.cdm");
+    assert_eq!(base, "sql-types");
+    assert_eq!(subpath, Some("postgres".to_string()));
+}
+
+#[test]
+fn test_split_template_name_scoped() {
+    // Scoped names like "cdm/auth" should be kept together
+    let (base, subpath) = super::split_template_name_and_subpath("cdm/auth");
+    assert_eq!(base, "cdm/auth");
+    assert_eq!(subpath, None);
+}
+
+#[test]
+fn test_split_template_name_scoped_with_subpath() {
+    // "cdm/auth/types" -> base "cdm/auth", subpath "types"
+    let (base, subpath) = super::split_template_name_and_subpath("cdm/auth/types");
+    assert_eq!(base, "cdm/auth");
+    assert_eq!(subpath, Some("types".to_string()));
+}
+
+#[test]
+fn test_split_template_name_scoped_with_nested_subpath() {
+    // "cdm/auth/models/user" -> base "cdm/auth", subpath "models/user"
+    let (base, subpath) = super::split_template_name_and_subpath("cdm/auth/models/user");
+    assert_eq!(base, "cdm/auth");
+    assert_eq!(subpath, Some("models/user".to_string()));
+}
+
+#[test]
+fn test_split_template_name_with_nested_subpath() {
+    // "sql-types/postgres/v2" -> base "sql-types", subpath "postgres/v2"
+    let (base, subpath) = super::split_template_name_and_subpath("sql-types/postgres/v2");
+    assert_eq!(base, "sql-types");
+    assert_eq!(subpath, Some("postgres/v2".to_string()));
+}

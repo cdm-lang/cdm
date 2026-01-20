@@ -23,3 +23,39 @@ fn test_cache_template_cmd_requires_name_or_all() {
     assert!(result.is_err());
     assert!(result.unwrap_err().to_string().contains("Must specify"));
 }
+
+#[test]
+fn test_extract_base_template_name_simple() {
+    assert_eq!(extract_base_template_name("sql-types"), "sql-types");
+}
+
+#[test]
+fn test_extract_base_template_name_with_subpath() {
+    assert_eq!(extract_base_template_name("sql-types/postgres"), "sql-types");
+}
+
+#[test]
+fn test_extract_base_template_name_with_subpath_and_extension() {
+    assert_eq!(extract_base_template_name("sql-types/postgres.cdm"), "sql-types");
+}
+
+#[test]
+fn test_extract_base_template_name_with_nested_subpath() {
+    assert_eq!(extract_base_template_name("sql-types/postgres/v2"), "sql-types");
+}
+
+#[test]
+fn test_extract_base_template_name_scoped() {
+    // Scoped names without subpath are kept as-is
+    assert_eq!(extract_base_template_name("cdm/auth"), "cdm/auth");
+}
+
+#[test]
+fn test_extract_base_template_name_scoped_with_subpath() {
+    assert_eq!(extract_base_template_name("cdm/auth/types"), "cdm/auth");
+}
+
+#[test]
+fn test_extract_base_template_name_scoped_with_nested_subpath() {
+    assert_eq!(extract_base_template_name("cdm/auth/types/user"), "cdm/auth");
+}

@@ -484,6 +484,38 @@ fn test_extract_template_name_from_failed_to_load_message() {
 }
 
 #[test]
+fn test_extract_template_name_with_subpath() {
+    // When importing "sql-types/postgres", should extract just "sql-types"
+    let msg = "E601: Template not found: 'sql-types/postgres' - Template 'sql-types/postgres' not found in registry";
+    let result = extract_template_name(msg);
+    assert_eq!(result, Some("sql-types".to_string()));
+}
+
+#[test]
+fn test_extract_template_name_with_subpath_and_extension() {
+    // When importing "sql-types/postgres.cdm" (incorrect but should still work)
+    let msg = "E601: Template not found: 'sql-types/postgres.cdm' - Template 'sql-types/postgres.cdm' not found";
+    let result = extract_template_name(msg);
+    assert_eq!(result, Some("sql-types".to_string()));
+}
+
+#[test]
+fn test_extract_template_name_scoped_name() {
+    // Scoped names like "cdm/auth" should be kept as-is (no subpath)
+    let msg = "E601: Template not found: 'cdm/auth' - Template 'cdm/auth' not found in registry";
+    let result = extract_template_name(msg);
+    assert_eq!(result, Some("cdm/auth".to_string()));
+}
+
+#[test]
+fn test_extract_template_name_scoped_name_with_subpath() {
+    // "cdm/auth/types" should extract "cdm/auth" (scoped name with subpath)
+    let msg = "E601: Template not found: 'cdm/auth/types' - Template 'cdm/auth/types' not found";
+    let result = extract_template_name(msg);
+    assert_eq!(result, Some("cdm/auth".to_string()));
+}
+
+#[test]
 fn test_extract_template_name_no_match() {
     let msg = "E401: Plugin not found: 'typescript'";
     let result = extract_template_name(msg);

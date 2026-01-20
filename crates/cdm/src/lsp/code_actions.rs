@@ -192,8 +192,51 @@ fn create_download_all_plugins_action() -> CodeAction {
 /// Extract template name from error messages like:
 /// - "E601: Template not found: 'sql-types' - Template 'sql-types' not found in registry..."
 /// - "Template 'sql-types' not found in registry..."
-/// - "Failed to load template 'sql': ..."
+/// - "Failed to load template 'sql-types/postgres': ..."
+///
+/// Note: Template names may include subpath exports (e.g., "sql-types/postgres").
+/// We extract just the base template name for the download action.
+///
+/// Heuristic: A template name contains a dash (e.g., "sql-types"), while a scope
+/// is a short, simple word without dashes (e.g., "cdm", "org").
 fn extract_template_name(message: &str) -> Option<String> {
+    let full_name = extract_full_template_path(message)?;
+
+    // Remove any .cdm extension
+    let full_name = full_name.trim_end_matches(".cdm");
+
+    let parts: Vec<&str> = full_name.split('/').collect();
+
+    let base_name = if parts.len() >= 3 {
+        let first_part = parts[0];
+        // If first part has a dash, it's a template name, not a scope
+        if first_part.contains('-') {
+            // "sql-types/postgres/v2" -> "sql-types"
+            parts[0].to_string()
+        } else {
+            // "cdm/auth/types" -> "cdm/auth"
+            format!("{}/{}", parts[0], parts[1])
+        }
+    } else if parts.len() == 2 {
+        let first_part = parts[0];
+        // If first part has a dash, it's a template name (not a scope)
+        if first_part.contains('-') {
+            // "sql-types/postgres" -> "sql-types"
+            first_part.to_string()
+        } else {
+            // "cdm/auth" -> "cdm/auth" (scoped name)
+            full_name.to_string()
+        }
+    } else {
+        // Single part, use as-is
+        full_name.to_string()
+    };
+
+    Some(base_name)
+}
+
+/// Extract the full template path from error message (including any subpath)
+fn extract_full_template_path(message: &str) -> Option<String> {
     // Try to match "Template 'name' not found"
     if let Some(start) = message.find("Template '") {
         let rest = &message[start + 10..];

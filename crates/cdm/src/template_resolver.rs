@@ -412,6 +412,12 @@ fn resolve_registry_template(name: &str, config: &Option<JSON>) -> Result<Loaded
     use crate::diagnostics::E601_TEMPLATE_NOT_FOUND;
     use crate::{template_registry, version_resolver};
 
+    // Split the name into base template name and optional subpath export
+    // e.g., "sql-types/postgres" -> ("sql-types", Some("postgres"))
+    // e.g., "cdm/auth" -> ("cdm/auth", None) (scoped name, no subpath)
+    // e.g., "cdm/auth/types" -> ("cdm/auth", Some("types"))
+    let (base_name, subpath_export) = split_template_name_and_subpath(name);
+
     // Extract version constraint from config
     let version_constraint = config
         .as_ref()
@@ -426,11 +432,11 @@ fn resolve_registry_template(name: &str, config: &Option<JSON>) -> Result<Loaded
     let registry = template_registry::load_template_registry()
         .context("Failed to load template registry")?;
 
-    // Look up the template in the registry
-    let template = template_registry::lookup_template(&registry, name)
+    // Look up the base template name in the registry
+    let template = template_registry::lookup_template(&registry, &base_name)
         .ok_or_else(|| anyhow::anyhow!(
             "{}: Template not found: '{}' - Template '{}' not found in registry. Run 'cdm template cache {}' to download it.",
-            E601_TEMPLATE_NOT_FOUND, name, name, name
+            E601_TEMPLATE_NOT_FOUND, base_name, base_name, base_name
         ))?;
 
     // Resolve version constraint to a specific version
@@ -457,8 +463,33 @@ fn resolve_registry_template(name: &str, config: &Option<JSON>) -> Result<Loaded
     };
 
     // Delegate to resolve_git_template
-    resolve_git_template(&version_info.git_url, &git_config)
-        .with_context(|| format!("Failed to resolve template '{}' version '{}'", name, resolved_version))
+    let mut loaded = resolve_git_template(&version_info.git_url, &git_config)
+        .with_context(|| format!("Failed to resolve template '{}' version '{}'", base_name, resolved_version))?;
+
+    // If a subpath export was specified, resolve it to the correct entry file
+    if let Some(subpath) = subpath_export {
+        let export_key = format!("./{}", subpath);
+        let export_path = loaded.manifest.exports.get(&export_key)
+            .or_else(|| {
+                // Also try without the "./" prefix
+                loaded.manifest.exports.get(&subpath)
+            })
+            .ok_or_else(|| anyhow::anyhow!(
+                "Template '{}' does not export '{}'. Available exports: {}",
+                base_name,
+                subpath,
+                if loaded.manifest.exports.is_empty() {
+                    "none (only main entry available)".to_string()
+                } else {
+                    loaded.manifest.exports.keys().cloned().collect::<Vec<_>>().join(", ")
+                }
+            ))?;
+
+        // Update the entry path to use the export
+        loaded.entry_path = loaded.path.join(export_path.trim_start_matches("./"));
+    }
+
+    Ok(loaded)
 }
 
 /// Resolve a version constraint to a specific version for templates
@@ -498,6 +529,57 @@ fn resolve_template_version(
             matching_versions.sort_by(|a, b| a.0.cmp(&b.0));
             Ok(matching_versions.last().unwrap().1.clone())
         }
+    }
+}
+
+/// Split a template name into base name and optional subpath export.
+///
+/// Registry template names can include subpath exports:
+/// - "sql-types" -> ("sql-types", None)
+/// - "sql-types/postgres" -> ("sql-types", Some("postgres"))
+/// - "cdm/auth" -> ("cdm/auth", None) - scoped name, no subpath
+/// - "cdm/auth/types" -> ("cdm/auth", Some("types")) - scoped name with subpath
+///
+/// Heuristic: A template name contains a dash (e.g., "sql-types"), while a scope
+/// is a short, simple word without dashes (e.g., "cdm", "org").
+fn split_template_name_and_subpath(name: &str) -> (String, Option<String>) {
+    // Remove any .cdm extension that might have been included
+    let name = name.trim_end_matches(".cdm");
+
+    let parts: Vec<&str> = name.split('/').collect();
+
+    if parts.len() >= 3 {
+        // "cdm/auth/types" or "sql-types/postgres/v2"
+        let first_part = parts[0];
+        // If first part has a dash, it's a template name, not a scope
+        if first_part.contains('-') {
+            // "sql-types/postgres/v2" -> template "sql-types", subpath "postgres/v2"
+            let base_name = parts[0].to_string();
+            let subpath = parts[1..].join("/");
+            (base_name, Some(subpath))
+        } else {
+            // "cdm/auth/types" -> scoped name "cdm/auth", subpath "types"
+            let base_name = format!("{}/{}", parts[0], parts[1]);
+            let subpath = parts[2..].join("/");
+            (base_name, Some(subpath))
+        }
+    } else if parts.len() == 2 {
+        // Could be "sql-types/postgres" (template + subpath) or "cdm/auth" (scoped name)
+        let first_part = parts[0];
+        let second_part = parts[1];
+
+        // Heuristic: if first part contains a dash, it's a template name (not a scope)
+        // e.g., "sql-types" is a template, "cdm" is a scope
+        if first_part.contains('-') {
+            // "sql-types/postgres" -> template "sql-types" with subpath "postgres"
+            (first_part.to_string(), Some(second_part.to_string()))
+        } else {
+            // "cdm/auth" -> scoped template name, no subpath
+            (name.to_string(), None)
+        }
+    } else {
+        // Single part, no subpath
+        (name.to_string(), None)
     }
 }
 
