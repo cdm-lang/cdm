@@ -527,12 +527,33 @@ pub fn clear_template_cache_cmd(name: Option<&str>) -> Result<()> {
 
     let cache_path = registry::get_cache_path()?;
     let metadata_dir = cache_path.join("template_metadata");
+    let templates_dir = cache_path.join("templates");
 
     if let Some(template_name) = name {
-        let template_dir = metadata_dir.join(template_name.replace('/', "_"));
-        if template_dir.exists() {
-            println!("Clearing cache for '{}'...", template_name);
-            std::fs::remove_dir_all(&template_dir)?;
+        let safe_name = template_name.replace('/', "_");
+        let mut cleared = false;
+
+        // Clear metadata for this template
+        let template_metadata_dir = metadata_dir.join(&safe_name);
+        if template_metadata_dir.exists() {
+            std::fs::remove_dir_all(&template_metadata_dir)?;
+            cleared = true;
+        }
+
+        // Clear actual template directories (all versions)
+        if templates_dir.exists() {
+            for entry in std::fs::read_dir(&templates_dir)? {
+                let entry = entry?;
+                let dir_name = entry.file_name().to_string_lossy().to_string();
+                // Match directories like "sql-types@1.0.0"
+                if dir_name.starts_with(&format!("{}@", safe_name)) {
+                    std::fs::remove_dir_all(entry.path())?;
+                    cleared = true;
+                }
+            }
+        }
+
+        if cleared {
             println!("✓ Cleared cache for '{}'", template_name);
         } else {
             println!("Template '{}' is not cached", template_name);
@@ -541,15 +562,34 @@ pub fn clear_template_cache_cmd(name: Option<&str>) -> Result<()> {
         println!("Clearing all template caches...");
 
         // Ask for confirmation
-        println!("This will remove all cached template metadata. Continue? (y/N): ");
+        print!("This will remove all cached templates and the registry cache. Continue? (y/N): ");
+        std::io::Write::flush(&mut std::io::stdout())?;
         let mut input = String::new();
         std::io::stdin().read_line(&mut input)?;
 
         if input.trim().to_lowercase() == "y" {
+            // Clear metadata directory
             if metadata_dir.exists() {
                 std::fs::remove_dir_all(&metadata_dir)?;
             }
-            println!("✓ Cleared all template caches");
+
+            // Clear templates directory
+            if templates_dir.exists() {
+                std::fs::remove_dir_all(&templates_dir)?;
+            }
+
+            // Clear registry cache files
+            let registry_file = cache_path.join("templates.json");
+            let registry_meta_file = cache_path.join("templates.meta.json");
+
+            if registry_file.exists() {
+                std::fs::remove_file(&registry_file)?;
+            }
+            if registry_meta_file.exists() {
+                std::fs::remove_file(&registry_meta_file)?;
+            }
+
+            println!("✓ Cleared all template caches and registry");
         } else {
             println!("Cancelled");
         }
