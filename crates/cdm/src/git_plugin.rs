@@ -45,7 +45,7 @@ pub fn extract_wasm_from_repo(repo_path: &Path, subdir: Option<&str>) -> Result<
 
 /// Clone a git repository
 fn clone_git_repo(url: &str, dest: &Path, git_ref: &str) -> Result<()> {
-    println!("Cloning git repository {} (ref: {})...", url, git_ref);
+    eprintln!("Cloning git repository {} (ref: {})...", url, git_ref);
 
     // Get the parent directory of the destination to use as working directory
     // This ensures git runs in a valid directory even if the process's cwd is invalid
@@ -70,14 +70,14 @@ fn clone_git_repo(url: &str, dest: &Path, git_ref: &str) -> Result<()> {
         anyhow::bail!("git clone failed:\n{}", stderr);
     }
 
-    println!("Successfully cloned repository to {}", dest.display());
+    eprintln!("Successfully cloned repository to {}", dest.display());
 
     Ok(())
 }
 
 /// Update an existing git repository
 fn update_git_repo(repo_path: &Path, git_ref: &str) -> Result<()> {
-    println!(
+    eprintln!(
         "Updating git repository at {} (ref: {})...",
         repo_path.display(),
         git_ref
@@ -130,7 +130,7 @@ fn update_git_repo(repo_path: &Path, git_ref: &str) -> Result<()> {
         anyhow::bail!("git pull failed:\n{}", stderr);
     }
 
-    println!("Successfully updated repository");
+    eprintln!("Successfully updated repository");
 
     Ok(())
 }
