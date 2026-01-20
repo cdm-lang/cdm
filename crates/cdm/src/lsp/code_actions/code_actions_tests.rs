@@ -464,3 +464,161 @@ fn test_compute_code_actions_download_all_with_other_missing_plugins() {
     assert!(titles.iter().any(|t| t == "Download plugin 'typescript'"), "Missing typescript action");
     assert!(titles.iter().any(|t| t == "Download all missing plugins"), "Missing download all action");
 }
+
+// =========================================================================
+// TEMPLATE CODE ACTION TESTS
+// =========================================================================
+
+#[test]
+fn test_extract_template_name_from_e601_message() {
+    let msg = "E601: Template not found: 'sql-types' - Template 'sql-types' not found in registry. Run 'cdm template cache sql-types' to download it.";
+    let result = extract_template_name(msg);
+    assert_eq!(result, Some("sql-types".to_string()));
+}
+
+#[test]
+fn test_extract_template_name_from_failed_to_load_message() {
+    let msg = "Failed to load template 'sql-types': Template 'sql-types' not found in registry";
+    let result = extract_template_name(msg);
+    assert_eq!(result, Some("sql-types".to_string()));
+}
+
+#[test]
+fn test_extract_template_name_no_match() {
+    let msg = "E401: Plugin not found: 'typescript'";
+    let result = extract_template_name(msg);
+    assert_eq!(result, None);
+}
+
+#[test]
+fn test_compute_code_actions_e601_template_not_found() {
+    let text = r#"import pg from "sql-types/postgres""#;
+    let range = Range::new(Position::new(0, 0), Position::new(0, 35));
+    let diagnostics = vec![Diagnostic {
+        range,
+        severity: Some(tower_lsp::lsp_types::DiagnosticSeverity::ERROR),
+        message: "E601: Template not found: 'sql-types' - Template 'sql-types' not found in registry".to_string(),
+        ..Default::default()
+    }];
+    let uri = Url::parse("file:///test.cdm").unwrap();
+
+    let result = compute_code_actions(text, range, &diagnostics, &diagnostics, &uri);
+    assert!(result.is_some());
+    let actions = result.unwrap();
+    assert_eq!(actions.len(), 1);
+
+    if let CodeActionOrCommand::CodeAction(action) = &actions[0] {
+        assert_eq!(action.title, "Download template 'sql-types'");
+        assert!(action.command.is_some());
+        let cmd = action.command.as_ref().unwrap();
+        assert_eq!(cmd.command, "cdm.downloadTemplate");
+        assert!(cmd.arguments.is_some());
+        let args = cmd.arguments.as_ref().unwrap();
+        assert_eq!(args.len(), 1);
+        assert_eq!(args[0], serde_json::Value::String("sql-types".to_string()));
+    } else {
+        panic!("Expected CodeAction");
+    }
+}
+
+#[test]
+fn test_compute_code_actions_multiple_missing_templates() {
+    let text = r#"import pg from "sql-types/postgres"
+import auth from "auth-types/base""#;
+    let range = Range::new(Position::new(0, 0), Position::new(1, 35));
+    let diagnostics = vec![
+        Diagnostic {
+            range: Range::new(Position::new(0, 0), Position::new(0, 35)),
+            severity: Some(tower_lsp::lsp_types::DiagnosticSeverity::ERROR),
+            message: "E601: Template not found: 'sql-types' - Template 'sql-types' not found in registry".to_string(),
+            ..Default::default()
+        },
+        Diagnostic {
+            range: Range::new(Position::new(1, 0), Position::new(1, 35)),
+            severity: Some(tower_lsp::lsp_types::DiagnosticSeverity::ERROR),
+            message: "E601: Template not found: 'auth-types' - Template 'auth-types' not found in registry".to_string(),
+            ..Default::default()
+        },
+    ];
+    let uri = Url::parse("file:///test.cdm").unwrap();
+
+    let result = compute_code_actions(text, range, &diagnostics, &diagnostics, &uri);
+    assert!(result.is_some());
+    let actions = result.unwrap();
+    // Should have 2 individual download actions only (no "download all" since cursor is on both)
+    assert_eq!(actions.len(), 2);
+
+    let titles: Vec<String> = actions.iter().filter_map(|a| {
+        if let CodeActionOrCommand::CodeAction(action) = a {
+            Some(action.title.clone())
+        } else {
+            None
+        }
+    }).collect();
+
+    assert!(titles.iter().any(|t| t == "Download template 'sql-types'"));
+    assert!(titles.iter().any(|t| t == "Download template 'auth-types'"));
+}
+
+#[test]
+fn test_compute_code_actions_download_all_templates_with_other_missing() {
+    // Test that "download all templates" appears when there are missing templates at cursor
+    // AND other missing templates elsewhere in the document
+    let text = r#"import pg from "sql-types/postgres"
+import auth from "auth-types/base""#;
+    // Cursor is only on the first line (sql-types)
+    let cursor_range = Range::new(Position::new(0, 0), Position::new(0, 35));
+
+    // Diagnostic at cursor (sql-types)
+    let cursor_diagnostics = vec![
+        Diagnostic {
+            range: Range::new(Position::new(0, 0), Position::new(0, 35)),
+            severity: Some(tower_lsp::lsp_types::DiagnosticSeverity::ERROR),
+            message: "E601: Template not found: 'sql-types' - Template 'sql-types' not found in registry".to_string(),
+            ..Default::default()
+        },
+    ];
+
+    // All diagnostics in the document (both sql-types and auth-types)
+    let all_diagnostics = vec![
+        Diagnostic {
+            range: Range::new(Position::new(0, 0), Position::new(0, 35)),
+            severity: Some(tower_lsp::lsp_types::DiagnosticSeverity::ERROR),
+            message: "E601: Template not found: 'sql-types' - Template 'sql-types' not found in registry".to_string(),
+            ..Default::default()
+        },
+        Diagnostic {
+            range: Range::new(Position::new(1, 0), Position::new(1, 35)),
+            severity: Some(tower_lsp::lsp_types::DiagnosticSeverity::ERROR),
+            message: "E601: Template not found: 'auth-types' - Template 'auth-types' not found in registry".to_string(),
+            ..Default::default()
+        },
+    ];
+    let uri = Url::parse("file:///test.cdm").unwrap();
+
+    let result = compute_code_actions(text, cursor_range, &cursor_diagnostics, &all_diagnostics, &uri);
+    assert!(result.is_some());
+    let actions = result.unwrap();
+
+    // Should have 1 download action for sql-types + 1 "download all" action
+    assert_eq!(actions.len(), 2, "Expected 2 actions, got: {:?}",
+        actions.iter().filter_map(|a| {
+            if let CodeActionOrCommand::CodeAction(action) = a {
+                Some(action.title.clone())
+            } else {
+                None
+            }
+        }).collect::<Vec<_>>()
+    );
+
+    let titles: Vec<String> = actions.iter().filter_map(|a| {
+        if let CodeActionOrCommand::CodeAction(action) = a {
+            Some(action.title.clone())
+        } else {
+            None
+        }
+    }).collect();
+
+    assert!(titles.iter().any(|t| t == "Download template 'sql-types'"), "Missing sql-types action");
+    assert!(titles.iter().any(|t| t == "Download all missing templates"), "Missing download all action");
+}

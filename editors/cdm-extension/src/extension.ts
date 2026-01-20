@@ -75,9 +75,19 @@ export async function activate(context: vscode.ExtensionContext) {
     vscode.commands.registerCommand('cdm.downloadAllPlugins', async () => {
       outputChannel.appendLine('cdm.downloadAllPlugins called');
       await downloadAllPlugins();
+    }),
+    vscode.commands.registerCommand('cdm.downloadTemplate', async (...args: unknown[]) => {
+      outputChannel.appendLine(`cdm.downloadTemplate called with args: ${JSON.stringify(args)}`);
+      const templateName = args[0] as string;
+      outputChannel.appendLine(`Extracted templateName: ${templateName}`);
+      await downloadTemplate(templateName);
+    }),
+    vscode.commands.registerCommand('cdm.downloadAllTemplates', async () => {
+      outputChannel.appendLine('cdm.downloadAllTemplates called');
+      await downloadAllTemplates();
     })
   );
-  outputChannel.appendLine('Commands registered: cdm.restartServer, cdm.updateCli, cdm.build, cdm.migrate, cdm.downloadPlugin, cdm.downloadAllPlugins');
+  outputChannel.appendLine('Commands registered: cdm.restartServer, cdm.updateCli, cdm.build, cdm.migrate, cdm.downloadPlugin, cdm.downloadAllPlugins, cdm.downloadTemplate, cdm.downloadAllTemplates');
 
   // Register on-save handler for auto-assigning entity IDs
   context.subscriptions.push(
@@ -838,6 +848,161 @@ async function downloadAllPlugins(): Promise<void> {
   } catch (error) {
     const message = error instanceof Error ? error.message : String(error);
     vscode.window.showErrorMessage(`Failed to cache plugins: ${message}`);
+    outputChannel.appendLine(`✗ Cache error: ${message}`);
+  }
+}
+
+/**
+ * Refresh template caches in the LSP without restarting the server
+ */
+async function refreshTemplates(): Promise<void> {
+  if (!client) {
+    outputChannel.appendLine('Cannot refresh templates: LSP client not initialized');
+    return;
+  }
+
+  try {
+    outputChannel.appendLine('Sending cdm.refreshTemplates command to LSP...');
+    await client.sendRequest('workspace/executeCommand', {
+      command: 'cdm.refreshTemplates'
+    });
+    outputChannel.appendLine('Template cache refreshed');
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    outputChannel.appendLine(`Failed to refresh templates: ${message}`);
+    // Fall back to restart if the command fails
+    outputChannel.appendLine('Falling back to server restart...');
+    await restartServer();
+  }
+}
+
+/**
+ * Download a specific template using the CDM CLI
+ */
+async function downloadTemplate(templateName: string): Promise<void> {
+  if (!resolvedCliPath) {
+    vscode.window.showErrorMessage('CDM CLI not found. Please install it first.');
+    return;
+  }
+
+  // Validate template name
+  if (!templateName || typeof templateName !== 'string' || templateName.trim() === '') {
+    outputChannel.appendLine(`ERROR: Invalid template name received: ${JSON.stringify(templateName)}`);
+    vscode.window.showErrorMessage('Invalid template name. Cannot download.');
+    return;
+  }
+
+  // Get the working directory from the active CDM file
+  const editor = vscode.window.activeTextEditor;
+  const fileDir = editor && editor.document.languageId === 'cdm'
+    ? path.dirname(editor.document.uri.fsPath)
+    : undefined;
+
+  outputChannel.appendLine(`--- Downloading template: ${templateName} ---`);
+  outputChannel.appendLine(`Template name type: ${typeof templateName}, value: "${templateName}"`);
+  if (fileDir) {
+    outputChannel.appendLine(`Working directory: ${fileDir}`);
+  }
+  outputChannel.appendLine(`Command: ${resolvedCliPath} template cache ${templateName}`);
+  outputChannel.show();
+
+  try {
+    const result = await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: `Downloading template '${templateName}'...`,
+        cancellable: false
+      },
+      async () => {
+        return await runCliCommand(resolvedCliPath!, ['template', 'cache', templateName], fileDir);
+      }
+    );
+
+    if (result.exitCode === 0) {
+      vscode.window.showInformationMessage(`Template '${templateName}' downloaded successfully`);
+      outputChannel.appendLine(`✓ Template '${templateName}' downloaded successfully`);
+      if (result.stdout) {
+        outputChannel.appendLine(result.stdout);
+      }
+      // Refresh the LSP's template cache to pick up the new template
+      await refreshTemplates();
+    } else {
+      vscode.window.showErrorMessage(`Failed to download template '${templateName}'. See output for details.`);
+      outputChannel.appendLine(`✗ Failed to download template '${templateName}'`);
+      if (result.stderr) {
+        outputChannel.appendLine(result.stderr);
+      }
+      if (result.stdout) {
+        outputChannel.appendLine(result.stdout);
+      }
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    vscode.window.showErrorMessage(`Failed to download template: ${message}`);
+    outputChannel.appendLine(`✗ Download error: ${message}`);
+  }
+}
+
+/**
+ * Download all missing templates using cdm template cache --all
+ */
+async function downloadAllTemplates(): Promise<void> {
+  const editor = vscode.window.activeTextEditor;
+  if (!editor || editor.document.languageId !== 'cdm') {
+    vscode.window.showErrorMessage('Please open a CDM file first');
+    return;
+  }
+
+  if (!resolvedCliPath) {
+    vscode.window.showErrorMessage('CDM CLI not found. Please install it first.');
+    return;
+  }
+
+  // Save the document first
+  await editor.document.save();
+
+  const filePath = editor.document.uri.fsPath;
+  const fileDir = path.dirname(filePath);
+
+  outputChannel.appendLine(`--- Downloading all templates ---`);
+  outputChannel.appendLine(`File: ${filePath}`);
+  outputChannel.appendLine(`Working directory: ${fileDir}`);
+  outputChannel.appendLine(`Command: ${resolvedCliPath} template cache --all`);
+  outputChannel.show();
+
+  try {
+    const result = await vscode.window.withProgress(
+      {
+        location: vscode.ProgressLocation.Notification,
+        title: 'Downloading templates...',
+        cancellable: false
+      },
+      async () => {
+        return await runCliCommand(resolvedCliPath!, ['template', 'cache', '--all'], fileDir);
+      }
+    );
+
+    if (result.exitCode === 0) {
+      vscode.window.showInformationMessage('All templates cached successfully');
+      outputChannel.appendLine('✓ All templates cached');
+      if (result.stdout) {
+        outputChannel.appendLine(result.stdout);
+      }
+      // Refresh the LSP's template cache to pick up the new templates
+      await refreshTemplates();
+    } else {
+      vscode.window.showErrorMessage('Failed to cache templates. See output for details.');
+      outputChannel.appendLine('✗ Failed to cache templates');
+      if (result.stderr) {
+        outputChannel.appendLine(result.stderr);
+      }
+      if (result.stdout) {
+        outputChannel.appendLine(result.stdout);
+      }
+    }
+  } catch (error) {
+    const message = error instanceof Error ? error.message : String(error);
+    vscode.window.showErrorMessage(`Failed to cache templates: ${message}`);
     outputChannel.appendLine(`✗ Cache error: ${message}`);
   }
 }

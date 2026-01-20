@@ -25,7 +25,9 @@
   "activationEvents": [
     "onLanguage:cdm",
     "onCommand:cdm.downloadPlugin",
-    "onCommand:cdm.downloadAllPlugins"
+    "onCommand:cdm.downloadAllPlugins",
+    "onCommand:cdm.downloadTemplate",
+    "onCommand:cdm.downloadAllTemplates"
   ],
   "main": "./out/extension.js",
   "contributes": {
@@ -103,6 +105,14 @@
       {
         "command": "cdm.downloadAllPlugins",
         "title": "CDM: Download All Missing Plugins"
+      },
+      {
+        "command": "cdm.downloadTemplate",
+        "title": "CDM: Download Template"
+      },
+      {
+        "command": "cdm.downloadAllTemplates",
+        "title": "CDM: Download All Missing Templates"
       }
     ],
     "menus": {

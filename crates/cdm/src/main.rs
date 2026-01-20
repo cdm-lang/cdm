@@ -65,6 +65,11 @@ enum Commands {
         #[command(subcommand)]
         command: PluginCommands,
     },
+    /// Template management commands
+    Template {
+        #[command(subcommand)]
+        command: TemplateCommands,
+    },
     /// Format CDM files and optionally assign entity IDs
     Format {
         /// Files or glob patterns to format
@@ -179,6 +184,42 @@ enum PluginCommands {
     },
 }
 
+#[derive(Subcommand)]
+enum TemplateCommands {
+    /// List available templates from registry or cache
+    List {
+        /// List cached templates instead of registry
+        #[arg(long)]
+        cached: bool,
+    },
+    /// Show information about a template
+    Info {
+        /// Template name
+        #[arg(value_name = "NAME")]
+        name: String,
+
+        /// Show all available versions
+        #[arg(long)]
+        versions: bool,
+    },
+    /// Cache a template for offline use
+    Cache {
+        /// Template name (or use --all)
+        #[arg(value_name = "NAME", required_unless_present = "all")]
+        name: Option<String>,
+
+        /// Cache all templates used in current project
+        #[arg(long, conflicts_with = "name")]
+        all: bool,
+    },
+    /// Clear template cache
+    ClearCache {
+        /// Clear specific template (or all if not specified)
+        #[arg(value_name = "NAME")]
+        name: Option<String>,
+    },
+}
+
 fn main() -> Result<()> {
     let cli = Cli::parse();
 
@@ -271,6 +312,34 @@ fn main() -> Result<()> {
                 PluginCommands::ClearCache { name } => {
                     if let Err(err) = cdm::clear_cache_cmd(name.as_deref()) {
                         eprintln!("Failed to clear cache: {}", err);
+                        std::process::exit(1);
+                    }
+                }
+            }
+        }
+        Commands::Template { command } => {
+            match command {
+                TemplateCommands::List { cached } => {
+                    if let Err(err) = cdm::list_templates(cached) {
+                        eprintln!("Failed to list templates: {}", err);
+                        std::process::exit(1);
+                    }
+                }
+                TemplateCommands::Info { name, versions } => {
+                    if let Err(err) = cdm::template_info(&name, versions) {
+                        eprintln!("Failed to get template info: {}", err);
+                        std::process::exit(1);
+                    }
+                }
+                TemplateCommands::Cache { name, all } => {
+                    if let Err(err) = cdm::cache_template_cmd(name.as_deref(), all) {
+                        eprintln!("Failed to cache template: {}", err);
+                        std::process::exit(1);
+                    }
+                }
+                TemplateCommands::ClearCache { name } => {
+                    if let Err(err) = cdm::clear_template_cache_cmd(name.as_deref()) {
+                        eprintln!("Failed to clear template cache: {}", err);
                         std::process::exit(1);
                     }
                 }

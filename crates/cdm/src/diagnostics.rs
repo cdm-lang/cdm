@@ -48,6 +48,11 @@ pub const E502_DUPLICATE_FIELD_ID: &str = "E502";
 #[allow(dead_code)]
 pub const E503_REUSED_ID: &str = "E503";
 
+// Template error codes
+pub const E601_TEMPLATE_NOT_FOUND: &str = "E601";
+#[allow(dead_code)]
+pub const E602_TEMPLATE_RESOLUTION_FAILED: &str = "E602";
+
 // Entity ID warning codes
 pub const W005_MISSING_ENTITY_ID: &str = "W005";
 pub const W006_MISSING_FIELD_ID: &str = "W006";

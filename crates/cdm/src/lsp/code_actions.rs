@@ -5,6 +5,7 @@
 //! - Add missing field ID (W006)
 //! - Create type alias for undefined types
 //! - Download missing plugin (E401)
+//! - Download missing template (E601)
 
 use tower_lsp::lsp_types::*;
 use tree_sitter::{Node, Parser};
@@ -29,6 +30,7 @@ pub fn compute_code_actions(
 ) -> Option<Vec<CodeActionOrCommand>> {
     let mut actions = Vec::new();
     let mut missing_plugins_at_cursor: HashSet<String> = HashSet::new();
+    let mut missing_templates_at_cursor: HashSet<String> = HashSet::new();
 
     // Parse the document
     let mut parser = Parser::new();
@@ -77,6 +79,20 @@ pub fn compute_code_actions(
                 }
             }
         }
+
+        // Handle E601: Template not found (missing template)
+        if diagnostic.message.contains("E601") || diagnostic.message.contains("Template not found") {
+            if let Some(template_name) = extract_template_name(&diagnostic.message) {
+                // Track unique template names to avoid duplicate actions
+                if !missing_templates_at_cursor.contains(&template_name) {
+                    missing_templates_at_cursor.insert(template_name.clone());
+
+                    // Create action to download this specific template
+                    let action = create_download_template_action(&template_name);
+                    actions.push(CodeActionOrCommand::CodeAction(action));
+                }
+            }
+        }
     }
 
     // Count all missing plugins in the document (not just at cursor)
@@ -86,10 +102,24 @@ pub fn compute_code_actions(
         .filter_map(|d| extract_plugin_name(&d.message))
         .collect();
 
-    // Show "download all" if there are missing plugins at cursor AND at least one other
+    // Show "download all plugins" if there are missing plugins at cursor AND at least one other
     // missing plugin elsewhere in the document (i.e., total > plugins at cursor)
     if !missing_plugins_at_cursor.is_empty() && all_missing_plugins.len() > missing_plugins_at_cursor.len() {
         let download_all_action = create_download_all_plugins_action();
+        actions.push(CodeActionOrCommand::CodeAction(download_all_action));
+    }
+
+    // Count all missing templates in the document (not just at cursor)
+    let all_missing_templates: HashSet<String> = all_diagnostics
+        .iter()
+        .filter(|d| d.message.contains("E601") || d.message.contains("Template not found"))
+        .filter_map(|d| extract_template_name(&d.message))
+        .collect();
+
+    // Show "download all templates" if there are missing templates at cursor AND at least one other
+    // missing template elsewhere in the document (i.e., total > templates at cursor)
+    if !missing_templates_at_cursor.is_empty() && all_missing_templates.len() > missing_templates_at_cursor.len() {
+        let download_all_action = create_download_all_templates_action();
         actions.push(CodeActionOrCommand::CodeAction(download_all_action));
     }
 
@@ -151,6 +181,74 @@ fn create_download_all_plugins_action() -> CodeAction {
         command: Some(Command {
             title: "Download all missing plugins".to_string(),
             command: "cdm.downloadAllPlugins".to_string(),
+            arguments: None,
+        }),
+        is_preferred: Some(false),
+        disabled: None,
+        data: None,
+    }
+}
+
+/// Extract template name from error messages like:
+/// - "E601: Template not found: 'sql-types' - Template 'sql-types' not found in registry..."
+/// - "Template 'sql-types' not found in registry..."
+/// - "Failed to load template 'sql': ..."
+fn extract_template_name(message: &str) -> Option<String> {
+    // Try to match "Template 'name' not found"
+    if let Some(start) = message.find("Template '") {
+        let rest = &message[start + 10..];
+        if let Some(end) = rest.find('\'') {
+            return Some(rest[..end].to_string());
+        }
+    }
+
+    // Try to match "Template not found: 'name'"
+    if let Some(start) = message.find("Template not found: '") {
+        let rest = &message[start + 21..];
+        if let Some(end) = rest.find('\'') {
+            return Some(rest[..end].to_string());
+        }
+    }
+
+    // Try to match "Failed to load template 'name'"
+    if let Some(start) = message.find("Failed to load template '") {
+        let rest = &message[start + 25..];
+        if let Some(end) = rest.find('\'') {
+            return Some(rest[..end].to_string());
+        }
+    }
+
+    None
+}
+
+/// Create a code action to download a missing template
+fn create_download_template_action(template_name: &str) -> CodeAction {
+    CodeAction {
+        title: format!("Download template '{}'", template_name),
+        kind: Some(CodeActionKind::QUICKFIX),
+        diagnostics: None,
+        edit: None,
+        command: Some(Command {
+            title: format!("Download template '{}'", template_name),
+            command: "cdm.downloadTemplate".to_string(),
+            arguments: Some(vec![serde_json::Value::String(template_name.to_string())]),
+        }),
+        is_preferred: Some(true),
+        disabled: None,
+        data: None,
+    }
+}
+
+/// Create a code action to download all missing templates
+fn create_download_all_templates_action() -> CodeAction {
+    CodeAction {
+        title: "Download all missing templates".to_string(),
+        kind: Some(CodeActionKind::QUICKFIX),
+        diagnostics: None,
+        edit: None,
+        command: Some(Command {
+            title: "Download all missing templates".to_string(),
+            command: "cdm.downloadAllTemplates".to_string(),
             arguments: None,
         }),
         is_preferred: Some(false),

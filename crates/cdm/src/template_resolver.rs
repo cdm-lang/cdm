@@ -409,6 +409,7 @@ fn resolve_git_template(url: &str, config: &Option<JSON>) -> Result<LoadedTempla
 
 /// Resolve a registry template
 fn resolve_registry_template(name: &str, config: &Option<JSON>) -> Result<LoadedTemplate> {
+    use crate::diagnostics::E601_TEMPLATE_NOT_FOUND;
     use crate::{template_registry, version_resolver};
 
     // Extract version constraint from config
@@ -427,7 +428,10 @@ fn resolve_registry_template(name: &str, config: &Option<JSON>) -> Result<Loaded
 
     // Look up the template in the registry
     let template = template_registry::lookup_template(&registry, name)
-        .ok_or_else(|| anyhow::anyhow!("Template '{}' not found in registry", name))?;
+        .ok_or_else(|| anyhow::anyhow!(
+            "{}: Template not found: '{}' - Template '{}' not found in registry. Run 'cdm template cache {}' to download it.",
+            E601_TEMPLATE_NOT_FOUND, name, name, name
+        ))?;
 
     // Resolve version constraint to a specific version
     let resolved_version = resolve_template_version(&version_constraint, template)?;

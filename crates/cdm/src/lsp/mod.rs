@@ -137,9 +137,12 @@ impl LanguageServer for CdmLanguageServer {
                 })),
                 // Code actions
                 code_action_provider: Some(CodeActionProviderCapability::Simple(true)),
-                // Execute command (for plugin refresh)
+                // Execute command (for plugin/template refresh)
                 execute_command_provider: Some(ExecuteCommandOptions {
-                    commands: vec!["cdm.refreshPlugins".to_string()],
+                    commands: vec![
+                        "cdm.refreshPlugins".to_string(),
+                        "cdm.refreshTemplates".to_string(),
+                    ],
                     work_done_progress_options: WorkDoneProgressOptions::default(),
                 }),
                 // Folding ranges
@@ -561,6 +564,19 @@ impl LanguageServer for CdmLanguageServer {
 
                 self.client
                     .log_message(MessageType::INFO, "Plugin cache refreshed")
+                    .await;
+
+                Ok(None)
+            }
+            "cdm.refreshTemplates" => {
+                eprintln!("Refreshing templates: revalidating documents");
+
+                // Re-validate all open documents to clear stale diagnostics
+                // Template resolution will re-check the cache and registry
+                self.revalidate_all_documents().await;
+
+                self.client
+                    .log_message(MessageType::INFO, "Template cache refreshed")
                     .await;
 
                 Ok(None)
