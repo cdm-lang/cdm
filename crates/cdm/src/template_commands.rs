@@ -495,30 +495,44 @@ fn list_cached_templates() -> Result<Vec<(String, String, std::path::PathBuf)>> 
     Ok(cached)
 }
 
-/// Check if a template is cached
+/// Check if a template is cached in the location where the resolver expects it.
+///
+/// This checks the same directory structure that `resolve_cached_or_download_template`
+/// in `template_resolver.rs` uses, ensuring consistency between cache detection and resolution.
 fn is_template_cached(name: &str, version: &str) -> Result<bool> {
     use crate::registry;
 
     let cache_path = registry::get_cache_path()?;
-    let metadata_file = cache_path
-        .join("template_metadata")
-        .join(name.replace('/', "_"))
-        .join(format!("{}.json", version));
+    let templates_dir = cache_path.join("templates");
+    let template_dir = templates_dir.join(format!("{}@{}", name.replace('/', "_"), version));
 
-    if !metadata_file.exists() {
-        return Ok(false);
+    // Check using the same logic as find_cached_template_root in template_resolver.rs
+    Ok(find_cached_template_root(&template_dir).is_some())
+}
+
+/// Find the root directory of a cached template (where cdm-template.json is).
+/// This mirrors the logic in template_resolver.rs to ensure consistency.
+fn find_cached_template_root(template_dir: &std::path::Path) -> Option<std::path::PathBuf> {
+    if !template_dir.exists() {
+        return None;
     }
 
-    // Also verify the template directory still exists
-    let content = std::fs::read_to_string(&metadata_file)?;
-    let metadata: serde_json::Value = serde_json::from_str(&content)?;
-
-    if let Some(template_path) = metadata.get("template_path").and_then(|v| v.as_str()) {
-        let path = std::path::Path::new(template_path);
-        Ok(path.exists() && path.join("cdm-template.json").exists())
-    } else {
-        Ok(false)
+    // Check if cdm-template.json is directly in template_dir
+    if template_dir.join("cdm-template.json").exists() {
+        return Some(template_dir.to_path_buf());
     }
+
+    // Look in immediate subdirectories (tar extracts into a subdirectory)
+    if let Ok(entries) = std::fs::read_dir(template_dir) {
+        for entry in entries.flatten() {
+            let path = entry.path();
+            if path.is_dir() && path.join("cdm-template.json").exists() {
+                return Some(path);
+            }
+        }
+    }
+
+    None
 }
 
 /// Clear template cache
