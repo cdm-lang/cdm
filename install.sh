@@ -173,11 +173,15 @@ main() {
     local install_path="${INSTALL_DIR}/${BINARY_NAME}"
     mv "$tmp_binary" "$install_path"
 
-    # On macOS, remove quarantine extended attributes to prevent Gatekeeper issues.
-    # Downloaded binaries get a com.apple.quarantine attribute that can cause
-    # "killed" errors when executed without proper Developer ID signing.
+    # On macOS, prepare the binary for execution:
+    # 1. Remove quarantine extended attributes (com.apple.quarantine)
+    # 2. Re-sign with a local ad-hoc signature
+    #
+    # On Apple Silicon Macs, ad-hoc signatures from GitHub Actions may not be
+    # trusted by taskgated. Re-signing locally ensures the binary can execute.
     if [ "$(uname -s)" = "Darwin" ]; then
         xattr -c "$install_path" 2>/dev/null || true
+        codesign --sign - --force "$install_path" 2>/dev/null || true
     fi
 
     info "CDM CLI v${version} installed successfully!"
