@@ -8,7 +8,7 @@ use crate::template_registry;
 pub fn list_templates(cached: bool) -> Result<()> {
     if cached {
         // List cached templates
-        let cached_templates = list_cached_templates()?;
+        let cached_templates = list_cached_templates(None)?;
 
         if cached_templates.is_empty() {
             println!("No cached templates found");
@@ -88,7 +88,7 @@ pub fn template_info(name: &str, show_versions: bool) -> Result<()> {
     }
 
     // Check if template is cached
-    if is_template_cached(name, &template.latest)? {
+    if is_template_cached(name, &template.latest, None)? {
         println!("\n✓ Latest version is cached locally");
     } else {
         println!("\nℹ Not cached. Use 'cdm template cache {}' to cache it", name);
@@ -128,7 +128,7 @@ fn cache_single_template(name: &str) -> Result<()> {
     let version = &template.latest;
 
     // Check if already cached
-    if is_template_cached(&base_name, version)? {
+    if is_template_cached(&base_name, version, None)? {
         println!("✓ Template {}@{} is already cached", base_name, version);
         return Ok(());
     }
@@ -447,44 +447,106 @@ fn extract_template_imports_from_file(path: &Path) -> Result<Vec<crate::Template
 }
 
 /// List cached templates
-fn list_cached_templates() -> Result<Vec<(String, String, std::path::PathBuf)>> {
+///
+/// If `cache_dir` is `None`, uses the default cache directory from `registry::get_cache_path()`.
+fn list_cached_templates(
+    cache_dir: Option<&std::path::Path>,
+) -> Result<Vec<(String, String, std::path::PathBuf)>> {
     use crate::registry;
+    use std::collections::HashSet;
 
-    let cache_path = registry::get_cache_path()?;
+    let cache_path = match cache_dir {
+        Some(dir) => dir.to_path_buf(),
+        None => registry::get_cache_path()?,
+    };
     let metadata_dir = cache_path.join("template_metadata");
-
-    if !metadata_dir.exists() {
-        return Ok(Vec::new());
-    }
+    let templates_dir = cache_path.join("templates");
 
     let mut cached = Vec::new();
+    let mut seen_templates: HashSet<String> = HashSet::new();
 
-    for entry in std::fs::read_dir(&metadata_dir)? {
-        let entry = entry?;
-        let template_dir = entry.path();
+    // First, scan metadata directory (preferred source with richer information)
+    if metadata_dir.exists() {
+        for entry in std::fs::read_dir(&metadata_dir)? {
+            let entry = entry?;
+            let template_dir = entry.path();
 
-        if template_dir.is_dir() {
-            for version_file in std::fs::read_dir(&template_dir)? {
-                let version_file = version_file?;
-                let path = version_file.path();
+            if template_dir.is_dir() {
+                for version_file in std::fs::read_dir(&template_dir)? {
+                    let version_file = version_file?;
+                    let path = version_file.path();
 
-                if path.extension().and_then(|e| e.to_str()) == Some("json") {
-                    if let Ok(content) = std::fs::read_to_string(&path) {
-                        if let Ok(metadata) = serde_json::from_str::<serde_json::Value>(&content) {
-                            let name = metadata.get("name")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("unknown")
-                                .to_string();
-                            let version = metadata.get("version")
-                                .and_then(|v| v.as_str())
-                                .unwrap_or("unknown")
-                                .to_string();
-                            let template_path = metadata.get("template_path")
-                                .and_then(|v| v.as_str())
-                                .map(std::path::PathBuf::from)
-                                .unwrap_or_default();
+                    if path.extension().and_then(|e| e.to_str()) == Some("json") {
+                        if let Ok(content) = std::fs::read_to_string(&path) {
+                            if let Ok(metadata) = serde_json::from_str::<serde_json::Value>(&content)
+                            {
+                                let name = metadata
+                                    .get("name")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("unknown")
+                                    .to_string();
+                                let version = metadata
+                                    .get("version")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or("unknown")
+                                    .to_string();
+                                let template_path = metadata
+                                    .get("template_path")
+                                    .and_then(|v| v.as_str())
+                                    .map(std::path::PathBuf::from)
+                                    .unwrap_or_default();
 
-                            cached.push((name, version, template_path));
+                                // Track this template so we don't add it again from templates dir
+                                seen_templates.insert(format!("{}@{}", name, version));
+                                cached.push((name, version, template_path));
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    // Then, scan templates directory for any templates without metadata
+    // This handles templates cached via template_resolver.rs which doesn't write metadata
+    if templates_dir.exists() {
+        for entry in std::fs::read_dir(&templates_dir)? {
+            let entry = entry?;
+            let template_dir = entry.path();
+
+            if template_dir.is_dir() {
+                // Directory name format is "<safe_name>@<version>"
+                if let Some(dir_name) = template_dir.file_name().and_then(|n| n.to_str()) {
+                    // Find the template root (where cdm-template.json is)
+                    if let Some(template_root) = find_cached_template_root(&template_dir) {
+                        let manifest_path = template_root.join("cdm-template.json");
+                        if let Ok(manifest_content) = std::fs::read_to_string(&manifest_path) {
+                            if let Ok(manifest) =
+                                serde_json::from_str::<serde_json::Value>(&manifest_content)
+                            {
+                                let name = manifest
+                                    .get("name")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or_else(|| {
+                                        // Fallback: extract name from directory (before @)
+                                        dir_name.split('@').next().unwrap_or("unknown")
+                                    })
+                                    .to_string();
+                                let version = manifest
+                                    .get("version")
+                                    .and_then(|v| v.as_str())
+                                    .unwrap_or_else(|| {
+                                        // Fallback: extract version from directory (after @)
+                                        dir_name.split('@').nth(1).unwrap_or("unknown")
+                                    })
+                                    .to_string();
+
+                                let key = format!("{}@{}", name, version);
+                                if !seen_templates.contains(&key) {
+                                    seen_templates.insert(key);
+                                    cached.push((name, version, template_root));
+                                }
+                            }
                         }
                     }
                 }
@@ -499,10 +561,19 @@ fn list_cached_templates() -> Result<Vec<(String, String, std::path::PathBuf)>> 
 ///
 /// This checks the same directory structure that `resolve_cached_or_download_template`
 /// in `template_resolver.rs` uses, ensuring consistency between cache detection and resolution.
-fn is_template_cached(name: &str, version: &str) -> Result<bool> {
+///
+/// If `cache_dir` is `None`, uses the default cache directory from `registry::get_cache_path()`.
+fn is_template_cached(
+    name: &str,
+    version: &str,
+    cache_dir: Option<&std::path::Path>,
+) -> Result<bool> {
     use crate::registry;
 
-    let cache_path = registry::get_cache_path()?;
+    let cache_path = match cache_dir {
+        Some(dir) => dir.to_path_buf(),
+        None => registry::get_cache_path()?,
+    };
     let templates_dir = cache_path.join("templates");
     let template_dir = templates_dir.join(format!("{}@{}", name.replace('/', "_"), version));
 
