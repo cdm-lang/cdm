@@ -285,9 +285,18 @@ fn load_single_template(
     let loaded = resolve_template(import)
         .map_err(|e| e.to_string())?;
 
+    // Get the entry path (should always be Some after successful resolution)
+    let entry_path = loaded.entry_path.as_ref()
+        .ok_or_else(|| format!(
+            "Template '{}' has no entry point. This is an export-only template - \
+            specify an export path like \"{}/postgres\"",
+            import.namespace,
+            import.namespace
+        ))?;
+
     // Read the template entry file
-    let template_source = std::fs::read_to_string(&loaded.entry_path)
-        .map_err(|e| format!("Failed to read template file {}: {}", loaded.entry_path.display(), e))?;
+    let template_source = std::fs::read_to_string(entry_path)
+        .map_err(|e| format!("Failed to read template file {}: {}", entry_path.display(), e))?;
 
     // Parse the template
     let mut parser = tree_sitter::Parser::new();
@@ -329,7 +338,7 @@ fn load_single_template(
 
     Ok(ImportedNamespace {
         name: import.namespace.clone(),
-        template_path: loaded.entry_path.clone(),
+        template_path: entry_path.clone(),
         symbol_table,
         model_fields,
         template_source: template_source_id,

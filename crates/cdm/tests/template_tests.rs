@@ -400,7 +400,7 @@ fn test_template_manifest_deserialization() {
     assert_eq!(manifest.name, "sql/postgres-types");
     assert_eq!(manifest.version, "1.0.0");
     assert_eq!(manifest.description, "PostgreSQL type aliases");
-    assert_eq!(manifest.entry, "./index.cdm");
+    assert_eq!(manifest.entry, Some("./index.cdm".to_string()));
     assert_eq!(manifest.exports.len(), 2);
     assert_eq!(manifest.exports.get(".").unwrap(), "./index.cdm");
     assert_eq!(manifest.exports.get("./types").unwrap(), "./types.cdm");

@@ -204,7 +204,7 @@ fn test_template_manifest_parsing() {
     assert_eq!(manifest.name, "cdm/auth");
     assert_eq!(manifest.version, "2.1.0");
     assert_eq!(manifest.description, "Authentication system");
-    assert_eq!(manifest.entry, "./index.cdm");
+    assert_eq!(manifest.entry, Some("./index.cdm".to_string()));
     assert_eq!(manifest.exports.len(), 2);
     assert_eq!(manifest.exports.get(".").unwrap(), "./index.cdm");
 }
@@ -220,7 +220,50 @@ fn test_template_manifest_minimal() {
 
     let manifest: TemplateManifest = serde_json::from_str(json).unwrap();
     assert_eq!(manifest.name, "simple");
+    assert_eq!(manifest.entry, Some("./index.cdm".to_string()));
     assert_eq!(manifest.exports.len(), 0);
+}
+
+#[test]
+fn test_template_manifest_export_only() {
+    // Export-only templates have no entry field, only named exports
+    let json = r#"{
+        "name": "sql-types",
+        "version": "1.0.5",
+        "description": "SQL type definitions for CDM schemas",
+        "exports": {
+            "postgres": "./postgres.cdm",
+            "sqlite": "./sqlite.cdm"
+        }
+    }"#;
+
+    let manifest: TemplateManifest = serde_json::from_str(json).unwrap();
+    assert_eq!(manifest.name, "sql-types");
+    assert_eq!(manifest.version, "1.0.5");
+    assert_eq!(manifest.entry, None); // No entry for export-only templates
+    assert_eq!(manifest.exports.len(), 2);
+    assert_eq!(manifest.exports.get("postgres").unwrap(), "./postgres.cdm");
+    assert_eq!(manifest.exports.get("sqlite").unwrap(), "./sqlite.cdm");
+}
+
+#[test]
+fn test_template_manifest_with_entry_and_exports() {
+    // Templates can have both a main entry and named exports
+    let json = r#"{
+        "name": "auth",
+        "version": "2.0.0",
+        "description": "Authentication template",
+        "entry": "./index.cdm",
+        "exports": {
+            "types": "./types.cdm",
+            "middleware": "./middleware.cdm"
+        }
+    }"#;
+
+    let manifest: TemplateManifest = serde_json::from_str(json).unwrap();
+    assert_eq!(manifest.name, "auth");
+    assert_eq!(manifest.entry, Some("./index.cdm".to_string()));
+    assert_eq!(manifest.exports.len(), 2);
 }
 
 // =========================================================================
@@ -233,7 +276,7 @@ fn test_template_manifest_debug() {
         name: "test".to_string(),
         version: "1.0.0".to_string(),
         description: "Test template".to_string(),
-        entry: "./index.cdm".to_string(),
+        entry: Some("./index.cdm".to_string()),
         exports: std::collections::HashMap::new(),
     };
 
@@ -251,7 +294,7 @@ fn test_template_manifest_clone() {
         name: "test".to_string(),
         version: "1.0.0".to_string(),
         description: "Test template".to_string(),
-        entry: "./index.cdm".to_string(),
+        entry: Some("./index.cdm".to_string()),
         exports,
     };
 
@@ -352,11 +395,11 @@ fn test_loaded_template_debug() {
             name: "test".to_string(),
             version: "1.0.0".to_string(),
             description: "Test".to_string(),
-            entry: "./index.cdm".to_string(),
+            entry: Some("./index.cdm".to_string()),
             exports: std::collections::HashMap::new(),
         },
         path: PathBuf::from("/tmp/test"),
-        entry_path: PathBuf::from("/tmp/test/index.cdm"),
+        entry_path: Some(PathBuf::from("/tmp/test/index.cdm")),
     };
 
     let debug = format!("{:?}", template);
@@ -370,11 +413,11 @@ fn test_loaded_template_clone() {
             name: "test".to_string(),
             version: "1.0.0".to_string(),
             description: "Test".to_string(),
-            entry: "./index.cdm".to_string(),
+            entry: Some("./index.cdm".to_string()),
             exports: std::collections::HashMap::new(),
         },
         path: PathBuf::from("/tmp/test"),
-        entry_path: PathBuf::from("/tmp/test/index.cdm"),
+        entry_path: Some(PathBuf::from("/tmp/test/index.cdm")),
     };
 
     let cloned = template.clone();
@@ -395,7 +438,7 @@ fn test_template_manifest_serialization() {
         name: "test/template".to_string(),
         version: "2.0.0".to_string(),
         description: "A test template".to_string(),
-        entry: "./main.cdm".to_string(),
+        entry: Some("./main.cdm".to_string()),
         exports,
     };
 
@@ -414,7 +457,7 @@ fn test_template_manifest_roundtrip() {
         name: "test/template".to_string(),
         version: "1.2.3".to_string(),
         description: "Test description".to_string(),
-        entry: "./index.cdm".to_string(),
+        entry: Some("./index.cdm".to_string()),
         exports,
     };
 
@@ -551,6 +594,108 @@ fn test_resolve_template_from_source_local() {
     let source = TemplateSource::Local { path: "./nonexistent".to_string() };
     let result = resolve_template_from_source(&source, &None, Path::new("/project/schema.cdm"));
     assert!(result.is_err());
+}
+
+#[test]
+fn test_resolve_local_template_with_entry() {
+    // Create a temp directory with a template that has an entry
+    let temp_dir = tempfile::tempdir().unwrap();
+    let template_dir = temp_dir.path().join("my-template");
+    std::fs::create_dir_all(&template_dir).unwrap();
+
+    // Write cdm-template.json with entry
+    let manifest = r#"{
+        "name": "my-template",
+        "version": "1.0.0",
+        "description": "Test template with entry",
+        "entry": "./index.cdm"
+    }"#;
+    std::fs::write(template_dir.join("cdm-template.json"), manifest).unwrap();
+
+    // Write the entry file
+    std::fs::write(template_dir.join("index.cdm"), "// Main entry").unwrap();
+
+    // Create a source file path in the temp dir
+    let source_file = temp_dir.path().join("schema.cdm");
+    std::fs::File::create(&source_file).unwrap();
+
+    let source = TemplateSource::Local { path: "./my-template".to_string() };
+    let result = resolve_template_from_source(&source, &None, &source_file);
+
+    assert!(result.is_ok(), "Failed to resolve template: {:?}", result.err());
+    let loaded = result.unwrap();
+    assert_eq!(loaded.manifest.name, "my-template");
+    assert_eq!(loaded.manifest.entry, Some("./index.cdm".to_string()));
+    assert!(loaded.entry_path.is_some());
+    assert!(loaded.entry_path.unwrap().ends_with("index.cdm"));
+}
+
+#[test]
+fn test_resolve_local_template_export_only() {
+    // Create a temp directory with an export-only template (no entry)
+    let temp_dir = tempfile::tempdir().unwrap();
+    let template_dir = temp_dir.path().join("sql-types");
+    std::fs::create_dir_all(&template_dir).unwrap();
+
+    // Write cdm-template.json without entry (export-only)
+    let manifest = r#"{
+        "name": "sql-types",
+        "version": "1.0.5",
+        "description": "SQL type definitions",
+        "exports": {
+            "postgres": "./postgres.cdm",
+            "sqlite": "./sqlite.cdm"
+        }
+    }"#;
+    std::fs::write(template_dir.join("cdm-template.json"), manifest).unwrap();
+
+    // Write the export files
+    std::fs::write(template_dir.join("postgres.cdm"), "// PostgreSQL types").unwrap();
+    std::fs::write(template_dir.join("sqlite.cdm"), "// SQLite types").unwrap();
+
+    // Create a source file path in the temp dir
+    let source_file = temp_dir.path().join("schema.cdm");
+    std::fs::File::create(&source_file).unwrap();
+
+    let source = TemplateSource::Local { path: "./sql-types".to_string() };
+    let result = resolve_template_from_source(&source, &None, &source_file);
+
+    assert!(result.is_ok(), "Failed to resolve export-only template: {:?}", result.err());
+    let loaded = result.unwrap();
+    assert_eq!(loaded.manifest.name, "sql-types");
+    assert_eq!(loaded.manifest.entry, None); // No entry for export-only
+    assert!(loaded.entry_path.is_none()); // entry_path should be None
+    assert_eq!(loaded.manifest.exports.len(), 2);
+}
+
+#[test]
+fn test_resolve_local_template_missing_entry_file() {
+    // Create a template that declares an entry but the file doesn't exist
+    let temp_dir = tempfile::tempdir().unwrap();
+    let template_dir = temp_dir.path().join("broken-template");
+    std::fs::create_dir_all(&template_dir).unwrap();
+
+    // Write cdm-template.json with entry pointing to nonexistent file
+    let manifest = r#"{
+        "name": "broken-template",
+        "version": "1.0.0",
+        "description": "Template with missing entry file",
+        "entry": "./missing.cdm"
+    }"#;
+    std::fs::write(template_dir.join("cdm-template.json"), manifest).unwrap();
+
+    // Don't create the entry file
+
+    let source_file = temp_dir.path().join("schema.cdm");
+    std::fs::File::create(&source_file).unwrap();
+
+    let source = TemplateSource::Local { path: "./broken-template".to_string() };
+    let result = resolve_template_from_source(&source, &None, &source_file);
+
+    assert!(result.is_err());
+    let err_msg = result.unwrap_err().to_string();
+    assert!(err_msg.contains("entry file not found") || err_msg.contains("missing.cdm"),
+        "Expected error about missing entry file, got: {}", err_msg);
 }
 
 // =========================================================================

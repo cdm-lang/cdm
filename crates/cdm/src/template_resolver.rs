@@ -22,8 +22,10 @@ pub struct TemplateManifest {
     pub version: String,
     /// Human-readable description
     pub description: String,
-    /// Path to main CDM file (relative to manifest)
-    pub entry: String,
+    /// Path to main CDM file (relative to manifest).
+    /// Optional for export-only templates that only expose named exports.
+    #[serde(default)]
+    pub entry: Option<String>,
     /// Named export paths for selective importing
     #[serde(default)]
     pub exports: HashMap<String, String>,
@@ -75,8 +77,9 @@ pub struct LoadedTemplate {
     pub manifest: TemplateManifest,
     /// Absolute path to the template directory
     pub path: PathBuf,
-    /// Absolute path to the entry file
-    pub entry_path: PathBuf,
+    /// Absolute path to the entry file.
+    /// None for export-only templates that have no main entry point.
+    pub entry_path: Option<PathBuf>,
 }
 
 /// Extract template imports from a parsed AST
@@ -290,7 +293,7 @@ fn resolve_local_template_file(file_path: &Path) -> Result<LoadedTemplate> {
         name: file_name.trim_end_matches(".cdm").to_string(),
         version: "0.0.0".to_string(),
         description: format!("Direct import from {}", file_path.display()),
-        entry: file_name,
+        entry: Some(file_name),
         exports: HashMap::new(),
     };
 
@@ -299,9 +302,11 @@ fn resolve_local_template_file(file_path: &Path) -> Result<LoadedTemplate> {
         path: template_dir
             .canonicalize()
             .unwrap_or_else(|_| template_dir.clone()),
-        entry_path: file_path
-            .canonicalize()
-            .unwrap_or_else(|_| file_path.to_path_buf()),
+        entry_path: Some(
+            file_path
+                .canonicalize()
+                .unwrap_or_else(|_| file_path.to_path_buf()),
+        ),
     })
 }
 
@@ -318,25 +323,29 @@ fn resolve_local_template_dir(template_dir: &Path) -> Result<LoadedTemplate> {
     }
 
     let manifest = load_manifest(&manifest_path)?;
-    let entry_path = template_dir.join(&manifest.entry);
 
-    if !entry_path.exists() {
-        anyhow::bail!(
-            "Template entry file not found: {}\n\
-            Specified in cdm-template.json as: {}",
-            entry_path.display(),
-            manifest.entry
-        );
-    }
+    // Entry is optional - some templates only expose named exports
+    let entry_path = if let Some(ref entry) = manifest.entry {
+        let path = template_dir.join(entry);
+        if !path.exists() {
+            anyhow::bail!(
+                "Template entry file not found: {}\n\
+                Specified in cdm-template.json as: {}",
+                path.display(),
+                entry
+            );
+        }
+        Some(path.canonicalize().unwrap_or(path))
+    } else {
+        None
+    };
 
     Ok(LoadedTemplate {
         manifest,
         path: template_dir
             .canonicalize()
             .unwrap_or_else(|_| template_dir.to_path_buf()),
-        entry_path: entry_path
-            .canonicalize()
-            .unwrap_or_else(|_| entry_path),
+        entry_path,
     })
 }
 
@@ -389,16 +398,22 @@ fn resolve_git_template(url: &str, config: &Option<JSON>) -> Result<LoadedTempla
     }
 
     let manifest = load_manifest(&manifest_path)?;
-    let entry_path = template_dir.join(&manifest.entry);
 
-    if !entry_path.exists() {
-        anyhow::bail!(
-            "Template entry file not found: {}\n\
-            Specified in cdm-template.json as: {}",
-            entry_path.display(),
-            manifest.entry
-        );
-    }
+    // Entry is optional - some templates only expose named exports
+    let entry_path = if let Some(ref entry) = manifest.entry {
+        let path = template_dir.join(entry);
+        if !path.exists() {
+            anyhow::bail!(
+                "Template entry file not found: {}\n\
+                Specified in cdm-template.json as: {}",
+                path.display(),
+                entry
+            );
+        }
+        Some(path)
+    } else {
+        None
+    };
 
     Ok(LoadedTemplate {
         manifest,
@@ -603,7 +618,19 @@ fn resolve_registry_template(name: &str, config: &Option<JSON>) -> Result<Loaded
             ))?;
 
         // Update the entry path to use the export
-        loaded.entry_path = loaded.path.join(export_path.trim_start_matches("./"));
+        loaded.entry_path = Some(loaded.path.join(export_path.trim_start_matches("./")));
+    } else if loaded.entry_path.is_none() {
+        // No subpath specified and no main entry - this is an export-only template
+        let available_exports: Vec<_> = loaded.manifest.exports.keys().cloned().collect();
+        anyhow::bail!(
+            "Template '{}' has no main entry point. You must specify an export path.\n\
+            Available exports: {}\n\
+            Example: import name from \"{}/{}\"",
+            base_name,
+            available_exports.join(", "),
+            base_name,
+            available_exports.first().map(|s| s.trim_start_matches("./")).unwrap_or("export")
+        );
     }
 
     Ok(loaded)
