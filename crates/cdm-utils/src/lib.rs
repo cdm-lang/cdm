@@ -438,21 +438,32 @@ fn parse_union(s: &str) -> Option<Vec<&str>> {
     if parts.len() > 1 { Some(parts) } else { None }
 }
 
-/// Check if a string is a valid CDM identifier
+/// Check if a string is a valid CDM identifier (including qualified identifiers like sql.UUID)
 fn is_valid_identifier(s: &str) -> bool {
     if s.is_empty() {
         return false;
     }
 
-    // Must start with letter or underscore
-    let mut chars = s.chars();
-    let first = chars.next().unwrap();
-    if !first.is_alphabetic() && first != '_' {
-        return false;
+    // Split on dots for qualified identifiers (e.g., "sql.UUID", "auth.types.Email")
+    for part in s.split('.') {
+        if part.is_empty() {
+            return false; // No empty parts allowed
+        }
+
+        // Must start with letter or underscore
+        let mut chars = part.chars();
+        let first = chars.next().unwrap();
+        if !first.is_alphabetic() && first != '_' {
+            return false;
+        }
+
+        // Rest must be alphanumeric or underscore
+        if !chars.all(|c| c.is_alphanumeric() || c == '_') {
+            return false;
+        }
     }
 
-    // Rest must be alphanumeric or underscore
-    chars.all(|c| c.is_alphanumeric() || c == '_')
+    true
 }
 
 /// Find all references to a specific definition name in the resolved schema.

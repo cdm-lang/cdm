@@ -160,6 +160,40 @@ pub fn build_resolved_schema(
         }
     }
 
+    // Add type aliases from imported template namespaces with qualified names
+    // This allows qualified references like sql.UUID to resolve properly
+    for (ns_name, namespace) in &current_symbols.namespaces {
+        for (type_name, def) in &namespace.symbol_table.definitions {
+            // Skip if this definition is removed
+            let qualified_name = format!("{}.{}", ns_name, type_name);
+
+            match &def.kind {
+                DefinitionKind::TypeAlias { references, type_expr } => {
+                    // Only add if not already present (local definitions take precedence)
+                    if !resolved.type_aliases.contains_key(&qualified_name) {
+                        resolved.type_aliases.insert(
+                            qualified_name,
+                            ResolvedTypeAlias {
+                                name: type_name.clone(),
+                                type_expr: type_expr.clone(),
+                                references: references.clone(),
+                                plugin_configs: def.plugin_configs.clone(),
+                                source_file: namespace.template_path.display().to_string(),
+                                source_span: def.span,
+                                cached_parsed_type: RefCell::new(None),
+                                entity_id: def.entity_id.clone(),
+                            },
+                        );
+                    }
+                }
+                DefinitionKind::Model { .. } => {
+                    // Models from templates are not typically used directly
+                    // They would need to be referenced with qualified names
+                }
+            }
+        }
+    }
+
     // Override with current file definitions (these take precedence)
     for (name, def) in &current_symbols.definitions {
         // Skip if removed

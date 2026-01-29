@@ -282,3 +282,82 @@ fn test_type_mapper_nested_type_alias() {
     );
     assert_eq!(sql_type, "BIGINT");
 }
+
+#[test]
+fn test_type_mapper_template_types_with_sql_config() {
+    // Simulate template types like sql.UUID, sql.TimestampTZ, etc. that should
+    // map to specific SQL types rather than falling back to VARCHAR
+    let mut type_aliases = HashMap::new();
+
+    // UUID: string with @sql { type: "UUID" }
+    type_aliases.insert(
+        "UUID".to_string(),
+        TypeAliasDefinition {
+            name: "UUID".to_string(),
+            alias_type: TypeExpression::Identifier { name: "string".to_string() },
+            config: json!({ "type": "UUID" }),
+            entity_id: None,
+        },
+    );
+
+    // TimestampTZ: string with @sql { type: "TIMESTAMPTZ" }
+    type_aliases.insert(
+        "TimestampTZ".to_string(),
+        TypeAliasDefinition {
+            name: "TimestampTZ".to_string(),
+            alias_type: TypeExpression::Identifier { name: "string".to_string() },
+            config: json!({ "type": "TIMESTAMPTZ" }),
+            entity_id: None,
+        },
+    );
+
+    // JSONB: string with @sql { type: "JSONB" }
+    type_aliases.insert(
+        "JSONB".to_string(),
+        TypeAliasDefinition {
+            name: "JSONB".to_string(),
+            alias_type: TypeExpression::Identifier { name: "string".to_string() },
+            config: json!({ "type": "JSONB" }),
+            entity_id: None,
+        },
+    );
+
+    // Varchar: string with @sql { type: "VARCHAR" }
+    type_aliases.insert(
+        "Varchar".to_string(),
+        TypeAliasDefinition {
+            name: "Varchar".to_string(),
+            alias_type: TypeExpression::Identifier { name: "string".to_string() },
+            config: json!({ "type": "VARCHAR" }),
+            entity_id: None,
+        },
+    );
+
+    let config = json!({ "dialect": "postgresql" });
+    let mapper = TypeMapper::new(&config, &type_aliases);
+
+    // Test each template type maps to correct SQL type
+    let uuid_type = mapper.map_type(
+        &TypeExpression::Identifier { name: "UUID".to_string() },
+        false,
+    );
+    assert_eq!(uuid_type, "UUID");
+
+    let timestamp_type = mapper.map_type(
+        &TypeExpression::Identifier { name: "TimestampTZ".to_string() },
+        false,
+    );
+    assert_eq!(timestamp_type, "TIMESTAMPTZ");
+
+    let jsonb_type = mapper.map_type(
+        &TypeExpression::Identifier { name: "JSONB".to_string() },
+        false,
+    );
+    assert_eq!(jsonb_type, "JSONB");
+
+    let varchar_type = mapper.map_type(
+        &TypeExpression::Identifier { name: "Varchar".to_string() },
+        false,
+    );
+    assert_eq!(varchar_type, "VARCHAR");
+}

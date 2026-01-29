@@ -1,0 +1,19 @@
+// Test file to verify sql-types template works correctly
+import sql from "./templates/sql-types/postgres.cdm"
+
+@sql {
+  dialect: "postgresql",
+  build_output: "./test_output"
+}
+
+TestUser {
+  id: sql.UUID #1
+  name: sql.Varchar #2
+  created_at: sql.TimestampTZ #3
+  data: sql.JSONB #4
+  @sql {
+    indexes: [
+      { fields: ["id"], primary: true }
+    ]
+  }
+} #1

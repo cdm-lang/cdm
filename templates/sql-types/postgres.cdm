@@ -1,124 +1,222 @@
 // PostgreSQL Type Definitions
+// Import sql plugin to enable @sql { type: "..." } annotations
+@sql
 
 // These types map to PostgreSQL native data types
 
 // Numeric Types
 
-SmallInt: number #1
+SmallInt: number {
+  @sql { type: "SMALLINT" }
+} #1
 
-Integer: number #2
+Integer: number {
+  @sql { type: "INTEGER" }
+} #2
 
-BigInt: number #3
+BigInt: number {
+  @sql { type: "BIGINT" }
+} #3
 
-Decimal: number #4
+Decimal: number {
+  @sql { type: "DECIMAL" }
+} #4
 
-Numeric: number #5
+Numeric: number {
+  @sql { type: "NUMERIC" }
+} #5
 
-Real: number #6
+Real: number {
+  @sql { type: "REAL" }
+} #6
 
-DoublePrecision: number #7
+DoublePrecision: number {
+  @sql { type: "DOUBLE PRECISION" }
+} #7
 
-Serial: number #8
+Serial: number {
+  @sql { type: "SERIAL" }
+} #8
 
-BigSerial: number #9
+BigSerial: number {
+  @sql { type: "BIGSERIAL" }
+} #9
 
-SmallSerial: number #10
+SmallSerial: number {
+  @sql { type: "SMALLSERIAL" }
+} #10
 
 // Character Types
 
-Varchar: string #20
+Varchar: string {
+  @sql { type: "VARCHAR" }
+} #20
 
-Char: string #21
+Char: string {
+  @sql { type: "CHAR" }
+} #21
 
-Text: string #22
+Text: string {
+  @sql { type: "TEXT" }
+} #22
 
 // Binary Types
 
-Bytea: string #30
+Bytea: string {
+  @sql { type: "BYTEA" }
+} #30
 
 // boolean Type
 
-Boolean: boolean #40
+Boolean: boolean {
+  @sql { type: "BOOLEAN" }
+} #40
 
 // Date/Time Types
 
-Date: string #50
+Date: string {
+  @sql { type: "DATE" }
+} #50
 
-Time: string #51
+Time: string {
+  @sql { type: "TIME" }
+} #51
 
-TimeTZ: string #52
+TimeTZ: string {
+  @sql { type: "TIMETZ" }
+} #52
 
-Timestamp: string #53
+Timestamp: string {
+  @sql { type: "TIMESTAMP" }
+} #53
 
-TimestampTZ: string #54
+TimestampTZ: string {
+  @sql { type: "TIMESTAMPTZ" }
+} #54
 
-Interval: string #55
+Interval: string {
+  @sql { type: "INTERVAL" }
+} #55
 
 // UUID Type
 
-UUID: string #60
+UUID: string {
+  @sql { type: "UUID" }
+} #60
 
 // JSON Types
 
-SQLJSON: string #70
+SQLJSON: string {
+  @sql { type: "JSON" }
+} #70
 
-JSONB: string #71
+JSONB: string {
+  @sql { type: "JSONB" }
+} #71
 
 // Network Types
 
-CIDR: string #80
+CIDR: string {
+  @sql { type: "CIDR" }
+} #80
 
-Inet: string #81
+Inet: string {
+  @sql { type: "INET" }
+} #81
 
-MacAddr: string #82
+MacAddr: string {
+  @sql { type: "MACADDR" }
+} #82
 
-MacAddr8: string #83
+MacAddr8: string {
+  @sql { type: "MACADDR8" }
+} #83
 
 // Geometric Types
 
-Point: string #90
+Point: string {
+  @sql { type: "POINT" }
+} #90
 
-Line: string #91
+Line: string {
+  @sql { type: "LINE" }
+} #91
 
-LSeg: string #92
+LSeg: string {
+  @sql { type: "LSEG" }
+} #92
 
-Box: string #93
+Box: string {
+  @sql { type: "BOX" }
+} #93
 
-Path: string #94
+Path: string {
+  @sql { type: "PATH" }
+} #94
 
-Polygon: string #95
+Polygon: string {
+  @sql { type: "POLYGON" }
+} #95
 
-Circle: string #96
+Circle: string {
+  @sql { type: "CIRCLE" }
+} #96
 
 // Array Type (generic marker)
 
-Array: string #100
+Array: string {
+  @sql { type: "ARRAY" }
+} #100
 
 // Range Types
 
-Int4Range: string #110
+Int4Range: string {
+  @sql { type: "INT4RANGE" }
+} #110
 
-Int8Range: string #111
+Int8Range: string {
+  @sql { type: "INT8RANGE" }
+} #111
 
-NumRange: string #112
+NumRange: string {
+  @sql { type: "NUMRANGE" }
+} #112
 
-TSRange: string #113
+TSRange: string {
+  @sql { type: "TSRANGE" }
+} #113
 
-TSTZRange: string #114
+TSTZRange: string {
+  @sql { type: "TSTZRANGE" }
+} #114
 
-DateRange: string #115
+DateRange: string {
+  @sql { type: "DATERANGE" }
+} #115
 
 // Other Types
 
-Money: string #120
+Money: string {
+  @sql { type: "MONEY" }
+} #120
 
-Bit: string #121
+Bit: string {
+  @sql { type: "BIT" }
+} #121
 
-BitVarying: string #122
+BitVarying: string {
+  @sql { type: "BIT VARYING" }
+} #122
 
-TSVector: string #123
+TSVector: string {
+  @sql { type: "TSVECTOR" }
+} #123
 
-TSQuery: string #124
+TSQuery: string {
+  @sql { type: "TSQUERY" }
+} #124
 
-XML: string #125
+XML: string {
+  @sql { type: "XML" }
+} #125
 

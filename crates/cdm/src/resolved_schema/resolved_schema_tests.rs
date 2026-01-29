@@ -1,6 +1,6 @@
 use super::*;
 use crate::{DefinitionKind, FieldInfo, SymbolTable};
-use cdm_utils::{EntityId, Position, Span};
+use cdm_utils::{EntityId, EntityIdSource, Position, Span};
 use std::collections::HashMap;
 
 // Helper to create a local entity ID
@@ -654,4 +654,59 @@ fn test_build_resolved_schema_field_with_default_value() {
         config_model.fields[0].default_value,
         Some(serde_json::json!(false))
     );
+}
+
+#[test]
+fn test_build_resolved_schema_with_template_namespace_type_alias() {
+    // Create a symbol table with a namespace containing type aliases
+    let mut current_symbols = SymbolTable::new();
+
+    // Create the template namespace with a type alias that has sql config
+    let mut template_symbol_table = SymbolTable::new();
+    let mut sql_config = HashMap::new();
+    sql_config.insert("sql".to_string(), serde_json::json!({"type": "UUID"}));
+
+    template_symbol_table.definitions.insert(
+        "UUID".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::TypeAlias {
+                references: vec!["string".to_string()],
+                type_expr: "string".to_string(),
+            },
+            span: test_span(),
+            plugin_configs: sql_config,
+            entity_id: Some(EntityId::local(60)),
+        },
+    );
+
+    // Add the namespace to current_symbols
+    current_symbols.namespaces.insert(
+        "sql".to_string(),
+        crate::ImportedNamespace {
+            name: "sql".to_string(),
+            template_path: std::path::PathBuf::from("templates/sql-types/postgres.cdm"),
+            symbol_table: template_symbol_table,
+            model_fields: HashMap::new(),
+            template_source: EntityIdSource::LocalTemplate { path: "templates/sql-types".to_string() },
+        },
+    );
+
+    let current_fields = HashMap::new();
+    let ancestors = vec![];
+    let removals = vec![];
+
+    let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals);
+
+    // The qualified type alias "sql.UUID" should be in the resolved schema
+    assert!(resolved.type_aliases.contains_key("sql.UUID"),
+        "Expected sql.UUID in type_aliases, got: {:?}", resolved.type_aliases.keys().collect::<Vec<_>>());
+
+    let uuid_alias = &resolved.type_aliases["sql.UUID"];
+    assert_eq!(uuid_alias.name, "UUID");
+    assert_eq!(uuid_alias.type_expr, "string");
+    assert!(uuid_alias.plugin_configs.contains_key("sql"),
+        "Expected sql plugin config, got: {:?}", uuid_alias.plugin_configs);
+
+    let sql_config = &uuid_alias.plugin_configs["sql"];
+    assert_eq!(sql_config["type"], "UUID");
 }

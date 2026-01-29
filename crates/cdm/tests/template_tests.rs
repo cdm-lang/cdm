@@ -516,3 +516,333 @@ fn test_nested_namespace_access() {
     assert!(!is_type_reference_defined("auth.types.NonExistent", &table, &ancestors));
     assert!(!is_type_reference_defined("auth.Email", &table, &ancestors)); // Not at auth level
 }
+
+#[test]
+fn test_template_type_alias_plugin_configs_extracted() {
+    // Test that @sql { type: "..." } configs in type aliases are properly extracted
+    // when a template is loaded
+
+    // Parse a template with type aliases containing @sql configs
+    let template_source = r#"
+@sql
+
+UUID: string {
+  @sql { type: "UUID" }
+} #1
+
+Varchar: string {
+  @sql { type: "VARCHAR" }
+} #2
+"#;
+
+    let tree = parse(template_source);
+    assert!(!tree.root_node().has_error(), "Template should parse without errors");
+
+    // Use extract_structured_plugin_configs to extract the configs
+    let plugin_data = cdm::extract_structured_plugin_configs(tree.root_node(), template_source);
+
+    // Verify UUID type alias has sql config
+    assert!(plugin_data.type_alias_configs.contains_key("UUID"),
+        "Expected UUID in type_alias_configs, got: {:?}", plugin_data.type_alias_configs.keys().collect::<Vec<_>>());
+
+    let uuid_configs = &plugin_data.type_alias_configs["UUID"];
+    assert!(uuid_configs.contains_key("sql"),
+        "Expected sql config for UUID, got: {:?}", uuid_configs.keys().collect::<Vec<_>>());
+
+    let uuid_sql_config = &uuid_configs["sql"];
+    assert_eq!(uuid_sql_config["type"], "UUID",
+        "Expected type: UUID, got: {:?}", uuid_sql_config);
+
+    // Verify Varchar type alias has sql config
+    assert!(plugin_data.type_alias_configs.contains_key("Varchar"),
+        "Expected Varchar in type_alias_configs");
+
+    let varchar_configs = &plugin_data.type_alias_configs["Varchar"];
+    assert!(varchar_configs.contains_key("sql"),
+        "Expected sql config for Varchar");
+
+    let varchar_sql_config = &varchar_configs["sql"];
+    assert_eq!(varchar_sql_config["type"], "VARCHAR",
+        "Expected type: VARCHAR, got: {:?}", varchar_sql_config);
+}
+
+#[test]
+fn test_collect_definitions_preserves_type_alias_plugin_configs() {
+    // Verify that collect_definitions properly assigns plugin configs to type aliases
+    let template_source = r#"
+@sql
+
+UUID: string {
+  @sql { type: "UUID" }
+} #1
+
+Varchar: string {
+  @sql { type: "VARCHAR" }
+} #2
+"#;
+
+    let tree = parse(template_source);
+    assert!(!tree.root_node().has_error());
+
+    // Use the full validation which includes collect_definitions
+    let ancestors: Vec<cdm::Ancestor> = vec![];
+    let result = cdm::validate(template_source, &ancestors);
+
+    // Check that type alias definitions have plugin configs
+    let uuid_def = result.symbol_table.get("UUID");
+    assert!(uuid_def.is_some(), "Expected UUID in symbol table");
+
+    let uuid_def = uuid_def.unwrap();
+    assert!(uuid_def.plugin_configs.contains_key("sql"),
+        "Expected sql config on UUID definition, got: {:?}", uuid_def.plugin_configs);
+
+    let uuid_sql_config = &uuid_def.plugin_configs["sql"];
+    assert_eq!(uuid_sql_config["type"], "UUID",
+        "Expected type: UUID on UUID definition, got: {:?}", uuid_sql_config);
+
+    let varchar_def = result.symbol_table.get("Varchar");
+    assert!(varchar_def.is_some(), "Expected Varchar in symbol table");
+
+    let varchar_def = varchar_def.unwrap();
+    assert!(varchar_def.plugin_configs.contains_key("sql"),
+        "Expected sql config on Varchar definition, got: {:?}", varchar_def.plugin_configs);
+}
+
+#[test]
+fn test_build_resolved_schema_includes_template_namespace_type_aliases() {
+    // Test the full flow: template type aliases with plugin configs are included
+    // in the resolved schema with qualified names
+
+    // Create main file symbol table with a namespace containing template types
+    let mut main_symbols = SymbolTable::new();
+
+    // Parse template to get its symbol table
+    let template_source = r#"
+@sql
+
+UUID: string {
+  @sql { type: "UUID" }
+} #60
+
+Varchar: string {
+  @sql { type: "VARCHAR" }
+} #20
+"#;
+
+    let ancestors: Vec<cdm::Ancestor> = vec![];
+    let template_result = cdm::validate(template_source, &ancestors);
+
+    // Create namespace from template validation result
+    let template_ns = ImportedNamespace {
+        name: "sql".to_string(),
+        template_path: PathBuf::from("./templates/sql-types/postgres.cdm"),
+        symbol_table: template_result.symbol_table,
+        model_fields: template_result.model_fields,
+        template_source: EntityIdSource::LocalTemplate { path: "./templates/sql-types".to_string() },
+    };
+
+    // Add namespace to main symbol table
+    main_symbols.add_namespace(template_ns);
+
+    // Build resolved schema
+    let current_fields = HashMap::new();
+    let removals: Vec<(String, Span, &str)> = vec![];
+
+    let resolved = cdm::build_resolved_schema(&main_symbols, &current_fields, &[], &removals);
+
+    // Verify sql.UUID is in resolved schema with correct config
+    assert!(resolved.type_aliases.contains_key("sql.UUID"),
+        "Expected sql.UUID in resolved type_aliases, got: {:?}", resolved.type_aliases.keys().collect::<Vec<_>>());
+
+    let uuid_alias = &resolved.type_aliases["sql.UUID"];
+    assert!(uuid_alias.plugin_configs.contains_key("sql"),
+        "Expected sql config on sql.UUID, got: {:?}", uuid_alias.plugin_configs);
+
+    let uuid_sql_config = &uuid_alias.plugin_configs["sql"];
+    assert_eq!(uuid_sql_config["type"], "UUID",
+        "Expected type: UUID on sql.UUID, got: {:?}", uuid_sql_config);
+
+    // Verify sql.Varchar is in resolved schema with correct config
+    assert!(resolved.type_aliases.contains_key("sql.Varchar"),
+        "Expected sql.Varchar in resolved type_aliases");
+
+    let varchar_alias = &resolved.type_aliases["sql.Varchar"];
+    assert!(varchar_alias.plugin_configs.contains_key("sql"),
+        "Expected sql config on sql.Varchar, got: {:?}", varchar_alias.plugin_configs);
+}
+
+#[test]
+fn test_validate_with_templates_adds_namespaces_to_symbol_table() {
+    // Test that validate_with_templates correctly adds template namespaces
+    // This simulates what happens during the build flow
+
+    // Parse the main file that imports a template
+    let main_source = r#"
+import sql from "./test_template"
+
+@sql {
+  dialect: "postgresql",
+  build_output: "./test_output"
+}
+
+TestUser {
+  id: sql.UUID #1
+} #1
+"#;
+
+    // First, validate the template to get its symbol table
+    let template_source = r#"
+@sql
+
+UUID: string {
+  @sql { type: "UUID" }
+} #60
+"#;
+
+    let ancestors: Vec<cdm::Ancestor> = vec![];
+    let template_result = cdm::validate(template_source, &ancestors);
+    assert!(!template_result.has_errors(), "Template should validate without errors");
+
+    // Create namespace from template
+    let template_ns = ImportedNamespace {
+        name: "sql".to_string(),
+        template_path: PathBuf::from("./test_template"),
+        symbol_table: template_result.symbol_table,
+        model_fields: template_result.model_fields,
+        template_source: EntityIdSource::LocalTemplate { path: "./test_template".to_string() },
+    };
+
+    // Validate main file with template namespace
+    let main_result = cdm::validate_with_templates(main_source, &[], vec![template_ns]);
+
+    // The symbol table should have the sql namespace
+    assert!(main_result.symbol_table.has_namespace("sql"),
+        "Expected sql namespace in symbol table");
+
+    let sql_ns = main_result.symbol_table.get_namespace("sql").unwrap();
+
+    // The namespace should have UUID definition with plugin config
+    let uuid_def = sql_ns.symbol_table.get("UUID");
+    assert!(uuid_def.is_some(), "Expected UUID in sql namespace");
+
+    let uuid_def = uuid_def.unwrap();
+    assert!(uuid_def.plugin_configs.contains_key("sql"),
+        "Expected sql config on UUID in namespace, got: {:?}", uuid_def.plugin_configs);
+}
+
+#[test]
+fn test_actual_postgres_template_has_sql_configs() {
+    // Load the actual postgres.cdm template and verify it has @sql { type: "..." } configs
+    let template_source = include_str!("../../../templates/sql-types/postgres.cdm");
+
+    let ancestors: Vec<cdm::Ancestor> = vec![];
+    let result = cdm::validate(template_source, &ancestors);
+
+    // Template should validate without errors
+    let errors: Vec<_> = result.diagnostics.iter()
+        .filter(|d| d.severity == cdm::Severity::Error)
+        .collect();
+    assert!(errors.is_empty(), "Template has errors: {:?}", errors);
+
+    // Check that UUID has sql config
+    let uuid_def = result.symbol_table.get("UUID");
+    assert!(uuid_def.is_some(), "Expected UUID in template symbol table");
+
+    let uuid_def = uuid_def.unwrap();
+    assert!(uuid_def.plugin_configs.contains_key("sql"),
+        "Expected sql config on UUID, got plugin_configs: {:?}", uuid_def.plugin_configs);
+
+    let uuid_sql_config = &uuid_def.plugin_configs["sql"];
+    assert_eq!(uuid_sql_config["type"], "UUID",
+        "Expected type: UUID, got: {:?}", uuid_sql_config);
+
+    // Check that Varchar has sql config
+    let varchar_def = result.symbol_table.get("Varchar");
+    assert!(varchar_def.is_some(), "Expected Varchar in template symbol table");
+
+    let varchar_def = varchar_def.unwrap();
+    assert!(varchar_def.plugin_configs.contains_key("sql"),
+        "Expected sql config on Varchar, got plugin_configs: {:?}", varchar_def.plugin_configs);
+
+    let varchar_sql_config = &varchar_def.plugin_configs["sql"];
+    assert_eq!(varchar_sql_config["type"], "VARCHAR",
+        "Expected type: VARCHAR, got: {:?}", varchar_sql_config);
+}
+
+#[test]
+fn test_build_cdm_schema_for_plugin_includes_template_type_configs() {
+    // Test that build_cdm_schema_for_plugin correctly includes template type aliases
+    // with their plugin configs in the schema sent to plugins
+
+    // Simulate what validate_tree does: create a validation result with namespaces
+    let template_source = r#"
+@sql
+
+UUID: string {
+  @sql { type: "UUID" }
+} #60
+
+Varchar: string {
+  @sql { type: "VARCHAR" }
+} #20
+"#;
+
+    let ancestors: Vec<cdm::Ancestor> = vec![];
+    let template_result = cdm::validate(template_source, &ancestors);
+
+    // Create namespace from template
+    let template_ns = ImportedNamespace {
+        name: "sql".to_string(),
+        template_path: PathBuf::from("./templates/sql-types/postgres.cdm"),
+        symbol_table: template_result.symbol_table,
+        model_fields: template_result.model_fields,
+        template_source: EntityIdSource::LocalTemplate { path: "./templates/sql-types".to_string() },
+    };
+
+    // Create main file validation result with the namespace
+    let main_source = r#"
+import sql from "./templates/sql-types/postgres.cdm"
+
+@sql {
+  dialect: "postgresql",
+  build_output: "./test_output"
+}
+
+TestUser {
+  id: sql.UUID #1
+  name: sql.Varchar #2
+} #1
+"#;
+
+    let main_result = cdm::validate_with_templates(main_source, &[], vec![template_ns]);
+    assert!(!main_result.has_errors(), "Main file should validate without errors");
+
+    // Verify the namespace is in the symbol table
+    assert!(main_result.symbol_table.has_namespace("sql"),
+        "Expected sql namespace in main validation result");
+
+    // Build schema for plugin
+    let plugin_schema = cdm::build_cdm_schema_for_plugin(&main_result, &[], "sql")
+        .expect("build_cdm_schema_for_plugin should succeed");
+
+    // The type_aliases HashMap should contain sql.UUID and sql.Varchar
+    println!("Type aliases in schema: {:?}", plugin_schema.type_aliases.keys().collect::<Vec<_>>());
+
+    assert!(plugin_schema.type_aliases.contains_key("sql.UUID"),
+        "Expected sql.UUID in plugin schema type_aliases, got: {:?}", plugin_schema.type_aliases.keys().collect::<Vec<_>>());
+
+    let uuid_alias = &plugin_schema.type_aliases["sql.UUID"];
+    println!("sql.UUID config: {:?}", uuid_alias.config);
+
+    // The config should have type: "UUID"
+    assert_eq!(uuid_alias.config["type"], "UUID",
+        "Expected config.type = UUID for sql.UUID, got: {:?}", uuid_alias.config);
+
+    // Check sql.Varchar
+    assert!(plugin_schema.type_aliases.contains_key("sql.Varchar"),
+        "Expected sql.Varchar in plugin schema type_aliases");
+
+    let varchar_alias = &plugin_schema.type_aliases["sql.Varchar"];
+    assert_eq!(varchar_alias.config["type"], "VARCHAR",
+        "Expected config.type = VARCHAR for sql.Varchar, got: {:?}", varchar_alias.config);
+}

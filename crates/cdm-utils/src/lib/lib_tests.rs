@@ -175,7 +175,7 @@ fn test_parse_errors() {
 
 #[test]
 fn test_is_valid_identifier() {
-    // Valid identifiers
+    // Valid simple identifiers
     assert!(is_valid_identifier("User"));
     assert!(is_valid_identifier("_private"));
     assert!(is_valid_identifier("User123"));
@@ -183,12 +183,19 @@ fn test_is_valid_identifier() {
     assert!(is_valid_identifier("PascalCase"));
     assert!(is_valid_identifier("camelCase"));
 
+    // Valid qualified identifiers (for template types like sql.UUID)
+    assert!(is_valid_identifier("sql.UUID"));
+    assert!(is_valid_identifier("auth.types.Email"));
+    assert!(is_valid_identifier("namespace.Type"));
+
     // Invalid identifiers
     assert!(!is_valid_identifier(""));
     assert!(!is_valid_identifier("123abc"));
     assert!(!is_valid_identifier("user-name"));
-    assert!(!is_valid_identifier("user.name"));
     assert!(!is_valid_identifier("user name"));
+    assert!(!is_valid_identifier(".name")); // Can't start with dot
+    assert!(!is_valid_identifier("name.")); // Can't end with dot
+    assert!(!is_valid_identifier("foo..bar")); // No empty parts
 }
 
 #[test]

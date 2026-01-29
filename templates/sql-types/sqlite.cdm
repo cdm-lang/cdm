@@ -1,76 +1,138 @@
 // SQLite Type Definitions
+// Import sql plugin to enable @sql { type: "..." } annotations
+@sql
 
 // SQLite uses a dynamic type system with storage classes and type affinities
 
 // Storage Classes (Core Types)
 
-Null: string #1
+Null: string {
+  @sql { type: "NULL" }
+} #1
 
-Integer: number #2
+Integer: number {
+  @sql { type: "INTEGER" }
+} #2
 
-Real: number #3
+Real: number {
+  @sql { type: "REAL" }
+} #3
 
-Text: string #4
+Text: string {
+  @sql { type: "TEXT" }
+} #4
 
-Blob: string #5
+Blob: string {
+  @sql { type: "BLOB" }
+} #5
 
 // Integer Affinity Types
 
-Int: number #10
+Int: number {
+  @sql { type: "INT" }
+} #10
 
-TinyInt: number #11
+TinyInt: number {
+  @sql { type: "TINYINT" }
+} #11
 
-SmallInt: number #12
+SmallInt: number {
+  @sql { type: "SMALLINT" }
+} #12
 
-MediumInt: number #13
+MediumInt: number {
+  @sql { type: "MEDIUMINT" }
+} #13
 
-BigInt: number #14
+BigInt: number {
+  @sql { type: "BIGINT" }
+} #14
 
-Int2: number #15
+Int2: number {
+  @sql { type: "INT2" }
+} #15
 
-Int8: number #16
+Int8: number {
+  @sql { type: "INT8" }
+} #16
 
 // Text Affinity Types
 
-Character: string #20
+Character: string {
+  @sql { type: "CHARACTER" }
+} #20
 
-Varchar: string #21
+Varchar: string {
+  @sql { type: "VARCHAR" }
+} #21
 
-VaryingCharacter: string #22
+VaryingCharacter: string {
+  @sql { type: "VARYING CHARACTER" }
+} #22
 
-NChar: string #23
+NChar: string {
+  @sql { type: "NCHAR" }
+} #23
 
-NativeCharacter: string #24
+NativeCharacter: string {
+  @sql { type: "NATIVE CHARACTER" }
+} #24
 
-NVarchar: string #25
+NVarchar: string {
+  @sql { type: "NVARCHAR" }
+} #25
 
-Clob: string #26
+Clob: string {
+  @sql { type: "CLOB" }
+} #26
 
 // Real Affinity Types
 
-Double: number #30
+Double: number {
+  @sql { type: "DOUBLE" }
+} #30
 
-DoublePrecision: number #31
+DoublePrecision: number {
+  @sql { type: "DOUBLE PRECISION" }
+} #31
 
-Float: number #32
+Float: number {
+  @sql { type: "FLOAT" }
+} #32
 
 // Numeric Affinity Types
 
-Numeric: number #40
+Numeric: number {
+  @sql { type: "NUMERIC" }
+} #40
 
-Decimal: number #41
+Decimal: number {
+  @sql { type: "DECIMAL" }
+} #41
 
-Boolean: boolean #42
+Boolean: boolean {
+  @sql { type: "BOOLEAN" }
+} #42
 
-Date: string #43
+Date: string {
+  @sql { type: "DATE" }
+} #43
 
-DateTime: string #44
+DateTime: string {
+  @sql { type: "DATETIME" }
+} #44
 
-Timestamp: string #45
+Timestamp: string {
+  @sql { type: "TIMESTAMP" }
+} #45
 
 // Special Types (stored as text or integer internally)
 
-UUID: string #50
+UUID: string {
+  @sql { type: "TEXT" }
+} #50
 
-SQLJSON: string #51
+SQLJSON: string {
+  @sql { type: "TEXT" }
+} #51
 
