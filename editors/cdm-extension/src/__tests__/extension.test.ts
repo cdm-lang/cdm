@@ -571,4 +571,202 @@ describe("CDM Extension", () => {
       expect(result).toBeUndefined();
     });
   });
+
+  describe("migrate command validation", () => {
+    it("should accept numeric migration names like '001'", async () => {
+      const fs = require("fs");
+      const child_process = require("child_process");
+
+      fs.promises.access.mockResolvedValueOnce(undefined);
+
+      mockConfig.get = jest.fn((key: string) => {
+        if (key === "cli.path") return "/path/to/cdm";
+        if (key === "trace.server") return "off";
+        if (key === "validation.checkIds") return true;
+        if (key === "format.indentSize") return 2;
+        if (key === "format.assignIdsOnSave") return false;
+        return undefined;
+      });
+
+      // Mock active editor
+      const mockDocument = {
+        languageId: "cdm",
+        uri: { fsPath: "/path/to/schema.cdm" },
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      Object.defineProperty(vscode.window, 'activeTextEditor', {
+        get: jest.fn(() => ({ document: mockDocument })),
+        configurable: true,
+      });
+
+      // Mock showInputBox to simulate user entering "001"
+      let capturedValidateFunction: ((value: string) => string | null) | undefined;
+      (vscode.window.showInputBox as jest.Mock) = jest.fn((options: any) => {
+        capturedValidateFunction = options?.validateInput;
+        return Promise.resolve("001");
+      });
+
+      // Mock spawn for CLI command
+      const mockProcess = {
+        stdout: { on: jest.fn() },
+        stderr: { on: jest.fn() },
+        on: jest.fn((event: string, callback: Function) => {
+          if (event === "close") {
+            callback(0); // Exit code 0 for success
+          }
+        }),
+      };
+      jest.spyOn(child_process, 'spawn').mockReturnValue(mockProcess as any);
+
+      await activate(mockContext);
+
+      const migrateCommand = registeredCommands.get("cdm.migrate");
+      expect(migrateCommand).toBeDefined();
+
+      await migrateCommand!();
+
+      // Check that the validateInput function was provided
+      expect(capturedValidateFunction).toBeDefined();
+
+      // Test validation: "001" should be valid
+      if (capturedValidateFunction) {
+        const result = capturedValidateFunction("001");
+        expect(result).toBeNull(); // null means valid
+      }
+    });
+
+    it("should accept alphanumeric migration names with underscores", async () => {
+      const fs = require("fs");
+      fs.promises.access.mockResolvedValueOnce(undefined);
+
+      mockConfig.get = jest.fn((key: string) => {
+        if (key === "cli.path") return "/path/to/cdm";
+        if (key === "trace.server") return "off";
+        if (key === "validation.checkIds") return true;
+        if (key === "format.indentSize") return 2;
+        if (key === "format.assignIdsOnSave") return false;
+        return undefined;
+      });
+
+      const mockDocument = {
+        languageId: "cdm",
+        uri: { fsPath: "/path/to/schema.cdm" },
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      Object.defineProperty(vscode.window, 'activeTextEditor', {
+        get: jest.fn(() => ({ document: mockDocument })),
+        configurable: true,
+      });
+
+      let capturedValidateFunction: ((value: string) => string | null) | undefined;
+      (vscode.window.showInputBox as jest.Mock) = jest.fn((options: any) => {
+        capturedValidateFunction = options?.validateInput;
+        return Promise.resolve(null); // User cancelled
+      });
+
+      await activate(mockContext);
+
+      const migrateCommand = registeredCommands.get("cdm.migrate");
+      expect(migrateCommand).toBeDefined();
+
+      await migrateCommand!();
+
+      expect(capturedValidateFunction).toBeDefined();
+
+      if (capturedValidateFunction) {
+        // Test various valid names
+        expect(capturedValidateFunction("add_user_field")).toBeNull();
+        expect(capturedValidateFunction("001_initial")).toBeNull();
+        expect(capturedValidateFunction("migration_001")).toBeNull();
+        expect(capturedValidateFunction("_private")).toBeNull();
+        expect(capturedValidateFunction("ABC123")).toBeNull();
+      }
+    });
+
+    it("should reject empty migration names", async () => {
+      const fs = require("fs");
+      fs.promises.access.mockResolvedValueOnce(undefined);
+
+      mockConfig.get = jest.fn((key: string) => {
+        if (key === "cli.path") return "/path/to/cdm";
+        if (key === "trace.server") return "off";
+        if (key === "validation.checkIds") return true;
+        if (key === "format.indentSize") return 2;
+        if (key === "format.assignIdsOnSave") return false;
+        return undefined;
+      });
+
+      const mockDocument = {
+        languageId: "cdm",
+        uri: { fsPath: "/path/to/schema.cdm" },
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      Object.defineProperty(vscode.window, 'activeTextEditor', {
+        get: jest.fn(() => ({ document: mockDocument })),
+        configurable: true,
+      });
+
+      let capturedValidateFunction: ((value: string) => string | null) | undefined;
+      (vscode.window.showInputBox as jest.Mock) = jest.fn((options: any) => {
+        capturedValidateFunction = options?.validateInput;
+        return Promise.resolve(null);
+      });
+
+      await activate(mockContext);
+
+      const migrateCommand = registeredCommands.get("cdm.migrate");
+      await migrateCommand!();
+
+      if (capturedValidateFunction) {
+        expect(capturedValidateFunction("")).toBe("Migration name is required");
+        expect(capturedValidateFunction("   ")).toBe("Migration name is required");
+      }
+    });
+
+    it("should reject migration names with special characters", async () => {
+      const fs = require("fs");
+      fs.promises.access.mockResolvedValueOnce(undefined);
+
+      mockConfig.get = jest.fn((key: string) => {
+        if (key === "cli.path") return "/path/to/cdm";
+        if (key === "trace.server") return "off";
+        if (key === "validation.checkIds") return true;
+        if (key === "format.indentSize") return 2;
+        if (key === "format.assignIdsOnSave") return false;
+        return undefined;
+      });
+
+      const mockDocument = {
+        languageId: "cdm",
+        uri: { fsPath: "/path/to/schema.cdm" },
+        save: jest.fn().mockResolvedValue(true),
+      };
+
+      Object.defineProperty(vscode.window, 'activeTextEditor', {
+        get: jest.fn(() => ({ document: mockDocument })),
+        configurable: true,
+      });
+
+      let capturedValidateFunction: ((value: string) => string | null) | undefined;
+      (vscode.window.showInputBox as jest.Mock) = jest.fn((options: any) => {
+        capturedValidateFunction = options?.validateInput;
+        return Promise.resolve(null);
+      });
+
+      await activate(mockContext);
+
+      const migrateCommand = registeredCommands.get("cdm.migrate");
+      await migrateCommand!();
+
+      if (capturedValidateFunction) {
+        expect(capturedValidateFunction("migration-name")).not.toBeNull();
+        expect(capturedValidateFunction("migration name")).not.toBeNull();
+        expect(capturedValidateFunction("migration.name")).not.toBeNull();
+        expect(capturedValidateFunction("migration@123")).not.toBeNull();
+      }
+    });
+  });
 });

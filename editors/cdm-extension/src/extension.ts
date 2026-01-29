@@ -627,13 +627,13 @@ async function runMigrate(): Promise<void> {
   // Prompt for migration name
   const migrationName = await vscode.window.showInputBox({
     prompt: 'Enter migration name',
-    placeHolder: 'e.g., add_user_email_field',
+    placeHolder: 'e.g., add_user_email_field or 001',
     validateInput: (value) => {
       if (!value || value.trim().length === 0) {
         return 'Migration name is required';
       }
-      if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(value)) {
-        return 'Migration name must be alphanumeric with underscores (e.g., add_user_field)';
+      if (!/^[a-zA-Z0-9_]+$/.test(value)) {
+        return 'Migration name must be alphanumeric with underscores (e.g., add_user_field, 001, or 001_initial)';
       }
       return null;
     }
