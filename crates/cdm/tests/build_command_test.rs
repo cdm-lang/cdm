@@ -221,3 +221,161 @@ Post {
 
     cleanup();
 }
+
+#[test]
+fn test_build_with_typeorm_plugin_type_alias_ts_type() {
+    // End-to-end test for ts_type on type aliases in TypeORM plugin
+    // Verifies that when a type alias has ts_type config, fields using that
+    // type alias will use the ts_type in the generated TypeORM entity
+    let temp_dir = std::env::temp_dir().join("cdm_e2e_test_typeorm_type_alias_ts_type");
+    let _ = fs::remove_dir_all(&temp_dir); // Clean up from previous runs
+    fs::create_dir_all(&temp_dir).unwrap();
+
+    let schema_file = temp_dir.join("test.cdm");
+
+    // Build the typeorm plugin WASM if it doesn't exist
+    let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+    let project_root = manifest_dir.parent().unwrap().parent().unwrap();
+
+    // Determine the target directory - respect CARGO_TARGET_DIR if set
+    let target_dir = std::env::var("CARGO_TARGET_DIR")
+        .map(PathBuf::from)
+        .unwrap_or_else(|_| project_root.join("target"));
+
+    let plugin_wasm = target_dir
+        .join("wasm32-wasip1/release/cdm_plugin_typeorm.wasm");
+
+    // Build the plugin if it doesn't exist
+    if !plugin_wasm.exists() {
+        let build_result = Command::new("cargo")
+            .current_dir(project_root)
+            .args([
+                "build",
+                "--release",
+                "--target", "wasm32-wasip1",
+                "-p", "cdm-plugin-typeorm"
+            ])
+            .status();
+
+        match build_result {
+            Ok(status) if status.success() => {
+                // Build succeeded
+            }
+            Ok(status) => {
+                panic!("Failed to build TypeORM plugin WASM: exit code {:?}", status.code());
+            }
+            Err(e) => {
+                panic!("Failed to execute cargo build for TypeORM plugin: {}. Make sure 'wasm32-wasip1' target is installed with: rustup target add wasm32-wasip1", e);
+            }
+        }
+    }
+
+    // Verify the WASM file exists after build attempt
+    if !plugin_wasm.exists() {
+        panic!(
+            "WASM file not found at {:?} after build. \
+            Make sure 'wasm32-wasip1' target is installed with: rustup target add wasm32-wasip1",
+            plugin_wasm
+        );
+    }
+
+    // Get the path to the actual plugin directory (not the WASM file)
+    let plugin_dir = manifest_dir
+        .parent().unwrap()
+        .parent().unwrap()
+        .join("crates/cdm-plugin-typeorm");
+
+    // Verify the plugin directory exists with cdm-plugin.json
+    let plugin_json = plugin_dir.join("cdm-plugin.json");
+    if !plugin_json.exists() {
+        panic!(
+            "Plugin directory is missing cdm-plugin.json at {:?}. \
+            Make sure cdm-plugin-typeorm is properly set up.",
+            plugin_json
+        );
+    }
+
+    // Create a symlink to the plugin directory in the temp directory
+    let plugin_link = temp_dir.join("typeorm-plugin");
+    #[cfg(unix)]
+    {
+        std::os::unix::fs::symlink(&plugin_dir, &plugin_link)
+            .expect("Failed to create symlink to typeorm plugin directory");
+    }
+    #[cfg(windows)]
+    {
+        std::os::windows::fs::symlink_dir(&plugin_dir, &plugin_link)
+            .expect("Failed to create symlink to typeorm plugin directory");
+    }
+
+    // Copy the WASM file to the expected location within the symlinked plugin directory
+    let wasm_dest_dir = plugin_link.join("target/wasm32-wasip1/release");
+    fs::create_dir_all(&wasm_dest_dir).unwrap();
+    let wasm_dest = wasm_dest_dir.join("cdm_plugin_typeorm.wasm");
+    fs::copy(&plugin_wasm, &wasm_dest).unwrap();
+
+    // Create a CDM schema with a type alias that has ts_type config
+    // and a model that uses that type alias
+    let schema = r#"@typeorm from "./typeorm-plugin" {
+    build_output: "./generated"
+}
+
+// Type alias with ts_type configuration - should apply to all fields using this type
+Metadata: JSON {
+    @typeorm {
+        ts_type: {
+            type: "MetadataType",
+            import: "./types/metadata"
+        }
+    }
+} #1
+
+User {
+    id: string {
+        @typeorm { primary: { generation: "uuid" } }
+    } #1
+    // This field uses the Metadata type alias, should get ts_type from the alias
+    metadata: Metadata #2
+    // Regular JSON field without type alias - should use default mapping
+    rawData: JSON #3
+} #10
+"#;
+
+    fs::write(&schema_file, schema).unwrap();
+
+    // Run the build
+    let result = cdm::build(&schema_file);
+
+    // Clean up
+    let cleanup = || {
+        let _ = fs::remove_dir_all(&temp_dir);
+    };
+
+    if let Err(e) = &result {
+        cleanup();
+        panic!("Build failed: {}", e);
+    }
+
+    assert!(result.is_ok(), "Build should succeed with typeorm plugin");
+
+    // The typeorm plugin generates per-model files by default
+    let user_file = temp_dir.join("generated/User.ts");
+
+    assert!(user_file.exists(), "User.ts should be generated at {}", user_file.display());
+
+    let content = fs::read_to_string(&user_file).unwrap();
+
+    // Verify type alias ts_type is applied: metadata field should use MetadataType
+    assert!(content.contains("metadata: MetadataType"),
+        "metadata field should use 'MetadataType' from type alias ts_type config. Content:\n{}", content);
+
+    // Verify the import is generated for the custom type
+    assert!(content.contains("import { MetadataType } from \"./types/metadata\""),
+        "Should generate import for MetadataType from type alias ts_type config. Content:\n{}", content);
+
+    // Verify rawData field uses default JSON mapping (Record<string, unknown>)
+    assert!(content.contains("rawData: Record<string, unknown>"),
+        "rawData field should use default JSON mapping. Content:\n{}", content);
+
+    cleanup();
+}
