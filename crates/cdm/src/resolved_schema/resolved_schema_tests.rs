@@ -718,6 +718,121 @@ fn test_get_inherited_fields_with_field_override() {
 }
 
 #[test]
+fn test_get_inherited_fields_with_skip_true_on_parent() {
+    // Test that inherited fields are included even when the parent model has
+    // skip: true in its plugin config. The skip config tells plugins not to
+    // generate output for that model, but the fields should still be inherited.
+    //
+    // Example:
+    //   @sql { skip: true }
+    //   PublicUser { id: string, name?: string }
+    //
+    //   User extends PublicUser { email: string }
+    //
+    // User should still have all three fields: id, name, email
+
+    // Create the parent model "PublicUser" with skip: true in ancestors
+    let mut ancestor_symbols = SymbolTable::new();
+    let mut skip_config = HashMap::new();
+    skip_config.insert("sql".to_string(), serde_json::json!({ "skip": true }));
+
+    ancestor_symbols.definitions.insert(
+        "PublicUser".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model {
+                extends: vec![],
+            },
+            span: test_span(),
+            plugin_configs: skip_config,
+            entity_id: local_id(1),
+        },
+    );
+
+    let mut ancestor_fields = HashMap::new();
+    ancestor_fields.insert(
+        "PublicUser".to_string(),
+        vec![
+            FieldInfo {
+                name: "id".to_string(),
+                type_expr: Some("string".to_string()),
+                optional: false,
+                span: test_span(),
+                plugin_configs: HashMap::new(),
+                default_value: None,
+                entity_id: local_id(10),
+            },
+            FieldInfo {
+                name: "name".to_string(),
+                type_expr: Some("string".to_string()),
+                optional: true,
+                span: test_span(),
+                plugin_configs: HashMap::new(),
+                default_value: None,
+                entity_id: local_id(11),
+            },
+        ],
+    );
+
+    let ancestors = vec![Ancestor {
+        path: "public.cdm".to_string(),
+        symbol_table: ancestor_symbols,
+        model_fields: ancestor_fields,
+    }];
+
+    // Create the child model "User" that extends "PublicUser"
+    let mut current_symbols = SymbolTable::new();
+    current_symbols.definitions.insert(
+        "User".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model {
+                extends: vec!["PublicUser".to_string()],
+            },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: local_id(2),
+        },
+    );
+
+    let mut current_fields = HashMap::new();
+    current_fields.insert(
+        "User".to_string(),
+        vec![FieldInfo {
+            name: "email".to_string(),
+            type_expr: Some("string".to_string()),
+            optional: false,
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            default_value: None,
+            entity_id: local_id(20),
+        }],
+    );
+
+    // Test get_inherited_fields returns all fields (inherited + own)
+    // even when parent has skip: true
+    let flattened = crate::symbol_table::get_inherited_fields(
+        "User",
+        &current_fields,
+        &current_symbols,
+        &ancestors,
+    );
+
+    // User should have 3 fields: id, name (inherited from PublicUser), email (own)
+    assert_eq!(
+        flattened.len(), 3,
+        "Flattened User model should have 3 fields even when parent has skip: true, got: {:?}",
+        flattened.iter().map(|f| &f.name).collect::<Vec<_>>()
+    );
+
+    // Check field names are in correct order (inherited first, then own)
+    let field_names: Vec<_> = flattened.iter().map(|f| f.name.as_str()).collect();
+    assert_eq!(
+        field_names,
+        vec!["id", "name", "email"],
+        "Fields should be in order: inherited fields first, then own fields"
+    );
+}
+
+#[test]
 fn test_convert_type_expression_primitive() {
     let parsed = ParsedType::Primitive(PrimitiveType::String);
     let expr = convert_type_expression(&parsed);

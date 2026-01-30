@@ -1330,6 +1330,149 @@ fn test_compute_deltas_first_migration_no_previous_schema() {
     assert!(email_alias_added, "Expected TypeAliasAdded delta for Email type alias");
 }
 
+#[test]
+fn test_compute_deltas_model_with_inherited_fields_from_skipped_parent() {
+    // BUG TEST: When a model extends another model with skip: true,
+    // the inherited fields should still be included in the ModelAdded delta.
+    //
+    // Scenario:
+    //   PublicUser { id: string, name?: string } with @sql { skip: true }
+    //   User extends PublicUser { email: string }
+    //
+    // When computing deltas for first migration:
+    // - PublicUser should NOT generate a ModelAdded (it has skip: true)
+    // - User SHOULD generate a ModelAdded with ALL fields: id, name, email
+    //
+    // Note: This test verifies the schema structure. The actual field flattening
+    // happens in build_cdm_schema_for_plugin, which is tested separately.
+
+    let previous = Schema {
+        models: HashMap::new(),
+        type_aliases: HashMap::new(),
+    };
+
+    // Create a schema where User has inherited fields from PublicUser
+    // (simulating what build_cdm_schema_for_plugin should produce)
+    let mut curr_models = HashMap::new();
+
+    // PublicUser with skip: true - this model won't generate a table
+    curr_models.insert(
+        "PublicUser".to_string(),
+        ModelDefinition {
+            name: "PublicUser".to_string(),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    field_type: ident_type("string"),
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(1),
+                },
+                FieldDefinition {
+                    name: "name".to_string(),
+                    field_type: ident_type("string"),
+                    optional: true,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(2),
+                },
+            ],
+            config: json!({ "skip": true }), // SQL plugin will skip this model
+            entity_id: local_id(10),
+        },
+    );
+
+    // User extends PublicUser - should have all 3 fields (flattened)
+    curr_models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            parents: vec!["PublicUser".to_string()],
+            // Fields should be flattened: inherited (id, name) + own (email)
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    field_type: ident_type("string"),
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(1), // Same as parent's field
+                },
+                FieldDefinition {
+                    name: "name".to_string(),
+                    field_type: ident_type("string"),
+                    optional: true,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(2), // Same as parent's field
+                },
+                FieldDefinition {
+                    name: "email".to_string(),
+                    field_type: ident_type("string"),
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(20), // User's own field
+                },
+            ],
+            config: json!({}),
+            entity_id: local_id(20),
+        },
+    );
+
+    let current = Schema {
+        models: curr_models,
+        type_aliases: HashMap::new(),
+    };
+
+    let deltas = compute_deltas(&previous, &current).unwrap();
+
+    // Find the User model delta
+    let user_delta = deltas.iter().find(|d| {
+        matches!(d, Delta::ModelAdded { name, .. } if name == "User")
+    });
+
+    assert!(
+        user_delta.is_some(),
+        "Expected ModelAdded delta for User model"
+    );
+
+    if let Some(Delta::ModelAdded { name, after }) = user_delta {
+        assert_eq!(name, "User");
+
+        // User should have 3 fields: id, name (inherited), email (own)
+        assert_eq!(
+            after.fields.len(), 3,
+            "User model should have 3 fields (2 inherited + 1 own), got: {:?}",
+            after.fields.iter().map(|f| &f.name).collect::<Vec<_>>()
+        );
+
+        // Verify field names
+        let field_names: Vec<_> = after.fields.iter().map(|f| f.name.as_str()).collect();
+        assert!(
+            field_names.contains(&"id"),
+            "User should have inherited 'id' field"
+        );
+        assert!(
+            field_names.contains(&"name"),
+            "User should have inherited 'name' field"
+        );
+        assert!(
+            field_names.contains(&"email"),
+            "User should have own 'email' field"
+        );
+
+        // Verify inherited field optionality is preserved
+        let name_field = after.fields.iter().find(|f| f.name == "name").unwrap();
+        assert!(
+            name_field.optional,
+            "Inherited 'name' field should remain optional"
+        );
+    }
+}
+
 // ============================================================================
 // Tests for transform_deltas_for_plugin
 // ============================================================================
