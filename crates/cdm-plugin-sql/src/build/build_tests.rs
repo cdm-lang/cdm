@@ -697,3 +697,122 @@ fn test_build_type_alias_default_takes_precedence_over_cdm_default() {
         sql
     );
 }
+
+#[test]
+fn test_build_with_qualified_template_type_alias() {
+    // This test verifies that qualified template type names like "sql.UUID" are
+    // correctly resolved to their SQL types.
+    // Bug: Fields using qualified template types (e.g., sqlType.UUID) were getting
+    // JSONB instead of the type defined in the template's @sql { type: "UUID" } config.
+
+    use cdm_plugin_interface::TypeAliasDefinition;
+
+    let mut type_aliases = HashMap::new();
+
+    // Simulate template type aliases with qualified names as they would be stored
+    // in the schema sent to the SQL plugin
+    type_aliases.insert(
+        "sql.UUID".to_string(),
+        TypeAliasDefinition {
+            name: "UUID".to_string(),
+            alias_type: TypeExpression::Identifier {
+                name: "string".to_string(),
+            },
+            config: json!({
+                "type": "UUID"
+            }),
+            entity_id: None,
+        },
+    );
+
+    type_aliases.insert(
+        "sql.TimestampTZ".to_string(),
+        TypeAliasDefinition {
+            name: "TimestampTZ".to_string(),
+            alias_type: TypeExpression::Identifier {
+                name: "string".to_string(),
+            },
+            config: json!({
+                "type": "TIMESTAMPTZ"
+            }),
+            entity_id: None,
+        },
+    );
+
+    let mut models = HashMap::new();
+    models.insert(
+        "Entity".to_string(),
+        ModelDefinition {
+            name: String::new(),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    // Field uses qualified type name
+                    field_type: TypeExpression::Identifier {
+                        name: "sql.UUID".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    entity_id: None,
+                    config: json!({}),
+                },
+                FieldDefinition {
+                    name: "created_at".to_string(),
+                    // Field uses qualified type name
+                    field_type: TypeExpression::Identifier {
+                        name: "sql.TimestampTZ".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    entity_id: None,
+                    config: json!({}),
+                },
+            ],
+            entity_id: None,
+            config: json!({
+                "indexes": [
+                    {
+                        "fields": ["id"],
+                        "primary": true
+                    }
+                ]
+            }),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases,
+        models,
+    };
+
+    let config = json!({
+        "dialect": "postgresql",
+        "pluralize_table_names": false
+    });
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+    let sql = &files[0].content;
+
+    // The id field should use UUID (from template type alias config), not JSONB
+    assert!(
+        sql.contains("\"id\" UUID NOT NULL"),
+        "Expected 'id' column to be UUID, but got:\n{}",
+        sql
+    );
+
+    // The created_at field should use TIMESTAMPTZ
+    assert!(
+        sql.contains("\"created_at\" TIMESTAMPTZ NOT NULL"),
+        "Expected 'created_at' column to be TIMESTAMPTZ, but got:\n{}",
+        sql
+    );
+
+    // Should not contain JSONB fallback
+    assert!(
+        !sql.contains("JSONB"),
+        "Should not contain JSONB, but got:\n{}",
+        sql
+    );
+}

@@ -846,4 +846,442 @@ TestUser {
     let varchar_alias = &plugin_schema.type_aliases["sql.Varchar"];
     assert_eq!(varchar_alias.config["type"], "VARCHAR",
         "Expected config.type = VARCHAR for sql.Varchar, got: {:?}", varchar_alias.config);
+
+    // Verify that template types are RESOLVED before passing to plugins.
+    // Plugins don't know about templates - they receive the base type with merged config.
+    let test_user = plugin_schema.models.get("TestUser")
+        .expect("TestUser model should exist in schema");
+
+    let id_field = test_user.fields.iter().find(|f| f.name == "id")
+        .expect("id field should exist");
+
+    // The field_type should be the RESOLVED base type "string", not "sql.UUID"
+    match &id_field.field_type {
+        cdm_plugin_interface::TypeExpression::Identifier { name } => {
+            assert_eq!(name, "string",
+                "Template types should be resolved. Expected 'string', got: {}", name);
+        }
+        other => {
+            panic!("Expected Identifier type expression for id field, got: {:?}", other);
+        }
+    }
+
+    // The template's @sql config should be merged into the field's config
+    assert_eq!(id_field.config.get("type").and_then(|v| v.as_str()), Some("UUID"),
+        "Template's @sql config should be merged into field config");
+
+    let name_field = test_user.fields.iter().find(|f| f.name == "name")
+        .expect("name field should exist");
+
+    match &name_field.field_type {
+        cdm_plugin_interface::TypeExpression::Identifier { name } => {
+            assert_eq!(name, "string",
+                "Template types should be resolved. Expected 'string', got: {}", name);
+        }
+        other => {
+            panic!("Expected Identifier type expression for name field, got: {:?}", other);
+        }
+    }
+
+    assert_eq!(name_field.config.get("type").and_then(|v| v.as_str()), Some("VARCHAR"),
+        "Template's @sql config should be merged into field config");
+}
+
+#[test]
+fn test_inherited_template_types_resolved_correctly() {
+    // Test that when fields with template types are inherited, the types are
+    // correctly RESOLVED to their base types with merged configs.
+    //
+    // User scenario:
+    //   Entity { id: sqlType.UUID }
+    //   TimestampedEntity extends Entity
+    //   PublicUser extends TimestampedEntity
+    //
+    // The inherited `id` field should have type "string" (resolved from sqlType.UUID)
+    // with the template's @sql { type: "UUID" } config merged in.
+
+    let template_source = r#"
+@sql
+
+UUID: string {
+  @sql { type: "UUID" }
+} #60
+
+TimestampTZ: string {
+  @sql { type: "TIMESTAMPTZ" }
+} #61
+"#;
+
+    let ancestors: Vec<cdm::Ancestor> = vec![];
+    let template_result = cdm::validate(template_source, &ancestors);
+
+    let template_ns = ImportedNamespace {
+        name: "sqlType".to_string(),
+        template_path: PathBuf::from("./templates/sql-types/postgres.cdm"),
+        symbol_table: template_result.symbol_table,
+        model_fields: template_result.model_fields,
+        template_source: EntityIdSource::LocalTemplate { path: "./templates/sql-types".to_string() },
+    };
+
+    let main_source = r#"
+import sqlType from "./templates/sql-types/postgres.cdm"
+
+@sql {
+  dialect: "postgresql",
+  build_output: "./test_output"
+}
+
+Entity {
+  id: sqlType.UUID #1
+  @sql {
+    indexes: [
+      { fields: ["id"], primary: true }
+    ]
+  }
+} #2
+
+Timestamped {
+  created_at: sqlType.TimestampTZ #2
+} #4
+
+TimestampedEntity extends Entity, Timestamped {
+} #3
+
+PublicUser extends TimestampedEntity {
+  name?: string #2
+  avatar_url?: string #3
+} #1
+"#;
+
+    let main_result = cdm::validate_with_templates(main_source, &[], vec![template_ns]);
+
+    let errors: Vec<_> = main_result.diagnostics.iter()
+        .filter(|d| d.severity == cdm::Severity::Error)
+        .collect();
+    assert!(errors.is_empty(), "Validation errors: {:?}", errors);
+
+    let plugin_schema = cdm::build_cdm_schema_for_plugin(&main_result, &[], "sql")
+        .expect("build_cdm_schema_for_plugin should succeed");
+
+    // Type aliases should still be present (for reference by other tools)
+    assert!(plugin_schema.type_aliases.contains_key("sqlType.UUID"),
+        "Expected sqlType.UUID in type_aliases");
+
+    let public_user = plugin_schema.models.get("PublicUser")
+        .expect("PublicUser model should exist");
+
+    // Check inherited `id` field - type should be RESOLVED to "string"
+    let id_field = public_user.fields.iter().find(|f| f.name == "id")
+        .expect("PublicUser should have inherited 'id' field");
+
+    match &id_field.field_type {
+        cdm_plugin_interface::TypeExpression::Identifier { name } => {
+            assert_eq!(name, "string",
+                "Template types should be resolved. Expected 'string', got: '{}'", name);
+        }
+        other => {
+            panic!("Expected Identifier, got: {:?}", other);
+        }
+    }
+
+    // The template's @sql config should be merged into field config
+    assert_eq!(id_field.config.get("type").and_then(|v| v.as_str()), Some("UUID"),
+        "Expected config.type = 'UUID' from template, got: {:?}", id_field.config);
+
+    // Check inherited `created_at` field
+    let created_at_field = public_user.fields.iter().find(|f| f.name == "created_at")
+        .expect("PublicUser should have inherited 'created_at' field");
+
+    match &created_at_field.field_type {
+        cdm_plugin_interface::TypeExpression::Identifier { name } => {
+            assert_eq!(name, "string",
+                "Template types should be resolved. Expected 'string', got: '{}'", name);
+        }
+        other => {
+            panic!("Expected Identifier, got: {:?}", other);
+        }
+    }
+
+    assert_eq!(created_at_field.config.get("type").and_then(|v| v.as_str()), Some("TIMESTAMPTZ"),
+        "Expected config.type = 'TIMESTAMPTZ' from template, got: {:?}", created_at_field.config);
+}
+
+#[test]
+fn test_sql_plugin_type_resolution_with_template_types() {
+    // End-to-end test that verifies the SQL plugin correctly resolves template types.
+    // This test mimics the exact scenario reported:
+    // - Template imports with namespace "sqlType"
+    // - Fields using qualified types like sqlType.UUID
+    // - Inheritance chain
+    // - Verify the schema passed to the SQL plugin has correct type_aliases and field types
+
+    use cdm_plugin_interface::TypeExpression;
+
+    // Use the actual postgres template source
+    let template_source = include_str!("../../../templates/sql-types/postgres.cdm");
+
+    let ancestors: Vec<cdm::Ancestor> = vec![];
+    let template_result = cdm::validate(template_source, &ancestors);
+
+    // Verify template has UUID with sql config
+    let uuid_def = template_result.symbol_table.get("UUID")
+        .expect("Template should define UUID type");
+    assert!(uuid_def.plugin_configs.contains_key("sql"),
+        "UUID should have sql config, got: {:?}", uuid_def.plugin_configs);
+    assert_eq!(uuid_def.plugin_configs["sql"]["type"], "UUID",
+        "UUID sql config should have type: UUID");
+
+    // Create namespace - using "sqlType" as the user does
+    let template_ns = ImportedNamespace {
+        name: "sqlType".to_string(),
+        template_path: std::path::PathBuf::from("./templates/sql-types/postgres.cdm"),
+        symbol_table: template_result.symbol_table,
+        model_fields: template_result.model_fields,
+        template_source: EntityIdSource::LocalTemplate { path: "./templates/sql-types".to_string() },
+    };
+
+    // Create schema matching user's example
+    let main_source = r#"
+import sqlType from "./templates/sql-types/postgres.cdm"
+
+@sql {
+  dialect: "postgresql",
+  build_output: "./output"
+}
+
+Entity {
+  id: sqlType.UUID {
+    @typeorm { primary: {}, type: "uuid" }
+  } #1
+  @sql {
+    indexes: [
+      { fields: ["id"], primary: true }
+    ]
+  }
+} #2
+
+Timestamped {
+  created_at: sqlType.TimestampTZ {
+    @typeorm { ts_type: "Date", type: "timestamptz" }
+    @sql {}
+  } #2
+} #4
+
+TimestampedEntity extends Entity, Timestamped {
+} #3
+
+PublicUser extends TimestampedEntity {
+  name?: string {
+    @typeorm { type: "varchar" }
+  } #2
+  avatar_url?: string {
+    @typeorm { type: "varchar" }
+  } #3
+} #1
+"#;
+
+    let main_result = cdm::validate_with_templates(main_source, &[], vec![template_ns]);
+
+    // Check for validation errors
+    let errors: Vec<_> = main_result.diagnostics.iter()
+        .filter(|d| d.severity == cdm::Severity::Error)
+        .collect();
+    assert!(errors.is_empty(), "Validation errors: {:?}", errors);
+
+    // Build schema for SQL plugin
+    let plugin_schema = cdm::build_cdm_schema_for_plugin(&main_result, &[], "sql")
+        .expect("build_cdm_schema_for_plugin should succeed");
+
+    // CRITICAL: Verify type_aliases has the qualified name with correct config
+    println!("Type aliases keys: {:?}", plugin_schema.type_aliases.keys().collect::<Vec<_>>());
+
+    assert!(plugin_schema.type_aliases.contains_key("sqlType.UUID"),
+        "Expected sqlType.UUID in type_aliases, got: {:?}", plugin_schema.type_aliases.keys().collect::<Vec<_>>());
+
+    let uuid_alias = &plugin_schema.type_aliases["sqlType.UUID"];
+    println!("sqlType.UUID alias_type: {:?}", uuid_alias.alias_type);
+    println!("sqlType.UUID config: {:?}", uuid_alias.config);
+
+    // The config should have "type": "UUID" - this is what TypeMapper looks for
+    assert_eq!(uuid_alias.config.get("type").and_then(|v| v.as_str()), Some("UUID"),
+        "sqlType.UUID config should have type: UUID, got: {:?}", uuid_alias.config);
+
+    // Verify PublicUser's inherited fields have RESOLVED types
+    // Template types should be resolved to their base types with configs merged
+    let public_user = plugin_schema.models.get("PublicUser")
+        .expect("PublicUser model should exist");
+
+    let id_field = public_user.fields.iter().find(|f| f.name == "id")
+        .expect("PublicUser should have inherited 'id' field");
+
+    println!("PublicUser.id field_type: {:?}", id_field.field_type);
+    println!("PublicUser.id config: {:?}", id_field.config);
+
+    // The field_type should be resolved to the base type "string"
+    match &id_field.field_type {
+        TypeExpression::Identifier { name } => {
+            assert_eq!(name, "string",
+                "Expected id field_type to be 'string' (resolved base type), got: '{}'", name);
+        }
+        other => {
+            panic!("Expected Identifier for id field_type, got: {:?}", other);
+        }
+    }
+
+    // The field's config should have the merged SQL type config
+    let id_sql_type = id_field.config.get("type").and_then(|v| v.as_str());
+    assert_eq!(id_sql_type, Some("UUID"),
+        "Expected id field config to have type: UUID, got: {:?}", id_sql_type);
+
+    // Now verify how the SQL plugin's TypeMapper will process this
+    // Since template types are now resolved:
+    // - field_type is "string" (base type)
+    // - field config has type: "UUID" (from template)
+    // TypeMapper will see the explicit type override in config and use UUID
+    use serde_json::json;
+
+    let _config = json!({ "dialect": "postgresql" });
+
+    // TypeMapper looks for field.config.get("type") first - this is now set correctly
+    let id_type_override = id_field.config.get("type").and_then(|v| v.as_str());
+    assert_eq!(id_type_override, Some("UUID"),
+        "Field config should have type: UUID from resolved template, got: {:?}", id_type_override);
+
+    println!("\nSuccess! The schema passed to the SQL plugin is correct:");
+    println!("  - type_aliases has 'sqlType.UUID' with config.type = 'UUID'");
+    println!("  - PublicUser.id has field_type = 'string' (resolved base type)");
+    println!("  - PublicUser.id has config.type = 'UUID' (merged from template)");
+    println!("  - TypeMapper will use the explicit type override: UUID");
+
+    // CRITICAL: Simulate what happens at the WASM boundary - serialize and deserialize
+    let schema_json = serde_json::to_string(&plugin_schema).expect("Failed to serialize schema");
+    println!("\nSerialized schema (first 2000 chars): {}", &schema_json[..schema_json.len().min(2000)]);
+
+    let deserialized_schema: cdm_plugin_interface::Schema = serde_json::from_str(&schema_json)
+        .expect("Failed to deserialize schema");
+
+    // Verify type_aliases survived serialization
+    assert!(deserialized_schema.type_aliases.contains_key("sqlType.UUID"),
+        "After serialization, type_aliases should still have sqlType.UUID");
+
+    let uuid_alias_after = &deserialized_schema.type_aliases["sqlType.UUID"];
+    assert_eq!(uuid_alias_after.config.get("type").and_then(|v| v.as_str()), Some("UUID"),
+        "After serialization, sqlType.UUID config.type should be 'UUID'");
+
+    // Verify field_type survived serialization
+    let public_user_after = deserialized_schema.models.get("PublicUser")
+        .expect("After serialization, PublicUser should exist");
+    let id_field_after = public_user_after.fields.iter().find(|f| f.name == "id")
+        .expect("After serialization, id field should exist");
+
+    // After serialization, field_type should still be the resolved base type
+    match &id_field_after.field_type {
+        TypeExpression::Identifier { name } => {
+            assert_eq!(name, "string",
+                "After serialization, id field_type should be 'string' (resolved base type), got: '{}'", name);
+        }
+        other => {
+            panic!("After serialization, expected Identifier, got: {:?}", other);
+        }
+    }
+
+    // After serialization, field config should still have the merged type
+    let id_type_after = id_field_after.config.get("type").and_then(|v| v.as_str());
+    assert_eq!(id_type_after, Some("UUID"),
+        "After serialization, id field config.type should be 'UUID', got: {:?}", id_type_after);
+
+    println!("Schema survives serialization/deserialization correctly!");
+}
+
+#[test]
+fn test_template_types_resolved_before_passing_to_plugin() {
+    // BUG TEST: Template types should be RESOLVED before passing to plugins.
+    // Plugins have no knowledge of templates - they should receive:
+    // 1. The underlying base type (e.g., "string" for sqlType.UUID)
+    // 2. The template's plugin config merged into the field's config
+    //
+    // Currently, plugins receive the qualified type name (e.g., "sqlType.UUID")
+    // which they can't resolve, so they fall back to JSONB.
+
+    use cdm_plugin_interface::TypeExpression;
+
+    // Use the actual postgres template
+    let template_source = include_str!("../../../templates/sql-types/postgres.cdm");
+    let ancestors: Vec<cdm::Ancestor> = vec![];
+    let template_result = cdm::validate(template_source, &ancestors);
+
+    let template_ns = ImportedNamespace {
+        name: "sqlType".to_string(),
+        template_path: std::path::PathBuf::from("./templates/sql-types/postgres.cdm"),
+        symbol_table: template_result.symbol_table,
+        model_fields: template_result.model_fields,
+        template_source: EntityIdSource::LocalTemplate { path: "./templates/sql-types".to_string() },
+    };
+
+    let main_source = r#"
+import sqlType from "./templates/sql-types/postgres.cdm"
+
+@sql {
+  dialect: "postgresql",
+  build_output: "./output"
+}
+
+Entity {
+  id: sqlType.UUID #1
+  created_at: sqlType.TimestampTZ #2
+} #1
+"#;
+
+    let main_result = cdm::validate_with_templates(main_source, &[], vec![template_ns]);
+    assert!(!main_result.has_errors(), "Validation errors: {:?}", main_result.diagnostics);
+
+    // Build schema for SQL plugin
+    let plugin_schema = cdm::build_cdm_schema_for_plugin(&main_result, &[], "sql")
+        .expect("build_cdm_schema_for_plugin should succeed");
+
+    let entity = plugin_schema.models.get("Entity")
+        .expect("Entity model should exist");
+
+    // Check the id field
+    let id_field = entity.fields.iter().find(|f| f.name == "id")
+        .expect("id field should exist");
+
+    // EXPECTED: field_type should be the RESOLVED base type "string", NOT "sqlType.UUID"
+    match &id_field.field_type {
+        TypeExpression::Identifier { name } => {
+            assert_eq!(name, "string",
+                "Template types should be resolved to their base type. \
+                 Expected 'string', got '{}'. \
+                 Plugins don't know about templates!", name);
+        }
+        other => {
+            panic!("Expected Identifier, got: {:?}", other);
+        }
+    }
+
+    // EXPECTED: The template's @sql { type: "UUID" } should be merged into field config
+    let sql_type = id_field.config.get("type").and_then(|v| v.as_str());
+    assert_eq!(sql_type, Some("UUID"),
+        "Template's @sql config should be merged into field config. \
+         Expected config.type = 'UUID', got: {:?}", id_field.config);
+
+    // Check created_at field
+    let created_at_field = entity.fields.iter().find(|f| f.name == "created_at")
+        .expect("created_at field should exist");
+
+    match &created_at_field.field_type {
+        TypeExpression::Identifier { name } => {
+            assert_eq!(name, "string",
+                "Template types should be resolved. Expected 'string', got '{}'", name);
+        }
+        other => {
+            panic!("Expected Identifier, got: {:?}", other);
+        }
+    }
+
+    let created_at_sql_type = created_at_field.config.get("type").and_then(|v| v.as_str());
+    assert_eq!(created_at_sql_type, Some("TIMESTAMPTZ"),
+        "Expected config.type = 'TIMESTAMPTZ', got: {:?}", created_at_field.config);
+
+    println!("SUCCESS: Template types are correctly resolved before passing to plugins!");
 }

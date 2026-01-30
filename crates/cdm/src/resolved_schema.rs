@@ -460,23 +460,29 @@ pub fn build_cdm_schema_for_plugin(
                     seen_names.insert(field.name.clone());
 
                     if let Some(final_field) = field_map.get(&field.name) {
-                        let parsed_type = match &final_field.type_expr {
-                            Some(type_str) => cdm_utils::parse_type_string(type_str).unwrap_or_else(|_| {
-                                crate::ParsedType::Primitive(crate::PrimitiveType::String)
-                            }),
-                            None => crate::ParsedType::Primitive(crate::PrimitiveType::String),
+                        // Resolve template types: convert qualified type references (like sqlType.UUID)
+                        // to their underlying base types and extract template plugin configs
+                        let resolved_type = match &final_field.type_expr {
+                            Some(type_str) => resolve_template_type(type_str, &resolved),
+                            None => ResolvedTemplateType {
+                                base_type: crate::ParsedType::Primitive(crate::PrimitiveType::String),
+                                plugin_configs: HashMap::new(),
+                            },
                         };
+
+                        // Merge template configs into field configs (template first, field overrides)
+                        let merged_config = merge_plugin_configs(
+                            &resolved_type.plugin_configs,
+                            &final_field.plugin_configs,
+                            plugin_name,
+                        );
 
                         fields.push(cdm_plugin_interface::FieldDefinition {
                             name: final_field.name.clone(),
-                            field_type: convert_type_expression(&parsed_type),
+                            field_type: convert_type_expression(&resolved_type.base_type),
                             optional: final_field.optional,
                             default: final_field.default_value.as_ref().map(|v| v.into()),
-                            config: if plugin_name.is_empty() {
-                                serde_json::to_value(&final_field.plugin_configs).unwrap_or(serde_json::json!({}))
-                            } else {
-                                final_field.plugin_configs.get(plugin_name).cloned().unwrap_or(serde_json::json!({}))
-                            },
+                            config: merged_config,
                             entity_id: final_field.entity_id.clone(),
                         });
                     }
@@ -487,23 +493,29 @@ pub fn build_cdm_schema_for_plugin(
             // No parents - use the resolved model's fields directly
             // These are already correctly merged from build_resolved_schema
             base_fields.iter().map(|f| {
-                let parsed_type = match &f.type_expr {
-                    Some(type_str) => cdm_utils::parse_type_string(type_str).unwrap_or_else(|_| {
-                        crate::ParsedType::Primitive(crate::PrimitiveType::String)
-                    }),
-                    None => crate::ParsedType::Primitive(crate::PrimitiveType::String),
+                // Resolve template types: convert qualified type references (like sqlType.UUID)
+                // to their underlying base types and extract template plugin configs
+                let resolved_type = match &f.type_expr {
+                    Some(type_str) => resolve_template_type(type_str, &resolved),
+                    None => ResolvedTemplateType {
+                        base_type: crate::ParsedType::Primitive(crate::PrimitiveType::String),
+                        plugin_configs: HashMap::new(),
+                    },
                 };
+
+                // Merge template configs into field configs (template first, field overrides)
+                let merged_config = merge_plugin_configs(
+                    &resolved_type.plugin_configs,
+                    &f.plugin_configs,
+                    plugin_name,
+                );
 
                 cdm_plugin_interface::FieldDefinition {
                     name: f.name.clone(),
-                    field_type: convert_type_expression(&parsed_type),
+                    field_type: convert_type_expression(&resolved_type.base_type),
                     optional: f.optional,
                     default: f.default_value.as_ref().map(|v| v.into()),
-                    config: if plugin_name.is_empty() {
-                        serde_json::to_value(&f.plugin_configs).unwrap_or(serde_json::json!({}))
-                    } else {
-                        f.plugin_configs.get(plugin_name).cloned().unwrap_or(serde_json::json!({}))
-                    },
+                    config: merged_config,
                     entity_id: f.entity_id.clone(),
                 }
             }).collect()
@@ -546,6 +558,101 @@ pub fn build_cdm_schema_for_plugin(
         models,
         type_aliases,
     })
+}
+
+/// Result of resolving a template type reference.
+/// Contains the resolved base type and any plugin configs from the template type alias.
+struct ResolvedTemplateType {
+    /// The resolved base type (e.g., "string" for sqlType.UUID)
+    base_type: crate::ParsedType,
+    /// Plugin configs from the template type alias to merge into the field
+    plugin_configs: HashMap<String, serde_json::Value>,
+}
+
+/// Resolve a type expression, following template type alias references.
+///
+/// For a type like `sqlType.UUID`:
+/// 1. Look up `sqlType.UUID` in the resolved type_aliases
+/// 2. Get its underlying type (e.g., `string`)
+/// 3. Return the base type and the template's plugin configs
+///
+/// For non-template types (primitives, local type aliases, models), returns the type as-is.
+fn resolve_template_type(
+    type_str: &str,
+    resolved: &ResolvedSchema,
+) -> ResolvedTemplateType {
+    // Check if this is a qualified name (contains a dot)
+    if type_str.contains('.') {
+        // Look up in type_aliases (which includes qualified template types)
+        if let Some(type_alias) = resolved.type_aliases.get(type_str) {
+            // Found a template type alias - resolve to its base type
+            let base_type = type_alias.parsed_type().unwrap_or_else(|_| {
+                crate::ParsedType::Primitive(crate::PrimitiveType::String)
+            });
+            return ResolvedTemplateType {
+                base_type,
+                plugin_configs: type_alias.plugin_configs.clone(),
+            };
+        }
+    }
+
+    // Not a template type - parse as-is
+    let parsed_type = cdm_utils::parse_type_string(type_str).unwrap_or_else(|_| {
+        crate::ParsedType::Primitive(crate::PrimitiveType::String)
+    });
+
+    ResolvedTemplateType {
+        base_type: parsed_type,
+        plugin_configs: HashMap::new(),
+    }
+}
+
+/// Merge template plugin configs into field configs.
+/// Template configs are applied first, then field configs override them.
+fn merge_plugin_configs(
+    template_configs: &HashMap<String, serde_json::Value>,
+    field_configs: &HashMap<String, serde_json::Value>,
+    plugin_name: &str,
+) -> serde_json::Value {
+    if plugin_name.is_empty() {
+        // Return all configs merged
+        let mut merged = template_configs.clone();
+        for (key, value) in field_configs {
+            // For each plugin, merge the configs
+            if let Some(existing) = merged.get_mut(key) {
+                if let (Some(existing_obj), Some(new_obj)) = (existing.as_object_mut(), value.as_object()) {
+                    for (k, v) in new_obj {
+                        existing_obj.insert(k.clone(), v.clone());
+                    }
+                } else {
+                    merged.insert(key.clone(), value.clone());
+                }
+            } else {
+                merged.insert(key.clone(), value.clone());
+            }
+        }
+        serde_json::to_value(&merged).unwrap_or(serde_json::json!({}))
+    } else {
+        // Extract configs for specific plugin and merge
+        let template_config = template_configs.get(plugin_name);
+        let field_config = field_configs.get(plugin_name);
+
+        match (template_config, field_config) {
+            (Some(tc), Some(fc)) => {
+                // Merge: template first, field overrides
+                let mut merged = tc.clone();
+                if let (Some(merged_obj), Some(field_obj)) = (merged.as_object_mut(), fc.as_object()) {
+                    for (k, v) in field_obj {
+                        merged_obj.insert(k.clone(), v.clone());
+                    }
+                }
+                merged
+            }
+            (Some(tc), None) => tc.clone(),
+            (None, Some(fc)) => fc.clone(),
+            (None, None) => serde_json::json!({}),
+        }
+    }
 }
 
 /// Convert internal ParsedType to plugin API TypeExpression
