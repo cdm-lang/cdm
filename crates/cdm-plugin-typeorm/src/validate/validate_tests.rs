@@ -648,3 +648,276 @@ fn test_validate_model_config_hooks_mixed_formats() {
 
     assert!(errors.is_empty());
 }
+
+// ts_type validation tests
+
+#[test]
+fn test_validate_field_ts_type_string_valid() {
+    let config = serde_json::json!({
+        "ts_type": "CustomType"
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Field {
+            model: "User".to_string(),
+            field: "data".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert!(errors.is_empty());
+}
+
+#[test]
+fn test_validate_field_ts_type_string_empty() {
+    let config = serde_json::json!({
+        "ts_type": ""
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Field {
+            model: "User".to_string(),
+            field: "data".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert_eq!(errors.len(), 1);
+    assert!(errors[0].message.contains("ts_type") && errors[0].message.contains("cannot be empty"));
+}
+
+#[test]
+fn test_validate_field_ts_type_object_valid() {
+    let config = serde_json::json!({
+        "ts_type": {
+            "type": "CustomType",
+            "import": "./types/custom"
+        }
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Field {
+            model: "User".to_string(),
+            field: "data".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert!(errors.is_empty());
+}
+
+#[test]
+fn test_validate_field_ts_type_object_with_default_import() {
+    let config = serde_json::json!({
+        "ts_type": {
+            "type": "CustomType",
+            "import": "./types/custom",
+            "default": true
+        }
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Field {
+            model: "User".to_string(),
+            field: "data".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert!(errors.is_empty());
+}
+
+#[test]
+fn test_validate_field_ts_type_object_missing_type() {
+    let config = serde_json::json!({
+        "ts_type": {
+            "import": "./types/custom"
+        }
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Field {
+            model: "User".to_string(),
+            field: "data".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert_eq!(errors.len(), 1);
+    assert!(errors[0].message.contains("ts_type") && errors[0].message.contains("'type' field"));
+}
+
+#[test]
+fn test_validate_field_ts_type_object_missing_import() {
+    let config = serde_json::json!({
+        "ts_type": {
+            "type": "CustomType"
+        }
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Field {
+            model: "User".to_string(),
+            field: "data".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert_eq!(errors.len(), 1);
+    assert!(errors[0].message.contains("ts_type") && errors[0].message.contains("'import' field"));
+}
+
+#[test]
+fn test_validate_field_ts_type_object_empty_type() {
+    let config = serde_json::json!({
+        "ts_type": {
+            "type": "",
+            "import": "./types/custom"
+        }
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Field {
+            model: "User".to_string(),
+            field: "data".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert!(errors.iter().any(|e| e.message.contains("ts_type.type") && e.message.contains("cannot be empty")));
+}
+
+#[test]
+fn test_validate_field_ts_type_object_empty_import() {
+    let config = serde_json::json!({
+        "ts_type": {
+            "type": "CustomType",
+            "import": ""
+        }
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Field {
+            model: "User".to_string(),
+            field: "data".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert!(errors.iter().any(|e| e.message.contains("ts_type.import") && e.message.contains("cannot be empty")));
+}
+
+#[test]
+fn test_validate_field_ts_type_invalid_type() {
+    let config = serde_json::json!({
+        "ts_type": 123
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Field {
+            model: "User".to_string(),
+            field: "data".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert_eq!(errors.len(), 1);
+    assert!(errors[0].message.contains("ts_type must be a string or an object"));
+}
+
+#[test]
+fn test_validate_type_alias_ts_type_string_valid() {
+    let config = serde_json::json!({
+        "ts_type": "CustomType"
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::TypeAlias {
+            name: "Metadata".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert!(errors.is_empty());
+}
+
+#[test]
+fn test_validate_type_alias_ts_type_object_valid() {
+    let config = serde_json::json!({
+        "ts_type": {
+            "type": "CustomType",
+            "import": "./types/custom"
+        }
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::TypeAlias {
+            name: "Metadata".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert!(errors.is_empty());
+}
+
+#[test]
+fn test_validate_type_alias_ts_type_string_empty() {
+    let config = serde_json::json!({
+        "ts_type": ""
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::TypeAlias {
+            name: "Metadata".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert_eq!(errors.len(), 1);
+    assert!(errors[0].message.contains("ts_type") && errors[0].message.contains("cannot be empty"));
+}
+
+#[test]
+fn test_validate_type_alias_ts_type_object_missing_type() {
+    let config = serde_json::json!({
+        "ts_type": {
+            "import": "./types/custom"
+        }
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::TypeAlias {
+            name: "Metadata".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert_eq!(errors.len(), 1);
+    assert!(errors[0].message.contains("ts_type") && errors[0].message.contains("'type' field"));
+}

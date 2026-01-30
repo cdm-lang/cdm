@@ -26,6 +26,10 @@ TypeAliasSettings {
   // Column type to use when this type alias is used as a field type
   column_type?: string
 
+  // Override the generated TypeScript type for fields using this type alias
+  // Can be a string for built-in types, or an object with import details
+  ts_type?: string | TsTypeConfig
+
   // Skip emitting this type alias
   skip?: boolean
 }
@@ -53,6 +57,11 @@ FieldSettings {
 
   // SQL type override (e.g., "text", "varchar(500)", "jsonb", "uuid")
   type?: string
+
+  // Override the generated TypeScript type for this field
+  // Can be a string for built-in types, or an object with import details
+  // Field-level ts_type takes precedence over type alias-level ts_type
+  ts_type?: string | TsTypeConfig
 
   // Primary key configuration (TypeORM-specific, field-level)
   primary?: PrimaryConfig
@@ -200,4 +209,16 @@ HookConfig {
 
   // Import path for the function (e.g., "./hooks", "./utils/userHooks")
   import: string
+}
+
+// TypeScript type configuration with import details
+TsTypeConfig {
+  // The TypeScript type name to use
+  type: string
+
+  // Import path for the type (e.g., "./types/custom", "some-package")
+  import: string
+
+  // If true, generates a default import; if false or omitted, generates a named import
+  default?: boolean = false
 }

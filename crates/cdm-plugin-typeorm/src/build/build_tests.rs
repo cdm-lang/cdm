@@ -519,3 +519,459 @@ fn test_build_groups_imports_by_path() {
     // Should group imports from same path
     assert!(content.contains("import { computeFields, setDefaults } from \"./hooks\""));
 }
+
+// ts_type tests
+
+#[test]
+fn test_field_ts_type_string() {
+    let mut models = HashMap::new();
+
+    let user_model = ModelDefinition {
+        name: "User".to_string(),
+        parents: vec![],
+        fields: vec![
+            FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "primary": { "generation": "uuid" }
+                }),
+                entity_id: None,
+            },
+            FieldDefinition {
+                name: "metadata".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "JSON".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "ts_type": "MyCustomType"
+                }),
+                entity_id: None,
+            },
+        ],
+        config: serde_json::json!({}),
+        entity_id: None,
+    };
+    models.insert("User".to_string(), user_model);
+
+    let schema = Schema {
+        models,
+        type_aliases: HashMap::new(),
+    };
+    let config = serde_json::json!({});
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+
+    let content = &files[0].content;
+    assert!(content.contains("metadata: MyCustomType"));
+}
+
+#[test]
+fn test_field_ts_type_with_import() {
+    let mut models = HashMap::new();
+
+    let user_model = ModelDefinition {
+        name: "User".to_string(),
+        parents: vec![],
+        fields: vec![
+            FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "primary": { "generation": "uuid" }
+                }),
+                entity_id: None,
+            },
+            FieldDefinition {
+                name: "data".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "JSON".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "ts_type": {
+                        "type": "CustomData",
+                        "import": "./types/custom"
+                    }
+                }),
+                entity_id: None,
+            },
+        ],
+        config: serde_json::json!({}),
+        entity_id: None,
+    };
+    models.insert("User".to_string(), user_model);
+
+    let schema = Schema {
+        models,
+        type_aliases: HashMap::new(),
+    };
+    let config = serde_json::json!({});
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+
+    let content = &files[0].content;
+    assert!(content.contains("data: CustomData"));
+    assert!(content.contains("import { CustomData } from \"./types/custom\""));
+}
+
+#[test]
+fn test_field_ts_type_with_default_import() {
+    let mut models = HashMap::new();
+
+    let user_model = ModelDefinition {
+        name: "User".to_string(),
+        parents: vec![],
+        fields: vec![
+            FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "primary": { "generation": "uuid" }
+                }),
+                entity_id: None,
+            },
+            FieldDefinition {
+                name: "config".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "JSON".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "ts_type": {
+                        "type": "AppConfig",
+                        "import": "./types/config",
+                        "default": true
+                    }
+                }),
+                entity_id: None,
+            },
+        ],
+        config: serde_json::json!({}),
+        entity_id: None,
+    };
+    models.insert("User".to_string(), user_model);
+
+    let schema = Schema {
+        models,
+        type_aliases: HashMap::new(),
+    };
+    let config = serde_json::json!({});
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+
+    let content = &files[0].content;
+    assert!(content.contains("config: AppConfig"));
+    assert!(content.contains("import AppConfig from \"./types/config\""));
+}
+
+#[test]
+fn test_type_alias_ts_type() {
+    use cdm_plugin_interface::TypeAliasDefinition;
+
+    let mut models = HashMap::new();
+    let mut type_aliases = HashMap::new();
+
+    // Create type alias with ts_type config
+    type_aliases.insert(
+        "Metadata".to_string(),
+        TypeAliasDefinition {
+            name: "Metadata".to_string(),
+            alias_type: TypeExpression::Identifier {
+                name: "JSON".to_string(),
+            },
+            config: serde_json::json!({
+                "ts_type": {
+                    "type": "MetadataType",
+                    "import": "./types/metadata"
+                }
+            }),
+            entity_id: None,
+        },
+    );
+
+    let user_model = ModelDefinition {
+        name: "User".to_string(),
+        parents: vec![],
+        fields: vec![
+            FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "primary": { "generation": "uuid" }
+                }),
+                entity_id: None,
+            },
+            FieldDefinition {
+                name: "metadata".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "Metadata".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({}),
+                entity_id: None,
+            },
+        ],
+        config: serde_json::json!({}),
+        entity_id: None,
+    };
+    models.insert("User".to_string(), user_model);
+
+    let schema = Schema {
+        models,
+        type_aliases,
+    };
+    let config = serde_json::json!({});
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+
+    let content = &files[0].content;
+    assert!(content.contains("metadata: MetadataType"));
+    assert!(content.contains("import { MetadataType } from \"./types/metadata\""));
+}
+
+#[test]
+fn test_field_ts_type_precedence_over_type_alias() {
+    use cdm_plugin_interface::TypeAliasDefinition;
+
+    let mut models = HashMap::new();
+    let mut type_aliases = HashMap::new();
+
+    // Create type alias with ts_type config
+    type_aliases.insert(
+        "Metadata".to_string(),
+        TypeAliasDefinition {
+            name: "Metadata".to_string(),
+            alias_type: TypeExpression::Identifier {
+                name: "JSON".to_string(),
+            },
+            config: serde_json::json!({
+                "ts_type": {
+                    "type": "AliasMetadataType",
+                    "import": "./types/alias-metadata"
+                }
+            }),
+            entity_id: None,
+        },
+    );
+
+    let user_model = ModelDefinition {
+        name: "User".to_string(),
+        parents: vec![],
+        fields: vec![
+            FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "primary": { "generation": "uuid" }
+                }),
+                entity_id: None,
+            },
+            FieldDefinition {
+                name: "metadata".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "Metadata".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "ts_type": {
+                        "type": "FieldMetadataType",
+                        "import": "./types/field-metadata"
+                    }
+                }),
+                entity_id: None,
+            },
+        ],
+        config: serde_json::json!({}),
+        entity_id: None,
+    };
+    models.insert("User".to_string(), user_model);
+
+    let schema = Schema {
+        models,
+        type_aliases,
+    };
+    let config = serde_json::json!({});
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+
+    let content = &files[0].content;
+    // Field-level ts_type should take precedence
+    assert!(content.contains("metadata: FieldMetadataType"));
+    assert!(content.contains("import { FieldMetadataType } from \"./types/field-metadata\""));
+    // Should NOT contain the type alias import
+    assert!(!content.contains("AliasMetadataType"));
+    assert!(!content.contains("alias-metadata"));
+}
+
+#[test]
+fn test_ts_type_imports_grouped_by_path() {
+    let mut models = HashMap::new();
+
+    let user_model = ModelDefinition {
+        name: "User".to_string(),
+        parents: vec![],
+        fields: vec![
+            FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "primary": { "generation": "uuid" }
+                }),
+                entity_id: None,
+            },
+            FieldDefinition {
+                name: "metadata".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "JSON".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "ts_type": {
+                        "type": "Metadata",
+                        "import": "./types"
+                    }
+                }),
+                entity_id: None,
+            },
+            FieldDefinition {
+                name: "config".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "JSON".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "ts_type": {
+                        "type": "Config",
+                        "import": "./types"
+                    }
+                }),
+                entity_id: None,
+            },
+        ],
+        config: serde_json::json!({}),
+        entity_id: None,
+    };
+    models.insert("User".to_string(), user_model);
+
+    let schema = Schema {
+        models,
+        type_aliases: HashMap::new(),
+    };
+    let config = serde_json::json!({});
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+
+    let content = &files[0].content;
+    // Should have a single grouped import for both types
+    assert!(content.contains("import { Config, Metadata } from \"./types\""));
+}
+
+#[test]
+fn test_ts_type_mixed_default_and_named_imports() {
+    let mut models = HashMap::new();
+
+    let user_model = ModelDefinition {
+        name: "User".to_string(),
+        parents: vec![],
+        fields: vec![
+            FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "primary": { "generation": "uuid" }
+                }),
+                entity_id: None,
+            },
+            FieldDefinition {
+                name: "defaultType".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "JSON".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "ts_type": {
+                        "type": "DefaultType",
+                        "import": "./types/default",
+                        "default": true
+                    }
+                }),
+                entity_id: None,
+            },
+            FieldDefinition {
+                name: "namedType".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "JSON".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "ts_type": {
+                        "type": "NamedType",
+                        "import": "./types/named"
+                    }
+                }),
+                entity_id: None,
+            },
+        ],
+        config: serde_json::json!({}),
+        entity_id: None,
+    };
+    models.insert("User".to_string(), user_model);
+
+    let schema = Schema {
+        models,
+        type_aliases: HashMap::new(),
+    };
+    let config = serde_json::json!({});
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+
+    let content = &files[0].content;
+    assert!(content.contains("import DefaultType from \"./types/default\""));
+    assert!(content.contains("import { NamedType } from \"./types/named\""));
+}

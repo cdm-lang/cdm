@@ -445,6 +445,261 @@ User {
 } #10
 ```
 
+## TypeScript Type Override (ts_type)
+
+Override the generated TypeScript type for fields and type aliases. This is useful when you want to use custom types instead of the default mappings.
+
+### String Format (Built-in Types)
+
+For types that don't require imports:
+
+```cdm
+User {
+  id: string {
+    @typeorm { primary: { generation: "uuid" } }
+  } #1
+
+  metadata: JSON {
+    @typeorm {
+      ts_type: "Record<string, string>"
+    }
+  } #2
+} #10
+```
+
+**Generated TypeScript:**
+
+```typescript
+@Entity({ name: "users" })
+export class User {
+    @PrimaryGeneratedColumn("uuid")
+    id: string
+
+    @Column()
+    metadata: Record<string, string>
+}
+```
+
+### Object Format (With Imports)
+
+For custom types that need to be imported:
+
+```cdm
+User {
+  id: string {
+    @typeorm { primary: { generation: "uuid" } }
+  } #1
+
+  profile: JSON {
+    @typeorm {
+      ts_type: {
+        type: "UserProfile",
+        import: "./types/user"
+      }
+    }
+  } #2
+} #10
+```
+
+**Generated TypeScript:**
+
+```typescript
+import { Entity, Column, PrimaryGeneratedColumn } from "typeorm"
+import { UserProfile } from "./types/user"
+
+@Entity({ name: "users" })
+export class User {
+    @PrimaryGeneratedColumn("uuid")
+    id: string
+
+    @Column()
+    profile: UserProfile
+}
+```
+
+### Default Imports
+
+For default exports, set `default: true`:
+
+```cdm
+User {
+  id: string {
+    @typeorm { primary: { generation: "uuid" } }
+  } #1
+
+  config: JSON {
+    @typeorm {
+      ts_type: {
+        type: "AppConfig",
+        import: "./config",
+        default: true
+      }
+    }
+  } #2
+} #10
+```
+
+**Generated TypeScript:**
+
+```typescript
+import { Entity, Column, PrimaryGeneratedColumn } from "typeorm"
+import AppConfig from "./config"
+
+@Entity({ name: "users" })
+export class User {
+    @PrimaryGeneratedColumn("uuid")
+    id: string
+
+    @Column()
+    config: AppConfig
+}
+```
+
+### Type Alias Level ts_type
+
+Apply `ts_type` to a type alias to affect all fields using that type:
+
+```cdm
+type Metadata = JSON {
+  @typeorm {
+    column_type: "jsonb",
+    ts_type: {
+      type: "MetadataType",
+      import: "./types/metadata"
+    }
+  }
+}
+
+User {
+  id: string {
+    @typeorm { primary: { generation: "uuid" } }
+  } #1
+
+  // Uses MetadataType from type alias config
+  metadata: Metadata #2
+} #10
+```
+
+**Generated TypeScript:**
+
+```typescript
+import { Entity, Column, PrimaryGeneratedColumn } from "typeorm"
+import { MetadataType } from "./types/metadata"
+
+@Entity({ name: "users" })
+export class User {
+    @PrimaryGeneratedColumn("uuid")
+    id: string
+
+    @Column()
+    metadata: MetadataType
+}
+```
+
+### Precedence Rules
+
+Field-level `ts_type` takes precedence over type alias-level `ts_type`:
+
+```cdm
+type Metadata = JSON {
+  @typeorm {
+    ts_type: {
+      type: "DefaultMetadata",
+      import: "./types/default"
+    }
+  }
+}
+
+User {
+  id: string {
+    @typeorm { primary: { generation: "uuid" } }
+  } #1
+
+  // Field-level overrides type alias
+  metadata: Metadata {
+    @typeorm {
+      ts_type: {
+        type: "UserMetadata",
+        import: "./types/user"
+      }
+    }
+  } #2
+} #10
+```
+
+**Generated TypeScript uses `UserMetadata`, not `DefaultMetadata`:**
+
+```typescript
+import { Entity, Column, PrimaryGeneratedColumn } from "typeorm"
+import { UserMetadata } from "./types/user"
+
+@Entity({ name: "users" })
+export class User {
+    @PrimaryGeneratedColumn("uuid")
+    id: string
+
+    @Column()
+    metadata: UserMetadata
+}
+```
+
+### Import Grouping
+
+Multiple imports from the same path are automatically grouped:
+
+```cdm
+User {
+  id: string {
+    @typeorm { primary: { generation: "uuid" } }
+  } #1
+
+  profile: JSON {
+    @typeorm {
+      ts_type: { type: "UserProfile", import: "./types" }
+    }
+  } #2
+
+  settings: JSON {
+    @typeorm {
+      ts_type: { type: "UserSettings", import: "./types" }
+    }
+  } #3
+} #10
+```
+
+**Generated TypeScript:**
+
+```typescript
+import { Entity, Column, PrimaryGeneratedColumn } from "typeorm"
+import { UserProfile, UserSettings } from "./types"
+
+@Entity({ name: "users" })
+export class User {
+    @PrimaryGeneratedColumn("uuid")
+    id: string
+
+    @Column()
+    profile: UserProfile
+
+    @Column()
+    settings: UserSettings
+}
+```
+
+### ts_type Configuration Reference
+
+| Format | Description |
+|--------|-------------|
+| `string` | Type name only (no import) |
+| `{ type, import }` | Named import from path (`default: false` is implied) |
+| `{ type, import, default: true }` | Default import from path |
+
+| Field | Type | Default | Description |
+|-------|------|---------|-------------|
+| `type` | `string` | required | The TypeScript type name |
+| `import` | `string` | required | Import path for the type |
+| `default` | `boolean` | `false` | If true, generates default import; if false, generates named import |
+
 ## Primary Keys
 
 Configure primary key generation:

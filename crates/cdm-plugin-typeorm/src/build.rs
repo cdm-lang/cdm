@@ -2,7 +2,7 @@ use cdm_plugin_interface::{CaseFormat, FieldDefinition, ModelDefinition, OutputF
 use std::collections::BTreeSet;
 
 use crate::decorator_builder::{build_join_column, build_join_table, DecoratorBuilder};
-use crate::type_mapper::TypeMapper;
+use crate::type_mapper::{TsTypeInfo, TypeMapper};
 
 #[derive(Debug, Clone)]
 struct Config {
@@ -57,6 +57,8 @@ struct ImportCollector {
     entity_imports: BTreeSet<String>,
     /// Custom imports for hook functions: (function_name, import_path)
     hook_imports: BTreeSet<(String, String)>,
+    /// Custom type imports: (type_name, import_path, is_default_import)
+    type_imports: Vec<(String, String, bool)>,
 }
 
 impl ImportCollector {
@@ -77,6 +79,16 @@ impl ImportCollector {
             .insert((function_name.to_string(), import_path.to_string()));
     }
 
+    fn add_type_import(&mut self, type_name: &str, import_path: &str, is_default: bool) {
+        // Check if this exact import already exists to avoid duplicates
+        let exists = self.type_imports.iter().any(|(t, p, d)| {
+            t == type_name && p == import_path && *d == is_default
+        });
+        if !exists {
+            self.type_imports.push((type_name.to_string(), import_path.to_string(), is_default));
+        }
+    }
+
     fn to_import_statements(&self, typeorm_path: &str, current_entity: &str) -> String {
         let mut result = String::new();
 
@@ -95,6 +107,33 @@ impl ImportCollector {
             if entity != current_entity {
                 result.push_str(&format!("import {{ {} }} from \"./{}\"\n", entity, entity));
             }
+        }
+
+        // Custom type imports - group named imports by path, default imports are separate
+        let mut named_imports_by_path: std::collections::BTreeMap<&str, BTreeSet<&str>> =
+            std::collections::BTreeMap::new();
+        let mut default_imports: Vec<(&str, &str)> = Vec::new();
+
+        for (type_name, import_path, is_default) in &self.type_imports {
+            if *is_default {
+                default_imports.push((type_name.as_str(), import_path.as_str()));
+            } else {
+                named_imports_by_path
+                    .entry(import_path.as_str())
+                    .or_default()
+                    .insert(type_name.as_str());
+            }
+        }
+
+        // Generate default import statements
+        for (type_name, path) in default_imports {
+            result.push_str(&format!("import {} from \"{}\"\n", type_name, path));
+        }
+
+        // Generate named import statements, grouped by path
+        for (path, types) in named_imports_by_path {
+            let sorted_types: Vec<&str> = types.into_iter().collect();
+            result.push_str(&format!("import {{ {} }} from \"{}\"\n", sorted_types.join(", "), path));
         }
 
         // Hook function imports - group by import path
@@ -317,8 +356,8 @@ fn generate_primary_field(
     result.push_str(&decorator.build());
     result.push('\n');
 
-    // Property declaration
-    let ts_type = type_mapper.map_to_typescript_type(&field.field_type);
+    // Property declaration - check for ts_type override
+    let ts_type = resolve_typescript_type(field, type_mapper, imports);
     let optional_marker = if field.optional { "?" } else { "" };
     result.push_str(&format!("    {}{}: {}\n\n", field.name, optional_marker, ts_type));
 
@@ -383,8 +422,8 @@ fn generate_column_field(
     result.push_str(&column_builder.build());
     result.push('\n');
 
-    // Property declaration
-    let ts_type = type_mapper.map_to_typescript_type(&field.field_type);
+    // Property declaration - check for ts_type override
+    let ts_type = resolve_typescript_type(field, type_mapper, imports);
     let optional_marker = if field.optional { "?" } else { "" };
     result.push_str(&format!("    {}{}: {}\n\n", field.name, optional_marker, ts_type));
 
@@ -489,8 +528,8 @@ fn generate_relation_field(
         result.push('\n');
     }
 
-    // Property declaration
-    let ts_type = type_mapper.map_to_typescript_type(&field.field_type);
+    // Property declaration - check for ts_type override
+    let ts_type = resolve_typescript_type(field, type_mapper, imports);
     let optional_marker = if field.optional { "?" } else { "" };
     result.push_str(&format!("    {}{}: {}\n\n", field.name, optional_marker, ts_type));
 
@@ -572,6 +611,37 @@ fn generate_hooks(hooks: &JSON, imports: &mut ImportCollector) -> String {
 }
 
 // Helper functions
+
+/// Resolves the TypeScript type for a field, checking for ts_type overrides.
+/// Priority: field-level ts_type > type alias-level ts_type > default mapping
+fn resolve_typescript_type(
+    field: &FieldDefinition,
+    type_mapper: &TypeMapper,
+    imports: &mut ImportCollector,
+) -> String {
+    // 1. Check for field-level ts_type override
+    if let Some(ts_type_config) = field.config.get("ts_type") {
+        if let Some(ts_type_info) = TsTypeInfo::from_ts_type_config(ts_type_config) {
+            // Add import if specified
+            if let Some(import_path) = &ts_type_info.import_path {
+                imports.add_type_import(&ts_type_info.type_name, import_path, ts_type_info.is_default_import);
+            }
+            return ts_type_info.type_name;
+        }
+    }
+
+    // 2. Check for type alias-level ts_type override
+    if let Some(ts_type_info) = type_mapper.get_type_alias_ts_type(&field.field_type) {
+        // Add import if specified
+        if let Some(import_path) = &ts_type_info.import_path {
+            imports.add_type_import(&ts_type_info.type_name, import_path, ts_type_info.is_default_import);
+        }
+        return ts_type_info.type_name;
+    }
+
+    // 3. Fall back to default type mapping
+    type_mapper.map_to_typescript_type(&field.field_type)
+}
 
 fn should_skip_model(config: &JSON) -> bool {
     config

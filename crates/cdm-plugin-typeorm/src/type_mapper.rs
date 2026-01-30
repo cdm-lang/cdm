@@ -1,6 +1,73 @@
 use cdm_plugin_interface::{TypeAliasDefinition, TypeExpression, JSON};
 use std::collections::HashMap;
 
+/// Information about a resolved TypeScript type, including optional import details
+#[derive(Debug, Clone, PartialEq)]
+pub struct TsTypeInfo {
+    /// The TypeScript type name to use
+    pub type_name: String,
+    /// Optional import path for the type
+    pub import_path: Option<String>,
+    /// Whether this is a default import (only relevant if import_path is Some)
+    pub is_default_import: bool,
+}
+
+impl TsTypeInfo {
+    /// Create a simple type with no import
+    pub fn simple(type_name: String) -> Self {
+        TsTypeInfo {
+            type_name,
+            import_path: None,
+            is_default_import: false,
+        }
+    }
+
+    /// Create a type with a named import
+    pub fn with_import(type_name: String, import_path: String) -> Self {
+        TsTypeInfo {
+            type_name,
+            import_path: Some(import_path),
+            is_default_import: false,
+        }
+    }
+
+    /// Create a type with a default import
+    pub fn with_default_import(type_name: String, import_path: String) -> Self {
+        TsTypeInfo {
+            type_name,
+            import_path: Some(import_path),
+            is_default_import: true,
+        }
+    }
+
+    /// Parse ts_type config from JSON (either string or object format)
+    pub fn from_ts_type_config(config: &JSON) -> Option<Self> {
+        if let Some(type_str) = config.as_str() {
+            // String format: just the type name, no import
+            if type_str.is_empty() {
+                return None;
+            }
+            Some(TsTypeInfo::simple(type_str.to_string()))
+        } else if config.is_object() {
+            // Object format: { type, import, default? }
+            let type_name = config.get("type")?.as_str()?.to_string();
+            let import_path = config.get("import")?.as_str()?.to_string();
+            let is_default = config
+                .get("default")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false);
+
+            if is_default {
+                Some(TsTypeInfo::with_default_import(type_name, import_path))
+            } else {
+                Some(TsTypeInfo::with_import(type_name, import_path))
+            }
+        } else {
+            None
+        }
+    }
+}
+
 /// TypeMapper handles conversion of CDM types to TypeORM/PostgreSQL column types
 /// and TypeScript types for entity properties.
 pub struct TypeMapper<'a> {
@@ -46,6 +113,18 @@ impl<'a> TypeMapper<'a> {
     #[allow(dead_code)]
     pub fn is_model_array(&self, type_expr: &TypeExpression) -> bool {
         matches!(type_expr, TypeExpression::Array { element_type } if self.is_model_reference(element_type).is_some())
+    }
+
+    /// Get the ts_type config from a type alias if it exists
+    pub fn get_type_alias_ts_type(&self, type_expr: &TypeExpression) -> Option<TsTypeInfo> {
+        if let TypeExpression::Identifier { name } = type_expr {
+            if let Some(type_alias) = self.type_aliases.get(name) {
+                if let Some(ts_type_config) = type_alias.config.get("ts_type") {
+                    return TsTypeInfo::from_ts_type_config(ts_type_config);
+                }
+            }
+        }
+        None
     }
 
     /// Map a CDM type expression to a PostgreSQL column type for TypeORM

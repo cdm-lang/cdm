@@ -119,6 +119,24 @@ fn validate_type_alias_config(
             });
         }
     }
+
+    // Validate ts_type if present
+    if let Some(ts_type) = config.get("ts_type") {
+        validate_ts_type_config(
+            ts_type,
+            &[
+                PathSegment {
+                    kind: "type_alias".to_string(),
+                    name: alias_name.to_string(),
+                },
+                PathSegment {
+                    kind: "config".to_string(),
+                    name: "ts_type".to_string(),
+                },
+            ],
+            errors,
+        );
+    }
 }
 
 fn validate_model_config(config: &JSON, model_name: &str, errors: &mut Vec<ValidationError>) {
@@ -426,6 +444,28 @@ fn validate_field_config(
         validate_relation(relation, model_name, field_name, errors);
     }
 
+    // Validate ts_type config
+    if let Some(ts_type) = config.get("ts_type") {
+        validate_ts_type_config(
+            ts_type,
+            &[
+                PathSegment {
+                    kind: "model".to_string(),
+                    name: model_name.to_string(),
+                },
+                PathSegment {
+                    kind: "field".to_string(),
+                    name: field_name.to_string(),
+                },
+                PathSegment {
+                    kind: "config".to_string(),
+                    name: "ts_type".to_string(),
+                },
+            ],
+            errors,
+        );
+    }
+
     // Error if both primary and relation are specified
     if config.get("primary").is_some() && config.get("relation").is_some() {
         errors.push(ValidationError {
@@ -642,6 +682,119 @@ fn validate_relation(
                 });
             }
         }
+    }
+}
+
+/// Validates ts_type config (either string or object format)
+fn validate_ts_type_config(
+    ts_type: &JSON,
+    base_path: &[PathSegment],
+    errors: &mut Vec<ValidationError>,
+) {
+    if let Some(type_str) = ts_type.as_str() {
+        // String format: just the type name
+        if type_str.is_empty() {
+            errors.push(ValidationError {
+                path: base_path.to_vec(),
+                message: "ts_type cannot be empty".to_string(),
+                severity: Severity::Error,
+            });
+        }
+    } else if ts_type.is_object() {
+        // Object format: { type, import, default? }
+
+        // Validate 'type' field is required and non-empty
+        if let Some(type_val) = ts_type.get("type") {
+            if let Some(type_str) = type_val.as_str() {
+                if type_str.is_empty() {
+                    let mut path = base_path.to_vec();
+                    path.push(PathSegment {
+                        kind: "config".to_string(),
+                        name: "type".to_string(),
+                    });
+                    errors.push(ValidationError {
+                        path,
+                        message: "ts_type.type cannot be empty".to_string(),
+                        severity: Severity::Error,
+                    });
+                }
+            } else {
+                let mut path = base_path.to_vec();
+                path.push(PathSegment {
+                    kind: "config".to_string(),
+                    name: "type".to_string(),
+                });
+                errors.push(ValidationError {
+                    path,
+                    message: "ts_type.type must be a string".to_string(),
+                    severity: Severity::Error,
+                });
+            }
+        } else {
+            errors.push(ValidationError {
+                path: base_path.to_vec(),
+                message: "ts_type object must have a 'type' field".to_string(),
+                severity: Severity::Error,
+            });
+        }
+
+        // Validate 'import' field is required and non-empty
+        if let Some(import_val) = ts_type.get("import") {
+            if let Some(import_str) = import_val.as_str() {
+                if import_str.is_empty() {
+                    let mut path = base_path.to_vec();
+                    path.push(PathSegment {
+                        kind: "config".to_string(),
+                        name: "import".to_string(),
+                    });
+                    errors.push(ValidationError {
+                        path,
+                        message: "ts_type.import cannot be empty".to_string(),
+                        severity: Severity::Error,
+                    });
+                }
+            } else {
+                let mut path = base_path.to_vec();
+                path.push(PathSegment {
+                    kind: "config".to_string(),
+                    name: "import".to_string(),
+                });
+                errors.push(ValidationError {
+                    path,
+                    message: "ts_type.import must be a string".to_string(),
+                    severity: Severity::Error,
+                });
+            }
+        } else {
+            errors.push(ValidationError {
+                path: base_path.to_vec(),
+                message: "ts_type object must have an 'import' field".to_string(),
+                severity: Severity::Error,
+            });
+        }
+
+        // Validate 'default' field is a boolean if present
+        if let Some(default_val) = ts_type.get("default") {
+            if !default_val.is_boolean() {
+                let mut path = base_path.to_vec();
+                path.push(PathSegment {
+                    kind: "config".to_string(),
+                    name: "default".to_string(),
+                });
+                errors.push(ValidationError {
+                    path,
+                    message: "ts_type.default must be a boolean".to_string(),
+                    severity: Severity::Error,
+                });
+            }
+        }
+    } else {
+        errors.push(ValidationError {
+            path: base_path.to_vec(),
+            message: "ts_type must be a string or an object with 'type' and 'import' fields"
+                .to_string(),
+            severity: Severity::Error,
+        });
     }
 }
 
