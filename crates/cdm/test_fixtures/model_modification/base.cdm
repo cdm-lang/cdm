@@ -1,0 +1,12 @@
+// Base schema with PublicUser model that has fields
+
+PublicUser {
+  id: string #10
+  name?: string #11
+  avatar_url?: string #12
+} #1
+
+User extends PublicUser {
+  email: string #20
+  created_at: string #21
+} #2

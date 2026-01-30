@@ -1,0 +1,10 @@
+extends "./base.cdm"
+
+@sql { dialect: "postgresql" }
+
+// Modify PublicUser to skip table generation (but keep inheriting its fields)
+PublicUser {
+  @sql { skip: true }
+} #1
+
+// User should still have all inherited fields from PublicUser

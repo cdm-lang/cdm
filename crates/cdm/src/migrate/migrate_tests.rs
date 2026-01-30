@@ -2075,3 +2075,140 @@ fn test_write_migration_files_lists_all_conflicting_files() {
         error_msg
     );
 }
+
+// =============================================================================
+// MODEL MODIFICATION INTEGRATION TESTS
+// =============================================================================
+
+#[test]
+fn test_model_modification_preserves_inherited_fields_in_schema() {
+    // INTEGRATION TEST: This test verifies the full pipeline from file loading
+    // through schema building correctly preserves inherited fields when a model
+    // from an ancestor is modified (e.g., adding @sql { skip: true }).
+    //
+    // Scenario:
+    //   base.cdm:
+    //     PublicUser { id, name?, avatar_url? }
+    //     User extends PublicUser { email, created_at }
+    //
+    //   child.cdm:
+    //     extends "./base.cdm"
+    //     @sql { skip: true }
+    //     PublicUser { }  // Modify to skip table, but keep fields
+    //
+    // Expected:
+    //   - PublicUser should have skip: true AND all 3 fields from base.cdm
+    //   - User should have all 5 fields (3 inherited + 2 own)
+
+    use std::path::PathBuf;
+    use crate::file_resolver::FileResolver;
+    use crate::validate::validate_tree;
+    use crate::build_cdm_schema_for_plugin;
+
+    let fixtures_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("test_fixtures")
+        .join("model_modification")
+        .join("child.cdm");
+
+    // Load and validate the child file (which extends base.cdm)
+    let tree = FileResolver::load(&fixtures_path)
+        .expect("Failed to load child.cdm");
+
+    let validation_result = validate_tree(tree)
+        .expect("Validation failed");
+
+    assert!(
+        !validation_result.has_errors(),
+        "Validation should succeed, got errors: {:?}",
+        validation_result.diagnostics
+    );
+
+    // Build schema for plugin (this is what gets passed to SQL plugin for migrations)
+    let ancestor_paths: Vec<PathBuf> = vec![
+        fixtures_path.parent().unwrap().join("base.cdm")
+    ];
+
+    let schema = build_cdm_schema_for_plugin(&validation_result, &ancestor_paths, "sql")
+        .expect("Failed to build schema for plugin");
+
+    // Verify PublicUser model
+    let public_user = schema.models.get("PublicUser")
+        .expect("PublicUser should exist in schema");
+
+    // Should have skip: true from child.cdm
+    assert_eq!(
+        public_user.config.get("skip"),
+        Some(&serde_json::json!(true)),
+        "PublicUser should have skip: true from child.cdm modification"
+    );
+
+    // Should have all 3 fields from base.cdm (this is the bug fix!)
+    let public_user_field_names: Vec<&str> = public_user.fields.iter()
+        .map(|f| f.name.as_str())
+        .collect();
+
+    assert!(
+        public_user_field_names.contains(&"id"),
+        "PublicUser should have 'id' field from base.cdm. Got: {:?}",
+        public_user_field_names
+    );
+    assert!(
+        public_user_field_names.contains(&"name"),
+        "PublicUser should have 'name' field from base.cdm. Got: {:?}",
+        public_user_field_names
+    );
+    assert!(
+        public_user_field_names.contains(&"avatar_url"),
+        "PublicUser should have 'avatar_url' field from base.cdm. Got: {:?}",
+        public_user_field_names
+    );
+
+    assert_eq!(
+        public_user.fields.len(),
+        3,
+        "PublicUser should have exactly 3 fields. Got: {:?}",
+        public_user_field_names
+    );
+
+    // Verify User model has all inherited fields flattened
+    let user = schema.models.get("User")
+        .expect("User should exist in schema");
+
+    let user_field_names: Vec<&str> = user.fields.iter()
+        .map(|f| f.name.as_str())
+        .collect();
+
+    // User should have inherited fields (id, name, avatar_url) + own fields (email, created_at)
+    assert!(
+        user_field_names.contains(&"id"),
+        "User should have inherited 'id' field. Got: {:?}",
+        user_field_names
+    );
+    assert!(
+        user_field_names.contains(&"name"),
+        "User should have inherited 'name' field. Got: {:?}",
+        user_field_names
+    );
+    assert!(
+        user_field_names.contains(&"avatar_url"),
+        "User should have inherited 'avatar_url' field. Got: {:?}",
+        user_field_names
+    );
+    assert!(
+        user_field_names.contains(&"email"),
+        "User should have own 'email' field. Got: {:?}",
+        user_field_names
+    );
+    assert!(
+        user_field_names.contains(&"created_at"),
+        "User should have own 'created_at' field. Got: {:?}",
+        user_field_names
+    );
+
+    assert_eq!(
+        user.fields.len(),
+        5,
+        "User should have exactly 5 fields (3 inherited + 2 own). Got: {:?}",
+        user_field_names
+    );
+}

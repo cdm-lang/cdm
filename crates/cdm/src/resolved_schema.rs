@@ -372,58 +372,103 @@ pub fn build_cdm_schema_for_plugin(
     // Convert to plugin API Schema format
     let mut models = HashMap::new();
     for (name, model) in &resolved.models {
-        // Use get_inherited_fields to collect all fields including inherited ones.
-        // This reuses the existing inheritance resolution logic from symbol_table.
-        let all_fields = crate::symbol_table::get_inherited_fields(
-            name,
-            &validation_result.model_fields,
-            &validation_result.symbol_table,
-            &ancestors,
-        );
+        // For models that extend other models, we need to flatten inherited fields.
+        // For models that are modifications of ancestor models (no extends, but exist in ancestors),
+        // the fields are already merged in resolved.models from build_resolved_schema.
+        //
+        // We use get_inherited_fields to handle the `extends` case, but we start with
+        // the resolved model's fields as the base (which includes merged ancestor fields
+        // for modified models).
+        let base_fields: Vec<crate::FieldInfo> = model.fields.iter().map(|f| {
+            crate::FieldInfo {
+                name: f.name.clone(),
+                type_expr: f.type_expr.clone(),
+                optional: f.optional,
+                span: f.source_span,
+                plugin_configs: f.plugin_configs.clone(),
+                default_value: f.default_value.clone(),
+                entity_id: f.entity_id.clone(),
+            }
+        }).collect();
 
-        // Deduplicate fields - child fields override parent fields with same name
-        // Process in order and keep only the last occurrence of each field name
-        let mut field_map: HashMap<String, &crate::FieldInfo> = HashMap::new();
-        for field in &all_fields {
-            field_map.insert(field.name.clone(), field);
-        }
+        // If this model extends other models, get inherited fields from parents
+        // Otherwise, use the resolved model's fields directly (which already includes
+        // merged fields from ancestor modifications)
+        let ordered_fields: Vec<cdm_plugin_interface::FieldDefinition> = if !model.parents.is_empty() {
+            // Create a temporary model_fields map with the base fields
+            let mut temp_model_fields = validation_result.model_fields.clone();
+            temp_model_fields.insert(name.clone(), base_fields);
 
-        // Convert fields to plugin API format, preserving order:
-        // inherited fields first (in order), then own fields
-        let mut seen_names = HashSet::new();
-        let mut ordered_fields = Vec::new();
+            let all_fields = crate::symbol_table::get_inherited_fields(
+                name,
+                &temp_model_fields,
+                &validation_result.symbol_table,
+                &ancestors,
+            );
 
-        for field in &all_fields {
-            // Only add each field name once (last occurrence wins for properties,
-            // but we want first occurrence for ordering)
-            if !seen_names.contains(&field.name) {
-                seen_names.insert(field.name.clone());
+            // Deduplicate fields - child fields override parent fields with same name
+            let mut field_map: HashMap<String, &crate::FieldInfo> = HashMap::new();
+            for field in &all_fields {
+                field_map.insert(field.name.clone(), field);
+            }
 
-                // Use the final field from the map (which has correct overridden properties)
-                if let Some(final_field) = field_map.get(&field.name) {
-                    // Parse the type expression
-                    let parsed_type = match &final_field.type_expr {
-                        Some(type_str) => cdm_utils::parse_type_string(type_str).unwrap_or_else(|_| {
-                            crate::ParsedType::Primitive(crate::PrimitiveType::String)
-                        }),
-                        None => crate::ParsedType::Primitive(crate::PrimitiveType::String),
-                    };
+            // Convert fields to plugin API format, preserving order
+            let mut seen_names = HashSet::new();
+            let mut fields = Vec::new();
 
-                    ordered_fields.push(cdm_plugin_interface::FieldDefinition {
-                        name: final_field.name.clone(),
-                        field_type: convert_type_expression(&parsed_type),
-                        optional: final_field.optional,
-                        default: final_field.default_value.as_ref().map(|v| v.into()),
-                        config: if plugin_name.is_empty() {
-                            serde_json::to_value(&final_field.plugin_configs).unwrap_or(serde_json::json!({}))
-                        } else {
-                            final_field.plugin_configs.get(plugin_name).cloned().unwrap_or(serde_json::json!({}))
-                        },
-                        entity_id: final_field.entity_id.clone(),
-                    });
+            for field in &all_fields {
+                if !seen_names.contains(&field.name) {
+                    seen_names.insert(field.name.clone());
+
+                    if let Some(final_field) = field_map.get(&field.name) {
+                        let parsed_type = match &final_field.type_expr {
+                            Some(type_str) => cdm_utils::parse_type_string(type_str).unwrap_or_else(|_| {
+                                crate::ParsedType::Primitive(crate::PrimitiveType::String)
+                            }),
+                            None => crate::ParsedType::Primitive(crate::PrimitiveType::String),
+                        };
+
+                        fields.push(cdm_plugin_interface::FieldDefinition {
+                            name: final_field.name.clone(),
+                            field_type: convert_type_expression(&parsed_type),
+                            optional: final_field.optional,
+                            default: final_field.default_value.as_ref().map(|v| v.into()),
+                            config: if plugin_name.is_empty() {
+                                serde_json::to_value(&final_field.plugin_configs).unwrap_or(serde_json::json!({}))
+                            } else {
+                                final_field.plugin_configs.get(plugin_name).cloned().unwrap_or(serde_json::json!({}))
+                            },
+                            entity_id: final_field.entity_id.clone(),
+                        });
+                    }
                 }
             }
-        }
+            fields
+        } else {
+            // No parents - use the resolved model's fields directly
+            // These are already correctly merged from build_resolved_schema
+            base_fields.iter().map(|f| {
+                let parsed_type = match &f.type_expr {
+                    Some(type_str) => cdm_utils::parse_type_string(type_str).unwrap_or_else(|_| {
+                        crate::ParsedType::Primitive(crate::PrimitiveType::String)
+                    }),
+                    None => crate::ParsedType::Primitive(crate::PrimitiveType::String),
+                };
+
+                cdm_plugin_interface::FieldDefinition {
+                    name: f.name.clone(),
+                    field_type: convert_type_expression(&parsed_type),
+                    optional: f.optional,
+                    default: f.default_value.as_ref().map(|v| v.into()),
+                    config: if plugin_name.is_empty() {
+                        serde_json::to_value(&f.plugin_configs).unwrap_or(serde_json::json!({}))
+                    } else {
+                        f.plugin_configs.get(plugin_name).cloned().unwrap_or(serde_json::json!({}))
+                    },
+                    entity_id: f.entity_id.clone(),
+                }
+            }).collect()
+        };
 
         models.insert(name.clone(), cdm_plugin_interface::ModelDefinition {
             name: name.clone(),
