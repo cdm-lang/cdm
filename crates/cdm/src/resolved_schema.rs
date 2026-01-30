@@ -395,9 +395,30 @@ pub fn build_cdm_schema_for_plugin(
         // Otherwise, use the resolved model's fields directly (which already includes
         // merged fields from ancestor modifications)
         let ordered_fields: Vec<cdm_plugin_interface::FieldDefinition> = if !model.parents.is_empty() {
-            // Create a temporary model_fields map with the base fields
+            // Create a temporary model_fields map with:
+            // 1. This model's base fields
+            // 2. All parent models' merged fields from resolved.models (so inheritance works
+            //    correctly for parents that were modified from ancestors)
             let mut temp_model_fields = validation_result.model_fields.clone();
             temp_model_fields.insert(name.clone(), base_fields);
+
+            // Add all resolved models' fields to temp_model_fields so inheritance can find them
+            for (resolved_name, resolved_model) in &resolved.models {
+                if resolved_name != name {
+                    let resolved_fields: Vec<crate::FieldInfo> = resolved_model.fields.iter().map(|f| {
+                        crate::FieldInfo {
+                            name: f.name.clone(),
+                            type_expr: f.type_expr.clone(),
+                            optional: f.optional,
+                            span: f.source_span,
+                            plugin_configs: f.plugin_configs.clone(),
+                            default_value: f.default_value.clone(),
+                            entity_id: f.entity_id.clone(),
+                        }
+                    }).collect();
+                    temp_model_fields.insert(resolved_name.clone(), resolved_fields);
+                }
+            }
 
             let all_fields = crate::symbol_table::get_inherited_fields(
                 name,

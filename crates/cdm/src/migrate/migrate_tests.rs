@@ -2212,3 +2212,119 @@ fn test_model_modification_preserves_inherited_fields_in_schema() {
         user_field_names
     );
 }
+
+#[test]
+fn test_model_modification_with_user_defined_in_child_file() {
+    // INTEGRATION TEST: This test verifies that when User is defined in the child file
+    // (not the base file) and extends a modified PublicUser, the inheritance works correctly.
+    //
+    // Scenario:
+    //   base_only_public_user.cdm:
+    //     PublicUser { id, name?, avatar_url? }
+    //
+    //   child_with_user.cdm:
+    //     extends "./base_only_public_user.cdm"
+    //     @sql { skip: true }
+    //     PublicUser { }  // Modify to skip table
+    //     User extends PublicUser { email, created_at }  // Defined here, not in base
+    //
+    // Expected:
+    //   - PublicUser should have skip: true AND all 3 fields from base
+    //   - User should have all 5 fields (3 inherited from modified PublicUser + 2 own)
+
+    use std::path::PathBuf;
+    use crate::file_resolver::FileResolver;
+    use crate::validate::validate_tree;
+    use crate::build_cdm_schema_for_plugin;
+
+    let fixtures_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("test_fixtures")
+        .join("model_modification")
+        .join("child_with_user.cdm");
+
+    // Load and validate the child file
+    let tree = FileResolver::load(&fixtures_path)
+        .expect("Failed to load child_with_user.cdm");
+
+    let validation_result = validate_tree(tree)
+        .expect("Validation failed");
+
+    assert!(
+        !validation_result.has_errors(),
+        "Validation should succeed, got errors: {:?}",
+        validation_result.diagnostics
+    );
+
+    // Build schema for plugin
+    let ancestor_paths: Vec<PathBuf> = vec![
+        fixtures_path.parent().unwrap().join("base_only_public_user.cdm")
+    ];
+
+    let schema = build_cdm_schema_for_plugin(&validation_result, &ancestor_paths, "sql")
+        .expect("Failed to build schema for plugin");
+
+    // Verify PublicUser model
+    let public_user = schema.models.get("PublicUser")
+        .expect("PublicUser should exist in schema");
+
+    // Should have skip: true from child file
+    assert_eq!(
+        public_user.config.get("skip"),
+        Some(&serde_json::json!(true)),
+        "PublicUser should have skip: true"
+    );
+
+    // Should have all 3 fields from base file
+    let public_user_field_names: Vec<&str> = public_user.fields.iter()
+        .map(|f| f.name.as_str())
+        .collect();
+
+    assert_eq!(
+        public_user.fields.len(),
+        3,
+        "PublicUser should have exactly 3 fields. Got: {:?}",
+        public_user_field_names
+    );
+
+    // Verify User model (defined in child file, extends modified PublicUser)
+    let user = schema.models.get("User")
+        .expect("User should exist in schema");
+
+    let user_field_names: Vec<&str> = user.fields.iter()
+        .map(|f| f.name.as_str())
+        .collect();
+
+    // User should have inherited fields from the MODIFIED PublicUser + own fields
+    assert!(
+        user_field_names.contains(&"id"),
+        "User should have inherited 'id' field from modified PublicUser. Got: {:?}",
+        user_field_names
+    );
+    assert!(
+        user_field_names.contains(&"name"),
+        "User should have inherited 'name' field from modified PublicUser. Got: {:?}",
+        user_field_names
+    );
+    assert!(
+        user_field_names.contains(&"avatar_url"),
+        "User should have inherited 'avatar_url' field from modified PublicUser. Got: {:?}",
+        user_field_names
+    );
+    assert!(
+        user_field_names.contains(&"email"),
+        "User should have own 'email' field. Got: {:?}",
+        user_field_names
+    );
+    assert!(
+        user_field_names.contains(&"created_at"),
+        "User should have own 'created_at' field. Got: {:?}",
+        user_field_names
+    );
+
+    assert_eq!(
+        user.fields.len(),
+        5,
+        "User should have exactly 5 fields (3 inherited from modified PublicUser + 2 own). Got: {:?}",
+        user_field_names
+    );
+}

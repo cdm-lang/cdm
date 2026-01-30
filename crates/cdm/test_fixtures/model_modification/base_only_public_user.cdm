@@ -1,0 +1,7 @@
+// Base schema with only PublicUser model
+
+PublicUser {
+  id: string #10
+  name?: string #11
+  avatar_url?: string #12
+} #1
