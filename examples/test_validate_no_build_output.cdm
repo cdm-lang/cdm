@@ -1,6 +1,0 @@
-@typescript {}
-
-User {
-  id: number
-  name: string
-}
