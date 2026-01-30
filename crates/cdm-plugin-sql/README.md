@@ -461,6 +461,38 @@ Post {
 } #10
 ```
 
+### `default`
+
+- **Type:** `string` (optional)
+- **Description:** SQL expression for default value. Takes precedence over type alias defaults and CDM schema defaults.
+
+```cdm
+User {
+  id: string {
+    @sql {
+      type: "UUID",
+      default: "gen_random_uuid()"
+    }
+  } #1
+
+  created_at: string {
+    @sql {
+      type: "TIMESTAMP",
+      default: "CURRENT_TIMESTAMP"
+    }
+  } #2
+
+  deleted_at?: Timestamp {
+    @sql { default: "NULL" }  // Overrides type alias default
+  } #3
+} #10
+```
+
+**Default Priority Order:**
+1. Field-level `default` (highest priority)
+2. Type alias `default`
+3. CDM schema default value (lowest priority)
+
 ### `references`
 
 - **Type:** `Reference` (optional)

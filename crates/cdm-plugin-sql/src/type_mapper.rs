@@ -137,6 +137,28 @@ impl<'a> TypeMapper<'a> {
     pub fn dialect(&self) -> Dialect {
         self.dialect
     }
+
+    /// Get the default value for a type alias, if any
+    /// Returns the SQL default expression string from the type alias config
+    pub fn get_type_alias_default(&self, type_expr: &TypeExpression) -> Option<String> {
+        match type_expr {
+            TypeExpression::Identifier { name } => {
+                // Only check type aliases, not built-in types
+                if let Some(type_alias) = self.type_aliases.get(name) {
+                    type_alias
+                        .config
+                        .get("default")
+                        .and_then(|d| d.as_str())
+                        .map(String::from)
+                }
+                else {
+                    None
+                }
+            }
+            // Arrays and unions don't have type alias defaults
+            _ => None,
+        }
+    }
 }
 
 

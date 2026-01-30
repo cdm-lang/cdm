@@ -66,6 +66,10 @@ FieldSettings {
   // SQL type override (e.g., "TEXT", "VARCHAR(500)", "JSONB")
   type?: string
 
+  // Default value SQL expression (e.g., "gen_random_uuid()", "CURRENT_TIMESTAMP")
+  // Takes precedence over type alias defaults and CDM schema defaults
+  default?: string
+
   // Foreign key reference
   references?: Reference
 

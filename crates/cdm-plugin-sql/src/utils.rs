@@ -187,8 +187,18 @@ fn generate_column_definition(
         def.push_str(" NOT NULL");
     }
 
-    // Add DEFAULT if field has default value
-    if let Some(default) = &field.default {
+    // Add DEFAULT value with the following priority:
+    // 1. Field config default (SQL expression) - highest priority
+    // 2. Type alias default (SQL expression)
+    // 3. CDM field default (formatted value) - lowest priority
+    if let Some(field_config_default) = field.config.get("default").and_then(|v| v.as_str()) {
+        // Field-level config default (SQL expression)
+        def.push_str(&format!(" DEFAULT {}", field_config_default));
+    } else if let Some(type_alias_default) = type_mapper.get_type_alias_default(&field.field_type) {
+        // Type alias default (SQL expression)
+        def.push_str(&format!(" DEFAULT {}", type_alias_default));
+    } else if let Some(default) = &field.default {
+        // CDM schema default (formatted value)
         if should_apply_cdm_defaults(global_config) {
             def.push_str(&format!(" DEFAULT {}", format_default_value(default)));
         }

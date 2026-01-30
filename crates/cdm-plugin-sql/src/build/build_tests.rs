@@ -390,3 +390,310 @@ fn test_build_with_type_alias_sql_type_override() {
         sql
     );
 }
+
+#[test]
+fn test_build_with_field_config_default() {
+    // Test that field-level config default (SQL expression) is applied
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: String::new(),
+            parents: vec![],
+            fields: vec![FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                entity_id: None,
+                config: json!({
+                    "type": "UUID",
+                    "default": "gen_random_uuid()"
+                }),
+            }],
+            entity_id: None,
+            config: json!({}),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models,
+    };
+
+    let config = json!({
+        "dialect": "postgresql",
+        "pluralize_table_names": false
+    });
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+    let sql = &files[0].content;
+
+    assert!(
+        sql.contains("\"id\" UUID NOT NULL DEFAULT gen_random_uuid()"),
+        "Expected field config default to be applied, but got:\n{}",
+        sql
+    );
+}
+
+#[test]
+fn test_build_with_type_alias_default() {
+    // Test that type alias default (SQL expression) is applied when field has no default
+    use cdm_plugin_interface::TypeAliasDefinition;
+
+    let mut type_aliases = HashMap::new();
+    type_aliases.insert(
+        "UUID".to_string(),
+        TypeAliasDefinition {
+            name: "UUID".to_string(),
+            alias_type: TypeExpression::Identifier {
+                name: "string".to_string(),
+            },
+            config: json!({
+                "type": "UUID",
+                "default": "gen_random_uuid()"
+            }),
+            entity_id: None,
+        },
+    );
+
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: String::new(),
+            parents: vec![],
+            fields: vec![FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "UUID".to_string(),
+                },
+                optional: false,
+                default: None,
+                entity_id: None,
+                config: json!({}),
+            }],
+            entity_id: None,
+            config: json!({}),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases,
+        models,
+    };
+
+    let config = json!({
+        "dialect": "postgresql",
+        "pluralize_table_names": false
+    });
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+    let sql = &files[0].content;
+
+    assert!(
+        sql.contains("\"id\" UUID NOT NULL DEFAULT gen_random_uuid()"),
+        "Expected type alias default to be applied, but got:\n{}",
+        sql
+    );
+}
+
+#[test]
+fn test_build_field_config_default_takes_precedence_over_type_alias() {
+    // Test that field-level config default takes precedence over type alias default
+    use cdm_plugin_interface::TypeAliasDefinition;
+
+    let mut type_aliases = HashMap::new();
+    type_aliases.insert(
+        "Timestamp".to_string(),
+        TypeAliasDefinition {
+            name: "Timestamp".to_string(),
+            alias_type: TypeExpression::Identifier {
+                name: "string".to_string(),
+            },
+            config: json!({
+                "type": "TIMESTAMP",
+                "default": "CURRENT_TIMESTAMP"
+            }),
+            entity_id: None,
+        },
+    );
+
+    let mut models = HashMap::new();
+    models.insert(
+        "Event".to_string(),
+        ModelDefinition {
+            name: String::new(),
+            parents: vec![],
+            fields: vec![FieldDefinition {
+                name: "deleted_at".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "Timestamp".to_string(),
+                },
+                optional: true,
+                default: None,
+                entity_id: None,
+                config: json!({
+                    "default": "NULL"
+                }),
+            }],
+            entity_id: None,
+            config: json!({}),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases,
+        models,
+    };
+
+    let config = json!({
+        "dialect": "postgresql",
+        "pluralize_table_names": false
+    });
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+    let sql = &files[0].content;
+
+    // Should use field config default (NULL), not type alias default (CURRENT_TIMESTAMP)
+    assert!(
+        sql.contains("\"deleted_at\" TIMESTAMP DEFAULT NULL"),
+        "Expected field config default to override type alias default, but got:\n{}",
+        sql
+    );
+    assert!(
+        !sql.contains("CURRENT_TIMESTAMP"),
+        "Type alias default should NOT be used when field config has default, but got:\n{}",
+        sql
+    );
+}
+
+#[test]
+fn test_build_field_config_default_takes_precedence_over_cdm_default() {
+    // Test that field-level config default takes precedence over CDM schema default
+    use cdm_plugin_interface::Value;
+
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: String::new(),
+            parents: vec![],
+            fields: vec![FieldDefinition {
+                name: "created_at".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: Some(Value::String("2024-01-01".to_string())), // CDM default
+                entity_id: None,
+                config: json!({
+                    "type": "TIMESTAMP",
+                    "default": "NOW()"  // SQL expression override
+                }),
+            }],
+            entity_id: None,
+            config: json!({}),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models,
+    };
+
+    let config = json!({
+        "dialect": "postgresql",
+        "pluralize_table_names": false
+    });
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+    let sql = &files[0].content;
+
+    // Should use field config default (NOW()), not CDM default ('2024-01-01')
+    assert!(
+        sql.contains("DEFAULT NOW()"),
+        "Expected field config default to override CDM default, but got:\n{}",
+        sql
+    );
+    assert!(
+        !sql.contains("'2024-01-01'"),
+        "CDM default should NOT be used when field config has default, but got:\n{}",
+        sql
+    );
+}
+
+#[test]
+fn test_build_type_alias_default_takes_precedence_over_cdm_default() {
+    // Test that type alias default takes precedence over CDM schema default
+    use cdm_plugin_interface::{TypeAliasDefinition, Value};
+
+    let mut type_aliases = HashMap::new();
+    type_aliases.insert(
+        "CreatedAt".to_string(),
+        TypeAliasDefinition {
+            name: "CreatedAt".to_string(),
+            alias_type: TypeExpression::Identifier {
+                name: "string".to_string(),
+            },
+            config: json!({
+                "type": "TIMESTAMP",
+                "default": "CURRENT_TIMESTAMP"
+            }),
+            entity_id: None,
+        },
+    );
+
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: String::new(),
+            parents: vec![],
+            fields: vec![FieldDefinition {
+                name: "created_at".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "CreatedAt".to_string(),
+                },
+                optional: false,
+                default: Some(Value::String("2024-01-01".to_string())), // CDM default
+                entity_id: None,
+                config: json!({}),
+            }],
+            entity_id: None,
+            config: json!({}),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases,
+        models,
+    };
+
+    let config = json!({
+        "dialect": "postgresql",
+        "pluralize_table_names": false
+    });
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+    let sql = &files[0].content;
+
+    // Should use type alias default (CURRENT_TIMESTAMP), not CDM default ('2024-01-01')
+    assert!(
+        sql.contains("DEFAULT CURRENT_TIMESTAMP"),
+        "Expected type alias default to override CDM default, but got:\n{}",
+        sql
+    );
+    assert!(
+        !sql.contains("'2024-01-01'"),
+        "CDM default should NOT be used when type alias has default, but got:\n{}",
+        sql
+    );
+}
