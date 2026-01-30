@@ -344,13 +344,21 @@ fn generate_primary_field(
         .get("generation")
         .and_then(|v| v.as_str());
 
-    let decorator = if let Some(gen_strategy) = generation {
+    // Check for type override in field config
+    let type_override = field.config.get("type").and_then(|v| v.as_str());
+
+    let mut decorator = if let Some(gen_strategy) = generation {
         imports.add_typeorm("PrimaryGeneratedColumn");
         DecoratorBuilder::primary_generated_column(Some(gen_strategy))
     } else {
         imports.add_typeorm("PrimaryColumn");
         DecoratorBuilder::primary_column()
     };
+
+    // Add type option if specified
+    if let Some(col_type) = type_override {
+        decorator = decorator.string_option("type", col_type);
+    }
 
     result.push_str("    ");
     result.push_str(&decorator.build());

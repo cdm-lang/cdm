@@ -727,3 +727,51 @@ User {
   } #1
 } #10
 ```
+
+### Primary Key Type Override
+
+You can override the SQL column type for primary keys using the `type` field setting:
+
+```cdm
+User {
+  id: number {
+    @typeorm {
+      primary: { generation: "increment" },
+      type: "bigint"
+    }
+  } #1
+} #10
+```
+
+**Generated TypeScript:**
+
+```typescript
+@Entity({ name: "users" })
+export class User {
+    @PrimaryGeneratedColumn("increment", { type: "bigint" })
+    id: number
+}
+```
+
+For non-generated primary keys:
+
+```cdm
+User {
+  id: string {
+    @typeorm {
+      primary: {},
+      type: "uuid"
+    }
+  } #1
+} #10
+```
+
+**Generated TypeScript:**
+
+```typescript
+@Entity({ name: "users" })
+export class User {
+    @PrimaryColumn({ type: "uuid" })
+    id: string
+}
+```

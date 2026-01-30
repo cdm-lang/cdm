@@ -975,3 +975,89 @@ fn test_ts_type_mixed_default_and_named_imports() {
     assert!(content.contains("import DefaultType from \"./types/default\""));
     assert!(content.contains("import { NamedType } from \"./types/named\""));
 }
+
+// Primary key type tests
+
+#[test]
+fn test_primary_key_with_type_override() {
+    let mut models = HashMap::new();
+
+    let user_model = ModelDefinition {
+        name: "User".to_string(),
+        parents: vec![],
+        fields: vec![FieldDefinition {
+            name: "id".to_string(),
+            field_type: TypeExpression::Identifier {
+                name: "number".to_string(),
+            },
+            optional: false,
+            default: None,
+            config: serde_json::json!({
+                "primary": { "generation": "increment" },
+                "type": "bigint"
+            }),
+            entity_id: None,
+        }],
+        config: serde_json::json!({}),
+        entity_id: None,
+    };
+    models.insert("User".to_string(), user_model);
+
+    let schema = Schema {
+        models,
+        type_aliases: HashMap::new(),
+    };
+    let config = serde_json::json!({});
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+
+    let content = &files[0].content;
+    assert!(
+        content.contains("@PrimaryGeneratedColumn(\"increment\", { type: \"bigint\" })"),
+        "Should include type option in PrimaryGeneratedColumn. Content: {}",
+        content
+    );
+}
+
+#[test]
+fn test_primary_column_with_type_override() {
+    let mut models = HashMap::new();
+
+    let user_model = ModelDefinition {
+        name: "User".to_string(),
+        parents: vec![],
+        fields: vec![FieldDefinition {
+            name: "id".to_string(),
+            field_type: TypeExpression::Identifier {
+                name: "string".to_string(),
+            },
+            optional: false,
+            default: None,
+            config: serde_json::json!({
+                "primary": {},
+                "type": "uuid"
+            }),
+            entity_id: None,
+        }],
+        config: serde_json::json!({}),
+        entity_id: None,
+    };
+    models.insert("User".to_string(), user_model);
+
+    let schema = Schema {
+        models,
+        type_aliases: HashMap::new(),
+    };
+    let config = serde_json::json!({});
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+
+    let content = &files[0].content;
+    assert!(
+        content.contains("@PrimaryColumn({ type: \"uuid\" })"),
+        "Should include type option in PrimaryColumn. Content: {}",
+        content
+    );
+}
