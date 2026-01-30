@@ -558,15 +558,16 @@ pub fn build_cdm_schema_for_plugin(
             }).collect()
         };
 
+        // Get merged config including inherited configs from parent models
+        // Per spec Section 6.5: "Model-level config: Child's config merges with parent's config"
+        let mut visited = HashSet::new();
+        let merged_model_config = get_merged_model_config(name, &resolved.models, plugin_name, &mut visited);
+
         models.insert(name.clone(), cdm_plugin_interface::ModelDefinition {
             name: name.clone(),
             parents: model.parents.clone(),
             fields: ordered_fields,
-            config: if plugin_name.is_empty() {
-                serde_json::to_value(&model.plugin_configs).unwrap_or(serde_json::json!({}))
-            } else {
-                model.plugin_configs.get(plugin_name).cloned().unwrap_or(serde_json::json!({}))
-            },
+            config: merged_model_config,
             entity_id: model.entity_id.clone(),
         });
     }
@@ -597,6 +598,72 @@ pub fn build_cdm_schema_for_plugin(
     })
 }
 
+/// Deep merge two JSON values following CDM spec Section 7.4 merge rules:
+/// - Objects: Deep merge (recursive)
+/// - Arrays: Replace entirely
+/// - Primitives: Replace entirely
+fn deep_merge_json(base: &serde_json::Value, overlay: &serde_json::Value) -> serde_json::Value {
+    match (base, overlay) {
+        (serde_json::Value::Object(base_obj), serde_json::Value::Object(overlay_obj)) => {
+            let mut result = base_obj.clone();
+            for (key, value) in overlay_obj {
+                if let Some(base_value) = base_obj.get(key) {
+                    // Recursively merge if both are objects
+                    result.insert(key.clone(), deep_merge_json(base_value, value));
+                } else {
+                    // Key only exists in overlay
+                    result.insert(key.clone(), value.clone());
+                }
+            }
+            serde_json::Value::Object(result)
+        }
+        // For non-objects, overlay completely replaces base
+        _ => overlay.clone(),
+    }
+}
+
+/// Get merged model config by walking up the parent chain.
+/// Per spec Section 6.5: "Model-level config: Child's config merges with parent's config"
+/// Merge rules from Section 7.4: Objects deep merge, arrays/primitives replace.
+fn get_merged_model_config(
+    model_name: &str,
+    resolved_models: &HashMap<String, ResolvedModel>,
+    plugin_name: &str,
+    visited: &mut HashSet<String>,
+) -> serde_json::Value {
+    // Prevent infinite loops from circular references
+    if visited.contains(model_name) {
+        return serde_json::json!({});
+    }
+    visited.insert(model_name.to_string());
+
+    let model = match resolved_models.get(model_name) {
+        Some(m) => m,
+        None => return serde_json::json!({}),
+    };
+
+    // Start with an empty config
+    let mut merged_config = serde_json::json!({});
+
+    // First, collect configs from all parents (in order)
+    // Parents are processed left to right, so later parents override earlier ones
+    for parent_name in &model.parents {
+        let parent_config = get_merged_model_config(parent_name, resolved_models, plugin_name, visited);
+        merged_config = deep_merge_json(&merged_config, &parent_config);
+    }
+
+    // Then merge this model's own config (child overrides parent)
+    let model_config = if plugin_name.is_empty() {
+        serde_json::to_value(&model.plugin_configs).unwrap_or(serde_json::json!({}))
+    } else {
+        model.plugin_configs.get(plugin_name).cloned().unwrap_or(serde_json::json!({}))
+    };
+
+    merged_config = deep_merge_json(&merged_config, &model_config);
+
+    merged_config
+}
+
 /// Result of resolving a template type reference.
 /// Contains the resolved base type and any plugin configs from the template type alias.
 struct ResolvedTemplateType {
@@ -606,34 +673,35 @@ struct ResolvedTemplateType {
     plugin_configs: HashMap<String, serde_json::Value>,
 }
 
-/// Resolve a type expression, following template type alias references.
+/// Resolve a type expression, following type alias references.
 ///
-/// For a type like `sqlType.UUID`:
-/// 1. Look up `sqlType.UUID` in the resolved type_aliases
-/// 2. Get its underlying type (e.g., `string`)
-/// 3. Return the base type and the template's plugin configs
+/// For a type alias (template or local):
+/// 1. Look up the type in the resolved type_aliases
+/// 2. Get its underlying type (e.g., `string` for `Email: string`)
+/// 3. Return the base type and the alias's plugin configs
 ///
-/// For non-template types (primitives, local type aliases, models), returns the type as-is.
+/// Per spec Section 4.4:
+///   "When a type alias is used in a field, the field inherits the alias's plugin configuration"
+///
+/// For primitives and model references, returns the type as-is with no plugin configs.
 fn resolve_template_type(
     type_str: &str,
     resolved: &ResolvedSchema,
 ) -> ResolvedTemplateType {
-    // Check if this is a qualified name (contains a dot)
-    if type_str.contains('.') {
-        // Look up in type_aliases (which includes qualified template types)
-        if let Some(type_alias) = resolved.type_aliases.get(type_str) {
-            // Found a template type alias - resolve to its base type
-            let base_type = type_alias.parsed_type().unwrap_or_else(|_| {
-                crate::ParsedType::Primitive(crate::PrimitiveType::String)
-            });
-            return ResolvedTemplateType {
-                base_type,
-                plugin_configs: type_alias.plugin_configs.clone(),
-            };
-        }
+    // Look up in type_aliases (handles both qualified template types like sqlType.UUID
+    // and local type aliases like Email)
+    if let Some(type_alias) = resolved.type_aliases.get(type_str) {
+        // Found a type alias - resolve to its base type and get its plugin configs
+        let base_type = type_alias.parsed_type().unwrap_or_else(|_| {
+            crate::ParsedType::Primitive(crate::PrimitiveType::String)
+        });
+        return ResolvedTemplateType {
+            base_type,
+            plugin_configs: type_alias.plugin_configs.clone(),
+        };
     }
 
-    // Not a template type - parse as-is
+    // Not a type alias - parse as-is (primitives, model references, etc.)
     let parsed_type = cdm_utils::parse_type_string(type_str).unwrap_or_else(|_| {
         crate::ParsedType::Primitive(crate::PrimitiveType::String)
     });

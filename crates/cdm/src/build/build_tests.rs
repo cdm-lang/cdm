@@ -626,3 +626,301 @@ fn test_plugin_configs_passed_to_specific_plugin() {
     // Log this for debugging
     eprintln!("DEBUG: Model configs in resolved schema exist and are being passed correctly");
 }
+
+#[test]
+fn test_model_config_inherited_from_parent() {
+    // BUG TEST: When a model extends another model, the child should inherit
+    // the parent's model-level plugin config (like @sql { indexes: [...] }).
+    //
+    // Per spec Section 6.5:
+    //   "Model-level config: Child's config merges with parent's config"
+    //
+    // Per spec Section 7.4 merge rules:
+    //   - Objects: Deep merge (recursive)
+    //   - Arrays: Replace entirely
+    //   - Primitives: Replace entirely
+    let source = r#"
+        @sql
+
+        Entity {
+            id: string #1
+            @sql {
+                indexes: [
+                    { fields: ["id"], primary: true }
+                ]
+            }
+        } #1
+
+        User extends Entity {
+            name: string #2
+        } #2
+    "#;
+
+    let result = crate::validate(source, &[]);
+    assert!(!result.has_errors(), "Validation should succeed: {:?}", result.diagnostics);
+
+    // Build schema for sql plugin
+    let plugin_schema = build_cdm_schema_for_plugin(&result, &[], "sql")
+        .expect("Should build schema for sql plugin");
+
+    // Entity should have its own indexes
+    let entity_in_schema = plugin_schema.models.get("Entity").expect("Entity should be in schema");
+    let entity_config = entity_in_schema.config.as_object().expect("Config should be object");
+    let entity_indexes = entity_config.get("indexes").expect("Entity should have indexes");
+    assert!(entity_indexes.is_array(), "indexes should be array");
+    assert_eq!(entity_indexes.as_array().unwrap().len(), 1, "Entity should have 1 index");
+
+    // User extends Entity - it should inherit Entity's indexes
+    let user_in_schema = plugin_schema.models.get("User").expect("User should be in schema");
+    let user_config = user_in_schema.config.as_object().expect("Config should be object");
+
+    // BUG: Currently this fails because User doesn't inherit Entity's @sql config
+    let user_indexes = user_config.get("indexes")
+        .expect("User should inherit indexes from Entity");
+    assert!(user_indexes.is_array(), "indexes should be array");
+    assert_eq!(user_indexes.as_array().unwrap().len(), 1,
+        "User should inherit 1 index from Entity");
+
+    // Check the inherited index has the correct content
+    let index = &user_indexes.as_array().unwrap()[0];
+    assert_eq!(
+        index.get("primary").and_then(|v| v.as_bool()),
+        Some(true),
+        "Inherited index should have primary: true"
+    );
+}
+
+#[test]
+fn test_model_config_child_overrides_parent_arrays() {
+    // When child defines its own indexes, they should REPLACE parent's indexes
+    // (arrays replace entirely per spec Section 7.4)
+    let source = r#"
+        @sql
+
+        Entity {
+            id: string #1
+            @sql {
+                indexes: [
+                    { fields: ["id"], primary: true }
+                ]
+            }
+        } #1
+
+        User extends Entity {
+            email: string #2
+            @sql {
+                indexes: [
+                    { fields: ["email"], unique: true }
+                ]
+            }
+        } #2
+    "#;
+
+    let result = crate::validate(source, &[]);
+    assert!(!result.has_errors(), "Validation should succeed");
+
+    let plugin_schema = build_cdm_schema_for_plugin(&result, &[], "sql")
+        .expect("Should build schema for sql plugin");
+
+    let user_in_schema = plugin_schema.models.get("User").expect("User should be in schema");
+    let user_config = user_in_schema.config.as_object().expect("Config should be object");
+    let user_indexes = user_config.get("indexes").expect("User should have indexes");
+
+    // Child's indexes should REPLACE parent's (not merge)
+    assert_eq!(user_indexes.as_array().unwrap().len(), 1,
+        "User should have 1 index (its own, not merged with parent)");
+
+    let index = &user_indexes.as_array().unwrap()[0];
+    // Should be the child's index (email, unique), not parent's (id, primary)
+    assert_eq!(
+        index.get("unique").and_then(|v| v.as_bool()),
+        Some(true),
+        "Index should be User's own (unique: true)"
+    );
+}
+
+#[test]
+fn test_model_config_deep_merge_objects() {
+    // Objects should be deep merged (child adds to parent's object properties)
+    let source = r#"
+        @sql
+
+        Entity {
+            id: string #1
+            @sql {
+                naming: { table: "entity_table" },
+                some_flag: true
+            }
+        } #1
+
+        User extends Entity {
+            name: string #2
+            @sql {
+                naming: { columns: "snake_case" }
+            }
+        } #2
+    "#;
+
+    let result = crate::validate(source, &[]);
+    assert!(!result.has_errors(), "Validation should succeed");
+
+    let plugin_schema = build_cdm_schema_for_plugin(&result, &[], "sql")
+        .expect("Should build schema for sql plugin");
+
+    let user_in_schema = plugin_schema.models.get("User").expect("User should be in schema");
+    let user_config = user_in_schema.config.as_object().expect("Config should be object");
+
+    // some_flag should be inherited from Entity
+    assert_eq!(
+        user_config.get("some_flag").and_then(|v| v.as_bool()),
+        Some(true),
+        "User should inherit some_flag from Entity"
+    );
+
+    // naming should be deep merged
+    let naming = user_config.get("naming").expect("User should have naming config");
+    let naming_obj = naming.as_object().expect("naming should be object");
+
+    // Child's naming.columns should exist
+    assert_eq!(
+        naming_obj.get("columns").and_then(|v| v.as_str()),
+        Some("snake_case"),
+        "User should have its own naming.columns"
+    );
+
+    // Parent's naming.table should be inherited
+    assert_eq!(
+        naming_obj.get("table").and_then(|v| v.as_str()),
+        Some("entity_table"),
+        "User should inherit naming.table from Entity"
+    );
+}
+
+#[test]
+fn test_model_config_multi_level_inheritance() {
+    // Test inheritance through multiple levels: GrandChild extends Child extends Parent
+    let source = r#"
+        @sql
+
+        Entity {
+            id: string #1
+            @sql {
+                indexes: [
+                    { fields: ["id"], primary: true }
+                ]
+            }
+        } #1
+
+        Timestamped {
+            created_at: string #1
+        } #2
+
+        TimestampedEntity extends Entity, Timestamped {
+        } #3
+
+        User extends TimestampedEntity {
+            name: string #2
+        } #4
+    "#;
+
+    let result = crate::validate(source, &[]);
+    assert!(!result.has_errors(), "Validation should succeed");
+
+    let plugin_schema = build_cdm_schema_for_plugin(&result, &[], "sql")
+        .expect("Should build schema for sql plugin");
+
+    // TimestampedEntity should inherit Entity's indexes
+    let tse = plugin_schema.models.get("TimestampedEntity").expect("TimestampedEntity should exist");
+    let tse_config = tse.config.as_object().expect("Config should be object");
+    assert!(tse_config.get("indexes").is_some(),
+        "TimestampedEntity should inherit indexes from Entity");
+
+    // User should also inherit through the chain
+    let user = plugin_schema.models.get("User").expect("User should exist");
+    let user_config = user.config.as_object().expect("Config should be object");
+    assert!(user_config.get("indexes").is_some(),
+        "User should inherit indexes from Entity through TimestampedEntity");
+}
+
+#[test]
+fn test_local_type_alias_config_inherited_by_field() {
+    // Per spec Section 4.4:
+    //   "When a type alias is used in a field, the field inherits the alias's plugin configuration"
+    //   "Field-level plugin configuration merges with (and can override) alias-level configuration"
+    //
+    // This tests LOCAL type aliases (not template/qualified types like sqlType.UUID)
+    let source = r#"
+        @sql
+
+        Email: string {
+            @sql { type: "VARCHAR(320)" }
+        } #1
+
+        User {
+            email: Email #1
+        } #2
+    "#;
+
+    let result = crate::validate(source, &[]);
+    assert!(!result.has_errors(), "Validation should succeed: {:?}", result.diagnostics);
+
+    let plugin_schema = build_cdm_schema_for_plugin(&result, &[], "sql")
+        .expect("Should build schema for sql plugin");
+
+    let user = plugin_schema.models.get("User").expect("User should exist");
+    let email_field = user.fields.iter().find(|f| f.name == "email")
+        .expect("email field should exist");
+
+    let email_config = email_field.config.as_object().expect("Config should be object");
+
+    // BUG: Currently this fails because local type alias configs aren't inherited
+    assert_eq!(
+        email_config.get("type").and_then(|v| v.as_str()),
+        Some("VARCHAR(320)"),
+        "email field should inherit @sql {{ type }} from Email type alias"
+    );
+}
+
+#[test]
+fn test_local_type_alias_config_merged_with_field_config() {
+    // Field config should override type alias config (merge with field winning)
+    let source = r#"
+        @sql
+
+        Email: string {
+            @sql { type: "VARCHAR(320)", nullable: false }
+        } #1
+
+        User {
+            email: Email {
+                @sql { nullable: true }
+            } #1
+        } #2
+    "#;
+
+    let result = crate::validate(source, &[]);
+    assert!(!result.has_errors(), "Validation should succeed");
+
+    let plugin_schema = build_cdm_schema_for_plugin(&result, &[], "sql")
+        .expect("Should build schema for sql plugin");
+
+    let user = plugin_schema.models.get("User").expect("User should exist");
+    let email_field = user.fields.iter().find(|f| f.name == "email")
+        .expect("email field should exist");
+
+    let email_config = email_field.config.as_object().expect("Config should be object");
+
+    // Should inherit type from alias
+    assert_eq!(
+        email_config.get("type").and_then(|v| v.as_str()),
+        Some("VARCHAR(320)"),
+        "email field should inherit @sql {{ type }} from Email type alias"
+    );
+
+    // Should override nullable with field's value
+    assert_eq!(
+        email_config.get("nullable").and_then(|v| v.as_bool()),
+        Some(true),
+        "email field's nullable should override type alias's nullable"
+    );
+}
