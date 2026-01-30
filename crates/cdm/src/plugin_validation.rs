@@ -155,11 +155,13 @@ impl PluginCache {
         } else {
             // Build ResolvedSchema from the parsed tree
             use crate::resolved_schema::build_resolved_schema;
+            use std::collections::HashMap;
             Some(build_resolved_schema(
                 &validation_result.symbol_table,
                 &validation_result.model_fields,
                 &[],
                 &[],
+                &HashMap::new(),
             ))
         };
 

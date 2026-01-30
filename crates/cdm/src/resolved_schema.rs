@@ -86,6 +86,7 @@ fn load_templates_for_source(
 /// * `current_fields` - Model fields from the current file
 /// * `ancestors` - Ancestor files (in order: immediate parent first)
 /// * `removals` - List of (name, span, kind) tuples for items to remove
+/// * `field_removals` - Map of model name to set of field names to remove
 ///
 /// # Returns
 /// A ResolvedSchema representing the final merged state
@@ -94,6 +95,7 @@ pub fn build_resolved_schema(
     current_fields: &HashMap<String, Vec<FieldInfo>>,
     ancestors: &[Ancestor],
     removals: &[(String, Span, &str)],
+    field_removals: &HashMap<String, HashSet<String>>,
 ) -> ResolvedSchema {
     let mut resolved = ResolvedSchema::new();
 
@@ -218,13 +220,82 @@ pub fn build_resolved_schema(
                 );
             }
             DefinitionKind::Model { extends } => {
-                // Add model from current file
-                if let Some(fields) = current_fields.get(name) {
+                // Check if this model already exists in resolved (from an ancestor)
+                // Per spec Section 7.3, if a model exists in ancestors, the current file
+                // MODIFIES it (merging fields and configs) rather than REPLACING it.
+                let current_file_fields = current_fields.get(name).cloned().unwrap_or_default();
+                let removed_fields = field_removals.get(name);
+
+                if let Some(existing_model) = resolved.models.get(name) {
+                    // Model exists in ancestor - MERGE modifications
+                    let mut merged_fields = Vec::new();
+                    let current_field_names: HashSet<_> = current_file_fields.iter().map(|f| &f.name).collect();
+
+                    // Add ancestor fields (unless overridden or removed by current file)
+                    for ancestor_field in &existing_model.fields {
+                        // Skip if field is overridden by current file
+                        if current_field_names.contains(&ancestor_field.name) {
+                            continue;
+                        }
+                        // Skip if field is removed by current file
+                        if let Some(removals) = removed_fields {
+                            if removals.contains(&ancestor_field.name) {
+                                continue;
+                            }
+                        }
+                        // Keep ancestor field as-is
+                        merged_fields.push(ancestor_field.clone());
+                    }
+
+                    // Add/override with current file fields
+                    for f in &current_file_fields {
+                        merged_fields.push(ResolvedField {
+                            name: f.name.clone(),
+                            type_expr: f.type_expr.clone(),
+                            optional: f.optional,
+                            default_value: f.default_value.clone(),
+                            plugin_configs: f.plugin_configs.clone(),
+                            source_file: "current file".to_string(),
+                            source_span: f.span,
+                            cached_parsed_type: RefCell::new(None),
+                            entity_id: f.entity_id.clone(),
+                        });
+                    }
+
+                    // Merge plugin configs: ancestor configs + current file configs (current overrides)
+                    let mut merged_configs = existing_model.plugin_configs.clone();
+                    for (key, value) in &def.plugin_configs {
+                        merged_configs.insert(key.clone(), value.clone());
+                    }
+
+                    // Merge parents: combine unique parents from both
+                    let mut merged_parents = existing_model.parents.clone();
+                    for parent in extends {
+                        if !merged_parents.contains(parent) {
+                            merged_parents.push(parent.clone());
+                        }
+                    }
+
                     resolved.models.insert(
                         name.clone(),
                         ResolvedModel {
                             name: name.clone(),
-                            fields: fields
+                            fields: merged_fields,
+                            parents: merged_parents,
+                            plugin_configs: merged_configs,
+                            // Use current file's entity_id if present, otherwise keep ancestor's
+                            entity_id: def.entity_id.clone().or(existing_model.entity_id.clone()),
+                            source_file: "current file".to_string(),
+                            source_span: def.span,
+                        },
+                    );
+                } else {
+                    // Model doesn't exist in ancestors - new definition
+                    resolved.models.insert(
+                        name.clone(),
+                        ResolvedModel {
+                            name: name.clone(),
+                            fields: current_file_fields
                                 .iter()
                                 .map(|f| ResolvedField {
                                     name: f.name.clone(),
@@ -295,6 +366,7 @@ pub fn build_cdm_schema_for_plugin(
         &validation_result.model_fields,
         &ancestors,
         &[],
+        &HashMap::new(), // No field removals when building schema for plugins
     );
 
     // Convert to plugin API Schema format

@@ -23,7 +23,7 @@ fn test_build_resolved_schema_empty() {
     let ancestors = vec![];
     let removals = vec![];
 
-    let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals);
+    let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals, &HashMap::new());
 
     assert_eq!(resolved.type_aliases.len(), 0);
     assert_eq!(resolved.models.len(), 0);
@@ -49,7 +49,7 @@ fn test_build_resolved_schema_with_type_alias() {
     let ancestors = vec![];
     let removals = vec![];
 
-    let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals);
+    let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals, &HashMap::new());
 
     assert_eq!(resolved.type_aliases.len(), 1);
     assert!(resolved.type_aliases.contains_key("Email"));
@@ -92,7 +92,7 @@ fn test_build_resolved_schema_with_model() {
     let ancestors = vec![];
     let removals = vec![];
 
-    let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals);
+    let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals, &HashMap::new());
 
     assert_eq!(resolved.models.len(), 1);
     assert!(resolved.models.contains_key("User"));
@@ -136,7 +136,7 @@ fn test_build_resolved_schema_with_removal() {
     let ancestors = vec![];
     let removals = vec![("ToRemove".to_string(), test_span(), "type")];
 
-    let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals);
+    let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals, &HashMap::new());
 
     assert_eq!(resolved.type_aliases.len(), 1);
     assert!(resolved.type_aliases.contains_key("ToKeep"));
@@ -170,7 +170,7 @@ fn test_build_resolved_schema_ancestor_type_alias() {
 
     let removals = vec![];
 
-    let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals);
+    let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals, &HashMap::new());
 
     assert_eq!(resolved.type_aliases.len(), 1);
     assert!(resolved.type_aliases.contains_key("AncestorType"));
@@ -220,7 +220,7 @@ fn test_build_resolved_schema_current_overrides_ancestor() {
 
     let removals = vec![];
 
-    let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals);
+    let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals, &HashMap::new());
 
     assert_eq!(resolved.type_aliases.len(), 1);
 
@@ -279,7 +279,7 @@ fn test_build_resolved_schema_multiple_ancestors() {
 
     let removals = vec![];
 
-    let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals);
+    let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals, &HashMap::new());
 
     assert_eq!(resolved.type_aliases.len(), 2);
     assert!(resolved.type_aliases.contains_key("FarType"));
@@ -334,7 +334,7 @@ fn test_build_resolved_schema_closer_ancestor_wins() {
 
     let removals = vec![];
 
-    let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals);
+    let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals, &HashMap::new());
 
     assert_eq!(resolved.type_aliases.len(), 1);
 
@@ -381,7 +381,7 @@ fn test_build_resolved_schema_model_with_extends() {
     let ancestors = vec![];
     let removals = vec![];
 
-    let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals);
+    let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals, &HashMap::new());
 
     assert_eq!(resolved.models.len(), 1);
 
@@ -998,7 +998,7 @@ fn test_build_resolved_schema_field_with_plugin_config() {
     let ancestors = vec![];
     let removals = vec![];
 
-    let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals);
+    let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals, &HashMap::new());
 
     let user_model = &resolved.models["User"];
     assert_eq!(user_model.fields[0].plugin_configs.len(), 1);
@@ -1045,7 +1045,7 @@ fn test_build_resolved_schema_model_from_ancestor() {
 
     let removals = vec![];
 
-    let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals);
+    let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals, &HashMap::new());
 
     assert_eq!(resolved.models.len(), 1);
     assert!(resolved.models.contains_key("BaseModel"));
@@ -1089,7 +1089,7 @@ fn test_build_resolved_schema_field_with_default_value() {
     let ancestors = vec![];
     let removals = vec![];
 
-    let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals);
+    let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals, &HashMap::new());
 
     let config_model = &resolved.models["Config"];
     assert_eq!(
@@ -1137,7 +1137,7 @@ fn test_build_resolved_schema_with_template_namespace_type_alias() {
     let ancestors = vec![];
     let removals = vec![];
 
-    let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals);
+    let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals, &HashMap::new());
 
     // The qualified type alias "sql.UUID" should be in the resolved schema
     assert!(resolved.type_aliases.contains_key("sql.UUID"),
@@ -1151,4 +1151,319 @@ fn test_build_resolved_schema_with_template_namespace_type_alias() {
 
     let sql_config = &uuid_alias.plugin_configs["sql"];
     assert_eq!(sql_config["type"], "UUID");
+}
+
+#[test]
+fn test_build_resolved_schema_model_modification_merges_with_ancestor() {
+    // BUG TEST: Per spec Section 7.3, when a model from an ancestor is referenced
+    // in the current file, it should MODIFY (merge) the model, not REPLACE it.
+    //
+    // Example scenario:
+    //   ancestor.cdm:
+    //     PublicUser { id: string, name?: string }
+    //
+    //   current.cdm:
+    //     extends "ancestor.cdm"
+    //     @sql { skip: true }
+    //     PublicUser { }  // No new fields, just adding plugin config
+    //
+    // The resolved PublicUser should have:
+    // - All fields from ancestor (id, name)
+    // - The sql.skip config from current file
+    //
+    // Previous behavior incorrectly replaced the entire model definition.
+
+    // Create ancestor with PublicUser model containing fields
+    let mut ancestor_symbols = SymbolTable::new();
+    ancestor_symbols.definitions.insert(
+        "PublicUser".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model {
+                extends: vec![],
+            },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: local_id(1),
+        },
+    );
+
+    let mut ancestor_fields = HashMap::new();
+    ancestor_fields.insert(
+        "PublicUser".to_string(),
+        vec![
+            FieldInfo {
+                name: "id".to_string(),
+                type_expr: Some("string".to_string()),
+                optional: false,
+                span: test_span(),
+                plugin_configs: HashMap::new(),
+                default_value: None,
+                entity_id: local_id(10),
+            },
+            FieldInfo {
+                name: "name".to_string(),
+                type_expr: Some("string".to_string()),
+                optional: true,
+                span: test_span(),
+                plugin_configs: HashMap::new(),
+                default_value: None,
+                entity_id: local_id(11),
+            },
+        ],
+    );
+
+    let ancestors = vec![Ancestor {
+        path: "ancestor.cdm".to_string(),
+        symbol_table: ancestor_symbols,
+        model_fields: ancestor_fields,
+    }];
+
+    // Current file "modifies" PublicUser by adding plugin config but no new fields
+    let mut current_symbols = SymbolTable::new();
+    let mut skip_config = HashMap::new();
+    skip_config.insert("sql".to_string(), serde_json::json!({ "skip": true }));
+
+    current_symbols.definitions.insert(
+        "PublicUser".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model {
+                extends: vec![],
+            },
+            span: test_span(),
+            plugin_configs: skip_config,
+            entity_id: local_id(1), // Same entity_id - this is a modification
+        },
+    );
+
+    // Current file has empty fields for PublicUser (just adding config, no new fields)
+    let mut current_fields = HashMap::new();
+    current_fields.insert("PublicUser".to_string(), vec![]);
+
+    let removals = vec![];
+
+    let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals, &HashMap::new());
+
+    // PublicUser should exist in resolved models
+    assert!(
+        resolved.models.contains_key("PublicUser"),
+        "PublicUser should be in resolved models"
+    );
+
+    let public_user = &resolved.models["PublicUser"];
+
+    // Should have the plugin config from current file
+    assert!(
+        public_user.plugin_configs.contains_key("sql"),
+        "PublicUser should have sql plugin config from current file"
+    );
+    assert_eq!(
+        public_user.plugin_configs["sql"]["skip"], true,
+        "PublicUser should have skip: true from current file"
+    );
+
+    // Should STILL have the fields from ancestor (this is the bug fix)
+    assert_eq!(
+        public_user.fields.len(),
+        2,
+        "PublicUser should have 2 fields from ancestor, got: {:?}",
+        public_user.fields.iter().map(|f| &f.name).collect::<Vec<_>>()
+    );
+
+    let field_names: Vec<_> = public_user.fields.iter().map(|f| f.name.as_str()).collect();
+    assert!(
+        field_names.contains(&"id"),
+        "PublicUser should have 'id' field from ancestor"
+    );
+    assert!(
+        field_names.contains(&"name"),
+        "PublicUser should have 'name' field from ancestor"
+    );
+}
+
+#[test]
+fn test_build_resolved_schema_model_modification_merges_fields() {
+    // Test that when modifying an ancestor model with new fields,
+    // the fields are merged (ancestor fields + current file fields)
+
+    // Create ancestor with BaseModel containing one field
+    let mut ancestor_symbols = SymbolTable::new();
+    ancestor_symbols.definitions.insert(
+        "BaseModel".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model {
+                extends: vec![],
+            },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: local_id(1),
+        },
+    );
+
+    let mut ancestor_fields = HashMap::new();
+    ancestor_fields.insert(
+        "BaseModel".to_string(),
+        vec![FieldInfo {
+            name: "id".to_string(),
+            type_expr: Some("string".to_string()),
+            optional: false,
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            default_value: None,
+            entity_id: local_id(10),
+        }],
+    );
+
+    let ancestors = vec![Ancestor {
+        path: "ancestor.cdm".to_string(),
+        symbol_table: ancestor_symbols,
+        model_fields: ancestor_fields,
+    }];
+
+    // Current file adds a new field to BaseModel
+    let mut current_symbols = SymbolTable::new();
+    current_symbols.definitions.insert(
+        "BaseModel".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model {
+                extends: vec![],
+            },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: local_id(1), // Same entity_id
+        },
+    );
+
+    let mut current_fields = HashMap::new();
+    current_fields.insert(
+        "BaseModel".to_string(),
+        vec![FieldInfo {
+            name: "updated_at".to_string(),
+            type_expr: Some("string".to_string()),
+            optional: true,
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            default_value: None,
+            entity_id: local_id(20),
+        }],
+    );
+
+    let removals = vec![];
+
+    let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals, &HashMap::new());
+
+    let base_model = &resolved.models["BaseModel"];
+
+    // Should have both ancestor fields and current file fields
+    assert_eq!(
+        base_model.fields.len(),
+        2,
+        "BaseModel should have 2 fields (1 from ancestor + 1 from current), got: {:?}",
+        base_model.fields.iter().map(|f| &f.name).collect::<Vec<_>>()
+    );
+
+    let field_names: Vec<_> = base_model.fields.iter().map(|f| f.name.as_str()).collect();
+    assert!(field_names.contains(&"id"), "Should have 'id' from ancestor");
+    assert!(
+        field_names.contains(&"updated_at"),
+        "Should have 'updated_at' from current file"
+    );
+}
+
+#[test]
+fn test_build_resolved_schema_model_modification_field_override() {
+    // Test that when modifying an ancestor model, fields with the same name
+    // are overridden by the current file's version
+
+    // Create ancestor with BaseModel containing 'status' field (required)
+    let mut ancestor_symbols = SymbolTable::new();
+    ancestor_symbols.definitions.insert(
+        "BaseModel".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model {
+                extends: vec![],
+            },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: local_id(1),
+        },
+    );
+
+    let mut ancestor_fields = HashMap::new();
+    ancestor_fields.insert(
+        "BaseModel".to_string(),
+        vec![
+            FieldInfo {
+                name: "id".to_string(),
+                type_expr: Some("string".to_string()),
+                optional: false,
+                span: test_span(),
+                plugin_configs: HashMap::new(),
+                default_value: None,
+                entity_id: local_id(10),
+            },
+            FieldInfo {
+                name: "status".to_string(),
+                type_expr: Some("string".to_string()),
+                optional: false, // Required in ancestor
+                span: test_span(),
+                plugin_configs: HashMap::new(),
+                default_value: None,
+                entity_id: local_id(11),
+            },
+        ],
+    );
+
+    let ancestors = vec![Ancestor {
+        path: "ancestor.cdm".to_string(),
+        symbol_table: ancestor_symbols,
+        model_fields: ancestor_fields,
+    }];
+
+    // Current file overrides 'status' to be optional
+    let mut current_symbols = SymbolTable::new();
+    current_symbols.definitions.insert(
+        "BaseModel".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model {
+                extends: vec![],
+            },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: local_id(1),
+        },
+    );
+
+    let mut current_fields = HashMap::new();
+    current_fields.insert(
+        "BaseModel".to_string(),
+        vec![FieldInfo {
+            name: "status".to_string(),
+            type_expr: Some("string".to_string()),
+            optional: true, // Optional in current file (override)
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            default_value: None,
+            entity_id: local_id(11), // Same entity_id for the field
+        }],
+    );
+
+    let removals = vec![];
+
+    let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals, &HashMap::new());
+
+    let base_model = &resolved.models["BaseModel"];
+
+    // Should have both fields
+    assert_eq!(base_model.fields.len(), 2);
+
+    // The 'status' field should be optional (current file's version)
+    let status_field = base_model.fields.iter().find(|f| f.name == "status").unwrap();
+    assert!(
+        status_field.optional,
+        "status field should be optional (overridden by current file)"
+    );
+
+    // The 'id' field should still be there from ancestor
+    let id_field = base_model.fields.iter().find(|f| f.name == "id").unwrap();
+    assert!(!id_field.optional, "id field should not be optional");
 }

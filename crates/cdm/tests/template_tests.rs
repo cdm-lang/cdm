@@ -647,8 +647,9 @@ Varchar: string {
     // Build resolved schema
     let current_fields = HashMap::new();
     let removals: Vec<(String, Span, &str)> = vec![];
+    let field_removals = HashMap::new();
 
-    let resolved = cdm::build_resolved_schema(&main_symbols, &current_fields, &[], &removals);
+    let resolved = cdm::build_resolved_schema(&main_symbols, &current_fields, &[], &removals, &field_removals);
 
     // Verify sql.UUID is in resolved schema with correct config
     assert!(resolved.type_aliases.contains_key("sql.UUID"),
