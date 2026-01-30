@@ -109,18 +109,21 @@ pub fn generate_create_table(
         column_defs.push(column_def);
     }
 
+    // Pre-compute constraints and indexes to determine if we need trailing commas
+    // (only primary/unique indexes become inline constraints; regular indexes are standalone)
+    let constraints_and_indexes = generate_constraints_and_indexes(&model.config, type_mapper.dialect());
+
     // Add columns
     for (i, col) in column_defs.iter().enumerate() {
         sql.push_str("  ");
         sql.push_str(col);
-        if i < column_defs.len() - 1 || has_constraints_or_indexes(&model.config) {
+        if i < column_defs.len() - 1 || !constraints_and_indexes.is_empty() {
             sql.push(',');
         }
         sql.push('\n');
     }
 
     // Add constraints and indexes from model config
-    let constraints_and_indexes = generate_constraints_and_indexes(&model.config, type_mapper.dialect());
     if !constraints_and_indexes.is_empty() {
         sql.push_str(&constraints_and_indexes);
     }
@@ -219,10 +222,6 @@ fn should_apply_cdm_defaults(global_config: &JSON) -> bool {
         .get("apply_cdm_defaults")
         .and_then(|v| v.as_bool())
         .unwrap_or(true)
-}
-
-fn has_constraints_or_indexes(config: &JSON) -> bool {
-    config.get("indexes").is_some() || config.get("constraints").is_some()
 }
 
 fn generate_constraints_and_indexes(config: &JSON, dialect: Dialect) -> String {

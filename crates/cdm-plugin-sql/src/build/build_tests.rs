@@ -816,3 +816,154 @@ fn test_build_with_qualified_template_type_alias() {
         sql
     );
 }
+
+#[test]
+fn test_no_trailing_comma_with_non_inline_index() {
+    // BUG TEST: When a model has indexes that are NOT primary or unique,
+    // they are generated as standalone CREATE INDEX statements, not inline constraints.
+    // The last column should NOT have a trailing comma in this case.
+    //
+    // Before fix:
+    //   "expires_at" TIMESTAMPTZ NOT NULL,
+    //   );
+    //
+    // After fix:
+    //   "expires_at" TIMESTAMPTZ NOT NULL
+    //   );
+    let mut models = HashMap::new();
+    models.insert(
+        "Session".to_string(),
+        ModelDefinition {
+            name: "Session".to_string(),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    field_type: TypeExpression::Identifier { name: "string".to_string() },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: None,
+                },
+                FieldDefinition {
+                    name: "user_id".to_string(),
+                    field_type: TypeExpression::Identifier { name: "string".to_string() },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: None,
+                },
+                FieldDefinition {
+                    name: "expires_at".to_string(),
+                    field_type: TypeExpression::Identifier { name: "string".to_string() },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: None,
+                },
+            ],
+            // Non-primary, non-unique index - should be standalone CREATE INDEX
+            config: json!({
+                "indexes": [
+                    { "fields": ["user_id"] }
+                ]
+            }),
+            entity_id: None,
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models,
+    };
+
+    let config = json!({
+        "dialect": "postgresql",
+        "pluralize_table_names": false
+    });
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+    let sql = &files[0].content;
+
+    // Should NOT have trailing comma before closing paren
+    assert!(
+        !sql.contains(",\n);"),
+        "Should not have trailing comma before closing paren. Got:\n{}",
+        sql
+    );
+
+    // The standalone index should be generated separately
+    assert!(
+        sql.contains("CREATE INDEX"),
+        "Non-unique index should be standalone CREATE INDEX. Got:\n{}",
+        sql
+    );
+}
+
+#[test]
+fn test_trailing_comma_with_primary_key_index() {
+    // When there IS a primary key or unique constraint, we SHOULD have
+    // a trailing comma after the last column (before the constraint)
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    field_type: TypeExpression::Identifier { name: "string".to_string() },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: None,
+                },
+                FieldDefinition {
+                    name: "email".to_string(),
+                    field_type: TypeExpression::Identifier { name: "string".to_string() },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: None,
+                },
+            ],
+            // Primary key - should be inline constraint
+            config: json!({
+                "indexes": [
+                    { "fields": ["id"], "primary": true }
+                ]
+            }),
+            entity_id: None,
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models,
+    };
+
+    let config = json!({
+        "dialect": "postgresql",
+        "pluralize_table_names": false
+    });
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+    let sql = &files[0].content;
+
+    // Should have PRIMARY KEY inline
+    assert!(
+        sql.contains("PRIMARY KEY"),
+        "Should have inline PRIMARY KEY constraint. Got:\n{}",
+        sql
+    );
+
+    // Should NOT have trailing comma before closing paren (after PRIMARY KEY line)
+    assert!(
+        !sql.contains(",\n);"),
+        "Should not have trailing comma before closing paren. Got:\n{}",
+        sql
+    );
+}
