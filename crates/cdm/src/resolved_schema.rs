@@ -420,10 +420,28 @@ pub fn build_cdm_schema_for_plugin(
                 }
             }
 
+            // Build a temporary symbol table with MERGED parents from resolved.models.
+            // This fixes the bug where a model re-defined in the current file without
+            // repeating the 'extends' clause would lose its inheritance chain.
+            //
+            // Example: If ancestor has `PublicUser extends TimestampedEntity` but current
+            // file has `PublicUser { @sql { skip: true } }` (no extends), we need to use
+            // the merged parents [TimestampedEntity] from resolved.models, not the empty
+            // extends from the current file's symbol table.
+            let mut temp_symbol_table = validation_result.symbol_table.clone();
+            for (resolved_name, resolved_model) in &resolved.models {
+                if let Some(def) = temp_symbol_table.definitions.get_mut(resolved_name) {
+                    if let DefinitionKind::Model { extends } = &mut def.kind {
+                        // Update extends to use the merged parents from resolved.models
+                        *extends = resolved_model.parents.clone();
+                    }
+                }
+            }
+
             let all_fields = crate::symbol_table::get_inherited_fields(
                 name,
                 &temp_model_fields,
-                &validation_result.symbol_table,
+                &temp_symbol_table,
                 &ancestors,
             );
 

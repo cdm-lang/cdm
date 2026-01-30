@@ -1467,3 +1467,437 @@ fn test_build_resolved_schema_model_modification_field_override() {
     let id_field = base_model.fields.iter().find(|f| f.name == "id").unwrap();
     assert!(!id_field.optional, "id field should not be optional");
 }
+
+#[test]
+fn test_get_inherited_fields_multiple_extends_intermediate_no_fields() {
+    // BUG TEST: When a model extends multiple parents via an intermediate model
+    // that has NO direct fields, all fields from grandparents should still be inherited.
+    //
+    // Example scenario from user report:
+    //   Entity { id: UUID }
+    //   Timestamped { created_at: TimestampTZ }
+    //   TimestampedEntity extends Entity, Timestamped { } // NO direct fields
+    //   PublicUser extends TimestampedEntity { name?: string, avatar_url?: string }
+    //   User extends PublicUser { email?: string }
+    //
+    // User should have ALL fields: id, created_at, name, avatar_url, email
+
+    // Create ancestor with Entity, Timestamped, TimestampedEntity, PublicUser
+    let mut ancestor_symbols = SymbolTable::new();
+
+    // Entity with id field
+    ancestor_symbols.definitions.insert(
+        "Entity".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model { extends: vec![] },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: local_id(1),
+        },
+    );
+
+    // Timestamped with created_at field
+    ancestor_symbols.definitions.insert(
+        "Timestamped".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model { extends: vec![] },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: local_id(2),
+        },
+    );
+
+    // TimestampedEntity extends Entity, Timestamped (NO direct fields)
+    ancestor_symbols.definitions.insert(
+        "TimestampedEntity".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model {
+                extends: vec!["Entity".to_string(), "Timestamped".to_string()],
+            },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: local_id(3),
+        },
+    );
+
+    // PublicUser extends TimestampedEntity
+    ancestor_symbols.definitions.insert(
+        "PublicUser".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model {
+                extends: vec!["TimestampedEntity".to_string()],
+            },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: local_id(4),
+        },
+    );
+
+    let mut ancestor_fields = HashMap::new();
+
+    // Entity has id field
+    ancestor_fields.insert(
+        "Entity".to_string(),
+        vec![FieldInfo {
+            name: "id".to_string(),
+            type_expr: Some("UUID".to_string()),
+            optional: false,
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            default_value: None,
+            entity_id: local_id(10),
+        }],
+    );
+
+    // Timestamped has created_at field
+    ancestor_fields.insert(
+        "Timestamped".to_string(),
+        vec![FieldInfo {
+            name: "created_at".to_string(),
+            type_expr: Some("TimestampTZ".to_string()),
+            optional: false,
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            default_value: None,
+            entity_id: local_id(11),
+        }],
+    );
+
+    // TimestampedEntity has NO direct fields (empty vector)
+    ancestor_fields.insert(
+        "TimestampedEntity".to_string(),
+        vec![],
+    );
+
+    // PublicUser has name and avatar_url fields
+    ancestor_fields.insert(
+        "PublicUser".to_string(),
+        vec![
+            FieldInfo {
+                name: "name".to_string(),
+                type_expr: Some("string".to_string()),
+                optional: true,
+                span: test_span(),
+                plugin_configs: HashMap::new(),
+                default_value: None,
+                entity_id: local_id(12),
+            },
+            FieldInfo {
+                name: "avatar_url".to_string(),
+                type_expr: Some("string".to_string()),
+                optional: true,
+                span: test_span(),
+                plugin_configs: HashMap::new(),
+                default_value: None,
+                entity_id: local_id(13),
+            },
+        ],
+    );
+
+    let ancestors = vec![Ancestor {
+        path: "public.cdm".to_string(),
+        symbol_table: ancestor_symbols,
+        model_fields: ancestor_fields,
+    }];
+
+    // Current file: User extends PublicUser
+    let mut current_symbols = SymbolTable::new();
+    current_symbols.definitions.insert(
+        "User".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model {
+                extends: vec!["PublicUser".to_string()],
+            },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: local_id(5),
+        },
+    );
+
+    let mut current_fields = HashMap::new();
+    current_fields.insert(
+        "User".to_string(),
+        vec![FieldInfo {
+            name: "email".to_string(),
+            type_expr: Some("string".to_string()),
+            optional: true,
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            default_value: None,
+            entity_id: local_id(20),
+        }],
+    );
+
+    // Test get_inherited_fields returns ALL fields through the inheritance chain
+    let flattened = crate::symbol_table::get_inherited_fields(
+        "User",
+        &current_fields,
+        &current_symbols,
+        &ancestors,
+    );
+
+    // User should have 5 fields: id, created_at (from grandparents via TimestampedEntity),
+    // name, avatar_url (from PublicUser), email (own)
+    let field_names: Vec<_> = flattened.iter().map(|f| f.name.as_str()).collect();
+
+    assert!(
+        field_names.contains(&"id"),
+        "User should inherit 'id' from Entity via TimestampedEntity -> PublicUser. Got: {:?}",
+        field_names
+    );
+    assert!(
+        field_names.contains(&"created_at"),
+        "User should inherit 'created_at' from Timestamped via TimestampedEntity -> PublicUser. Got: {:?}",
+        field_names
+    );
+    assert!(
+        field_names.contains(&"name"),
+        "User should inherit 'name' from PublicUser. Got: {:?}",
+        field_names
+    );
+    assert!(
+        field_names.contains(&"avatar_url"),
+        "User should inherit 'avatar_url' from PublicUser. Got: {:?}",
+        field_names
+    );
+    assert!(
+        field_names.contains(&"email"),
+        "User should have its own 'email' field. Got: {:?}",
+        field_names
+    );
+
+    assert_eq!(
+        flattened.len(), 5,
+        "User should have exactly 5 fields (2 from grandparents + 2 from PublicUser + 1 own). Got: {:?}",
+        field_names
+    );
+}
+
+#[test]
+fn test_get_inherited_fields_redefined_model_loses_extends() {
+    // BUG TEST: When a model from an ancestor is re-defined in the current file
+    // WITHOUT repeating the 'extends' clause, the inheritance chain is broken.
+    //
+    // Example:
+    //   public.cdm:
+    //     Entity { id: UUID }
+    //     TimestampedEntity extends Entity { }
+    //     PublicUser extends TimestampedEntity { name?: string }
+    //
+    //   database.cdm:
+    //     extends "public.cdm"
+    //     PublicUser { @sql { skip: true } }  // NO extends clause!
+    //     User extends PublicUser { email?: string }
+    //
+    // In this case, User should still inherit 'id' from Entity through the chain:
+    // User -> PublicUser -> TimestampedEntity -> Entity
+    //
+    // But if database.cdm's PublicUser definition has extends=[], the chain breaks.
+
+    // Create ancestor with Entity, TimestampedEntity, PublicUser
+    let mut ancestor_symbols = SymbolTable::new();
+
+    // Entity with id field
+    ancestor_symbols.definitions.insert(
+        "Entity".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model { extends: vec![] },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: local_id(1),
+        },
+    );
+
+    // TimestampedEntity extends Entity (no direct fields)
+    ancestor_symbols.definitions.insert(
+        "TimestampedEntity".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model {
+                extends: vec!["Entity".to_string()],
+            },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: local_id(2),
+        },
+    );
+
+    // PublicUser extends TimestampedEntity
+    ancestor_symbols.definitions.insert(
+        "PublicUser".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model {
+                extends: vec!["TimestampedEntity".to_string()],
+            },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: local_id(3),
+        },
+    );
+
+    let mut ancestor_fields = HashMap::new();
+    ancestor_fields.insert(
+        "Entity".to_string(),
+        vec![FieldInfo {
+            name: "id".to_string(),
+            type_expr: Some("UUID".to_string()),
+            optional: false,
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            default_value: None,
+            entity_id: local_id(10),
+        }],
+    );
+    ancestor_fields.insert("TimestampedEntity".to_string(), vec![]);
+    ancestor_fields.insert(
+        "PublicUser".to_string(),
+        vec![FieldInfo {
+            name: "name".to_string(),
+            type_expr: Some("string".to_string()),
+            optional: true,
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            default_value: None,
+            entity_id: local_id(11),
+        }],
+    );
+
+    let ancestors = vec![Ancestor {
+        path: "public.cdm".to_string(),
+        symbol_table: ancestor_symbols,
+        model_fields: ancestor_fields,
+    }];
+
+    // Current file re-defines PublicUser WITHOUT extends clause
+    let mut current_symbols = SymbolTable::new();
+
+    // PublicUser is re-defined with skip: true but NO extends clause
+    // BUG: extends=[] here, should be extends=[TimestampedEntity] after merge
+    let mut skip_config = HashMap::new();
+    skip_config.insert("sql".to_string(), serde_json::json!({ "skip": true }));
+    current_symbols.definitions.insert(
+        "PublicUser".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model {
+                extends: vec![], // No extends in current file!
+            },
+            span: test_span(),
+            plugin_configs: skip_config,
+            entity_id: local_id(3),
+        },
+    );
+
+    // User extends PublicUser
+    current_symbols.definitions.insert(
+        "User".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model {
+                extends: vec!["PublicUser".to_string()],
+            },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: local_id(4),
+        },
+    );
+
+    let mut current_fields = HashMap::new();
+    current_fields.insert("PublicUser".to_string(), vec![]); // No new fields, just config
+    current_fields.insert(
+        "User".to_string(),
+        vec![FieldInfo {
+            name: "email".to_string(),
+            type_expr: Some("string".to_string()),
+            optional: true,
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            default_value: None,
+            entity_id: local_id(20),
+        }],
+    );
+
+    // STEP 1: Demonstrate the bug - get_inherited_fields with raw current_symbols
+    // where PublicUser has extends=[]
+    let flattened_with_bug = crate::symbol_table::get_inherited_fields(
+        "User",
+        &current_fields,
+        &current_symbols,
+        &ancestors,
+    );
+    let field_names_with_bug: Vec<_> = flattened_with_bug.iter().map(|f| f.name.as_str()).collect();
+
+    // The bug: User only gets its own field, not inherited fields
+    assert_eq!(
+        field_names_with_bug, vec!["email"],
+        "Bug demonstration: with raw current_symbols, User only gets its own field"
+    );
+
+    // STEP 2: Build resolved schema to get the correct merged parents
+    let resolved = build_resolved_schema(
+        &current_symbols,
+        &current_fields,
+        &ancestors,
+        &[],
+        &HashMap::new(),
+    );
+
+    // Verify resolved.models has the correct merged parents
+    let resolved_public_user = resolved.models.get("PublicUser").unwrap();
+    assert_eq!(
+        resolved_public_user.parents, vec!["TimestampedEntity"],
+        "Resolved PublicUser should have merged parents from ancestor"
+    );
+
+    // STEP 3: Apply the fix - create a modified symbol table with merged parents
+    // AND a temp_model_fields with resolved fields (both parts are needed)
+    // This is what build_cdm_schema_for_plugin does
+    let mut fixed_symbol_table = current_symbols.clone();
+    for (resolved_name, resolved_model) in &resolved.models {
+        if let Some(def) = fixed_symbol_table.definitions.get_mut(resolved_name) {
+            if let crate::DefinitionKind::Model { extends } = &mut def.kind {
+                *extends = resolved_model.parents.clone();
+            }
+        }
+    }
+
+    // Also build temp_model_fields with resolved fields (like build_cdm_schema_for_plugin does)
+    let mut temp_model_fields = current_fields.clone();
+    for (resolved_name, resolved_model) in &resolved.models {
+        let resolved_fields: Vec<FieldInfo> = resolved_model.fields.iter().map(|f| {
+            FieldInfo {
+                name: f.name.clone(),
+                type_expr: f.type_expr.clone(),
+                optional: f.optional,
+                span: f.source_span,
+                plugin_configs: f.plugin_configs.clone(),
+                default_value: f.default_value.clone(),
+                entity_id: f.entity_id.clone(),
+            }
+        }).collect();
+        temp_model_fields.insert(resolved_name.clone(), resolved_fields);
+    }
+
+    // STEP 4: Now get_inherited_fields with the fixed symbol table and fields should work
+    let flattened_fixed = crate::symbol_table::get_inherited_fields(
+        "User",
+        &temp_model_fields,
+        &fixed_symbol_table,
+        &ancestors,
+    );
+    let field_names_fixed: Vec<_> = flattened_fixed.iter().map(|f| f.name.as_str()).collect();
+
+    // After fix: User should inherit all fields through the chain
+    assert!(
+        field_names_fixed.contains(&"id"),
+        "After fix: User should inherit 'id' from Entity. Got: {:?}",
+        field_names_fixed
+    );
+    assert!(
+        field_names_fixed.contains(&"name"),
+        "After fix: User should inherit 'name' from PublicUser. Got: {:?}",
+        field_names_fixed
+    );
+    assert!(
+        field_names_fixed.contains(&"email"),
+        "After fix: User should have its own 'email' field. Got: {:?}",
+        field_names_fixed
+    );
+}
