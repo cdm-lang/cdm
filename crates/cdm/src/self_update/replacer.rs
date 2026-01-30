@@ -379,8 +379,6 @@ mod tests {
     #[cfg(target_os = "macos")]
     #[test]
     fn test_prepare_macos_binary_signs_file() {
-        use std::process::Command;
-
         let temp_dir = TempDir::new().unwrap();
         let test_file = temp_dir.path().join("test_binary");
 

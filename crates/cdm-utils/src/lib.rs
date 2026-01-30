@@ -359,7 +359,7 @@ impl ResolvedField {
 }
 
 /// Parse a CDM type string into a ParsedType
-fn parse_type_string(type_str: &str) -> Result<ParsedType, String> {
+pub fn parse_type_string(type_str: &str) -> Result<ParsedType, String> {
     let trimmed = type_str.trim();
 
     // Check for union (contains | outside of quotes)

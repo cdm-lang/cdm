@@ -37,11 +37,11 @@ clean:
 
 test *args: build-plugins
   cargo test -- {{args}}
-  cd editors/cdm-extension && npm test
+  cd editors/cdm-extension && npm install && npm test
 
 testcoverage: build-plugins
   cargo llvm-cov --html --open
-  cd editors/cdm-extension && npm run test:coverage
+  cd editors/cdm-extension && npm install && npm run test:coverage
 
 # Release a plugin (creates and optionally pushes a version tag)
 # Usage: just release-plugin <plugin-name> <version>

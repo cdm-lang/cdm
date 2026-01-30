@@ -391,6 +391,333 @@ fn test_build_resolved_schema_model_with_extends() {
 }
 
 #[test]
+fn test_get_inherited_fields_flattens_parent_fields() {
+    // BUG TEST: When a model extends another model, the inherited fields
+    // should be flattened into the child model's fields list in the Schema
+    // passed to plugins. This ensures that when a new model is added via
+    // migration, all inherited fields are included in the CREATE TABLE.
+    //
+    // Example:
+    //   PublicUser { id: string, name?: string }
+    //   User extends PublicUser { email: string }
+    //
+    // The User model should have all three fields: id, name, email
+
+    // Create the parent model "PublicUser" in ancestors
+    let mut ancestor_symbols = SymbolTable::new();
+    ancestor_symbols.definitions.insert(
+        "PublicUser".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model {
+                extends: vec![],
+            },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: local_id(1),
+        },
+    );
+
+    let mut ancestor_fields = HashMap::new();
+    ancestor_fields.insert(
+        "PublicUser".to_string(),
+        vec![
+            FieldInfo {
+                name: "id".to_string(),
+                type_expr: Some("string".to_string()),
+                optional: false,
+                span: test_span(),
+                plugin_configs: HashMap::new(),
+                default_value: None,
+                entity_id: local_id(10),
+            },
+            FieldInfo {
+                name: "name".to_string(),
+                type_expr: Some("string".to_string()),
+                optional: true,
+                span: test_span(),
+                plugin_configs: HashMap::new(),
+                default_value: None,
+                entity_id: local_id(11),
+            },
+        ],
+    );
+
+    let ancestors = vec![Ancestor {
+        path: "public.cdm".to_string(),
+        symbol_table: ancestor_symbols,
+        model_fields: ancestor_fields,
+    }];
+
+    // Create the child model "User" that extends "PublicUser"
+    let mut current_symbols = SymbolTable::new();
+    current_symbols.definitions.insert(
+        "User".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model {
+                extends: vec!["PublicUser".to_string()],
+            },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: local_id(2),
+        },
+    );
+
+    let mut current_fields = HashMap::new();
+    current_fields.insert(
+        "User".to_string(),
+        vec![FieldInfo {
+            name: "email".to_string(),
+            type_expr: Some("string".to_string()),
+            optional: false,
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            default_value: None,
+            entity_id: local_id(20),
+        }],
+    );
+
+    // Test get_inherited_fields returns all fields (inherited + own)
+    let flattened = crate::symbol_table::get_inherited_fields(
+        "User",
+        &current_fields,
+        &current_symbols,
+        &ancestors,
+    );
+
+    // User should have 3 fields: id, name (inherited from PublicUser), email (own)
+    assert_eq!(
+        flattened.len(), 3,
+        "Flattened User model should have 3 fields (2 inherited + 1 own), got: {:?}",
+        flattened.iter().map(|f| &f.name).collect::<Vec<_>>()
+    );
+
+    // Check field names are in correct order (inherited first, then own)
+    let field_names: Vec<_> = flattened.iter().map(|f| f.name.as_str()).collect();
+    assert_eq!(
+        field_names,
+        vec!["id", "name", "email"],
+        "Fields should be in order: inherited fields first, then own fields"
+    );
+
+    // Verify inherited field properties are preserved
+    let id_field = flattened.iter().find(|f| f.name == "id").unwrap();
+    assert!(!id_field.optional, "id field should not be optional");
+
+    let name_field = flattened.iter().find(|f| f.name == "name").unwrap();
+    assert!(name_field.optional, "name field should be optional (inherited from PublicUser)");
+}
+
+#[test]
+fn test_get_inherited_fields_with_deep_inheritance() {
+    // Test multi-level inheritance: GrandChild extends Child extends Parent
+
+    // Parent model
+    let mut parent_symbols = SymbolTable::new();
+    parent_symbols.definitions.insert(
+        "Parent".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model { extends: vec![] },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: None,
+        },
+    );
+    let mut parent_fields = HashMap::new();
+    parent_fields.insert(
+        "Parent".to_string(),
+        vec![FieldInfo {
+            name: "parent_field".to_string(),
+            type_expr: Some("string".to_string()),
+            optional: false,
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            default_value: None,
+            entity_id: None,
+        }],
+    );
+
+    // Child extends Parent
+    let mut child_symbols = SymbolTable::new();
+    child_symbols.definitions.insert(
+        "Child".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model {
+                extends: vec!["Parent".to_string()],
+            },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: None,
+        },
+    );
+    let mut child_fields = HashMap::new();
+    child_fields.insert(
+        "Child".to_string(),
+        vec![FieldInfo {
+            name: "child_field".to_string(),
+            type_expr: Some("string".to_string()),
+            optional: false,
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            default_value: None,
+            entity_id: None,
+        }],
+    );
+
+    // Build ancestors chain: [Child ancestor, Parent ancestor]
+    let ancestors = vec![
+        Ancestor {
+            path: "child.cdm".to_string(),
+            symbol_table: child_symbols,
+            model_fields: child_fields,
+        },
+        Ancestor {
+            path: "parent.cdm".to_string(),
+            symbol_table: parent_symbols,
+            model_fields: parent_fields,
+        },
+    ];
+
+    // GrandChild extends Child (in current file)
+    let mut current_symbols = SymbolTable::new();
+    current_symbols.definitions.insert(
+        "GrandChild".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model {
+                extends: vec!["Child".to_string()],
+            },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: None,
+        },
+    );
+    let mut current_fields = HashMap::new();
+    current_fields.insert(
+        "GrandChild".to_string(),
+        vec![FieldInfo {
+            name: "grandchild_field".to_string(),
+            type_expr: Some("string".to_string()),
+            optional: false,
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            default_value: None,
+            entity_id: None,
+        }],
+    );
+
+    // Test flattening GrandChild
+    let flattened = crate::symbol_table::get_inherited_fields(
+        "GrandChild",
+        &current_fields,
+        &current_symbols,
+        &ancestors,
+    );
+
+    // Should have all 3 fields: parent_field, child_field, grandchild_field
+    assert_eq!(flattened.len(), 3);
+
+    let field_names: Vec<_> = flattened.iter().map(|f| f.name.as_str()).collect();
+    assert_eq!(
+        field_names,
+        vec!["parent_field", "child_field", "grandchild_field"],
+        "Fields should be in order from furthest ancestor to closest"
+    );
+}
+
+#[test]
+fn test_get_inherited_fields_with_field_override() {
+    // Test that child fields override parent fields with the same name
+
+    // Parent model with 'name' field (required)
+    let mut parent_symbols = SymbolTable::new();
+    parent_symbols.definitions.insert(
+        "Parent".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model { extends: vec![] },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: None,
+        },
+    );
+    let mut parent_fields = HashMap::new();
+    parent_fields.insert(
+        "Parent".to_string(),
+        vec![
+            FieldInfo {
+                name: "id".to_string(),
+                type_expr: Some("number".to_string()),
+                optional: false,
+                span: test_span(),
+                plugin_configs: HashMap::new(),
+                default_value: None,
+                entity_id: None,
+            },
+            FieldInfo {
+                name: "name".to_string(),
+                type_expr: Some("string".to_string()),
+                optional: false, // Required in parent
+                span: test_span(),
+                plugin_configs: HashMap::new(),
+                default_value: None,
+                entity_id: None,
+            },
+        ],
+    );
+
+    let ancestors = vec![Ancestor {
+        path: "parent.cdm".to_string(),
+        symbol_table: parent_symbols,
+        model_fields: parent_fields,
+    }];
+
+    // Child extends Parent, overrides 'name' to be optional
+    let mut current_symbols = SymbolTable::new();
+    current_symbols.definitions.insert(
+        "Child".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model {
+                extends: vec!["Parent".to_string()],
+            },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: None,
+        },
+    );
+    let mut current_fields = HashMap::new();
+    current_fields.insert(
+        "Child".to_string(),
+        vec![FieldInfo {
+            name: "name".to_string(),
+            type_expr: Some("string".to_string()),
+            optional: true, // Optional in child (override)
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            default_value: None,
+            entity_id: None,
+        }],
+    );
+
+    // Test flattening Child
+    let flattened = crate::symbol_table::get_inherited_fields(
+        "Child",
+        &current_fields,
+        &current_symbols,
+        &ancestors,
+    );
+
+    // get_inherited_fields returns all fields including duplicates
+    // The deduplication happens in build_cdm_schema_for_plugin
+    let unique_names: std::collections::HashSet<_> = flattened.iter().map(|f| &f.name).collect();
+    assert_eq!(unique_names.len(), 2, "Should have 2 unique field names");
+
+    // The last 'name' field should be the child's version (optional)
+    let last_name_field = flattened.iter().filter(|f| f.name == "name").last().unwrap();
+    assert!(
+        last_name_field.optional,
+        "Child's override of 'name' field should be optional"
+    );
+}
+
+#[test]
 fn test_convert_type_expression_primitive() {
     let parsed = ParsedType::Primitive(PrimitiveType::String);
     let expr = convert_type_expression(&parsed);
