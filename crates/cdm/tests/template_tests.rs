@@ -1285,3 +1285,124 @@ Entity {
 
     println!("SUCCESS: Template types are correctly resolved before passing to plugins!");
 }
+
+#[test]
+fn test_inherited_template_types_from_ancestor_with_different_namespace() {
+    // BUG TEST: When a child file extends an ancestor that imports templates with a
+    // different namespace, the inherited fields should still resolve correctly.
+    //
+    // Scenario:
+    // - public.cdm: imports template as "sqlType", defines Entity with id: sqlType.UUID
+    // - database.cdm: imports template as "sql", extends public.cdm, defines User extends Entity
+    //
+    // The User model inherits the 'id' field from Entity, which has type "sqlType.UUID".
+    // The resolved schema for database.cdm needs to include the "sqlType" namespace
+    // from the ancestor so the type can be resolved.
+
+    // Load the postgres template
+    let template_source = include_str!("../../../templates/sql-types/postgres.cdm");
+    let template_result = cdm::validate(template_source, &[]);
+
+    // Create namespace for ancestor file (public.cdm uses "sqlType")
+    let sqltype_ns = ImportedNamespace {
+        name: "sqlType".to_string(),
+        template_path: std::path::PathBuf::from("./templates/sql-types/postgres.cdm"),
+        symbol_table: template_result.symbol_table.clone(),
+        model_fields: template_result.model_fields.clone(),
+        template_source: EntityIdSource::LocalTemplate { path: "./templates/sql-types".to_string() },
+    };
+
+    // Simulate public.cdm with "sqlType" namespace
+    let public_source = r#"
+import sqlType from "./templates/sql-types/postgres.cdm"
+
+@sql
+
+Entity {
+  id: sqlType.UUID #1
+  @sql {
+    indexes: [
+      { fields: ["id"], primary: true }
+    ]
+  }
+} #2
+
+Timestamped {
+  created_at: sqlType.TimestampTZ #2
+} #4
+"#;
+
+    let public_result = cdm::validate_with_templates(public_source, &[], vec![sqltype_ns]);
+    assert!(!public_result.has_errors(), "public.cdm validation errors: {:?}", public_result.diagnostics);
+
+    // Create ancestor from public.cdm
+    let public_ancestor = cdm::Ancestor {
+        path: "public.cdm".to_string(),
+        symbol_table: public_result.symbol_table,
+        model_fields: public_result.model_fields,
+    };
+
+    // Create namespace for child file (database.cdm uses "sql")
+    let sql_ns = ImportedNamespace {
+        name: "sql".to_string(),
+        template_path: std::path::PathBuf::from("./templates/sql-types/postgres.cdm"),
+        symbol_table: template_result.symbol_table.clone(),
+        model_fields: template_result.model_fields.clone(),
+        template_source: EntityIdSource::LocalTemplate { path: "./templates/sql-types".to_string() },
+    };
+
+    // Simulate database.cdm that extends public.cdm
+    let database_source = r#"
+import sql from "./templates/sql-types/postgres.cdm"
+
+extends "./public.cdm"
+
+@sql {
+  dialect: "postgresql",
+  build_output: "./output"
+}
+
+User extends Entity {
+  email: sql.Varchar #1
+} #1
+"#;
+
+    let database_result = cdm::validate_with_templates(database_source, &[public_ancestor.clone()], vec![sql_ns]);
+    assert!(!database_result.has_errors(), "database.cdm validation errors: {:?}", database_result.diagnostics);
+
+    // Build resolved schema directly to test the internal function
+    let resolved = cdm::build_resolved_schema(
+        &database_result.symbol_table,
+        &database_result.model_fields,
+        &[public_ancestor],
+        &[],
+        &std::collections::HashMap::new(),
+    );
+
+    // Verify that the resolved schema contains the "sqlType" namespace type aliases from the ancestor
+    println!("Resolved type_aliases keys: {:?}", resolved.type_aliases.keys().collect::<Vec<_>>());
+
+    assert!(resolved.type_aliases.contains_key("sqlType.UUID"),
+        "Resolved schema should contain 'sqlType.UUID' from ancestor's template namespace. \
+         Got: {:?}", resolved.type_aliases.keys().collect::<Vec<_>>());
+
+    assert!(resolved.type_aliases.contains_key("sql.UUID"),
+        "Resolved schema should also contain 'sql.UUID' from current file's template namespace. \
+         Got: {:?}", resolved.type_aliases.keys().collect::<Vec<_>>());
+
+    // Now build the plugin schema using the resolved schema
+    // We need to call a lower-level function or simulate what build_cdm_schema_for_plugin does
+    // For now, we'll directly check that the resolve_template_type function can find the ancestor namespace
+    let sqltype_uuid_alias = resolved.type_aliases.get("sqlType.UUID")
+        .expect("sqlType.UUID should be in resolved type_aliases");
+
+    println!("sqlType.UUID plugin_configs: {:?}", sqltype_uuid_alias.plugin_configs);
+
+    // The type alias should have the sql config with type: "UUID"
+    let sql_config = sqltype_uuid_alias.plugin_configs.get("sql")
+        .expect("sqlType.UUID should have 'sql' plugin config");
+    assert_eq!(sql_config.get("type").and_then(|v| v.as_str()), Some("UUID"),
+        "sqlType.UUID should have sql.type = 'UUID', got: {:?}", sql_config);
+
+    println!("SUCCESS: Ancestor template namespaces are included in resolved schema!");
+}

@@ -162,6 +162,43 @@ pub fn build_resolved_schema(
         }
     }
 
+    // Add type aliases from ancestors' imported template namespaces with qualified names
+    // This is critical for inheritance: when a child file extends an ancestor that uses
+    // a different template namespace (e.g., ancestor uses "sqlType", child uses "sql"),
+    // inherited fields may reference the ancestor's namespace (e.g., "sqlType.UUID").
+    // We need these namespace type aliases available for resolution.
+    for ancestor in ancestors.iter().rev() {
+        for (ns_name, namespace) in &ancestor.symbol_table.namespaces {
+            for (type_name, def) in &namespace.symbol_table.definitions {
+                let qualified_name = format!("{}.{}", ns_name, type_name);
+
+                match &def.kind {
+                    DefinitionKind::TypeAlias { references, type_expr } => {
+                        // Only add if not already present (closer ancestors/current file take precedence)
+                        if !resolved.type_aliases.contains_key(&qualified_name) {
+                            resolved.type_aliases.insert(
+                                qualified_name,
+                                ResolvedTypeAlias {
+                                    name: type_name.clone(),
+                                    type_expr: type_expr.clone(),
+                                    references: references.clone(),
+                                    plugin_configs: def.plugin_configs.clone(),
+                                    source_file: namespace.template_path.display().to_string(),
+                                    source_span: def.span,
+                                    cached_parsed_type: RefCell::new(None),
+                                    entity_id: def.entity_id.clone(),
+                                },
+                            );
+                        }
+                    }
+                    DefinitionKind::Model { .. } => {
+                        // Models from templates are not typically used directly
+                    }
+                }
+            }
+        }
+    }
+
     // Add type aliases from imported template namespaces with qualified names
     // This allows qualified references like sql.UUID to resolve properly
     for (ns_name, namespace) in &current_symbols.namespaces {
