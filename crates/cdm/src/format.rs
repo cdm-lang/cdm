@@ -709,6 +709,13 @@ fn format_type_alias(
         String::new()
     };
 
+    // Check for inline plugin block
+    let plugins_part = if let Some(plugins_node) = node.child_by_field_name("plugins") {
+        format!(" {}", get_node_text(plugins_node, source))
+    } else {
+        String::new()
+    };
+
     // Check for ID (existing or assigned)
     let id = if let Some(id_node) = node.child_by_field_name("id") {
         format!(" {}", get_node_text(id_node, source))
@@ -718,7 +725,7 @@ fn format_type_alias(
         String::new()
     };
 
-    format!("{}: {}{}", name, type_str, id)
+    format!("{}: {}{}{}", name, type_str, plugins_part, id)
 }
 
 /// Format a type expression

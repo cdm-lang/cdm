@@ -883,8 +883,6 @@ User {{
     let content = std::fs::read_to_string(&temp_path).expect("Failed to read formatted file");
 
     // Should preserve the type alias with plugin block
-    // Note: The current formatter doesn't fully format type alias plugin blocks,
-    // but it should preserve them
     assert!(
         content.contains("Email:"),
         "Expected 'Email:' type alias but got:\n{}",
@@ -893,6 +891,17 @@ User {{
     assert!(
         content.contains("string"),
         "Expected 'string' type but got:\n{}",
+        content
+    );
+    // Verify the plugin block is preserved (this is the critical assertion)
+    assert!(
+        content.contains("@validation"),
+        "Expected '@validation' plugin block to be preserved but got:\n{}",
+        content
+    );
+    assert!(
+        content.contains("format: \"email\""),
+        "Expected plugin block content to be preserved but got:\n{}",
         content
     );
 }
