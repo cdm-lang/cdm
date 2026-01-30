@@ -5,6 +5,7 @@
     "sql": {
       "description": "Generate SQL DDL schemas and migrations for PostgreSQL and SQLite",
       "repository": "git:https://github.com/cdm-lang/cdm.git",
+      "docs": "https://github.com/cdm-lang/cdm/blob/main/crates/cdm-plugin-sql/README.md",
       "official": true,
       "versions": {
         "0.1.0": {
@@ -37,6 +38,7 @@
     "typescript": {
       "description": "Generate TypeScript types from CDM schemas",
       "repository": "git:https://github.com/cdm-lang/cdm.git",
+      "docs": "https://github.com/cdm-lang/cdm/blob/main/crates/cdm-plugin-typescript/README.md",
       "official": true,
       "versions": {
         "0.1.0": {
@@ -61,6 +63,7 @@
     "docs": {
       "description": "Generate documentation from CDM schemas",
       "repository": "git:https://github.com/cdm-lang/cdm-plugin-docs.git",
+      "docs": "https://github.com/cdm-lang/cdm/blob/main/crates/cdm-plugin-docs/README.md",
       "official": true,
       "versions": {
         "0.1.0": {
@@ -73,6 +76,7 @@
     "jsonschema": {
       "description": "Generate JSON Schema definitions from CDM models and type aliases",
       "repository": "git:https://github.com/cdm-lang/cdm.git",
+      "docs": "https://github.com/cdm-lang/cdm/blob/main/crates/cdm-plugin-json-schema/README.md",
       "official": true,
       "versions": {
         "0.1.0": {
@@ -89,6 +93,7 @@
     "typeorm": {
       "description": "Generate TypeORM entities and migrations for PostgreSQL",
       "repository": "git:https://github.com/cdm-lang/cdm.git",
+      "docs": "https://github.com/cdm-lang/cdm/blob/main/crates/cdm-plugin-typeorm/README.md",
       "official": true,
       "versions": {
         "0.1.1": {
@@ -105,6 +110,7 @@
     "tsRest": {
       "description": "Generate ts-rest contracts from CDM schemas",
       "repository": "git:https://github.com/cdm-lang/cdm.git",
+      "docs": "https://github.com/cdm-lang/cdm/blob/main/crates/cdm-plugin-ts-rest/README.md",
       "official": true,
       "versions": {
         "0.1.2": {

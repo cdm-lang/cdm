@@ -2,6 +2,7 @@
   "name": "jsonschema",
   "version": "0.1.1",
   "description": "Generate JSON Schema definitions from CDM models and type aliases",
+  "docs": "https://github.com/cdm-lang/cdm/blob/main/crates/cdm-plugin-json-schema/README.md",
   "schema": "schema.cdm",
   "wasm": {
     "file": "../../target/wasm32-wasip1/release/cdm_plugin_json_schema.wasm",

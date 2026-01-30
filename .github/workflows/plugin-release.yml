@@ -112,6 +112,7 @@ jobs:
           PLUGIN_JSON="crates/${{ steps.tag_info.outputs.plugin_name }}/cdm-plugin.json"
           PLUGIN_SHORTNAME=$(jq -r '.name' "$PLUGIN_JSON")
           DESCRIPTION=$(jq -r '.description' "$PLUGIN_JSON")
+          DOCS=$(jq -r '.docs // empty' "$PLUGIN_JSON")
           CHECKSUM=$(cat crates/${{ steps.tag_info.outputs.plugin_name }}/target/wasm32-wasip1/release/${{ steps.tag_info.outputs.crate_name }}.wasm.sha256)
 
           # Extract version without 'v' prefix
@@ -125,11 +126,13 @@ jobs:
           echo "Version: $VERSION"
           echo "URL: $WASM_URL"
           echo "Checksum: $CHECKSUM"
+          echo "Docs: $DOCS"
 
           # Update registry.json using jq
           jq --arg name "$PLUGIN_SHORTNAME" \
              --arg version "$VERSION" \
              --arg desc "$DESCRIPTION" \
+             --arg docs "$DOCS" \
              --arg url "$WASM_URL" \
              --arg checksum "sha256:$CHECKSUM" \
              --arg repo "git:https://github.com/${{ github.repository }}.git" \
@@ -147,7 +150,8 @@ jobs:
                  }
                }),
                latest: $version
-             }
+             } |
+             if $docs != "" then .plugins[$name].docs = $docs else . end
              ' registry.json > registry.json.tmp
 
           mv registry.json.tmp registry.json
