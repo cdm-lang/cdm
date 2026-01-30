@@ -69,6 +69,14 @@ FieldSettings {
   // Relation configuration (TypeORM-specific)
   relation?: Relation
 
+  // Join column configuration (for owning side of OneToOne, ManyToOne)
+  // Can also be specified inside relation for backward compatibility
+  join_column?: JoinColumn
+
+  // Join table configuration (for ManyToMany relations)
+  // Can also be specified inside relation for backward compatibility
+  join_table?: JoinTable
+
   // Column is unique
   unique?: boolean
 

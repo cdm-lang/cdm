@@ -921,3 +921,231 @@ fn test_validate_type_alias_ts_type_object_missing_type() {
     assert_eq!(errors.len(), 1);
     assert!(errors[0].message.contains("ts_type") && errors[0].message.contains("'type' field"));
 }
+
+// Field-level join_column validation tests
+
+#[test]
+fn test_validate_field_level_join_column_valid() {
+    let config = serde_json::json!({
+        "relation": {
+            "type": "many_to_one",
+            "inverse_side": "identities"
+        },
+        "join_column": {
+            "name": "user_id"
+        }
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Field {
+            model: "Identity".to_string(),
+            field: "user".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert!(errors.is_empty());
+}
+
+#[test]
+fn test_validate_field_level_join_column_with_referenced_column() {
+    let config = serde_json::json!({
+        "relation": {
+            "type": "many_to_one",
+            "inverse_side": "identities"
+        },
+        "join_column": {
+            "name": "user_id",
+            "referenced_column": "uuid"
+        }
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Field {
+            model: "Identity".to_string(),
+            field: "user".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert!(errors.is_empty());
+}
+
+#[test]
+fn test_validate_field_level_join_column_empty_name() {
+    let config = serde_json::json!({
+        "relation": {
+            "type": "many_to_one",
+            "inverse_side": "identities"
+        },
+        "join_column": {
+            "name": ""
+        }
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Field {
+            model: "Identity".to_string(),
+            field: "user".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert_eq!(errors.len(), 1);
+    assert!(errors[0].message.contains("join_column.name") && errors[0].message.contains("cannot be empty"));
+}
+
+#[test]
+fn test_validate_field_level_join_column_without_relation_warning() {
+    let config = serde_json::json!({
+        "join_column": {
+            "name": "user_id"
+        }
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Field {
+            model: "Identity".to_string(),
+            field: "user".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    // Should produce a warning about join_column without relation
+    assert!(errors.iter().any(|e| e.message.contains("join_column") && e.message.contains("without") && e.message.contains("relation")));
+}
+
+#[test]
+fn test_validate_field_level_join_table_valid() {
+    let config = serde_json::json!({
+        "relation": {
+            "type": "many_to_many",
+            "inverse_side": "posts"
+        },
+        "join_table": {
+            "name": "post_tags"
+        }
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Field {
+            model: "Post".to_string(),
+            field: "tags".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert!(errors.is_empty());
+}
+
+#[test]
+fn test_validate_field_level_join_table_missing_name() {
+    let config = serde_json::json!({
+        "relation": {
+            "type": "many_to_many",
+            "inverse_side": "posts"
+        },
+        "join_table": {}
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Field {
+            model: "Post".to_string(),
+            field: "tags".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert!(errors.iter().any(|e| e.message.contains("join_table") && e.message.contains("'name' field")));
+}
+
+#[test]
+fn test_validate_field_level_join_table_empty_name() {
+    let config = serde_json::json!({
+        "relation": {
+            "type": "many_to_many",
+            "inverse_side": "posts"
+        },
+        "join_table": {
+            "name": ""
+        }
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Field {
+            model: "Post".to_string(),
+            field: "tags".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert!(errors.iter().any(|e| e.message.contains("join_table") && e.message.contains("name") && e.message.contains("cannot be empty")));
+}
+
+#[test]
+fn test_validate_field_level_join_table_without_relation_warning() {
+    let config = serde_json::json!({
+        "join_table": {
+            "name": "post_tags"
+        }
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Field {
+            model: "Post".to_string(),
+            field: "tags".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    // Should produce a warning about join_table without relation
+    assert!(errors.iter().any(|e| e.message.contains("join_table") && e.message.contains("without") && e.message.contains("relation")));
+}
+
+#[test]
+fn test_validate_field_level_join_table_with_nested_join_columns() {
+    let config = serde_json::json!({
+        "relation": {
+            "type": "many_to_many",
+            "inverse_side": "posts"
+        },
+        "join_table": {
+            "name": "post_tags",
+            "join_column": {
+                "name": "post_id",
+                "referenced_column": "id"
+            },
+            "inverse_join_column": {
+                "name": "tag_id"
+            }
+        }
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Field {
+            model: "Post".to_string(),
+            field: "tags".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert!(errors.is_empty());
+}

@@ -502,7 +502,11 @@ fn generate_relation_field(
     result.push('\n');
 
     // Handle JoinColumn for owning side (ManyToOne, OneToOne)
-    if let Some(join_column) = relation_config.get("join_column") {
+    // Check field level first, then nested inside relation for backward compatibility
+    let join_column = field.config.get("join_column")
+        .or_else(|| relation_config.get("join_column"));
+
+    if let Some(join_column) = join_column {
         imports.add_typeorm("JoinColumn");
         let jc_name = join_column.get("name").and_then(|v| v.as_str());
         let jc_ref = join_column.get("referenced_column").and_then(|v| v.as_str());
@@ -512,7 +516,11 @@ fn generate_relation_field(
     }
 
     // Handle JoinTable for ManyToMany
-    if let Some(join_table) = relation_config.get("join_table") {
+    // Check field level first, then nested inside relation for backward compatibility
+    let join_table = field.config.get("join_table")
+        .or_else(|| relation_config.get("join_table"));
+
+    if let Some(join_table) = join_table {
         imports.add_typeorm("JoinTable");
         let jt_name = join_table
             .get("name")

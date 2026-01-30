@@ -1061,3 +1061,416 @@ fn test_primary_column_with_type_override() {
         content
     );
 }
+
+// Field-level join_column tests
+
+fn create_schema_with_relation(relation_config: serde_json::Value, join_column: Option<serde_json::Value>, join_table: Option<serde_json::Value>) -> Schema {
+    let mut models = HashMap::new();
+
+    // Create User model (target entity for relations)
+    let user_model = ModelDefinition {
+        name: "User".to_string(),
+        parents: vec![],
+        fields: vec![
+            FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "primary": { "generation": "uuid" }
+                }),
+                entity_id: None,
+            },
+        ],
+        config: serde_json::json!({}),
+        entity_id: None,
+    };
+    models.insert("User".to_string(), user_model);
+
+    // Create Identity model with relation to User
+    let mut field_config = serde_json::json!({
+        "relation": relation_config
+    });
+    if let Some(jc) = join_column {
+        field_config["join_column"] = jc;
+    }
+    if let Some(jt) = join_table {
+        field_config["join_table"] = jt;
+    }
+
+    let identity_model = ModelDefinition {
+        name: "Identity".to_string(),
+        parents: vec![],
+        fields: vec![
+            FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "primary": { "generation": "uuid" }
+                }),
+                entity_id: None,
+            },
+            FieldDefinition {
+                name: "user".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "User".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: field_config,
+                entity_id: None,
+            },
+        ],
+        config: serde_json::json!({}),
+        entity_id: None,
+    };
+    models.insert("Identity".to_string(), identity_model);
+
+    Schema {
+        models,
+        type_aliases: HashMap::new(),
+    }
+}
+
+#[test]
+fn test_field_level_join_column() {
+    let schema = create_schema_with_relation(
+        serde_json::json!({
+            "type": "many_to_one",
+            "inverse_side": "identities",
+            "on_delete": "CASCADE"
+        }),
+        Some(serde_json::json!({ "name": "user_id" })),
+        None,
+    );
+    let config = serde_json::json!({});
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+
+    // Find the Identity.ts file
+    let identity_file = files.iter().find(|f| f.path == "Identity.ts").expect("Identity.ts not found");
+    let content = &identity_file.content;
+
+    assert!(
+        content.contains("@JoinColumn({ name: \"user_id\" })"),
+        "Should include JoinColumn decorator. Content: {}",
+        content
+    );
+    assert!(
+        content.contains("JoinColumn"),
+        "Should import JoinColumn. Content: {}",
+        content
+    );
+}
+
+#[test]
+fn test_field_level_join_column_with_referenced_column() {
+    let schema = create_schema_with_relation(
+        serde_json::json!({
+            "type": "many_to_one",
+            "inverse_side": "identities"
+        }),
+        Some(serde_json::json!({
+            "name": "user_id",
+            "referenced_column": "uuid"
+        })),
+        None,
+    );
+    let config = serde_json::json!({});
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+
+    let identity_file = files.iter().find(|f| f.path == "Identity.ts").expect("Identity.ts not found");
+    let content = &identity_file.content;
+
+    assert!(
+        content.contains("@JoinColumn({ name: \"user_id\", referencedColumnName: \"uuid\" })"),
+        "Should include JoinColumn with referencedColumnName. Content: {}",
+        content
+    );
+}
+
+#[test]
+fn test_field_level_join_column_precedence_over_nested() {
+    // Both field-level and nested join_column specified - field-level should win
+    let mut models = HashMap::new();
+
+    let user_model = ModelDefinition {
+        name: "User".to_string(),
+        parents: vec![],
+        fields: vec![
+            FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "primary": { "generation": "uuid" }
+                }),
+                entity_id: None,
+            },
+        ],
+        config: serde_json::json!({}),
+        entity_id: None,
+    };
+    models.insert("User".to_string(), user_model);
+
+    let identity_model = ModelDefinition {
+        name: "Identity".to_string(),
+        parents: vec![],
+        fields: vec![
+            FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "primary": { "generation": "uuid" }
+                }),
+                entity_id: None,
+            },
+            FieldDefinition {
+                name: "user".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "User".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "relation": {
+                        "type": "many_to_one",
+                        "inverse_side": "identities",
+                        "join_column": { "name": "nested_user_id" }
+                    },
+                    "join_column": { "name": "field_level_user_id" }
+                }),
+                entity_id: None,
+            },
+        ],
+        config: serde_json::json!({}),
+        entity_id: None,
+    };
+    models.insert("Identity".to_string(), identity_model);
+
+    let schema = Schema {
+        models,
+        type_aliases: HashMap::new(),
+    };
+    let config = serde_json::json!({});
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+
+    let identity_file = files.iter().find(|f| f.path == "Identity.ts").expect("Identity.ts not found");
+    let content = &identity_file.content;
+
+    // Field-level should take precedence
+    assert!(
+        content.contains("@JoinColumn({ name: \"field_level_user_id\" })"),
+        "Field-level join_column should take precedence. Content: {}",
+        content
+    );
+    assert!(
+        !content.contains("nested_user_id"),
+        "Nested join_column should not appear. Content: {}",
+        content
+    );
+}
+
+#[test]
+fn test_field_level_join_table() {
+    // Create schema with ManyToMany relation and field-level join_table
+    let mut models = HashMap::new();
+
+    let tag_model = ModelDefinition {
+        name: "Tag".to_string(),
+        parents: vec![],
+        fields: vec![
+            FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "primary": { "generation": "uuid" }
+                }),
+                entity_id: None,
+            },
+        ],
+        config: serde_json::json!({}),
+        entity_id: None,
+    };
+    models.insert("Tag".to_string(), tag_model);
+
+    let post_model = ModelDefinition {
+        name: "Post".to_string(),
+        parents: vec![],
+        fields: vec![
+            FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "primary": { "generation": "uuid" }
+                }),
+                entity_id: None,
+            },
+            FieldDefinition {
+                name: "tags".to_string(),
+                field_type: TypeExpression::Array {
+                    element_type: Box::new(TypeExpression::Identifier {
+                        name: "Tag".to_string(),
+                    }),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "relation": {
+                        "type": "many_to_many",
+                        "inverse_side": "posts"
+                    },
+                    "join_table": {
+                        "name": "post_tags",
+                        "join_column": { "name": "post_id" },
+                        "inverse_join_column": { "name": "tag_id" }
+                    }
+                }),
+                entity_id: None,
+            },
+        ],
+        config: serde_json::json!({}),
+        entity_id: None,
+    };
+    models.insert("Post".to_string(), post_model);
+
+    let schema = Schema {
+        models,
+        type_aliases: HashMap::new(),
+    };
+    let config = serde_json::json!({});
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+
+    let post_file = files.iter().find(|f| f.path == "Post.ts").expect("Post.ts not found");
+    let content = &post_file.content;
+
+    assert!(
+        content.contains("@JoinTable({"),
+        "Should include JoinTable decorator. Content: {}",
+        content
+    );
+    assert!(
+        content.contains("name: \"post_tags\""),
+        "Should include table name. Content: {}",
+        content
+    );
+    assert!(
+        content.contains("JoinTable"),
+        "Should import JoinTable. Content: {}",
+        content
+    );
+}
+
+#[test]
+fn test_nested_join_column_still_works() {
+    // Ensure backward compatibility - nested join_column inside relation still works
+    let mut models = HashMap::new();
+
+    let user_model = ModelDefinition {
+        name: "User".to_string(),
+        parents: vec![],
+        fields: vec![
+            FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "primary": { "generation": "uuid" }
+                }),
+                entity_id: None,
+            },
+        ],
+        config: serde_json::json!({}),
+        entity_id: None,
+    };
+    models.insert("User".to_string(), user_model);
+
+    let identity_model = ModelDefinition {
+        name: "Identity".to_string(),
+        parents: vec![],
+        fields: vec![
+            FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "primary": { "generation": "uuid" }
+                }),
+                entity_id: None,
+            },
+            FieldDefinition {
+                name: "user".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "User".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "relation": {
+                        "type": "many_to_one",
+                        "inverse_side": "identities",
+                        "join_column": { "name": "legacy_user_id" }
+                    }
+                }),
+                entity_id: None,
+            },
+        ],
+        config: serde_json::json!({}),
+        entity_id: None,
+    };
+    models.insert("Identity".to_string(), identity_model);
+
+    let schema = Schema {
+        models,
+        type_aliases: HashMap::new(),
+    };
+    let config = serde_json::json!({});
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+
+    let identity_file = files.iter().find(|f| f.path == "Identity.ts").expect("Identity.ts not found");
+    let content = &identity_file.content;
+
+    // Nested join_column should still work for backward compatibility
+    assert!(
+        content.contains("@JoinColumn({ name: \"legacy_user_id\" })"),
+        "Nested join_column should still work. Content: {}",
+        content
+    );
+}

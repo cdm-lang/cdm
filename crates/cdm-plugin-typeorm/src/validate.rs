@@ -444,6 +444,16 @@ fn validate_field_config(
         validate_relation(relation, model_name, field_name, errors);
     }
 
+    // Validate field-level join_column
+    if let Some(join_column) = config.get("join_column") {
+        validate_field_level_join_column(join_column, model_name, field_name, config.get("relation").is_some(), errors);
+    }
+
+    // Validate field-level join_table
+    if let Some(join_table) = config.get("join_table") {
+        validate_field_level_join_table(join_table, model_name, field_name, config.get("relation").is_some(), errors);
+    }
+
     // Validate ts_type config
     if let Some(ts_type) = config.get("ts_type") {
         validate_ts_type_config(
@@ -678,6 +688,236 @@ fn validate_relation(
                         },
                     ],
                     message: "on_update must be 'CASCADE', 'SET NULL', 'RESTRICT', 'NO ACTION', or 'DEFAULT'".to_string(),
+                    severity: Severity::Error,
+                });
+            }
+        }
+    }
+}
+
+/// Validates field-level join_column configuration
+fn validate_field_level_join_column(
+    join_column: &JSON,
+    model_name: &str,
+    field_name: &str,
+    has_relation: bool,
+    errors: &mut Vec<ValidationError>,
+) {
+    // Warn if join_column is specified without a relation
+    if !has_relation {
+        errors.push(ValidationError {
+            path: vec![
+                PathSegment {
+                    kind: "model".to_string(),
+                    name: model_name.to_string(),
+                },
+                PathSegment {
+                    kind: "field".to_string(),
+                    name: field_name.to_string(),
+                },
+                PathSegment {
+                    kind: "config".to_string(),
+                    name: "join_column".to_string(),
+                },
+            ],
+            message: "join_column specified without a relation configuration".to_string(),
+            severity: Severity::Warning,
+        });
+    }
+
+    // Validate name is a non-empty string if present
+    if let Some(name) = join_column.get("name") {
+        if let Some(name_str) = name.as_str() {
+            if name_str.is_empty() {
+                errors.push(ValidationError {
+                    path: vec![
+                        PathSegment {
+                            kind: "model".to_string(),
+                            name: model_name.to_string(),
+                        },
+                        PathSegment {
+                            kind: "field".to_string(),
+                            name: field_name.to_string(),
+                        },
+                        PathSegment {
+                            kind: "config".to_string(),
+                            name: "join_column.name".to_string(),
+                        },
+                    ],
+                    message: "join_column.name cannot be empty".to_string(),
+                    severity: Severity::Error,
+                });
+            }
+        }
+    }
+
+    // Validate referenced_column is a non-empty string if present
+    if let Some(ref_col) = join_column.get("referenced_column") {
+        if let Some(ref_col_str) = ref_col.as_str() {
+            if ref_col_str.is_empty() {
+                errors.push(ValidationError {
+                    path: vec![
+                        PathSegment {
+                            kind: "model".to_string(),
+                            name: model_name.to_string(),
+                        },
+                        PathSegment {
+                            kind: "field".to_string(),
+                            name: field_name.to_string(),
+                        },
+                        PathSegment {
+                            kind: "config".to_string(),
+                            name: "join_column.referenced_column".to_string(),
+                        },
+                    ],
+                    message: "join_column.referenced_column cannot be empty".to_string(),
+                    severity: Severity::Error,
+                });
+            }
+        }
+    }
+}
+
+/// Validates field-level join_table configuration
+fn validate_field_level_join_table(
+    join_table: &JSON,
+    model_name: &str,
+    field_name: &str,
+    has_relation: bool,
+    errors: &mut Vec<ValidationError>,
+) {
+    // Warn if join_table is specified without a relation
+    if !has_relation {
+        errors.push(ValidationError {
+            path: vec![
+                PathSegment {
+                    kind: "model".to_string(),
+                    name: model_name.to_string(),
+                },
+                PathSegment {
+                    kind: "field".to_string(),
+                    name: field_name.to_string(),
+                },
+                PathSegment {
+                    kind: "config".to_string(),
+                    name: "join_table".to_string(),
+                },
+            ],
+            message: "join_table specified without a relation configuration".to_string(),
+            severity: Severity::Warning,
+        });
+    }
+
+    // Validate name is required and non-empty
+    if let Some(name) = join_table.get("name") {
+        if let Some(name_str) = name.as_str() {
+            if name_str.is_empty() {
+                errors.push(ValidationError {
+                    path: vec![
+                        PathSegment {
+                            kind: "model".to_string(),
+                            name: model_name.to_string(),
+                        },
+                        PathSegment {
+                            kind: "field".to_string(),
+                            name: field_name.to_string(),
+                        },
+                        PathSegment {
+                            kind: "config".to_string(),
+                            name: "join_table.name".to_string(),
+                        },
+                    ],
+                    message: "join_table name cannot be empty".to_string(),
+                    severity: Severity::Error,
+                });
+            }
+        }
+    } else {
+        errors.push(ValidationError {
+            path: vec![
+                PathSegment {
+                    kind: "model".to_string(),
+                    name: model_name.to_string(),
+                },
+                PathSegment {
+                    kind: "field".to_string(),
+                    name: field_name.to_string(),
+                },
+                PathSegment {
+                    kind: "config".to_string(),
+                    name: "join_table".to_string(),
+                },
+            ],
+            message: "join_table must have a 'name' field".to_string(),
+            severity: Severity::Error,
+        });
+    }
+
+    // Validate nested join_column if present
+    if let Some(jc) = join_table.get("join_column") {
+        validate_nested_join_column(jc, model_name, field_name, "join_table.join_column", errors);
+    }
+
+    // Validate nested inverse_join_column if present
+    if let Some(ijc) = join_table.get("inverse_join_column") {
+        validate_nested_join_column(ijc, model_name, field_name, "join_table.inverse_join_column", errors);
+    }
+}
+
+/// Validates a nested join_column within join_table
+fn validate_nested_join_column(
+    join_column: &JSON,
+    model_name: &str,
+    field_name: &str,
+    config_path: &str,
+    errors: &mut Vec<ValidationError>,
+) {
+    // Validate name is a non-empty string if present
+    if let Some(name) = join_column.get("name") {
+        if let Some(name_str) = name.as_str() {
+            if name_str.is_empty() {
+                errors.push(ValidationError {
+                    path: vec![
+                        PathSegment {
+                            kind: "model".to_string(),
+                            name: model_name.to_string(),
+                        },
+                        PathSegment {
+                            kind: "field".to_string(),
+                            name: field_name.to_string(),
+                        },
+                        PathSegment {
+                            kind: "config".to_string(),
+                            name: format!("{}.name", config_path),
+                        },
+                    ],
+                    message: format!("{}.name cannot be empty", config_path),
+                    severity: Severity::Error,
+                });
+            }
+        }
+    }
+
+    // Validate referenced_column is a non-empty string if present
+    if let Some(ref_col) = join_column.get("referenced_column") {
+        if let Some(ref_col_str) = ref_col.as_str() {
+            if ref_col_str.is_empty() {
+                errors.push(ValidationError {
+                    path: vec![
+                        PathSegment {
+                            kind: "model".to_string(),
+                            name: model_name.to_string(),
+                        },
+                        PathSegment {
+                            kind: "field".to_string(),
+                            name: field_name.to_string(),
+                        },
+                        PathSegment {
+                            kind: "config".to_string(),
+                            name: format!("{}.referenced_column", config_path),
+                        },
+                    ],
+                    message: format!("{}.referenced_column cannot be empty", config_path),
                     severity: Severity::Error,
                 });
             }
