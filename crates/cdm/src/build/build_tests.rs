@@ -924,3 +924,66 @@ fn test_local_type_alias_config_merged_with_field_config() {
         "email field's nullable should override type alias's nullable"
     );
 }
+
+#[test]
+fn test_template_type_aliases_not_in_plugin_schema() {
+    // BUG FIX TEST: When a file imports a template namespace, the qualified
+    // type aliases (e.g., "sql.UUID") should NOT appear in the plugin schema.
+    // They are internal to CDM's resolution and should be filtered out.
+    //
+    // This test verifies that:
+    // 1. Template type aliases are resolved correctly for field types
+    // 2. Qualified type aliases are NOT passed to plugins
+
+    use std::path::PathBuf;
+
+    // Use the existing template test fixture
+    let fixtures_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("test_fixtures")
+        .join("templates")
+        .join("namespace_resolution");
+    let test_file = fixtures_dir.join("basic_import.cdm");
+
+    // Load and validate the file
+    let tree = crate::FileResolver::load(&test_file).unwrap();
+    let result = crate::validate_tree(tree).unwrap();
+    assert!(!result.has_errors(), "Validation should succeed: {:?}", result.diagnostics);
+
+    // Build schema for typescript plugin
+    let plugin_schema = build_cdm_schema_for_plugin(&result, &[], "typescript")
+        .expect("Should build schema for typescript plugin");
+
+    // Verify that no type alias has a qualified name (contains a dot)
+    for (name, _) in &plugin_schema.type_aliases {
+        assert!(
+            !name.contains('.'),
+            "Plugin schema should not contain qualified type alias '{}'. \
+             Template types should be filtered out before passing to plugins.",
+            name
+        );
+    }
+
+    // Verify the User model exists and has the expected fields
+    let user = plugin_schema.models.get("User").expect("User should exist in schema");
+    assert_eq!(user.fields.len(), 4, "User should have 4 fields");
+
+    // Verify field types are resolved to base types (string), not qualified names
+    for field in &user.fields {
+        match &field.field_type {
+            TypeExpression::Identifier { name } => {
+                assert!(
+                    !name.contains('.'),
+                    "Field '{}' should have resolved type, not qualified '{}'. \
+                     Template types should be resolved to their base types.",
+                    field.name, name
+                );
+                assert_eq!(
+                    name, "string",
+                    "Field '{}' should be resolved to 'string' (the base type of all SQL types)",
+                    field.name
+                );
+            }
+            _ => panic!("Expected Identifier type for field {}", field.name),
+        }
+    }
+}

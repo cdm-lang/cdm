@@ -204,6 +204,10 @@ pub struct ResolvedTypeAlias {
     pub cached_parsed_type: std::cell::RefCell<Option<Result<ParsedType, String>>>,
     /// Optional composite entity ID for migration tracking
     pub entity_id: Option<EntityId>,
+    /// Whether this type alias comes from an imported template.
+    /// Template type aliases are used for field resolution but should not
+    /// be passed to plugins directly.
+    pub is_from_template: bool,
 }
 
 impl Clone for ResolvedTypeAlias {
@@ -218,6 +222,7 @@ impl Clone for ResolvedTypeAlias {
             // Don't clone the cache - let each clone re-parse if needed
             cached_parsed_type: std::cell::RefCell::new(None),
             entity_id: self.entity_id.clone(),
+            is_from_template: self.is_from_template,
         }
     }
 }
@@ -240,6 +245,7 @@ impl ResolvedTypeAlias {
             source_span,
             cached_parsed_type: std::cell::RefCell::new(None),
             entity_id: None,
+            is_from_template: false,
         }
     }
 

@@ -125,6 +125,7 @@ pub fn build_resolved_schema(
                             source_span: def.span,
                             cached_parsed_type: RefCell::new(None),
                             entity_id: def.entity_id.clone(),
+                            is_from_template: false,
                         },
                     );
                 }
@@ -187,6 +188,7 @@ pub fn build_resolved_schema(
                                     source_span: def.span,
                                     cached_parsed_type: RefCell::new(None),
                                     entity_id: def.entity_id.clone(),
+                                    is_from_template: true,
                                 },
                             );
                         }
@@ -221,6 +223,7 @@ pub fn build_resolved_schema(
                                 source_span: def.span,
                                 cached_parsed_type: RefCell::new(None),
                                 entity_id: def.entity_id.clone(),
+                                is_from_template: true,
                             },
                         );
                     }
@@ -253,6 +256,7 @@ pub fn build_resolved_schema(
                         source_span: def.span,
                         cached_parsed_type: RefCell::new(None),
                         entity_id: def.entity_id.clone(),
+                        is_from_template: false,
                     },
                 );
             }
@@ -574,6 +578,14 @@ pub fn build_cdm_schema_for_plugin(
 
     let mut type_aliases = HashMap::new();
     for (name, alias) in resolved.type_aliases {
+        // Skip type aliases from templates. These are internal to CDM's schema
+        // resolution and should not be exposed to plugins. Template types are
+        // resolved to their base types when used in fields, so plugins never
+        // need to see the template aliases directly.
+        if alias.is_from_template {
+            continue;
+        }
+
         // Parse the type expression
         let parsed_type = alias.parsed_type().unwrap_or_else(|_| {
             // Default to string if parsing fails

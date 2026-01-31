@@ -272,6 +272,7 @@ fn test_resolved_type_alias_parsed_type() {
         },
         cached_parsed_type: std::cell::RefCell::new(None),
         entity_id: None,
+        is_from_template: false,
     };
 
     let result = alias.parsed_type().unwrap();
@@ -369,6 +370,7 @@ fn test_resolved_type_alias_clone_preserves_new_fields() {
         },
         cached_parsed_type: std::cell::RefCell::new(None),
         entity_id: None,
+        is_from_template: false,
     };
 
     let cloned = original.clone();
@@ -378,4 +380,5 @@ fn test_resolved_type_alias_clone_preserves_new_fields() {
         cloned.plugin_configs.get("test").unwrap(),
         &serde_json::json!({"key": "value"})
     );
+    assert!(!cloned.is_from_template, "is_from_template should be cloned");
 }

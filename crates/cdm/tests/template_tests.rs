@@ -772,8 +772,12 @@ fn test_actual_postgres_template_has_sql_configs() {
 
 #[test]
 fn test_build_cdm_schema_for_plugin_includes_template_type_configs() {
-    // Test that build_cdm_schema_for_plugin correctly includes template type aliases
-    // with their plugin configs in the schema sent to plugins
+    // Test that build_cdm_schema_for_plugin correctly:
+    // 1. Does NOT expose qualified template type aliases (like "sql.UUID") to plugins
+    // 2. DOES merge template type configs into field configs
+    //
+    // Template type aliases are internal to CDM's resolution and should be filtered out.
+    // Plugins receive resolved field types with merged configs.
 
     // Simulate what validate_tree does: create a validation result with namespaces
     let template_source = r#"
@@ -826,26 +830,15 @@ TestUser {
     let plugin_schema = cdm::build_cdm_schema_for_plugin(&main_result, &[], "sql")
         .expect("build_cdm_schema_for_plugin should succeed");
 
-    // The type_aliases HashMap should contain sql.UUID and sql.Varchar
+    // Qualified template type aliases should NOT be in the plugin schema
+    // They are internal to CDM's resolution
     println!("Type aliases in schema: {:?}", plugin_schema.type_aliases.keys().collect::<Vec<_>>());
 
-    assert!(plugin_schema.type_aliases.contains_key("sql.UUID"),
-        "Expected sql.UUID in plugin schema type_aliases, got: {:?}", plugin_schema.type_aliases.keys().collect::<Vec<_>>());
-
-    let uuid_alias = &plugin_schema.type_aliases["sql.UUID"];
-    println!("sql.UUID config: {:?}", uuid_alias.config);
-
-    // The config should have type: "UUID"
-    assert_eq!(uuid_alias.config["type"], "UUID",
-        "Expected config.type = UUID for sql.UUID, got: {:?}", uuid_alias.config);
-
-    // Check sql.Varchar
-    assert!(plugin_schema.type_aliases.contains_key("sql.Varchar"),
-        "Expected sql.Varchar in plugin schema type_aliases");
-
-    let varchar_alias = &plugin_schema.type_aliases["sql.Varchar"];
-    assert_eq!(varchar_alias.config["type"], "VARCHAR",
-        "Expected config.type = VARCHAR for sql.Varchar, got: {:?}", varchar_alias.config);
+    for (name, _) in &plugin_schema.type_aliases {
+        assert!(!name.contains('.'),
+            "Plugin schema should NOT contain qualified type alias '{}'. \
+             Template types should be filtered out.", name);
+    }
 
     // Verify that template types are RESOLVED before passing to plugins.
     // Plugins don't know about templates - they receive the base type with merged config.
@@ -963,9 +956,13 @@ PublicUser extends TimestampedEntity {
     let plugin_schema = cdm::build_cdm_schema_for_plugin(&main_result, &[], "sql")
         .expect("build_cdm_schema_for_plugin should succeed");
 
-    // Type aliases should still be present (for reference by other tools)
-    assert!(plugin_schema.type_aliases.contains_key("sqlType.UUID"),
-        "Expected sqlType.UUID in type_aliases");
+    // Qualified template type aliases should NOT be in the plugin schema.
+    // They are internal to CDM's resolution and should be filtered out.
+    for (name, _) in &plugin_schema.type_aliases {
+        assert!(!name.contains('.'),
+            "Plugin schema should NOT contain qualified type alias '{}'. \
+             Template types should be filtered out.", name);
+    }
 
     let public_user = plugin_schema.models.get("PublicUser")
         .expect("PublicUser model should exist");
@@ -1092,19 +1089,15 @@ PublicUser extends TimestampedEntity {
     let plugin_schema = cdm::build_cdm_schema_for_plugin(&main_result, &[], "sql")
         .expect("build_cdm_schema_for_plugin should succeed");
 
-    // CRITICAL: Verify type_aliases has the qualified name with correct config
+    // Qualified template type aliases should NOT be in the plugin schema.
+    // They are internal to CDM's resolution and should be filtered out.
     println!("Type aliases keys: {:?}", plugin_schema.type_aliases.keys().collect::<Vec<_>>());
 
-    assert!(plugin_schema.type_aliases.contains_key("sqlType.UUID"),
-        "Expected sqlType.UUID in type_aliases, got: {:?}", plugin_schema.type_aliases.keys().collect::<Vec<_>>());
-
-    let uuid_alias = &plugin_schema.type_aliases["sqlType.UUID"];
-    println!("sqlType.UUID alias_type: {:?}", uuid_alias.alias_type);
-    println!("sqlType.UUID config: {:?}", uuid_alias.config);
-
-    // The config should have "type": "UUID" - this is what TypeMapper looks for
-    assert_eq!(uuid_alias.config.get("type").and_then(|v| v.as_str()), Some("UUID"),
-        "sqlType.UUID config should have type: UUID, got: {:?}", uuid_alias.config);
+    for (name, _) in &plugin_schema.type_aliases {
+        assert!(!name.contains('.'),
+            "Plugin schema should NOT contain qualified type alias '{}'. \
+             Template types should be filtered out.", name);
+    }
 
     // Verify PublicUser's inherited fields have RESOLVED types
     // Template types should be resolved to their base types with configs merged
@@ -1148,7 +1141,7 @@ PublicUser extends TimestampedEntity {
         "Field config should have type: UUID from resolved template, got: {:?}", id_type_override);
 
     println!("\nSuccess! The schema passed to the SQL plugin is correct:");
-    println!("  - type_aliases has 'sqlType.UUID' with config.type = 'UUID'");
+    println!("  - type_aliases does NOT contain qualified names (correctly filtered)");
     println!("  - PublicUser.id has field_type = 'string' (resolved base type)");
     println!("  - PublicUser.id has config.type = 'UUID' (merged from template)");
     println!("  - TypeMapper will use the explicit type override: UUID");
@@ -1160,13 +1153,11 @@ PublicUser extends TimestampedEntity {
     let deserialized_schema: cdm_plugin_interface::Schema = serde_json::from_str(&schema_json)
         .expect("Failed to deserialize schema");
 
-    // Verify type_aliases survived serialization
-    assert!(deserialized_schema.type_aliases.contains_key("sqlType.UUID"),
-        "After serialization, type_aliases should still have sqlType.UUID");
-
-    let uuid_alias_after = &deserialized_schema.type_aliases["sqlType.UUID"];
-    assert_eq!(uuid_alias_after.config.get("type").and_then(|v| v.as_str()), Some("UUID"),
-        "After serialization, sqlType.UUID config.type should be 'UUID'");
+    // Verify qualified type_aliases are NOT in the schema (they should be filtered out)
+    for (name, _) in &deserialized_schema.type_aliases {
+        assert!(!name.contains('.'),
+            "After serialization, qualified type alias '{}' should not be in schema", name);
+    }
 
     // Verify field_type survived serialization
     let public_user_after = deserialized_schema.models.get("PublicUser")
