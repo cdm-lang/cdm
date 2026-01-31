@@ -1156,3 +1156,329 @@ fn test_per_model_grouped_files_no_imports_within_same_file() {
         models_file.content
     );
 }
+
+// Zod schema ordering tests
+
+#[test]
+fn test_zod_schemas_declared_before_referenced_single_file() {
+    let mut schema = Schema {
+        models: HashMap::new(),
+        type_aliases: HashMap::new(),
+    };
+
+    // Create Address model (no dependencies)
+    schema.models.insert(
+        "Address".to_string(),
+        ModelDefinition {
+            name: "Address".to_string(),
+            parents: vec![],
+            fields: vec![FieldDefinition {
+                name: "street".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: json!({}),
+                entity_id: local_id(1),
+            }],
+            config: json!({}),
+            entity_id: local_id(10),
+        },
+    );
+
+    // Create User model that depends on Address
+    schema.models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "name".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(2),
+                },
+                FieldDefinition {
+                    name: "address".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "Address".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(3),
+                },
+            ],
+            config: json!({}),
+            entity_id: local_id(11),
+        },
+    );
+
+    // Create Post model that depends on User (which depends on Address)
+    schema.models.insert(
+        "Post".to_string(),
+        ModelDefinition {
+            name: "Post".to_string(),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "title".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(4),
+                },
+                FieldDefinition {
+                    name: "author".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "User".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(5),
+                },
+            ],
+            config: json!({}),
+            entity_id: local_id(12),
+        },
+    );
+
+    let config = json!({ "generate_zod": true });
+    let utils = Utils;
+
+    let output = build(schema, config, &utils);
+    let content = &output[0].content;
+
+    // AddressSchema should appear before UserSchema (since User depends on Address)
+    let address_schema_pos = content.find("const AddressSchema").unwrap();
+    let user_schema_pos = content.find("const UserSchema").unwrap();
+    let post_schema_pos = content.find("const PostSchema").unwrap();
+
+    assert!(
+        address_schema_pos < user_schema_pos,
+        "AddressSchema should be declared before UserSchema.\nContent:\n{}",
+        content
+    );
+    assert!(
+        user_schema_pos < post_schema_pos,
+        "UserSchema should be declared before PostSchema.\nContent:\n{}",
+        content
+    );
+}
+
+#[test]
+fn test_zod_schemas_type_aliases_before_models_that_reference_them() {
+    let mut schema = Schema {
+        models: HashMap::new(),
+        type_aliases: HashMap::new(),
+    };
+
+    // Create Email type alias
+    schema.type_aliases.insert(
+        "Email".to_string(),
+        TypeAliasDefinition {
+            name: "Email".to_string(),
+            alias_type: TypeExpression::Identifier {
+                name: "string".to_string(),
+            },
+            config: json!({}),
+            entity_id: local_id(1),
+        },
+    );
+
+    // Create User model that references Email type alias
+    schema.models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            parents: vec![],
+            fields: vec![FieldDefinition {
+                name: "email".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "Email".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: json!({}),
+                entity_id: local_id(2),
+            }],
+            config: json!({}),
+            entity_id: local_id(10),
+        },
+    );
+
+    let config = json!({ "generate_zod": true });
+    let utils = Utils;
+
+    let output = build(schema, config, &utils);
+    let content = &output[0].content;
+
+    // EmailSchema should appear before UserSchema
+    let email_schema_pos = content.find("const EmailSchema").unwrap();
+    let user_schema_pos = content.find("const UserSchema").unwrap();
+
+    assert!(
+        email_schema_pos < user_schema_pos,
+        "EmailSchema should be declared before UserSchema.\nContent:\n{}",
+        content
+    );
+}
+
+#[test]
+fn test_zod_schemas_handles_array_dependencies() {
+    let mut schema = Schema {
+        models: HashMap::new(),
+        type_aliases: HashMap::new(),
+    };
+
+    // Create Tag model
+    schema.models.insert(
+        "Tag".to_string(),
+        ModelDefinition {
+            name: "Tag".to_string(),
+            parents: vec![],
+            fields: vec![FieldDefinition {
+                name: "name".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: json!({}),
+                entity_id: local_id(1),
+            }],
+            config: json!({}),
+            entity_id: local_id(10),
+        },
+    );
+
+    // Create Post model that has an array of Tags
+    schema.models.insert(
+        "Post".to_string(),
+        ModelDefinition {
+            name: "Post".to_string(),
+            parents: vec![],
+            fields: vec![FieldDefinition {
+                name: "tags".to_string(),
+                field_type: TypeExpression::Array {
+                    element_type: Box::new(TypeExpression::Identifier {
+                        name: "Tag".to_string(),
+                    }),
+                },
+                optional: false,
+                default: None,
+                config: json!({}),
+                entity_id: local_id(2),
+            }],
+            config: json!({}),
+            entity_id: local_id(11),
+        },
+    );
+
+    let config = json!({ "generate_zod": true });
+    let utils = Utils;
+
+    let output = build(schema, config, &utils);
+    let content = &output[0].content;
+
+    // TagSchema should appear before PostSchema
+    let tag_schema_pos = content.find("const TagSchema").unwrap();
+    let post_schema_pos = content.find("const PostSchema").unwrap();
+
+    assert!(
+        tag_schema_pos < post_schema_pos,
+        "TagSchema should be declared before PostSchema.\nContent:\n{}",
+        content
+    );
+}
+
+#[test]
+fn test_zod_schemas_per_model_grouped_file_ordering() {
+    let mut schema = Schema {
+        models: HashMap::new(),
+        type_aliases: HashMap::new(),
+    };
+
+    // Create Address model in same file as User
+    schema.models.insert(
+        "Address".to_string(),
+        ModelDefinition {
+            name: "Address".to_string(),
+            parents: vec![],
+            fields: vec![FieldDefinition {
+                name: "street".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: json!({}),
+                entity_id: local_id(1),
+            }],
+            config: json!({ "file_name": "models.ts" }),
+            entity_id: local_id(10),
+        },
+    );
+
+    // Create User model that depends on Address, in same file
+    schema.models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "name".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(2),
+                },
+                FieldDefinition {
+                    name: "address".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "Address".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(3),
+                },
+            ],
+            config: json!({ "file_name": "models.ts" }),
+            entity_id: local_id(11),
+        },
+    );
+
+    let config = json!({ "file_strategy": "per_model", "generate_zod": true });
+    let utils = Utils;
+
+    let output = build(schema, config, &utils);
+
+    // Find models.ts file (both User and Address should be in this file)
+    let models_file = output.iter().find(|f| f.path == "models.ts").unwrap();
+    let content = &models_file.content;
+
+    // AddressSchema should appear before UserSchema since User depends on Address
+    let address_schema_pos = content.find("const AddressSchema").unwrap();
+    let user_schema_pos = content.find("const UserSchema").unwrap();
+
+    assert!(
+        address_schema_pos < user_schema_pos,
+        "AddressSchema should be declared before UserSchema in grouped file.\nContent:\n{}",
+        content
+    );
+}

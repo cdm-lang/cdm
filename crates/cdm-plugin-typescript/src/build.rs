@@ -1,5 +1,5 @@
 use cdm_plugin_interface::{CaseFormat, OutputFile, Schema, TypeExpression, Utils, JSON};
-use std::collections::{BTreeSet, HashMap};
+use std::collections::{BTreeMap, BTreeSet, HashMap, HashSet, VecDeque};
 
 use crate::type_mapper::map_type_to_typescript;
 use crate::zod_mapper::map_type_to_zod;
@@ -143,6 +143,123 @@ fn collect_type_references(type_expr: &TypeExpression, references: &mut BTreeSet
     }
 }
 
+/// Represents an entity (model or type alias) for topological sorting
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum EntityKind {
+    Model,
+    TypeAlias,
+}
+
+/// Topologically sorts entities (models and type aliases) so that dependencies come before dependents.
+/// Returns a list of (name, kind) pairs in sorted order.
+/// Uses Kahn's algorithm for topological sorting.
+fn topological_sort_entities(schema: &Schema) -> Vec<(String, EntityKind)> {
+    // Build dependency graph
+    // dependencies[name] = set of names that 'name' depends on
+    let mut dependencies: BTreeMap<String, BTreeSet<String>> = BTreeMap::new();
+    // in_degree[name] = number of entities that must come before 'name'
+    let mut in_degree: BTreeMap<String, usize> = BTreeMap::new();
+    // All entity names
+    let mut all_entities: BTreeSet<String> = BTreeSet::new();
+    // Track entity kinds
+    let mut entity_kinds: BTreeMap<String, EntityKind> = BTreeMap::new();
+
+    // Collect all entity names and their kinds
+    for name in schema.models.keys() {
+        all_entities.insert(name.clone());
+        entity_kinds.insert(name.clone(), EntityKind::Model);
+        in_degree.insert(name.clone(), 0);
+    }
+    for name in schema.type_aliases.keys() {
+        all_entities.insert(name.clone());
+        entity_kinds.insert(name.clone(), EntityKind::TypeAlias);
+        in_degree.insert(name.clone(), 0);
+    }
+
+    // Build dependencies for models
+    for (name, model) in &schema.models {
+        let mut refs = BTreeSet::new();
+        for field in &model.fields {
+            collect_type_references(&field.field_type, &mut refs);
+        }
+        // Filter to only entities that exist in our schema
+        let valid_refs: BTreeSet<String> = refs
+            .into_iter()
+            .filter(|r| all_entities.contains(r))
+            .collect();
+        dependencies.insert(name.clone(), valid_refs);
+    }
+
+    // Build dependencies for type aliases
+    for (name, alias) in &schema.type_aliases {
+        let mut refs = BTreeSet::new();
+        collect_type_references(&alias.alias_type, &mut refs);
+        // Filter to only entities that exist in our schema
+        let valid_refs: BTreeSet<String> = refs
+            .into_iter()
+            .filter(|r| all_entities.contains(r))
+            .collect();
+        dependencies.insert(name.clone(), valid_refs);
+    }
+
+    // Calculate in-degrees
+    for (_, deps) in &dependencies {
+        for dep in deps {
+            if let Some(degree) = in_degree.get_mut(dep) {
+                *degree += 1;
+            }
+        }
+    }
+
+    // Kahn's algorithm
+    // Start with nodes that have no dependencies
+    let mut queue: VecDeque<String> = all_entities
+        .iter()
+        .filter(|name| {
+            dependencies
+                .get(*name)
+                .map(|d| d.is_empty())
+                .unwrap_or(true)
+        })
+        .cloned()
+        .collect();
+
+    let mut sorted: Vec<(String, EntityKind)> = Vec::new();
+    let mut visited: HashSet<String> = HashSet::new();
+
+    while let Some(name) = queue.pop_front() {
+        if visited.contains(&name) {
+            continue;
+        }
+        visited.insert(name.clone());
+
+        let kind = entity_kinds.get(&name).copied().unwrap_or(EntityKind::Model);
+        sorted.push((name.clone(), kind));
+
+        // For each entity that depends on this one, decrement its effective in-degree
+        for (dependent, deps) in &dependencies {
+            if deps.contains(&name) && !visited.contains(dependent) {
+                // Check if all dependencies of 'dependent' have been visited
+                let all_deps_visited = deps.iter().all(|d| visited.contains(d) || d == &name);
+                if all_deps_visited {
+                    queue.push_back(dependent.clone());
+                }
+            }
+        }
+    }
+
+    // Handle any remaining entities (circular dependencies)
+    // Add them in alphabetical order
+    for name in &all_entities {
+        if !visited.contains(name) {
+            let kind = entity_kinds.get(name).copied().unwrap_or(EntityKind::Model);
+            sorted.push((name.clone(), kind));
+        }
+    }
+
+    sorted
+}
+
 #[derive(Debug, Clone)]
 struct Config {
     output_format: String,
@@ -229,26 +346,26 @@ fn build_single_file(schema: Schema, cfg: Config, utils: &Utils) -> Vec<OutputFi
         content.push_str("import { z } from 'zod';\n\n");
     }
 
-    // Generate type aliases first
+    // Get topologically sorted entities for proper Zod schema ordering
+    let sorted_entities = topological_sort_entities(&schema);
+
+    // Generate type aliases first (using alphabetical order for type definitions)
     for (name, alias) in &schema.type_aliases {
         if should_skip_type_alias(alias) {
             continue;
         }
 
-        let formatted_name = format_name(&name, &cfg.type_name_format, utils);
+        let formatted_name = format_name(name, &cfg.type_name_format, utils);
         let type_str = map_type_to_typescript(&alias.alias_type, cfg.strict_nulls);
 
         let export = if cfg.export_all { "export " } else { "" };
-        content.push_str(&format!("{}type {} = {};\n\n", export, formatted_name, type_str));
-
-        // Generate Zod schema for type alias if Zod is enabled
-        if needs_zod {
-            zod_content.push_str(&generate_type_alias_zod_schema(&formatted_name, alias, &cfg));
-            zod_content.push_str("\n\n");
-        }
+        content.push_str(&format!(
+            "{}type {} = {};\n\n",
+            export, formatted_name, type_str
+        ));
     }
 
-    // Generate models
+    // Generate models (using alphabetical order for type definitions)
     for (name, model) in &schema.models {
         // Config is already filtered to this plugin by CDM core
         let model_config = &model.config;
@@ -258,7 +375,7 @@ fn build_single_file(schema: Schema, cfg: Config, utils: &Utils) -> Vec<OutputFi
         }
 
         let model_output_format = get_model_output_format(model_config, &cfg.output_format);
-        let formatted_name = get_export_name(model_config, &name, &cfg.type_name_format, utils);
+        let formatted_name = get_export_name(model_config, name, &cfg.type_name_format, utils);
 
         match model_output_format.as_str() {
             "interface" => {
@@ -273,11 +390,39 @@ fn build_single_file(schema: Schema, cfg: Config, utils: &Utils) -> Vec<OutputFi
             _ => {}
         }
         content.push('\n');
+    }
 
-        // Generate Zod schema if enabled for this model
-        if should_generate_zod(model_config, cfg.generate_zod) {
-            zod_content.push_str(&generate_zod_schema(&formatted_name, model, &cfg, utils));
-            zod_content.push_str("\n\n");
+    // Generate Zod schemas in topologically sorted order (dependencies before dependents)
+    if needs_zod {
+        for (name, kind) in &sorted_entities {
+            match kind {
+                EntityKind::TypeAlias => {
+                    if let Some(alias) = schema.type_aliases.get(name) {
+                        if should_skip_type_alias(alias) {
+                            continue;
+                        }
+                        let formatted_name = format_name(name, &cfg.type_name_format, utils);
+                        zod_content
+                            .push_str(&generate_type_alias_zod_schema(&formatted_name, alias, &cfg));
+                        zod_content.push_str("\n\n");
+                    }
+                }
+                EntityKind::Model => {
+                    if let Some(model) = schema.models.get(name) {
+                        let model_config = &model.config;
+                        if should_skip_model(model_config) {
+                            continue;
+                        }
+                        if should_generate_zod(model_config, cfg.generate_zod) {
+                            let formatted_name =
+                                get_export_name(model_config, name, &cfg.type_name_format, utils);
+                            zod_content
+                                .push_str(&generate_zod_schema(&formatted_name, model, &cfg, utils));
+                            zod_content.push_str("\n\n");
+                        }
+                    }
+                }
+            }
         }
     }
 
@@ -339,6 +484,9 @@ fn build_per_model_files(schema: Schema, cfg: Config, utils: &Utils) -> Vec<Outp
         !should_skip_model(&model.config) && should_generate_zod(&model.config, cfg.generate_zod)
     });
 
+    // Get topologically sorted entities for proper Zod schema ordering (for types.ts)
+    let sorted_entities = topological_sort_entities(&schema);
+
     // Second pass: generate type aliases in a shared file
     if !schema.type_aliases.is_empty() {
         let mut types_content = String::new();
@@ -362,12 +510,25 @@ fn build_per_model_files(schema: Schema, cfg: Config, utils: &Utils) -> Vec<Outp
                 "{}type {} = {};\n\n",
                 export, formatted_name, type_str
             ));
+        }
 
-            // Generate Zod schema for type alias if Zod is enabled
-            if needs_zod {
-                types_zod_content
-                    .push_str(&generate_type_alias_zod_schema(&formatted_name, alias, &cfg));
-                types_zod_content.push_str("\n\n");
+        // Generate Zod schemas for type aliases in topologically sorted order
+        if needs_zod {
+            for (name, kind) in &sorted_entities {
+                if *kind == EntityKind::TypeAlias {
+                    if let Some(alias) = schema.type_aliases.get(name) {
+                        if should_skip_type_alias(alias) {
+                            continue;
+                        }
+                        let formatted_name = format_name(name, &cfg.type_name_format, utils);
+                        types_zod_content.push_str(&generate_type_alias_zod_schema(
+                            &formatted_name,
+                            alias,
+                            &cfg,
+                        ));
+                        types_zod_content.push_str("\n\n");
+                    }
+                }
             }
         }
 
@@ -388,6 +549,7 @@ fn build_per_model_files(schema: Schema, cfg: Config, utils: &Utils) -> Vec<Outp
     for (file_name, models_in_file) in &file_to_models {
         let mut imports = ImportCollector::new();
         let mut content = String::new();
+        let mut zod_content = String::new();
 
         // Check if this file needs Zod
         let file_needs_zod = files_needing_zod.contains(file_name);
@@ -416,7 +578,7 @@ fn build_per_model_files(schema: Schema, cfg: Config, utils: &Utils) -> Vec<Outp
             }
         }
 
-        // Generate model code for all models in this file
+        // Generate model type definitions for all models in this file (alphabetical order)
         for model_name in models_in_file {
             if let Some(model) = schema.models.get(model_name) {
                 let model_config = &model.config;
@@ -437,15 +599,34 @@ fn build_per_model_files(schema: Schema, cfg: Config, utils: &Utils) -> Vec<Outp
                     _ => {}
                 }
                 content.push('\n');
+            }
+        }
 
-                // Generate Zod schema if enabled for this model
-                if should_generate_zod(model_config, cfg.generate_zod) {
-                    content.push('\n');
-                    content.push_str(&generate_zod_schema(&formatted_name, model, &cfg, utils));
-                    content.push('\n');
+        // Generate Zod schemas in topologically sorted order for models in this file
+        if file_needs_zod {
+            for (entity_name, kind) in &sorted_entities {
+                if *kind == EntityKind::Model && models_in_file.contains(entity_name) {
+                    if let Some(model) = schema.models.get(entity_name) {
+                        let model_config = &model.config;
+                        if should_generate_zod(model_config, cfg.generate_zod) {
+                            let formatted_name = get_export_name(
+                                model_config,
+                                entity_name,
+                                &cfg.type_name_format,
+                                utils,
+                            );
+                            zod_content.push('\n');
+                            zod_content
+                                .push_str(&generate_zod_schema(&formatted_name, model, &cfg, utils));
+                            zod_content.push('\n');
+                        }
+                    }
                 }
             }
         }
+
+        // Append Zod schemas after type definitions
+        content.push_str(&zod_content);
 
         file_contents.insert(file_name.clone(), (imports, content));
     }
