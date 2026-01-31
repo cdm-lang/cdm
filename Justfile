@@ -549,7 +549,7 @@ check-releases:
   # Helper function to extract version from tag
   extract_version() {
     local tag="$1"
-    echo "$tag" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+$'
+    echo "$tag" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+$' || true
   }
 
   # Helper function to bump patch version
@@ -932,7 +932,7 @@ release-all:
   # Helper function to extract version from tag
   extract_version() {
     local tag="$1"
-    echo "$tag" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+$'
+    echo "$tag" | grep -oE '[0-9]+\.[0-9]+\.[0-9]+$' || true
   }
 
   # Helper function to bump patch version
