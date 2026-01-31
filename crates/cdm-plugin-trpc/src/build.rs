@@ -146,6 +146,50 @@ fn parse_output_type(output: &str) -> OutputType {
     }
 }
 
+/// Represents a tree node for nested router generation
+#[derive(Debug, Default)]
+struct RouterNode {
+    /// Child namespaces
+    children: std::collections::BTreeMap<String, RouterNode>,
+    /// Procedures directly at this level
+    procedures: Vec<Procedure>,
+}
+
+impl RouterNode {
+    fn insert(&mut self, path: &[&str], procedure: Procedure) {
+        if path.is_empty() {
+            self.procedures.push(procedure);
+        } else {
+            self.children
+                .entry(path[0].to_string())
+                .or_default()
+                .insert(&path[1..], procedure);
+        }
+    }
+}
+
+/// Build a tree of routers from the flat procedure list
+fn build_router_tree(procedures: &[Procedure]) -> RouterNode {
+    let mut root = RouterNode::default();
+
+    for procedure in procedures {
+        let parts: Vec<&str> = procedure.name.split('.').collect();
+        if parts.len() == 1 {
+            // Flat procedure (no namespace)
+            root.procedures.push(procedure.clone());
+        } else {
+            // Namespaced procedure - use all but the last part as the path
+            let namespace_parts = &parts[..parts.len() - 1];
+            let procedure_name = parts[parts.len() - 1];
+            let mut namespaced_procedure = procedure.clone();
+            namespaced_procedure.name = procedure_name.to_string();
+            root.insert(namespace_parts, namespaced_procedure);
+        }
+    }
+
+    root
+}
+
 fn generate_contract(
     procedures: &[Procedure],
     _model_refs: &std::collections::HashSet<String>,
@@ -191,22 +235,59 @@ fn generate_contract(
     output.push_str("const router = t.router;\n");
     output.push_str("const publicProcedure = t.procedure;\n\n");
 
+    // Build router tree from procedures
+    let router_tree = build_router_tree(procedures);
+
     // Generate router definition
     output.push_str("// Router definition - implement handlers in your server code\n");
     output.push_str("export const appRouter = router({\n");
 
-    for (i, procedure) in procedures.iter().enumerate() {
-        output.push_str(&generate_procedure(procedure, valid_models));
-        if i < procedures.len() - 1 {
-            output.push('\n');
-        }
-    }
+    output.push_str(&generate_router_content(&router_tree, valid_models, 1));
 
     output.push_str("});\n\n");
 
     // Export router type
     output.push_str("// Export router type for client usage\n");
     output.push_str("export type AppRouter = typeof appRouter;\n");
+
+    output
+}
+
+/// Generate the content of a router (procedures and nested routers)
+fn generate_router_content(
+    node: &RouterNode,
+    valid_models: &std::collections::HashSet<String>,
+    indent_level: usize,
+) -> String {
+    let mut output = String::new();
+    let indent = "  ".repeat(indent_level);
+
+    // Collect all items (both procedures and child routers) for proper comma handling
+    let mut items: Vec<String> = Vec::new();
+
+    // Generate procedures at this level
+    for procedure in &node.procedures {
+        items.push(generate_procedure(procedure, valid_models, indent_level));
+    }
+
+    // Generate child routers (sorted for consistent output)
+    for (name, child_node) in &node.children {
+        let child_content = generate_router_content(child_node, valid_models, indent_level + 1);
+        items.push(format!(
+            "{}{}: router({{\n{}{}}})",
+            indent, name, child_content, indent
+        ));
+    }
+
+    // Join items with commas and newlines
+    for (i, item) in items.iter().enumerate() {
+        output.push_str(item);
+        if i < items.len() - 1 {
+            output.push_str(",\n\n");
+        } else {
+            output.push_str(",\n");
+        }
+    }
 
     output
 }
@@ -275,65 +356,72 @@ fn generate_schema_imports(
 fn generate_procedure(
     procedure: &Procedure,
     valid_models: &std::collections::HashSet<String>,
+    indent_level: usize,
 ) -> String {
     let mut output = String::new();
+    let indent = "  ".repeat(indent_level);
+    let inner_indent = "  ".repeat(indent_level + 1);
 
-    output.push_str(&format!("  {}: publicProcedure\n", procedure.name));
+    output.push_str(&format!("{}{}: publicProcedure\n", indent, procedure.name));
 
     // Input schema
     if let Some(ref input) = procedure.input {
         let input_schema = format_schema(input, valid_models);
-        output.push_str(&format!("    .input({})\n", input_schema));
+        output.push_str(&format!("{}.input({})\n", inner_indent, input_schema));
     }
 
     // Output schema
     let output_type = parse_output_type(&procedure.output);
     let output_schema = format_output_schema(&output_type, valid_models);
-    output.push_str(&format!("    .output({})\n", output_schema));
+    output.push_str(&format!("{}.output({})\n", inner_indent, output_schema));
 
     // Procedure type with handler
     match procedure.procedure_type.as_str() {
         "query" => {
-            output.push_str(&generate_query_handler(procedure, &output_type));
+            output.push_str(&generate_query_handler(procedure, &output_type, indent_level));
         }
         "mutation" => {
-            output.push_str(&generate_mutation_handler(procedure, &output_type));
+            output.push_str(&generate_mutation_handler(procedure, &output_type, indent_level));
         }
         "subscription" => {
-            output.push_str(&generate_subscription_handler(procedure, &output_type));
+            output.push_str(&generate_subscription_handler(procedure, &output_type, indent_level));
         }
         _ => {
             // Fallback to query for unknown types
-            output.push_str(&generate_query_handler(procedure, &output_type));
+            output.push_str(&generate_query_handler(procedure, &output_type, indent_level));
         }
     }
 
     output
 }
 
-fn generate_query_handler(procedure: &Procedure, output_type: &OutputType) -> String {
+fn generate_query_handler(procedure: &Procedure, output_type: &OutputType, indent_level: usize) -> String {
     let has_input = procedure.input.is_some();
     let params = if has_input { "{ input, ctx }" } else { "{ ctx }" };
     let return_comment = generate_return_comment(output_type, &procedure.output);
+    let inner_indent = "  ".repeat(indent_level + 1);
+    let body_indent = "  ".repeat(indent_level + 2);
 
     format!(
-        "    .query(({}) => {{\n      // Implement: return {}\n      throw new Error('Not implemented');\n    }}),\n",
-        params, return_comment
+        "{}.query(({}) => {{\n{}// Implement: return {}\n{}throw new Error('Not implemented');\n{}}})",
+        inner_indent, params, body_indent, return_comment, body_indent, inner_indent
     )
 }
 
-fn generate_mutation_handler(procedure: &Procedure, output_type: &OutputType) -> String {
+fn generate_mutation_handler(procedure: &Procedure, output_type: &OutputType, indent_level: usize) -> String {
     let has_input = procedure.input.is_some();
     let params = if has_input { "{ input, ctx }" } else { "{ ctx }" };
     let return_comment = generate_return_comment(output_type, &procedure.output);
+    let inner_indent = "  ".repeat(indent_level + 1);
+    let body_indent = "  ".repeat(indent_level + 2);
 
     format!(
-        "    .mutation(({}) => {{\n      // Implement: return {}\n      throw new Error('Not implemented');\n    }}),\n",
-        params, return_comment
+        "{}.mutation(({}) => {{\n{}// Implement: return {}\n{}throw new Error('Not implemented');\n{}}})",
+        inner_indent, params, body_indent, return_comment, body_indent, inner_indent
     )
 }
 
-fn generate_subscription_handler(procedure: &Procedure, output_type: &OutputType) -> String {
+fn generate_subscription_handler(procedure: &Procedure, output_type: &OutputType, indent_level: usize) -> String {
     let has_input = procedure.input.is_some();
     let params = if has_input { "{ input, ctx }" } else { "{ ctx }" };
     let emit_type = match output_type {
@@ -341,10 +429,13 @@ fn generate_subscription_handler(procedure: &Procedure, output_type: &OutputType
         OutputType::Array(model) => format!("{}[]", model),
         OutputType::Void => "void".to_string(),
     };
+    let inner_indent = "  ".repeat(indent_level + 1);
+    let body_indent = "  ".repeat(indent_level + 2);
+    let deep_indent = "  ".repeat(indent_level + 3);
 
     format!(
-        "    .subscription(({}) => {{\n      return observable<{}>(emit => {{\n        // Implement: emit.next(value) when data is available\n        return () => {{ /* cleanup */ }};\n      }});\n    }}),\n",
-        params, emit_type
+        "{}.subscription(({}) => {{\n{}return observable<{}>(emit => {{\n{}// Implement: emit.next(value) when data is available\n{}return () => {{ /* cleanup */ }};\n{}}});\n{}}})",
+        inner_indent, params, body_indent, emit_type, deep_indent, deep_indent, body_indent, inner_indent
     )
 }
 

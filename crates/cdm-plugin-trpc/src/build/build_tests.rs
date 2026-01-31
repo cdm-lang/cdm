@@ -705,3 +705,123 @@ fn test_mutation_includes_not_implemented() {
 
     assert!(content.contains("throw new Error('Not implemented')"));
 }
+
+// ============================================================================
+// Nested Router Tests (dotted procedure names)
+// ============================================================================
+
+#[test]
+fn test_build_dotted_procedure_name_generates_nested_router() {
+    let schema = create_test_schema();
+    let config = json!({
+        "procedures": {
+            "auth.getUser": {
+                "type": "query",
+                "output": "User"
+            }
+        }
+    });
+
+    let files = build(schema, config, &utils());
+    let content = &files[0].content;
+
+    // Should generate nested router, not bare dotted key
+    assert!(content.contains("auth: router({"));
+    assert!(content.contains("getUser: publicProcedure"));
+    // Should NOT contain invalid bare dotted key
+    assert!(!content.contains("auth.getUser: publicProcedure"));
+}
+
+#[test]
+fn test_build_multiple_procedures_same_namespace() {
+    let schema = create_test_schema();
+    let config = json!({
+        "procedures": {
+            "auth.getUser": {
+                "type": "query",
+                "output": "User"
+            },
+            "auth.createUser": {
+                "type": "mutation",
+                "input": "CreateUserInput",
+                "output": "User"
+            },
+            "auth.deleteUser": {
+                "type": "mutation",
+                "input": "DeleteUserInput",
+                "output": "void"
+            }
+        }
+    });
+
+    let files = build(schema, config, &utils());
+    let content = &files[0].content;
+
+    // All auth procedures should be in the same nested router
+    assert!(content.contains("auth: router({"));
+    assert!(content.contains("getUser: publicProcedure"));
+    assert!(content.contains("createUser: publicProcedure"));
+    assert!(content.contains("deleteUser: publicProcedure"));
+    // Should NOT contain invalid bare dotted keys
+    assert!(!content.contains("auth.getUser:"));
+    assert!(!content.contains("auth.createUser:"));
+    assert!(!content.contains("auth.deleteUser:"));
+}
+
+#[test]
+fn test_build_mixed_namespaced_and_flat_procedures() {
+    let schema = create_test_schema();
+    let config = json!({
+        "procedures": {
+            "health": {
+                "type": "query",
+                "output": "User"
+            },
+            "auth.getUser": {
+                "type": "query",
+                "output": "User"
+            },
+            "users.list": {
+                "type": "query",
+                "output": "User[]"
+            }
+        }
+    });
+
+    let files = build(schema, config, &utils());
+    let content = &files[0].content;
+
+    // Flat procedure
+    assert!(content.contains("health: publicProcedure"));
+    // Nested routers
+    assert!(content.contains("auth: router({"));
+    assert!(content.contains("users: router({"));
+    // Nested procedures
+    assert!(content.contains("getUser: publicProcedure"));
+    assert!(content.contains("list: publicProcedure"));
+}
+
+#[test]
+fn test_build_deeply_nested_procedure_name() {
+    let schema = create_test_schema();
+    let config = json!({
+        "procedures": {
+            "api.v1.users.get": {
+                "type": "query",
+                "output": "User"
+            }
+        }
+    });
+
+    let files = build(schema, config, &utils());
+    let content = &files[0].content;
+
+    // Should generate deeply nested routers
+    assert!(content.contains("api: router({"));
+    assert!(content.contains("v1: router({"));
+    assert!(content.contains("users: router({"));
+    assert!(content.contains("get: publicProcedure"));
+    // Should NOT contain invalid bare dotted key
+    assert!(!content.contains("api.v1.users.get:"));
+}
+
