@@ -1,0 +1,42 @@
+// tRPC Plugin Configuration Schema
+//
+// Note: build_output and migrations_output are CDM-level settings handled by
+// the CDM CLI, not by plugins. They are automatically filtered out before
+// plugin validation.
+
+GlobalSettings {
+  // Map of procedure name to procedure configuration (required)
+  procedures: JSON
+
+  // Configuration for importing Zod schemas (from @typescript plugin with generate_zod: true)
+  schema_import?: SchemaImportConfig
+}
+
+// Configuration for how to import Zod schemas
+SchemaImportConfig {
+  // File strategy: "single" for one file, "per_model" for separate files per model
+  // Default: "single"
+  strategy: "single" | "per_model"
+
+  // Path to import from
+  // - For "single": the file path without extension (e.g., "./types")
+  // - For "per_model": the directory path (e.g., "./models")
+  // Default: "./types"
+  path: string
+}
+
+// Note: Procedures are defined as JSON objects in the CDM file because they have
+// dynamic keys (procedure names). The plugin validates the procedure structure at runtime.
+//
+// Procedure structure:
+// {
+//   type: "query" | "mutation" | "subscription"  // Required - procedure type
+//   input?: string                                // Model name for input (optional)
+//   output: string                                // Model name for output, or "void" (required)
+//   error?: string                                // Error type name (optional)
+// }
+//
+// Output value types:
+// - "ModelName"       - Single response model
+// - "ModelName[]"     - Array of models (append [] to model name)
+// - "void"            - No output (returns void)

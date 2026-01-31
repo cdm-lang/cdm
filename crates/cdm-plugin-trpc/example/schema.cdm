@@ -1,0 +1,41 @@
+@typescript {
+  build_output: "./generated",
+  generate_zod: true
+}
+
+@trpc {
+  build_output: "./generated",
+  procedures: {
+    getUser: {
+      type: "query",
+      input: "GetUserInput",
+      output: "User"
+    },
+    listUsers: {
+      type: "query",
+      output: "User[]"
+    },
+    createUser: {
+      type: "mutation",
+      input: "CreateUserInput",
+      output: "User"
+    },
+    deleteUser: {
+      type: "mutation",
+      input: "DeleteUserInput",
+      output: "void"
+    },
+    onUserCreated: {
+      type: "subscription",
+      output: "User"
+    }
+  }
+}
+
+// Input types
+GetUserInput { id: string }
+CreateUserInput { email: string, name: string }
+DeleteUserInput { id: string }
+
+// Output types
+User { id: string, email: string, name: string }

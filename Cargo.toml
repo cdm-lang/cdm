@@ -8,6 +8,7 @@ members = [
     "crates/cdm-plugin-typescript",
     "crates/cdm-plugin-sql",
     "crates/cdm-plugin-ts-rest",
+    "crates/cdm-plugin-trpc",
     "crates/cdm-plugin-typeorm",
     "crates/cdm-plugin-json-schema",
     "crates/cdm-json-validator",

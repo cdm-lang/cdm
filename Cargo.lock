@@ -363,6 +363,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cdm-plugin-trpc"
+version = "0.1.0"
+dependencies = [
+ "cdm-plugin-interface",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "cdm-plugin-ts-rest"
 version = "0.1.0"
 dependencies = [
