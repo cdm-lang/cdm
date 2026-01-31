@@ -36,6 +36,7 @@ Configure in your `cdm.json`:
 | `column_name_format` | `"snake_case"` \| `"preserve"` \| `"camel_case"` \| `"pascal_case"` | `"snake_case"` | Column naming convention |
 | `pluralize_table_names` | `boolean` | `true` | Pluralize table names (User → users) |
 | `typeorm_import_path` | `string` | `"typeorm"` | Custom TypeORM import path |
+| `definite_assignment` | `boolean` | `true` | Add `!` to non-optional properties for TypeScript's `strictPropertyInitialization` |
 
 ## Field-Level Relations
 
@@ -73,14 +74,14 @@ import { User } from "./User"
 @Entity({ name: "posts" })
 export class Post {
     @PrimaryGeneratedColumn("uuid")
-    id: string
+    id!: string
 
     @Column()
-    title: string
+    title!: string
 
     @ManyToOne(() => User, (user) => user.posts)
     @JoinColumn({ name: "author_id" })
-    author: User
+    author!: User
 }
 ```
 
@@ -115,13 +116,13 @@ import { Post } from "./Post"
 @Entity({ name: "users" })
 export class User {
     @PrimaryGeneratedColumn("uuid")
-    id: string
+    id!: string
 
     @Column()
-    name: string
+    name!: string
 
     @OneToMany(() => Post, (post) => post.author)
-    posts: Post[]
+    posts!: Post[]
 }
 ```
 
@@ -278,7 +279,7 @@ import { Entity, Column, PrimaryGeneratedColumn, BeforeInsert } from "typeorm"
 @Entity({ name: "users" })
 export class User {
     @PrimaryGeneratedColumn("uuid")
-    id: string
+    id!: string
 
     @Column({ nullable: true })
     created_at?: string
@@ -326,13 +327,13 @@ import { hashPassword, initializeTransientFields } from "./hooks/userHooks"
 @Entity({ name: "users" })
 export class User {
     @PrimaryGeneratedColumn("uuid")
-    id: string
+    id!: string
 
     @Column()
-    email: string
+    email!: string
 
     @Column()
-    password_hash: string
+    password_hash!: string
 
     @BeforeInsert()
     hashPassword() {
@@ -420,10 +421,20 @@ User {
       { fields: ["email"], unique: true },
       { fields: ["created_at"] }
     ],
-    skip: false                   // Skip entity generation
+    skip: false,                  // Skip entity generation
+    definite_assignment: false    // Disable ! for this model
   }
 } #10
 ```
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `table` | `string` | model name | Override table name |
+| `schema` | `string` | - | PostgreSQL schema |
+| `indexes` | `array` | - | Indexes on this model |
+| `skip` | `boolean` | `false` | Skip entity generation |
+| `hooks` | `object` | - | Entity lifecycle hooks |
+| `definite_assignment` | `boolean` | global setting | Override definite assignment for all fields in this model |
 
 ## Field Settings
 
@@ -439,11 +450,30 @@ User {
       nullable: false,
       length: 255,
       default: "'unknown'",       // SQL default expression
-      comment: "User email"
+      comment: "User email",
+      definite_assignment: false  // Disable ! for this field
     }
   } #1
 } #10
 ```
+
+| Setting | Type | Default | Description |
+|---------|------|---------|-------------|
+| `column` | `string` | field name | Override column name |
+| `type` | `string` | - | SQL type override |
+| `ts_type` | `string` \| `object` | - | TypeScript type override |
+| `primary` | `object` | - | Primary key configuration |
+| `relation` | `object` | - | Relation configuration |
+| `join_column` | `object` | - | Join column configuration |
+| `join_table` | `object` | - | Join table configuration |
+| `unique` | `boolean` | `false` | Column is unique |
+| `default` | `string` | - | Default value (SQL expression) |
+| `nullable` | `boolean` | CDM optional | Override nullability |
+| `skip` | `boolean` | `false` | Skip this field |
+| `length` | `number` | - | Column length |
+| `array` | `boolean` | `false` | Array column |
+| `comment` | `string` | - | Column comment |
+| `definite_assignment` | `boolean` | model/global setting | Override definite assignment for this field |
 
 ## TypeScript Type Override (ts_type)
 
@@ -473,10 +503,10 @@ User {
 @Entity({ name: "users" })
 export class User {
     @PrimaryGeneratedColumn("uuid")
-    id: string
+    id!: string
 
     @Column()
-    metadata: Record<string, string>
+    metadata!: Record<string, string>
 }
 ```
 
@@ -510,10 +540,10 @@ import { UserProfile } from "./types/user"
 @Entity({ name: "users" })
 export class User {
     @PrimaryGeneratedColumn("uuid")
-    id: string
+    id!: string
 
     @Column()
-    profile: UserProfile
+    profile!: UserProfile
 }
 ```
 
@@ -548,10 +578,10 @@ import AppConfig from "./config"
 @Entity({ name: "users" })
 export class User {
     @PrimaryGeneratedColumn("uuid")
-    id: string
+    id!: string
 
     @Column()
-    config: AppConfig
+    config!: AppConfig
 }
 ```
 
@@ -589,10 +619,10 @@ import { MetadataType } from "./types/metadata"
 @Entity({ name: "users" })
 export class User {
     @PrimaryGeneratedColumn("uuid")
-    id: string
+    id!: string
 
     @Column()
-    metadata: MetadataType
+    metadata!: MetadataType
 }
 ```
 
@@ -636,10 +666,10 @@ import { UserMetadata } from "./types/user"
 @Entity({ name: "users" })
 export class User {
     @PrimaryGeneratedColumn("uuid")
-    id: string
+    id!: string
 
     @Column()
-    metadata: UserMetadata
+    metadata!: UserMetadata
 }
 ```
 
@@ -676,13 +706,13 @@ import { UserProfile, UserSettings } from "./types"
 @Entity({ name: "users" })
 export class User {
     @PrimaryGeneratedColumn("uuid")
-    id: string
+    id!: string
 
     @Column()
-    profile: UserProfile
+    profile!: UserProfile
 
     @Column()
-    settings: UserSettings
+    settings!: UserSettings
 }
 ```
 
@@ -749,7 +779,7 @@ User {
 @Entity({ name: "users" })
 export class User {
     @PrimaryGeneratedColumn("increment", { type: "bigint" })
-    id: number
+    id!: number
 }
 ```
 
@@ -772,6 +802,78 @@ User {
 @Entity({ name: "users" })
 export class User {
     @PrimaryColumn({ type: "uuid" })
-    id: string
+    id!: string
 }
 ```
+
+## Definite Assignment Assertion
+
+TypeScript's `strictPropertyInitialization` requires class properties to be initialized in the constructor or have a definite assignment assertion (`!`). Since TypeORM initializes entity properties via the ORM rather than constructors, this plugin adds `!` to non-optional properties by default.
+
+### Default Behavior
+
+```cdm
+User {
+  id: string {
+    @typeorm { primary: { generation: "uuid" } }
+  } #1
+  email: string #2
+  nickname?: string #3
+} #10
+```
+
+**Generated TypeScript:**
+
+```typescript
+@Entity({ name: "users" })
+export class User {
+    @PrimaryGeneratedColumn("uuid")
+    id!: string
+
+    @Column()
+    email!: string
+
+    @Column({ nullable: true })
+    nickname?: string
+}
+```
+
+### Disabling Globally
+
+```json
+{
+  "plugins": {
+    "typeorm": {
+      "definite_assignment": false
+    }
+  }
+}
+```
+
+### Model-Level Override
+
+```cdm
+User {
+  email: string #1
+
+  @typeorm {
+    definite_assignment: false
+  }
+} #10
+```
+
+### Field-Level Override
+
+```cdm
+User {
+  email: string {
+    @typeorm {
+      definite_assignment: false
+    }
+  } #1
+} #10
+```
+
+### Precedence
+
+Field setting → Model setting → Global setting → `true` (default)

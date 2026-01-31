@@ -93,6 +93,20 @@ fn validate_global_config(config: &JSON, errors: &mut Vec<ValidationError>) {
             }
         }
     }
+
+    // Validate definite_assignment is a boolean if specified
+    if let Some(definite_assignment) = config.get("definite_assignment") {
+        if !definite_assignment.is_boolean() {
+            errors.push(ValidationError {
+                path: vec![PathSegment {
+                    kind: "global".to_string(),
+                    name: "definite_assignment".to_string(),
+                }],
+                message: "definite_assignment must be a boolean".to_string(),
+                severity: Severity::Error,
+            });
+        }
+    }
 }
 
 fn validate_type_alias_config(
@@ -187,6 +201,26 @@ fn validate_model_config(config: &JSON, model_name: &str, errors: &mut Vec<Valid
     // Validate hooks
     if let Some(hooks) = config.get("hooks") {
         validate_hooks(hooks, model_name, errors);
+    }
+
+    // Validate definite_assignment is a boolean if specified
+    if let Some(definite_assignment) = config.get("definite_assignment") {
+        if !definite_assignment.is_boolean() {
+            errors.push(ValidationError {
+                path: vec![
+                    PathSegment {
+                        kind: "model".to_string(),
+                        name: model_name.to_string(),
+                    },
+                    PathSegment {
+                        kind: "config".to_string(),
+                        name: "definite_assignment".to_string(),
+                    },
+                ],
+                message: "definite_assignment must be a boolean".to_string(),
+                severity: Severity::Error,
+            });
+        }
     }
 
     // Note: We don't warn about missing primary keys here since that validation
@@ -492,6 +526,30 @@ fn validate_field_config(
             message: "field cannot have both 'primary' and 'relation' configuration".to_string(),
             severity: Severity::Error,
         });
+    }
+
+    // Validate definite_assignment is a boolean if specified
+    if let Some(definite_assignment) = config.get("definite_assignment") {
+        if !definite_assignment.is_boolean() {
+            errors.push(ValidationError {
+                path: vec![
+                    PathSegment {
+                        kind: "model".to_string(),
+                        name: model_name.to_string(),
+                    },
+                    PathSegment {
+                        kind: "field".to_string(),
+                        name: field_name.to_string(),
+                    },
+                    PathSegment {
+                        kind: "config".to_string(),
+                        name: "definite_assignment".to_string(),
+                    },
+                ],
+                message: "definite_assignment must be a boolean".to_string(),
+                severity: Severity::Error,
+            });
+        }
     }
 }
 

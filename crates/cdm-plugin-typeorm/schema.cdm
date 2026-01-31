@@ -20,6 +20,11 @@ GlobalSettings {
 
   // TypeORM import path (for custom installations)
   typeorm_import_path: string = "typeorm"
+
+  // Add definite assignment assertion (!) to non-optional properties
+  // Useful for TypeScript's strictPropertyInitialization since TypeORM
+  // initializes properties via the ORM rather than constructors
+  definite_assignment: boolean = true
 }
 
 TypeAliasSettings {
@@ -49,6 +54,9 @@ ModelSettings {
 
   // Entity lifecycle hooks
   hooks?: Hooks
+
+  // Override definite assignment assertion for all fields in this model
+  definite_assignment?: boolean
 }
 
 FieldSettings {
@@ -97,6 +105,9 @@ FieldSettings {
 
   // Column comment
   comment?: string
+
+  // Override definite assignment assertion for this field
+  definite_assignment?: boolean
 }
 
 // Index configuration (reuses SQL plugin structure, without primary flag)

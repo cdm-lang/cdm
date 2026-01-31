@@ -25,7 +25,7 @@ fn test_ts_type_string_generates_custom_type() {
 
     // Should use custom type instead of default mapping
     assert!(
-        content.contains("metadata: CustomMetadata"),
+        content.contains("metadata!: CustomMetadata"),
         "Should generate custom type. Content: {}",
         content
     );
@@ -53,7 +53,7 @@ fn test_ts_type_object_generates_named_import() {
 
     // Should use custom type
     assert!(
-        content.contains("data: CustomData"),
+        content.contains("data!: CustomData"),
         "Should generate custom type. Content: {}",
         content
     );
@@ -82,7 +82,7 @@ fn test_ts_type_object_generates_default_import() {
 
     // Should use custom type
     assert!(
-        content.contains("config: AppConfig"),
+        content.contains("config!: AppConfig"),
         "Should generate custom type. Content: {}",
         content
     );
@@ -111,7 +111,7 @@ fn test_type_alias_ts_type_applies_to_fields() {
 
     // Should use type from type alias config
     assert!(
-        content.contains("metadata: AliasType"),
+        content.contains("metadata!: AliasType"),
         "Should use type alias ts_type. Content: {}",
         content
     );
@@ -140,7 +140,7 @@ fn test_field_ts_type_takes_precedence_over_type_alias() {
 
     // Field-level should win
     assert!(
-        content.contains("metadata: FieldOverride"),
+        content.contains("metadata!: FieldOverride"),
         "Field ts_type should take precedence. Content: {}",
         content
     );
@@ -237,13 +237,13 @@ fn test_ts_type_works_with_relations() {
 
     // Regular field with ts_type should work
     assert!(
-        content.contains("metadata: UserMeta"),
+        content.contains("metadata!: UserMeta"),
         "Should apply ts_type to regular field. Content: {}",
         content
     );
     // Relation should still work normally
     assert!(
-        content.contains("posts: Post[]"),
+        content.contains("posts!: Post[]"),
         "Relation should work. Content: {}",
         content
     );
@@ -262,7 +262,7 @@ fn test_ts_type_works_with_primary_key() {
 
     // Primary key should have custom type
     assert!(
-        content.contains("id: CustomId"),
+        content.contains("id!: CustomId"),
         "Should apply ts_type to primary key. Content: {}",
         content
     );

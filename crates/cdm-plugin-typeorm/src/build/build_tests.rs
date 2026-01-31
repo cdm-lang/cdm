@@ -570,7 +570,7 @@ fn test_field_ts_type_string() {
     let files = build(schema, config, &utils);
 
     let content = &files[0].content;
-    assert!(content.contains("metadata: MyCustomType"));
+    assert!(content.contains("metadata!: MyCustomType"));
 }
 
 #[test]
@@ -624,7 +624,7 @@ fn test_field_ts_type_with_import() {
     let files = build(schema, config, &utils);
 
     let content = &files[0].content;
-    assert!(content.contains("data: CustomData"));
+    assert!(content.contains("data!: CustomData"));
     assert!(content.contains("import { CustomData } from \"./types/custom\""));
 }
 
@@ -680,7 +680,7 @@ fn test_field_ts_type_with_default_import() {
     let files = build(schema, config, &utils);
 
     let content = &files[0].content;
-    assert!(content.contains("config: AppConfig"));
+    assert!(content.contains("config!: AppConfig"));
     assert!(content.contains("import AppConfig from \"./types/config\""));
 }
 
@@ -751,7 +751,7 @@ fn test_type_alias_ts_type() {
     let files = build(schema, config, &utils);
 
     let content = &files[0].content;
-    assert!(content.contains("metadata: MetadataType"));
+    assert!(content.contains("metadata!: MetadataType"));
     assert!(content.contains("import { MetadataType } from \"./types/metadata\""));
 }
 
@@ -828,7 +828,7 @@ fn test_field_ts_type_precedence_over_type_alias() {
 
     let content = &files[0].content;
     // Field-level ts_type should take precedence
-    assert!(content.contains("metadata: FieldMetadataType"));
+    assert!(content.contains("metadata!: FieldMetadataType"));
     assert!(content.contains("import { FieldMetadataType } from \"./types/field-metadata\""));
     // Should NOT contain the type alias import
     assert!(!content.contains("AliasMetadataType"));
@@ -1471,6 +1471,322 @@ fn test_nested_join_column_still_works() {
     assert!(
         content.contains("@JoinColumn({ name: \"legacy_user_id\" })"),
         "Nested join_column should still work. Content: {}",
+        content
+    );
+}
+
+// Definite assignment tests
+
+#[test]
+fn test_definite_assignment_default_behavior() {
+    // By default, non-optional fields should have ! (definite assignment assertion)
+    let schema = create_test_schema();
+    let config = serde_json::json!({});
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+
+    let content = &files[0].content;
+    // email is non-optional, should have !
+    assert!(
+        content.contains("email!: string"),
+        "Non-optional field should have definite assignment assertion. Content: {}",
+        content
+    );
+    // id is non-optional primary key, should have !
+    assert!(
+        content.contains("id!: string"),
+        "Non-optional primary key should have definite assignment assertion. Content: {}",
+        content
+    );
+}
+
+#[test]
+fn test_definite_assignment_optional_fields_unchanged() {
+    // Optional fields should have ? not !
+    let schema = create_test_schema();
+    let config = serde_json::json!({});
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+
+    let content = &files[0].content;
+    // name is optional, should have ? not !
+    assert!(
+        content.contains("name?: string"),
+        "Optional field should have ? marker, not !. Content: {}",
+        content
+    );
+    assert!(
+        !content.contains("name!:"),
+        "Optional field should NOT have definite assignment assertion. Content: {}",
+        content
+    );
+}
+
+#[test]
+fn test_definite_assignment_global_false() {
+    // When global definite_assignment is false, non-optional fields should NOT have !
+    let schema = create_test_schema();
+    let config = serde_json::json!({
+        "definite_assignment": false
+    });
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+
+    let content = &files[0].content;
+    // email is non-optional but definite_assignment is false, should NOT have !
+    assert!(
+        content.contains("email: string"),
+        "Non-optional field should NOT have ! when definite_assignment is false. Content: {}",
+        content
+    );
+    assert!(
+        !content.contains("email!:"),
+        "Non-optional field should NOT have ! when definite_assignment is false. Content: {}",
+        content
+    );
+}
+
+#[test]
+fn test_definite_assignment_model_level_override_false() {
+    // Model-level definite_assignment: false should override global default (true)
+    let mut models = HashMap::new();
+
+    let user_model = ModelDefinition {
+        name: "User".to_string(),
+        parents: vec![],
+        fields: vec![
+            FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "primary": { "generation": "uuid" }
+                }),
+                entity_id: None,
+            },
+            FieldDefinition {
+                name: "email".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({}),
+                entity_id: None,
+            },
+        ],
+        config: serde_json::json!({
+            "definite_assignment": false
+        }),
+        entity_id: None,
+    };
+    models.insert("User".to_string(), user_model);
+
+    let schema = Schema {
+        models,
+        type_aliases: HashMap::new(),
+    };
+    let config = serde_json::json!({});  // Global default is true
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+
+    let content = &files[0].content;
+    // Model-level false should override global true
+    assert!(
+        content.contains("email: string"),
+        "Model-level definite_assignment: false should override global. Content: {}",
+        content
+    );
+    assert!(
+        !content.contains("email!:"),
+        "Model-level definite_assignment: false should override global. Content: {}",
+        content
+    );
+}
+
+#[test]
+fn test_definite_assignment_field_level_override_false() {
+    // Field-level definite_assignment: false should override model/global
+    let mut models = HashMap::new();
+
+    let user_model = ModelDefinition {
+        name: "User".to_string(),
+        parents: vec![],
+        fields: vec![
+            FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "primary": { "generation": "uuid" }
+                }),
+                entity_id: None,
+            },
+            FieldDefinition {
+                name: "email".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "definite_assignment": false
+                }),
+                entity_id: None,
+            },
+            FieldDefinition {
+                name: "name".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({}),
+                entity_id: None,
+            },
+        ],
+        config: serde_json::json!({}),
+        entity_id: None,
+    };
+    models.insert("User".to_string(), user_model);
+
+    let schema = Schema {
+        models,
+        type_aliases: HashMap::new(),
+    };
+    let config = serde_json::json!({});  // Global default is true
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+
+    let content = &files[0].content;
+    // Field-level false should override global true
+    assert!(
+        content.contains("email: string"),
+        "Field-level definite_assignment: false should override global. Content: {}",
+        content
+    );
+    // name should still have ! (uses global default)
+    assert!(
+        content.contains("name!: string"),
+        "Field without override should use global setting. Content: {}",
+        content
+    );
+}
+
+#[test]
+fn test_definite_assignment_field_level_override_true() {
+    // Field-level definite_assignment: true should override model-level false
+    let mut models = HashMap::new();
+
+    let user_model = ModelDefinition {
+        name: "User".to_string(),
+        parents: vec![],
+        fields: vec![
+            FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "primary": { "generation": "uuid" }
+                }),
+                entity_id: None,
+            },
+            FieldDefinition {
+                name: "email".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "definite_assignment": true
+                }),
+                entity_id: None,
+            },
+            FieldDefinition {
+                name: "name".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({}),
+                entity_id: None,
+            },
+        ],
+        config: serde_json::json!({
+            "definite_assignment": false
+        }),
+        entity_id: None,
+    };
+    models.insert("User".to_string(), user_model);
+
+    let schema = Schema {
+        models,
+        type_aliases: HashMap::new(),
+    };
+    let config = serde_json::json!({});
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+
+    let content = &files[0].content;
+    // Field-level true should override model-level false
+    assert!(
+        content.contains("email!: string"),
+        "Field-level definite_assignment: true should override model-level false. Content: {}",
+        content
+    );
+    // name should NOT have ! (uses model-level false)
+    assert!(
+        content.contains("name: string"),
+        "Field without override should use model setting. Content: {}",
+        content
+    );
+    assert!(
+        !content.contains("name!:"),
+        "Field without override should use model setting. Content: {}",
+        content
+    );
+}
+
+#[test]
+fn test_definite_assignment_relation_fields() {
+    // Relation fields should also respect definite_assignment
+    let schema = create_schema_with_relation(
+        serde_json::json!({
+            "type": "many_to_one",
+            "inverse_side": "identities"
+        }),
+        None,
+        None,
+    );
+    let config = serde_json::json!({});
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+
+    let identity_file = files.iter().find(|f| f.path == "Identity.ts").expect("Identity.ts not found");
+    let content = &identity_file.content;
+
+    // user is non-optional relation, should have !
+    assert!(
+        content.contains("user!: User"),
+        "Non-optional relation field should have definite assignment assertion. Content: {}",
         content
     );
 }

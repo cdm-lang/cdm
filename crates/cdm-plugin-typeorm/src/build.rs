@@ -12,6 +12,7 @@ struct Config {
     column_name_format: String,
     pluralize_table_names: bool,
     typeorm_import_path: String,
+    definite_assignment: bool,
 }
 
 impl Config {
@@ -46,8 +47,31 @@ impl Config {
                 .and_then(|v| v.as_str())
                 .unwrap_or("typeorm")
                 .to_string(),
+            definite_assignment: json
+                .get("definite_assignment")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(true),
         }
     }
+}
+
+/// Resolves whether to use definite assignment assertion (!) for a field.
+/// Precedence: Field config → Model config → Global config
+fn should_use_definite_assignment(
+    field: &FieldDefinition,
+    model_config: &JSON,
+    global_setting: bool,
+) -> bool {
+    // Field level takes precedence
+    if let Some(field_setting) = field.config.get("definite_assignment").and_then(|v| v.as_bool()) {
+        return field_setting;
+    }
+    // Then model level
+    if let Some(model_setting) = model_config.get("definite_assignment").and_then(|v| v.as_bool()) {
+        return model_setting;
+    }
+    // Fall back to global
+    global_setting
 }
 
 /// Tracks TypeORM imports needed for an entity
@@ -294,7 +318,7 @@ fn generate_entity(
             continue;
         }
 
-        let field_code = generate_field(field, name, cfg, utils, type_mapper, imports);
+        let field_code = generate_field(field, name, &model.config, cfg, utils, type_mapper, imports);
         result.push_str(&field_code);
     }
 
@@ -311,6 +335,7 @@ fn generate_entity(
 fn generate_field(
     field: &FieldDefinition,
     model_name: &str,
+    model_config: &JSON,
     cfg: &Config,
     utils: &Utils,
     type_mapper: &TypeMapper,
@@ -318,22 +343,23 @@ fn generate_field(
 ) -> String {
     // Check for relation config first
     if let Some(relation) = field.config.get("relation") {
-        return generate_relation_field(field, relation, model_name, type_mapper, imports);
+        return generate_relation_field(field, relation, model_name, model_config, cfg, type_mapper, imports);
     }
 
     // Check for primary key config
     if let Some(primary) = field.config.get("primary") {
-        return generate_primary_field(field, primary, cfg, utils, type_mapper, imports);
+        return generate_primary_field(field, primary, model_config, cfg, utils, type_mapper, imports);
     }
 
     // Regular column
-    generate_column_field(field, cfg, utils, type_mapper, imports)
+    generate_column_field(field, model_config, cfg, utils, type_mapper, imports)
 }
 
 fn generate_primary_field(
     field: &FieldDefinition,
     primary_config: &JSON,
-    _cfg: &Config,
+    model_config: &JSON,
+    cfg: &Config,
     _utils: &Utils,
     type_mapper: &TypeMapper,
     imports: &mut ImportCollector,
@@ -366,14 +392,21 @@ fn generate_primary_field(
 
     // Property declaration - check for ts_type override
     let ts_type = resolve_typescript_type(field, type_mapper, imports);
-    let optional_marker = if field.optional { "?" } else { "" };
-    result.push_str(&format!("    {}{}: {}\n\n", field.name, optional_marker, ts_type));
+    let property_marker = if field.optional {
+        "?"
+    } else if should_use_definite_assignment(field, model_config, cfg.definite_assignment) {
+        "!"
+    } else {
+        ""
+    };
+    result.push_str(&format!("    {}{}: {}\n\n", field.name, property_marker, ts_type));
 
     result
 }
 
 fn generate_column_field(
     field: &FieldDefinition,
+    model_config: &JSON,
     cfg: &Config,
     utils: &Utils,
     type_mapper: &TypeMapper,
@@ -432,8 +465,14 @@ fn generate_column_field(
 
     // Property declaration - check for ts_type override
     let ts_type = resolve_typescript_type(field, type_mapper, imports);
-    let optional_marker = if field.optional { "?" } else { "" };
-    result.push_str(&format!("    {}{}: {}\n\n", field.name, optional_marker, ts_type));
+    let property_marker = if field.optional {
+        "?"
+    } else if should_use_definite_assignment(field, model_config, cfg.definite_assignment) {
+        "!"
+    } else {
+        ""
+    };
+    result.push_str(&format!("    {}{}: {}\n\n", field.name, property_marker, ts_type));
 
     result
 }
@@ -442,6 +481,8 @@ fn generate_relation_field(
     field: &FieldDefinition,
     relation_config: &JSON,
     _model_name: &str,
+    model_config: &JSON,
+    cfg: &Config,
     type_mapper: &TypeMapper,
     imports: &mut ImportCollector,
 ) -> String {
@@ -546,8 +587,14 @@ fn generate_relation_field(
 
     // Property declaration - check for ts_type override
     let ts_type = resolve_typescript_type(field, type_mapper, imports);
-    let optional_marker = if field.optional { "?" } else { "" };
-    result.push_str(&format!("    {}{}: {}\n\n", field.name, optional_marker, ts_type));
+    let property_marker = if field.optional {
+        "?"
+    } else if should_use_definite_assignment(field, model_config, cfg.definite_assignment) {
+        "!"
+    } else {
+        ""
+    };
+    result.push_str(&format!("    {}{}: {}\n\n", field.name, property_marker, ts_type));
 
     result
 }
