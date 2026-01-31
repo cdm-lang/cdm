@@ -369,6 +369,8 @@ list-templates:
 # Release the CLI (creates and optionally pushes a version tag)
 # Usage: just release-cli <version>
 # Example: just release-cli 0.2.0
+# Note: This also updates the npm package version to match, which will be
+# automatically published to npm by the GitHub workflow.
 release-cli version:
   #!/usr/bin/env bash
   set -e
@@ -425,9 +427,15 @@ release-cli version:
   echo "Updating Cargo.lock..."
   cargo check --manifest-path crates/cdm/Cargo.toml
 
+  # Update version in npm package.json to match
+  echo "Updating version in npm/package.json..."
+  cd npm
+  npm version {{version}} --no-git-tag-version
+  cd ..
+
   # Commit the version update
   echo "Committing version update..."
-  git add crates/cdm/Cargo.toml Cargo.lock
+  git add crates/cdm/Cargo.toml Cargo.lock npm/package.json npm/package-lock.json
   git commit -m "Release CDM CLI {{version}}"
 
   # Create tag
@@ -439,6 +447,11 @@ release-cli version:
   echo ""
   echo "To push the commit and tag to trigger the release workflow, run:"
   echo "  git push origin main $TAG"
+  echo ""
+  echo "Note: The release workflow will automatically:"
+  echo "  - Build binaries for all platforms"
+  echo "  - Create a GitHub release"
+  echo "  - Publish @cdm-lang/cli to npm (using OIDC trusted publishing)"
   echo ""
   echo "To undo if you made a mistake, run:"
   echo "  git tag -d $TAG"
@@ -1076,8 +1089,14 @@ release-all:
         # Update Cargo.lock
         cargo check --manifest-path crates/cdm/Cargo.toml 2>/dev/null || true
 
+        # Update version in npm package.json to match
+        echo "  Updating npm package version..."
+        cd npm
+        npm version "$VERSION" --no-git-tag-version 2>/dev/null || true
+        cd ..
+
         # Commit and tag
-        git add crates/cdm/Cargo.toml Cargo.lock 2>/dev/null || true
+        git add crates/cdm/Cargo.toml Cargo.lock npm/package.json npm/package-lock.json 2>/dev/null || true
         git commit -m "Release CDM CLI $VERSION" 2>/dev/null || true
         git tag -a "$TAG" -m "Release CDM CLI v$VERSION"
 

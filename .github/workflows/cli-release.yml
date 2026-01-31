@@ -308,3 +308,44 @@ jobs:
 
           # Push to main
           git push origin main
+
+  publish-npm:
+    name: Publish to npm
+    needs: create-release
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write  # Required for OIDC trusted publishing
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          ref: main
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          registry-url: 'https://registry.npmjs.org'
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          TAG=${GITHUB_REF#refs/tags/}
+          VERSION=${TAG#cdm-cli-v}
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+
+      - name: Verify npm package version matches
+        run: |
+          NPM_VERSION=$(node -p "require('./npm/package.json').version")
+          if [ "$NPM_VERSION" != "${{ steps.version.outputs.version }}" ]; then
+            echo "Error: npm package version ($NPM_VERSION) does not match CLI version (${{ steps.version.outputs.version }})"
+            echo "The release-cli just recipe should update both versions together."
+            exit 1
+          fi
+          echo "npm package version matches CLI version: $NPM_VERSION"
+
+      - name: Publish to npm with provenance
+        working-directory: npm
+        run: npm publish --access public --provenance

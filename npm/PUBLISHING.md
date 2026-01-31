@@ -1,138 +1,52 @@
 # Publishing CDM CLI to npm
 
-This guide covers how to publish the CDM CLI package to npm.
+The npm package `@cdm-lang/cli` is **automatically published** when you release the CLI using `just release-cli`.
+
+## How It Works
+
+1. Run `just release-cli <version>` - this updates both `crates/cdm/Cargo.toml` and `npm/package.json` to the same version
+2. Push the commit and tag to trigger the GitHub workflow
+3. The workflow builds binaries, creates a GitHub release, and automatically publishes to npm
 
 ## Prerequisites
 
-1. **npm Account**: You must have an npm account with publish access to the `@cdm-lang` scope
-   ```bash
-   npm login
-   ```
+**Configure npm Trusted Publishing (OIDC)**
 
-2. **Version Synchronization**: Ensure the version in `npm/package.json` matches `crates/cdm/Cargo.toml`
+This uses GitHub's OIDC integration with npm - no access tokens needed.
 
-3. **GitHub Release**: The corresponding version must be released on GitHub with binaries built for all platforms
+1. Go to https://www.npmjs.com/package/@cdm-lang/cli/access
+2. Under "Publishing access", click "Add new trusted publisher"
+3. Configure:
+   - **Owner**: `cdm-lang`
+   - **Repository**: `cdm`
+   - **Workflow filename**: `cli-release.yml`
+   - **Environment**: (leave empty)
 
-## Pre-Publish Checklist
+## Release Workflow
 
-Before publishing, ensure:
+```bash
+# Release CLI version 0.2.0 (also updates npm package version)
+just release-cli 0.2.0
 
-- [ ] Version in `npm/package.json` matches `crates/cdm/Cargo.toml`
-- [ ] GitHub release exists for this version (tag: `cdm-cli-v<version>`)
-- [ ] All platform binaries are built and uploaded to GitHub release
-- [ ] `cli-releases.json` in the main branch has been updated with the new version
-- [ ] You've tested the package locally (see Testing section below)
+# Push to trigger the workflow
+git push origin main cdm-cli-v0.2.0
+```
 
-## Publishing Steps
+The GitHub workflow will:
+1. Build binaries for all platforms
+2. Create a GitHub release
+3. Update `cli-releases.json`
+4. Publish `@cdm-lang/cli` to npm with the same version
 
-### 1. Navigate to npm directory
+## Manual Publishing (if needed)
+
+If automatic publishing fails or you need to republish:
 
 ```bash
 cd npm
-```
-
-### 2. Test the package locally
-
-```bash
-# Install dependencies and test postinstall
-npm install
-
-# Verify the binary works
-npx cdm --version
-
-# Create a tarball and verify contents
-npm pack
-tar -tzf cdm-lang-cdm-*.tgz
-
-# Test installation in a clean directory
-cd /tmp
-mkdir cdm-npm-test
-cd cdm-npm-test
-npm init -y
-npm install /path/to/cdm/npm/cdm-lang-cdm-*.tgz
-npx cdm --version
-```
-
-### 3. Publish to npm
-
-```bash
-cd npm
+npm login  # if not already logged in
 npm publish --access public
 ```
-
-The `--access public` flag is required for scoped packages (@cdm-lang/cli).
-
-### 4. Verify the published package
-
-```bash
-# Check on npm website
-open https://www.npmjs.com/package/@cdm-lang/cli
-
-# Test installing globally
-npm install -g @cdm-lang/cli
-cdm --version
-npm uninstall -g @cdm-lang/cli
-
-# Test installing locally
-mkdir test-install
-cd test-install
-npm init -y
-npm install @cdm-lang/cli
-npx cdm --version
-```
-
-## Version Bumping Workflow
-
-When releasing a new version:
-
-1. **Update Cargo.toml**
-   ```bash
-   # In crates/cdm/Cargo.toml
-   version = "x.y.z"
-   ```
-
-2. **Update package.json**
-   ```bash
-   # In npm/package.json
-   "version": "x.y.z"
-   ```
-
-3. **Commit and tag**
-   ```bash
-   git add crates/cdm/Cargo.toml npm/package.json
-   git commit -m "Bump version to x.y.z"
-   git tag cdm-cli-vx.y.z
-   git push origin main
-   git push origin cdm-cli-vx.y.z
-   ```
-
-4. **Wait for GitHub Actions** to build binaries and update `cli-releases.json`
-
-5. **Publish to npm** (see Publishing Steps above)
-
-## Automation Options
-
-You can automate npm publishing by adding a step to the GitHub release workflow:
-
-### Option 1: Automatic Publishing
-
-Add to `.github/workflows/cli-release.yml` after the binaries are built:
-
-```yaml
-- name: Publish to npm
-  working-directory: npm
-  run: |
-    echo "//registry.npmjs.org/:_authToken=${{ secrets.NPM_TOKEN }}" > ~/.npmrc
-    npm publish --access public
-  env:
-    NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-```
-
-Then add `NPM_TOKEN` to your GitHub repository secrets.
-
-### Option 2: Manual Approval
-
-Keep npm publishing manual for more control. Just follow the steps above after each GitHub release.
 
 ## Troubleshooting
 
