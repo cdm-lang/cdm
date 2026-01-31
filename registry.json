@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-01-31T04:27:50Z",
+  "updated_at": "2026-01-31T05:39:35Z",
   "plugins": {
     "sql": {
       "description": "Generate SQL DDL schemas and migrations for PostgreSQL and SQLite",
@@ -163,6 +163,19 @@
         }
       },
       "latest": "0.1.7"
+    },
+    "trpc": {
+      "description": "Generate tRPC router contracts from CDM schemas",
+      "repository": "git:https://github.com/cdm-lang/cdm.git",
+      "official": true,
+      "versions": {
+        "0.1.0": {
+          "wasm_url": "https://github.com/cdm-lang/cdm/releases/download/cdm-plugin-trpc-v0.1.0/cdm_plugin_trpc.wasm",
+          "checksum": "sha256:5bfa6a081ab4c8ffbcdf6c0bba8404fa325c905efcd9d83d5fe558528b91f0b8"
+        }
+      },
+      "latest": "0.1.0",
+      "docs": "https://github.com/cdm-lang/cdm/blob/main/crates/cdm-plugin-trpc/README.md"
     }
   }
 }
