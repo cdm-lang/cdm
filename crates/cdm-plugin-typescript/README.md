@@ -145,6 +145,20 @@ How optional fields are represented:
 
 When `true`, the `JSON` type is mapped to `Record<string, unknown> | unknown[]`. When `false`, it's mapped to `any`.
 
+#### `generate_zod`
+
+**Type:** `boolean`
+**Default:** `false`
+
+When `true`, generates [Zod](https://zod.dev/) schemas alongside TypeScript types. Each model and type alias gets a corresponding schema (e.g., `User` gets `UserSchema`). The Zod import is automatically added when needed.
+
+```cdm
+@typescript {
+  build_output: "./src/types",
+  generate_zod: true
+}
+```
+
 #### `export_all`
 
 **Type:** `boolean`
@@ -258,6 +272,24 @@ When `true`, this model will not be generated in the output.
 **Default:** `false`
 
 When `true`, all fields in this model are marked as `readonly`.
+
+#### `generate_zod`
+
+**Type:** `boolean`
+**Default:** Inherits from global setting
+
+Override whether to generate a Zod schema for this specific model. Useful for enabling Zod on specific models when globally disabled, or excluding models when globally enabled.
+
+```cdm
+User {
+  id: string
+  name: string
+
+  @typescript {
+    generate_zod: true
+  }
+}
+```
 
 ### Field Settings
 
@@ -506,6 +538,53 @@ export interface User {
   readonly name: string;
   readonly email: string;
 }
+```
+
+### Zod Schema Generation
+
+```cdm
+@typescript {
+  build_output: "./src/types",
+  generate_zod: true
+}
+
+Status: "active" | "inactive"
+
+User {
+  id: string
+  name: string
+  email?: string
+  status: Status
+}
+```
+
+Generates:
+```typescript
+import { z } from 'zod';
+
+export type Status = "active" | "inactive";
+
+export const StatusSchema = z.union([z.literal("active"), z.literal("inactive")]);
+
+export interface User {
+  id: string;
+  name: string;
+  email?: string;
+  status: Status;
+}
+
+export const UserSchema: z.ZodType<User> = z.object({
+  id: z.string(),
+  name: z.string(),
+  email: z.string().optional(),
+  status: StatusSchema,
+});
+```
+
+Zod schemas enable runtime validation of data:
+```typescript
+const data = await fetch('/api/user').then(r => r.json());
+const user = UserSchema.parse(data); // Throws if invalid
 ```
 
 ### Type Alias Configuration
