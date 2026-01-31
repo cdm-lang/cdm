@@ -1,6 +1,6 @@
 {
   "name": "@cdm-lang/cli",
-  "version": "0.1.47",
+  "version": "0.1.54",
   "description": "CDM (Common Data Model) - A language for defining data models and generating code",
   "main": "index.js",
   "bin": {
