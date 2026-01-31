@@ -39,7 +39,7 @@ fn test_single_type_alias() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (symbol_table, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (symbol_table, _, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     assert!(diagnostics.is_empty());
     assert_eq!(symbol_table.definitions.len(), 1);
@@ -59,7 +59,7 @@ fn test_single_model() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (symbol_table, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (symbol_table, _, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     assert!(diagnostics.is_empty());
     assert_eq!(symbol_table.definitions.len(), 1);
@@ -82,7 +82,7 @@ fn test_model_with_single_extends() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (symbol_table, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (symbol_table, _, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     assert!(diagnostics.is_empty());
     assert_eq!(symbol_table.definitions.len(), 2);
@@ -114,7 +114,7 @@ fn test_model_with_multiple_extends() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (symbol_table, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (symbol_table, _, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     assert!(diagnostics.is_empty());
     assert_eq!(symbol_table.definitions.len(), 3);
@@ -141,7 +141,7 @@ fn test_multiple_type_aliases() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (symbol_table, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (symbol_table, _, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     assert!(diagnostics.is_empty());
     assert_eq!(symbol_table.definitions.len(), 3);
@@ -156,7 +156,7 @@ fn test_union_type_alias() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (symbol_table, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (symbol_table, _, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     assert!(diagnostics.is_empty());
     assert_eq!(symbol_table.definitions.len(), 1);
@@ -174,7 +174,7 @@ fn test_duplicate_type_alias_error() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (symbol_table, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (symbol_table, _, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     assert_eq!(diagnostics.len(), 1);
     assert_eq!(diagnostics[0].severity, Severity::Error);
@@ -250,7 +250,7 @@ fn test_mixed_definitions() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (symbol_table, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (symbol_table, _, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     assert!(diagnostics.is_empty());
     assert_eq!(symbol_table.definitions.len(), 5);
@@ -291,7 +291,7 @@ fn test_builtin_types_not_in_definitions() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (symbol_table, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (symbol_table, _, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     // Built-ins should not be in definitions
     assert!(symbol_table.definitions.get("string").is_none());
@@ -310,7 +310,7 @@ fn test_span_tracking() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (symbol_table, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (symbol_table, _, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     let def = symbol_table.get("Email").expect("Email should be defined");
     assert_eq!(def.span.start.line, 0);
@@ -328,7 +328,7 @@ fn test_type_alias_with_plugin_block() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (symbol_table, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (symbol_table, _, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     println!("{:?}", diagnostics);
     assert!(diagnostics.is_empty());
@@ -349,7 +349,7 @@ fn test_model_with_complex_fields() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (symbol_table, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (symbol_table, _, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     assert!(diagnostics.is_empty());
     assert_eq!(symbol_table.definitions.len(), 1);
@@ -367,7 +367,7 @@ fn test_type_alias_references_collected() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (symbol_table, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (symbol_table, _, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     assert!(diagnostics.is_empty());
 
@@ -416,7 +416,7 @@ fn test_string_literal_union_no_references() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (symbol_table, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (symbol_table, _, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     let def = symbol_table.get("Status").unwrap();
     match &def.kind {
@@ -1240,7 +1240,7 @@ AdminUser extends User {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (symbol_table, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (symbol_table, _, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     let display = format!("{}", symbol_table);
 
@@ -1276,7 +1276,7 @@ Child extends Base1, Base2 { c: string }
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (symbol_table, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (symbol_table, _, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     let display = format!("{}", symbol_table);
 
@@ -1292,7 +1292,7 @@ ValidatedEmail: Email
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (symbol_table, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (symbol_table, _, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     let display = format!("{}", symbol_table);
 
@@ -3755,7 +3755,7 @@ mod plugin_import_tests {
         let tree = parse(source);
         let mut diagnostics = Vec::new();
 
-        let (symbol_table, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+        let (symbol_table, _, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
         assert!(diagnostics.is_empty());
         assert_eq!(symbol_table.definitions.len(), 1);
@@ -3778,7 +3778,7 @@ mod plugin_import_tests {
         let tree = parse(source);
         let mut diagnostics = Vec::new();
 
-        let (symbol_table, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+        let (symbol_table, _, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
         assert!(diagnostics.is_empty());
         assert_eq!(symbol_table.definitions.len(), 1);
@@ -3966,7 +3966,7 @@ mod plugin_import_tests {
         let tree = parse(source);
         let mut diagnostics = Vec::new();
 
-        let (symbol_table, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+        let (symbol_table, _, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
         assert!(diagnostics.is_empty());
         assert_eq!(symbol_table.definitions.len(), 2);
@@ -4023,7 +4023,7 @@ fn test_array_with_valid_string_union_elements() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (_symbol_table, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (_symbol_table, _, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     assert!(diagnostics.is_empty());
 }
@@ -4105,7 +4105,7 @@ fn test_empty_array_for_string_union_type() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (_symbol_table, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (_symbol_table, _, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     assert!(diagnostics.is_empty());
 }
@@ -4331,7 +4331,7 @@ fn test_entity_id_extraction_type_alias() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (symbol_table, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (symbol_table, _, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     assert!(diagnostics.is_empty());
     let def = symbol_table.get("Email").expect("Email should be defined");
@@ -4348,7 +4348,7 @@ fn test_entity_id_extraction_model() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (symbol_table, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (symbol_table, _, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     assert!(diagnostics.is_empty());
     let def = symbol_table.get("User").expect("User should be defined");
@@ -4366,7 +4366,7 @@ fn test_entity_id_extraction_field() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (_symbol_table, model_fields, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (_symbol_table, model_fields, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     assert!(diagnostics.is_empty());
     let fields = model_fields.get("User").expect("User fields should exist");
@@ -4389,7 +4389,7 @@ fn test_entity_id_optional_field() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (_, model_fields, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (_, model_fields, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     assert!(diagnostics.is_empty());
     let fields = model_fields.get("User").expect("User fields should exist");
@@ -4408,7 +4408,7 @@ fn test_entity_id_with_default_value() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (_, model_fields, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (_, model_fields, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     assert!(diagnostics.is_empty());
     let fields = model_fields.get("User").expect("User fields should exist");
@@ -4424,7 +4424,7 @@ fn test_entity_id_with_plugins() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (symbol_table, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (symbol_table, _, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     assert!(diagnostics.is_empty());
     let def = symbol_table.get("Email").expect("Email should be defined");
@@ -4565,7 +4565,7 @@ fn test_entity_id_union_type() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (symbol_table, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (symbol_table, _, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     assert!(diagnostics.is_empty());
     let def = symbol_table.get("Status").expect("Status should be defined");
@@ -4583,7 +4583,7 @@ fn test_entity_id_array_field() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (_, model_fields, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (_, model_fields, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     assert!(diagnostics.is_empty());
     let fields = model_fields.get("User").expect("User fields should exist");
@@ -4602,7 +4602,7 @@ fn test_entity_id_untyped_field() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (_, model_fields, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (_, model_fields, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     assert!(diagnostics.is_empty());
     let fields = model_fields.get("User").expect("User fields should exist");
@@ -4627,7 +4627,7 @@ fn test_entity_ids_mixed_with_without() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (symbol_table, model_fields, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (symbol_table, model_fields, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     assert!(diagnostics.is_empty());
 
@@ -4661,7 +4661,7 @@ fn test_entity_id_zero_not_allowed() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (symbol_table, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (symbol_table, _, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     // The grammar should reject #0, so entity_id should be None
     let user_def = symbol_table.get("User").expect("User should be defined");
@@ -4679,7 +4679,7 @@ fn test_large_entity_ids() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (symbol_table, model_fields, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (symbol_table, model_fields, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     assert!(diagnostics.is_empty());
 
@@ -4704,7 +4704,7 @@ fn test_warn_missing_ids_on_model() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (symbol_table, model_fields, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (symbol_table, model_fields, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     assert!(diagnostics.is_empty());
 
@@ -4728,7 +4728,7 @@ fn test_warn_missing_ids_on_field() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (symbol_table, model_fields, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (symbol_table, model_fields, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     assert!(diagnostics.is_empty());
 
@@ -4749,7 +4749,7 @@ fn test_warn_missing_ids_on_type_alias() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (symbol_table, model_fields, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (symbol_table, model_fields, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     assert!(diagnostics.is_empty());
 
@@ -4777,7 +4777,7 @@ fn test_warn_missing_ids_multiple() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (symbol_table, model_fields, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (symbol_table, model_fields, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     assert!(diagnostics.is_empty());
 
@@ -4806,7 +4806,7 @@ fn test_warn_missing_ids_none_when_all_have_ids() {
     let tree = parse(source);
     let mut diagnostics = Vec::new();
 
-    let (symbol_table, model_fields, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
+    let (symbol_table, model_fields, _, _) = collect_definitions(tree.root_node(), source, &[], &mut diagnostics);
 
     assert!(diagnostics.is_empty());
 

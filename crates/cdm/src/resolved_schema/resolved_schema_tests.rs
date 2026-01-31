@@ -1,7 +1,7 @@
 use super::*;
 use crate::{DefinitionKind, FieldInfo, SymbolTable};
 use cdm_utils::{EntityId, EntityIdSource, Position, Span};
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 // Helper to create a local entity ID
 fn local_id(id: u64) -> Option<EntityId> {
@@ -21,7 +21,7 @@ fn test_build_resolved_schema_empty() {
     let current_symbols = SymbolTable::new();
     let current_fields = HashMap::new();
     let ancestors = vec![];
-    let removals = vec![];
+    let removals: HashSet<String> = HashSet::new();
 
     let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals, &HashMap::new());
 
@@ -47,7 +47,7 @@ fn test_build_resolved_schema_with_type_alias() {
 
     let current_fields = HashMap::new();
     let ancestors = vec![];
-    let removals = vec![];
+    let removals: HashSet<String> = HashSet::new();
 
     let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals, &HashMap::new());
 
@@ -90,7 +90,7 @@ fn test_build_resolved_schema_with_model() {
     );
 
     let ancestors = vec![];
-    let removals = vec![];
+    let removals: HashSet<String> = HashSet::new();
 
     let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals, &HashMap::new());
 
@@ -134,7 +134,8 @@ fn test_build_resolved_schema_with_removal() {
 
     let current_fields = HashMap::new();
     let ancestors = vec![];
-    let removals = vec![("ToRemove".to_string(), test_span(), "type")];
+    let mut removals: HashSet<String> = HashSet::new();
+    removals.insert("ToRemove".to_string());
 
     let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals, &HashMap::new());
 
@@ -168,7 +169,7 @@ fn test_build_resolved_schema_ancestor_type_alias() {
         model_fields: HashMap::new(),
     }];
 
-    let removals = vec![];
+    let removals: HashSet<String> = HashSet::new();
 
     let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals, &HashMap::new());
 
@@ -218,7 +219,7 @@ fn test_build_resolved_schema_current_overrides_ancestor() {
         model_fields: HashMap::new(),
     }];
 
-    let removals = vec![];
+    let removals: HashSet<String> = HashSet::new();
 
     let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals, &HashMap::new());
 
@@ -277,7 +278,7 @@ fn test_build_resolved_schema_multiple_ancestors() {
         },
     ];
 
-    let removals = vec![];
+    let removals: HashSet<String> = HashSet::new();
 
     let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals, &HashMap::new());
 
@@ -332,7 +333,7 @@ fn test_build_resolved_schema_closer_ancestor_wins() {
         },
     ];
 
-    let removals = vec![];
+    let removals: HashSet<String> = HashSet::new();
 
     let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals, &HashMap::new());
 
@@ -379,7 +380,7 @@ fn test_build_resolved_schema_model_with_extends() {
     );
 
     let ancestors = vec![];
-    let removals = vec![];
+    let removals: HashSet<String> = HashSet::new();
 
     let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals, &HashMap::new());
 
@@ -996,7 +997,7 @@ fn test_build_resolved_schema_field_with_plugin_config() {
     );
 
     let ancestors = vec![];
-    let removals = vec![];
+    let removals: HashSet<String> = HashSet::new();
 
     let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals, &HashMap::new());
 
@@ -1043,7 +1044,7 @@ fn test_build_resolved_schema_model_from_ancestor() {
         model_fields: ancestor_fields,
     }];
 
-    let removals = vec![];
+    let removals: HashSet<String> = HashSet::new();
 
     let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals, &HashMap::new());
 
@@ -1087,7 +1088,7 @@ fn test_build_resolved_schema_field_with_default_value() {
     );
 
     let ancestors = vec![];
-    let removals = vec![];
+    let removals: HashSet<String> = HashSet::new();
 
     let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals, &HashMap::new());
 
@@ -1135,7 +1136,7 @@ fn test_build_resolved_schema_with_template_namespace_type_alias() {
 
     let current_fields = HashMap::new();
     let ancestors = vec![];
-    let removals = vec![];
+    let removals: HashSet<String> = HashSet::new();
 
     let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals, &HashMap::new());
 
@@ -1239,7 +1240,7 @@ fn test_build_resolved_schema_model_modification_merges_with_ancestor() {
     let mut current_fields = HashMap::new();
     current_fields.insert("PublicUser".to_string(), vec![]);
 
-    let removals = vec![];
+    let removals: HashSet<String> = HashSet::new();
 
     let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals, &HashMap::new());
 
@@ -1347,7 +1348,7 @@ fn test_build_resolved_schema_model_modification_merges_fields() {
         }],
     );
 
-    let removals = vec![];
+    let removals: HashSet<String> = HashSet::new();
 
     let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals, &HashMap::new());
 
@@ -1447,7 +1448,7 @@ fn test_build_resolved_schema_model_modification_field_override() {
         }],
     );
 
-    let removals = vec![];
+    let removals: HashSet<String> = HashSet::new();
 
     let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals, &HashMap::new());
 
@@ -1831,11 +1832,12 @@ fn test_get_inherited_fields_redefined_model_loses_extends() {
     );
 
     // STEP 2: Build resolved schema to get the correct merged parents
+    let empty_removals: HashSet<String> = HashSet::new();
     let resolved = build_resolved_schema(
         &current_symbols,
         &current_fields,
         &ancestors,
-        &[],
+        &empty_removals,
         &HashMap::new(),
     );
 
@@ -1978,7 +1980,7 @@ fn test_qualified_type_aliases_filtered_from_plugin_schema() {
 
     let current_fields = HashMap::new();
     let ancestors = vec![];
-    let removals = vec![];
+    let removals: HashSet<String> = HashSet::new();
 
     let resolved = build_resolved_schema(&current_symbols, &current_fields, &ancestors, &removals, &HashMap::new());
 
@@ -1999,4 +2001,84 @@ fn test_qualified_type_aliases_filtered_from_plugin_schema() {
 
     let email = &resolved.type_aliases["Email"];
     assert!(!email.is_from_template, "Email should NOT be marked as from template (it's a local type alias)");
+}
+
+#[test]
+fn test_removals_exclude_models_from_resolved_schema() {
+    // Set up ancestor with base models
+    let mut ancestor_symbols = SymbolTable::new();
+    ancestor_symbols.definitions.insert(
+        "BaseModel".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model { extends: vec![] },
+            span: test_span(),
+            plugin_configs: {
+                let mut configs = HashMap::new();
+                configs.insert("typeorm".to_string(), serde_json::json!({ "skip": true }));
+                configs
+            },
+            entity_id: None,
+        },
+    );
+    ancestor_symbols.definitions.insert(
+        "ChildModel".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model { extends: vec!["BaseModel".to_string()] },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: None,
+        },
+    );
+
+    let mut ancestor_fields = HashMap::new();
+    ancestor_fields.insert("BaseModel".to_string(), vec![
+        FieldInfo {
+            name: "id".to_string(),
+            type_expr: Some("string".to_string()),
+            optional: false,
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            default_value: None,
+            entity_id: None,
+        },
+    ]);
+    ancestor_fields.insert("ChildModel".to_string(), vec![
+        FieldInfo {
+            name: "name".to_string(),
+            type_expr: Some("string".to_string()),
+            optional: false,
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            default_value: None,
+            entity_id: None,
+        },
+    ]);
+
+    let ancestors = vec![Ancestor {
+        path: "ancestor.cdm".to_string(),
+        symbol_table: ancestor_symbols,
+        model_fields: ancestor_fields,
+    }];
+
+    // Current file removes BaseModel but keeps ChildModel
+    let current_symbols = SymbolTable::new();
+    let current_fields = HashMap::new();
+    let mut removal_names: HashSet<String> = HashSet::new();
+    removal_names.insert("BaseModel".to_string());
+
+    let resolved = build_resolved_schema(
+        &current_symbols,
+        &current_fields,
+        &ancestors,
+        &removal_names,
+        &HashMap::new(),
+    );
+
+    // BaseModel should be excluded from resolved schema
+    assert!(!resolved.models.contains_key("BaseModel"),
+        "BaseModel should be excluded from resolved schema due to removal");
+
+    // ChildModel should still be included
+    assert!(resolved.models.contains_key("ChildModel"),
+        "ChildModel should still be in resolved schema");
 }

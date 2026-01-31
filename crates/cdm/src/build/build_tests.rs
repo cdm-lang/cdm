@@ -490,8 +490,8 @@ fn test_plugin_configs_flow_through_system() {
         &result.symbol_table,
         &result.model_fields,
         &[],
-        &[],
-        &std::collections::HashMap::new(),
+        &result.removal_names,
+        &result.field_removals,
     );
 
     // Check model configs
@@ -551,8 +551,8 @@ fn test_plugin_configs_passed_to_specific_plugin() {
         &result.symbol_table,
         &result.model_fields,
         &[],
-        &[],
-        &std::collections::HashMap::new(),
+        &result.removal_names,
+        &result.field_removals,
     );
 
     // Verify User model has typescript config

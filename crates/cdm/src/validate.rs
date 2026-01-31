@@ -35,6 +35,10 @@ pub struct ValidationResult {
     pub symbol_table: SymbolTable,
     /// Field information for models in this file (useful for building Ancestor structs)
     pub model_fields: HashMap<String, Vec<FieldInfo>>,
+    /// Names of models/type aliases that are removed in this file (via `-ModelName` syntax)
+    pub removal_names: HashSet<String>,
+    /// Field removals per model (via `-field_name` syntax inside a model)
+    pub field_removals: HashMap<String, HashSet<String>>,
 }
 
 impl ValidationResult {
@@ -169,6 +173,8 @@ pub fn validate(source: &str, ancestors: &[Ancestor]) -> ValidationResult {
                 tree: None,
                 symbol_table: SymbolTable::new(),
                 model_fields: HashMap::new(),
+                removal_names: HashSet::new(),
+                field_removals: HashMap::new(),
             };
         }
     };
@@ -177,7 +183,7 @@ pub fn validate(source: &str, ancestors: &[Ancestor]) -> ValidationResult {
     collect_syntax_errors(tree.root_node(), source, &mut diagnostics);
 
     // Semantic validation
-    let (symbol_table, model_fields) =
+    let (symbol_table, model_fields, removal_names, field_removals) =
         collect_semantic_errors(tree.root_node(), source, ancestors, &mut diagnostics);
 
     ValidationResult {
@@ -185,6 +191,8 @@ pub fn validate(source: &str, ancestors: &[Ancestor]) -> ValidationResult {
         tree: Some(tree),
         symbol_table,
         model_fields,
+        removal_names,
+        field_removals,
     }
 }
 
@@ -221,6 +229,8 @@ pub fn validate_with_templates(
                 tree: None,
                 symbol_table: SymbolTable::new(),
                 model_fields: HashMap::new(),
+                removal_names: HashSet::new(),
+                field_removals: HashMap::new(),
             };
         }
     };
@@ -229,7 +239,7 @@ pub fn validate_with_templates(
     collect_syntax_errors(tree.root_node(), source, &mut diagnostics);
 
     // Semantic validation with templates
-    let (symbol_table, model_fields) =
+    let (symbol_table, model_fields, removal_names, field_removals) =
         collect_semantic_errors_with_templates(tree.root_node(), source, ancestors, namespaces, &mut diagnostics);
 
     ValidationResult {
@@ -237,6 +247,8 @@ pub fn validate_with_templates(
         tree: Some(tree),
         symbol_table,
         model_fields,
+        removal_names,
+        field_removals,
     }
 }
 
@@ -316,7 +328,7 @@ fn load_single_template(
     // Note: Templates can have their own imports, but we don't recursively load them yet
     // This is a simplification - full implementation would handle nested templates
     let mut diagnostics = Vec::new();
-    let (symbol_table, model_fields, _field_removals) = collect_definitions(
+    let (symbol_table, model_fields, _field_removals, _removal_names) = collect_definitions(
         tree.root_node(),
         &template_source,
         &[], // Templates don't inherit from the main file's ancestors
@@ -573,11 +585,12 @@ fn collect_definitions(
     source: &str,
     ancestors: &[Ancestor],
     diagnostics: &mut Vec<Diagnostic>,
-) -> (SymbolTable, HashMap<String, Vec<FieldInfo>>, HashMap<String, HashSet<String>>) {
+) -> (SymbolTable, HashMap<String, Vec<FieldInfo>>, HashMap<String, HashSet<String>>, HashSet<String>) {
     let mut symbol_table = SymbolTable::new();
     let mut model_fields: HashMap<String, Vec<FieldInfo>> = HashMap::new();
     let mut field_removals: HashMap<String, HashSet<String>> = HashMap::new();
     let mut removals: Vec<(String, Span, &str)> = Vec::new(); // (name, span, kind)
+    let mut removal_names: HashSet<String> = HashSet::new();
 
     // Extract all plugin configs and default values once upfront
     let plugin_data = crate::extract_structured_plugin_configs(root, source);
@@ -609,6 +622,7 @@ fn collect_definitions(
                     let span = node_span(name_node);
                     // Store as "removal" - we'll determine if it's a model or type alias during validation
                     removals.push((name.to_string(), span, "removal"));
+                    removal_names.insert(name.to_string());
                 }
             }
             _ => {}
@@ -618,7 +632,7 @@ fn collect_definitions(
     // Second pass: validate removals
     validate_removals(&removals, &symbol_table, &model_fields, &field_removals, ancestors, diagnostics);
 
-    (symbol_table, model_fields, field_removals)
+    (symbol_table, model_fields, field_removals, removal_names)
 }
 
 /// Collect field removal names from a model definition.
@@ -668,7 +682,8 @@ fn validate_removals(
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     // Build the resolved schema (what would exist after applying removals)
-    let resolved = build_resolved_schema(symbol_table, model_fields, ancestors, removals, field_removals);
+    let removal_names: HashSet<String> = removals.iter().map(|(name, _, _)| name.clone()).collect();
+    let resolved = build_resolved_schema(symbol_table, model_fields, ancestors, &removal_names, field_removals);
 
     for (removal_name, removal_span, _kind) in removals {
         // Determine if this is a model or type alias by checking ancestors
@@ -1085,9 +1100,9 @@ fn collect_semantic_errors(
     source: &str,
     ancestors: &[Ancestor],
     diagnostics: &mut Vec<Diagnostic>,
-) -> (SymbolTable, HashMap<String, Vec<FieldInfo>>) {
+) -> (SymbolTable, HashMap<String, Vec<FieldInfo>>, HashSet<String>, HashMap<String, HashSet<String>>) {
     // Pass 1: Build symbol table (also collects type alias references and model fields)
-    let (symbol_table, model_fields, _field_removals) = collect_definitions(root, source, ancestors, diagnostics);
+    let (symbol_table, model_fields, field_removals, removal_names) = collect_definitions(root, source, ancestors, diagnostics);
 
     // Pass 2a: Detect inheritance cycles
     detect_inheritance_cycles(&symbol_table, ancestors, diagnostics);
@@ -1101,7 +1116,7 @@ fn collect_semantic_errors(
     // Pass 2d: Validate entity IDs
     validate_entity_ids(&symbol_table, &model_fields, diagnostics);
 
-    (symbol_table, model_fields)
+    (symbol_table, model_fields, removal_names, field_removals)
 }
 
 /// Semantic validation with template namespaces.
@@ -1114,9 +1129,9 @@ fn collect_semantic_errors_with_templates(
     ancestors: &[Ancestor],
     namespaces: Vec<ImportedNamespace>,
     diagnostics: &mut Vec<Diagnostic>,
-) -> (SymbolTable, HashMap<String, Vec<FieldInfo>>) {
+) -> (SymbolTable, HashMap<String, Vec<FieldInfo>>, HashSet<String>, HashMap<String, HashSet<String>>) {
     // Pass 1: Build symbol table (also collects type alias references and model fields)
-    let (mut symbol_table, model_fields, _field_removals) = collect_definitions(root, source, ancestors, diagnostics);
+    let (mut symbol_table, model_fields, field_removals, removal_names) = collect_definitions(root, source, ancestors, diagnostics);
 
     // Add template namespaces to the symbol table
     for namespace in namespaces {
@@ -1135,7 +1150,7 @@ fn collect_semantic_errors_with_templates(
     // Pass 2d: Validate entity IDs
     validate_entity_ids(&symbol_table, &model_fields, diagnostics);
 
-    (symbol_table, model_fields)
+    (symbol_table, model_fields, removal_names, field_removals)
 }
 
 // =============================================================================

@@ -646,7 +646,7 @@ Varchar: string {
 
     // Build resolved schema
     let current_fields = HashMap::new();
-    let removals: Vec<(String, Span, &str)> = vec![];
+    let removals: HashSet<String> = HashSet::new();
     let field_removals = HashMap::new();
 
     let resolved = cdm::build_resolved_schema(&main_symbols, &current_fields, &[], &removals, &field_removals);
@@ -1362,11 +1362,12 @@ User extends Entity {
     assert!(!database_result.has_errors(), "database.cdm validation errors: {:?}", database_result.diagnostics);
 
     // Build resolved schema directly to test the internal function
+    let empty_removals: HashSet<String> = HashSet::new();
     let resolved = cdm::build_resolved_schema(
         &database_result.symbol_table,
         &database_result.model_fields,
         &[public_ancestor],
-        &[],
+        &empty_removals,
         &std::collections::HashMap::new(),
     );
 

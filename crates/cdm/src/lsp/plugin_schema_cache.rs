@@ -186,8 +186,8 @@ impl PluginSchemaCache {
             &validation_result.symbol_table,
             &validation_result.model_fields,
             &[],
-            &[],
-            &std::collections::HashMap::new(),
+            &validation_result.removal_names,
+            &validation_result.field_removals,
         );
 
         // Extract simplified settings fields

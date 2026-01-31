@@ -17,7 +17,6 @@ use crate::{Ancestor, DefinitionKind, FieldInfo, SymbolTable};
 use crate::template_resolver::extract_template_imports;
 use crate::template_validation::validate_template_imports;
 use crate::validate::validate_with_templates;
-use cdm_utils::Span;
 use cdm_plugin_interface::Schema;
 
 // Re-export types from cdm-utils
@@ -94,13 +93,13 @@ pub fn build_resolved_schema(
     current_symbols: &SymbolTable,
     current_fields: &HashMap<String, Vec<FieldInfo>>,
     ancestors: &[Ancestor],
-    removals: &[(String, Span, &str)],
+    removal_names: &HashSet<String>,
     field_removals: &HashMap<String, HashSet<String>>,
 ) -> ResolvedSchema {
     let mut resolved = ResolvedSchema::new();
 
     // Build set of removed names for quick lookup
-    let removed_names: HashSet<&String> = removals.iter().map(|(name, _, _)| name).collect();
+    let removed_names: HashSet<&String> = removal_names.iter().collect();
 
     // Add definitions from ancestors (process in reverse order: furthest ancestor first)
     // This way closer ancestors override more distant ones
@@ -406,8 +405,8 @@ pub fn build_cdm_schema_for_plugin(
         &validation_result.symbol_table,
         &validation_result.model_fields,
         &ancestors,
-        &[],
-        &HashMap::new(), // No field removals when building schema for plugins
+        &validation_result.removal_names,
+        &validation_result.field_removals,
     );
 
     // Convert to plugin API Schema format
