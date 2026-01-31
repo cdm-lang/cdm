@@ -587,6 +587,37 @@ const data = await fetch('/api/user').then(r => r.json());
 const user = UserSchema.parse(data); // Throws if invalid
 ```
 
+#### Circular References
+
+The plugin automatically handles circular references between models by using Zod's `z.lazy()` for deferred evaluation:
+
+```cdm
+User {
+  id: string
+  posts: Post[]
+}
+
+Post {
+  id: string
+  author: User
+}
+```
+
+Generates schemas that properly handle the circular dependency:
+```typescript
+export const UserSchema: z.ZodType<User> = z.object({
+  id: z.string(),
+  posts: z.array(z.lazy(() => PostSchema)),
+});
+
+export const PostSchema: z.ZodType<Post> = z.object({
+  id: z.string(),
+  author: z.lazy(() => UserSchema),
+});
+```
+
+This also works for self-referential types (e.g., tree structures where a `Node` has `children: Node[]`).
+
 ### Type Alias Configuration
 
 ```cdm

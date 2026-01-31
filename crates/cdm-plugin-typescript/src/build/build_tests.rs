@@ -1482,3 +1482,157 @@ fn test_zod_schemas_per_model_grouped_file_ordering() {
         content
     );
 }
+
+#[test]
+fn test_zod_schemas_circular_reference_uses_lazy() {
+    let mut schema = Schema {
+        models: HashMap::new(),
+        type_aliases: HashMap::new(),
+    };
+
+    // Create User model that references Post
+    schema.models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "name".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(1),
+                },
+                FieldDefinition {
+                    name: "posts".to_string(),
+                    field_type: TypeExpression::Array {
+                        element_type: Box::new(TypeExpression::Identifier {
+                            name: "Post".to_string(),
+                        }),
+                    },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(2),
+                },
+            ],
+            config: json!({}),
+            entity_id: local_id(10),
+        },
+    );
+
+    // Create Post model that references User (circular dependency)
+    schema.models.insert(
+        "Post".to_string(),
+        ModelDefinition {
+            name: "Post".to_string(),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "title".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(3),
+                },
+                FieldDefinition {
+                    name: "author".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "User".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(4),
+                },
+            ],
+            config: json!({}),
+            entity_id: local_id(11),
+        },
+    );
+
+    let config = json!({ "generate_zod": true });
+    let utils = Utils;
+
+    let output = build(schema, config, &utils);
+    let content = &output[0].content;
+
+    // Both schemas should use z.lazy() for the circular reference
+    // At least one of them must use z.lazy() to break the cycle
+    let has_lazy = content.contains("z.lazy(");
+    assert!(
+        has_lazy,
+        "Circular references should use z.lazy() to break the cycle.\nContent:\n{}",
+        content
+    );
+
+    // Verify the lazy pattern is correct (wraps a schema reference)
+    assert!(
+        content.contains("z.lazy(() => PostSchema)") || content.contains("z.lazy(() => UserSchema)"),
+        "z.lazy() should wrap the schema reference.\nContent:\n{}",
+        content
+    );
+}
+
+#[test]
+fn test_zod_schemas_self_reference_uses_lazy() {
+    let mut schema = Schema {
+        models: HashMap::new(),
+        type_aliases: HashMap::new(),
+    };
+
+    // Create Node model that references itself (tree structure)
+    schema.models.insert(
+        "Node".to_string(),
+        ModelDefinition {
+            name: "Node".to_string(),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "value".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(1),
+                },
+                FieldDefinition {
+                    name: "children".to_string(),
+                    field_type: TypeExpression::Array {
+                        element_type: Box::new(TypeExpression::Identifier {
+                            name: "Node".to_string(),
+                        }),
+                    },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(2),
+                },
+            ],
+            config: json!({}),
+            entity_id: local_id(10),
+        },
+    );
+
+    let config = json!({ "generate_zod": true });
+    let utils = Utils;
+
+    let output = build(schema, config, &utils);
+    let content = &output[0].content;
+
+    // Self-reference should use z.lazy()
+    assert!(
+        content.contains("z.lazy(() => NodeSchema)"),
+        "Self-references should use z.lazy().\nContent:\n{}",
+        content
+    );
+}
