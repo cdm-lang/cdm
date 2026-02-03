@@ -1,6 +1,6 @@
 {
   "name": "tsRest",
-  "version": "0.1.0",
+  "version": "0.1.8",
   "description": "Generate ts-rest contracts from CDM schemas",
   "docs": "https://github.com/cdm-lang/cdm/blob/main/crates/cdm-plugin-ts-rest/README.md",
   "schema": "schema.cdm",
@@ -8,5 +8,7 @@
     "file": "target/wasm32-wasip1/release/cdm_plugin_ts_rest.wasm",
     "release_url": "https://github.com/cdm-lang/cdm/releases/download/cdm-plugin-tsRest-v{version}/cdm_plugin_ts_rest.wasm"
   },
-  "capabilities": ["build"]
+  "capabilities": [
+    "build"
+  ]
 }
