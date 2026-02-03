@@ -741,15 +741,44 @@ fn format_type(node: Node, source: &str) -> String {
             }
             parts.join(" | ")
         }
-        "array_type" => {
-            // array_type is: type_identifier "[" "]"
-            // The first child is the type_identifier
+        "key_union_type" => {
+            // Key union type for map keys: "a" | "b" or 1 | 2 | 3
+            let mut parts = Vec::new();
             let mut cursor = node.walk();
-            let element_type = node.children(&mut cursor)
-                .find(|child| child.kind() == "type_identifier")
-                .map(|n| get_node_text(n, source))
+            for child in node.children(&mut cursor) {
+                if child.kind() != "|" {
+                    parts.push(format_type(child, source));
+                }
+            }
+            parts.join(" | ")
+        }
+        "array_type" => {
+            // array_type is: _base_type "[" "]"
+            // _base_type can be type_identifier, map_type, or array_type
+            let mut cursor = node.walk();
+            let element_type = node
+                .children(&mut cursor)
+                .find(|child| {
+                    matches!(
+                        child.kind(),
+                        "type_identifier" | "map_type" | "array_type"
+                    )
+                })
+                .map(|n| format_type(n, source))
                 .unwrap_or_default();
             format!("{}[]", element_type)
+        }
+        "map_type" => {
+            // map_type is: value_type "[" key_type "]"
+            let value_type = node
+                .child_by_field_name("value_type")
+                .map(|n| format_type(n, source))
+                .unwrap_or_default();
+            let key_type = node
+                .child_by_field_name("key_type")
+                .map(|n| format_type(n, source))
+                .unwrap_or_default();
+            format!("{}[{}]", value_type, key_type)
         }
         "optional_type" => {
             let base_type = node

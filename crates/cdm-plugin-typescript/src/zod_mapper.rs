@@ -25,6 +25,12 @@ pub fn map_type_to_zod_with_lazy(
                 map_type_to_zod_with_lazy(element_type, strict_nulls, lazy_types)
             )
         }
+        TypeExpression::Map { value_type, key_type } => {
+            // Zod uses z.record(keySchema, valueSchema) for maps
+            let key_zod = map_key_type_to_zod(key_type, strict_nulls, lazy_types);
+            let value_zod = map_type_to_zod_with_lazy(value_type, strict_nulls, lazy_types);
+            format!("z.record({}, {})", key_zod, value_zod)
+        }
         TypeExpression::Union { types } => {
             if types.len() == 1 {
                 map_type_to_zod_with_lazy(&types[0], strict_nulls, lazy_types)
@@ -39,6 +45,61 @@ pub fn map_type_to_zod_with_lazy(
         TypeExpression::StringLiteral { value } => {
             format!("z.literal(\"{}\")", escape_string(value))
         }
+        TypeExpression::NumberLiteral { value } => {
+            if value.fract() == 0.0 {
+                format!("z.literal({})", *value as i64)
+            } else {
+                format!("z.literal({})", value)
+            }
+        }
+    }
+}
+
+/// Maps a CDM key type expression to a Zod key schema
+fn map_key_type_to_zod(
+    type_expr: &TypeExpression,
+    strict_nulls: bool,
+    lazy_types: &HashSet<String>,
+) -> String {
+    match type_expr {
+        TypeExpression::Identifier { name } => {
+            match name.as_str() {
+                "string" => "z.string()".to_string(),
+                "number" => "z.number()".to_string(),
+                // Type alias - reference schema
+                other => {
+                    let schema_name = format!("{}Schema", other);
+                    if lazy_types.contains(other) {
+                        format!("z.lazy(() => {})", schema_name)
+                    } else {
+                        schema_name
+                    }
+                }
+            }
+        }
+        TypeExpression::Union { types } => {
+            if types.len() == 1 {
+                map_key_type_to_zod(&types[0], strict_nulls, lazy_types)
+            } else {
+                let type_strings: Vec<String> = types
+                    .iter()
+                    .map(|t| map_key_type_to_zod(t, strict_nulls, lazy_types))
+                    .collect();
+                format!("z.union([{}])", type_strings.join(", "))
+            }
+        }
+        TypeExpression::StringLiteral { value } => {
+            format!("z.literal(\"{}\")", escape_string(value))
+        }
+        TypeExpression::NumberLiteral { value } => {
+            if value.fract() == 0.0 {
+                format!("z.literal({})", *value as i64)
+            } else {
+                format!("z.literal({})", value)
+            }
+        }
+        // Array and Map types are not valid keys - fallback to string
+        _ => "z.string()".to_string(),
     }
 }
 

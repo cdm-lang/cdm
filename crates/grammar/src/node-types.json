@@ -43,6 +43,14 @@
       "required": true,
       "types": [
         {
+          "type": "array_type",
+          "named": true
+        },
+        {
+          "type": "map_type",
+          "named": true
+        },
+        {
           "type": "type_identifier",
           "named": true
         }
@@ -184,6 +192,14 @@
             "named": true
           },
           {
+            "type": "map_type",
+            "named": true
+          },
+          {
+            "type": "number_literal",
+            "named": true
+          },
+          {
             "type": "string_literal",
             "named": true
           },
@@ -235,6 +251,75 @@
         "types": [
           {
             "type": "identifier",
+            "named": true
+          }
+        ]
+      }
+    }
+  },
+  {
+    "type": "key_union_type",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": true,
+      "required": true,
+      "types": [
+        {
+          "type": "number_literal",
+          "named": true
+        },
+        {
+          "type": "string_literal",
+          "named": true
+        },
+        {
+          "type": "type_identifier",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
+    "type": "map_type",
+    "named": true,
+    "fields": {
+      "key_type": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "key_union_type",
+            "named": true
+          },
+          {
+            "type": "number_literal",
+            "named": true
+          },
+          {
+            "type": "string_literal",
+            "named": true
+          },
+          {
+            "type": "type_identifier",
+            "named": true
+          }
+        ]
+      },
+      "value_type": {
+        "multiple": false,
+        "required": true,
+        "types": [
+          {
+            "type": "array_type",
+            "named": true
+          },
+          {
+            "type": "map_type",
+            "named": true
+          },
+          {
+            "type": "type_identifier",
             "named": true
           }
         ]
@@ -640,6 +725,14 @@
             "named": true
           },
           {
+            "type": "map_type",
+            "named": true
+          },
+          {
+            "type": "number_literal",
+            "named": true
+          },
+          {
             "type": "string_literal",
             "named": true
           },
@@ -684,6 +777,14 @@
       "types": [
         {
           "type": "array_type",
+          "named": true
+        },
+        {
+          "type": "map_type",
+          "named": true
+        },
+        {
+          "type": "number_literal",
           "named": true
         },
         {

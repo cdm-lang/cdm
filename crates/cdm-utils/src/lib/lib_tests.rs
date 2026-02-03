@@ -382,3 +382,173 @@ fn test_resolved_type_alias_clone_preserves_new_fields() {
     );
     assert!(!cloned.is_from_template, "is_from_template should be cloned");
 }
+
+#[test]
+fn test_parse_number_literal() {
+    assert_eq!(parse_type_string("42"), Ok(ParsedType::NumberLiteral(42.0)));
+    assert_eq!(
+        parse_type_string("3.14"),
+        Ok(ParsedType::NumberLiteral(3.14))
+    );
+    assert_eq!(
+        parse_type_string("-10"),
+        Ok(ParsedType::NumberLiteral(-10.0))
+    );
+}
+
+#[test]
+fn test_parse_number_literal_union() {
+    let result = parse_type_string("1 | 2 | 3").unwrap();
+    match result {
+        ParsedType::Union(parts) => {
+            assert_eq!(parts.len(), 3);
+            assert_eq!(parts[0], ParsedType::NumberLiteral(1.0));
+            assert_eq!(parts[1], ParsedType::NumberLiteral(2.0));
+            assert_eq!(parts[2], ParsedType::NumberLiteral(3.0));
+        }
+        _ => panic!("Expected Union type"),
+    }
+}
+
+#[test]
+fn test_parse_map_type_basic() {
+    let result = parse_type_string("User[string]").unwrap();
+    match result {
+        ParsedType::Map {
+            value_type,
+            key_type,
+        } => {
+            assert_eq!(*value_type, ParsedType::Reference("User".to_string()));
+            assert_eq!(*key_type, ParsedType::Primitive(PrimitiveType::String));
+        }
+        _ => panic!("Expected Map type"),
+    }
+}
+
+#[test]
+fn test_parse_map_type_with_number_key() {
+    let result = parse_type_string("User[number]").unwrap();
+    match result {
+        ParsedType::Map {
+            value_type,
+            key_type,
+        } => {
+            assert_eq!(*value_type, ParsedType::Reference("User".to_string()));
+            assert_eq!(*key_type, ParsedType::Primitive(PrimitiveType::Number));
+        }
+        _ => panic!("Expected Map type"),
+    }
+}
+
+#[test]
+fn test_parse_map_type_nested() {
+    // string[string][Locale] -> Map { value: Map { value: string, key: string }, key: Locale }
+    let result = parse_type_string("string[string][Locale]").unwrap();
+    match result {
+        ParsedType::Map {
+            value_type,
+            key_type,
+        } => {
+            assert_eq!(*key_type, ParsedType::Reference("Locale".to_string()));
+            match *value_type {
+                ParsedType::Map {
+                    value_type: inner_value,
+                    key_type: inner_key,
+                } => {
+                    assert_eq!(
+                        *inner_value,
+                        ParsedType::Primitive(PrimitiveType::String)
+                    );
+                    assert_eq!(*inner_key, ParsedType::Primitive(PrimitiveType::String));
+                }
+                _ => panic!("Expected nested Map type"),
+            }
+        }
+        _ => panic!("Expected Map type"),
+    }
+}
+
+#[test]
+fn test_parse_map_type_with_literal_union_key() {
+    let result = parse_type_string(r#"Prize["gold" | "silver" | "bronze"]"#).unwrap();
+    match result {
+        ParsedType::Map {
+            value_type,
+            key_type,
+        } => {
+            assert_eq!(*value_type, ParsedType::Reference("Prize".to_string()));
+            match *key_type {
+                ParsedType::Union(parts) => {
+                    assert_eq!(parts.len(), 3);
+                    assert_eq!(parts[0], ParsedType::Literal("gold".to_string()));
+                    assert_eq!(parts[1], ParsedType::Literal("silver".to_string()));
+                    assert_eq!(parts[2], ParsedType::Literal("bronze".to_string()));
+                }
+                _ => panic!("Expected Union key type"),
+            }
+        }
+        _ => panic!("Expected Map type"),
+    }
+}
+
+#[test]
+fn test_parse_map_type_with_number_literal_union_key() {
+    let result = parse_type_string("Prize[1 | 2 | 3]").unwrap();
+    match result {
+        ParsedType::Map {
+            value_type,
+            key_type,
+        } => {
+            assert_eq!(*value_type, ParsedType::Reference("Prize".to_string()));
+            match *key_type {
+                ParsedType::Union(parts) => {
+                    assert_eq!(parts.len(), 3);
+                    assert_eq!(parts[0], ParsedType::NumberLiteral(1.0));
+                    assert_eq!(parts[1], ParsedType::NumberLiteral(2.0));
+                    assert_eq!(parts[2], ParsedType::NumberLiteral(3.0));
+                }
+                _ => panic!("Expected Union key type"),
+            }
+        }
+        _ => panic!("Expected Map type"),
+    }
+}
+
+#[test]
+fn test_parse_map_type_in_union() {
+    let result = parse_type_string("string | User[number]").unwrap();
+    match result {
+        ParsedType::Union(parts) => {
+            assert_eq!(parts.len(), 2);
+            assert_eq!(parts[0], ParsedType::Primitive(PrimitiveType::String));
+            match &parts[1] {
+                ParsedType::Map {
+                    value_type,
+                    key_type,
+                } => {
+                    assert_eq!(**value_type, ParsedType::Reference("User".to_string()));
+                    assert_eq!(**key_type, ParsedType::Primitive(PrimitiveType::Number));
+                }
+                _ => panic!("Expected Map type in union"),
+            }
+        }
+        _ => panic!("Expected Union type"),
+    }
+}
+
+#[test]
+fn test_array_still_works_after_map_support() {
+    // Make sure array parsing still works correctly
+    assert_eq!(
+        parse_type_string("User[]"),
+        Ok(ParsedType::Array(Box::new(ParsedType::Reference(
+            "User".to_string()
+        ))))
+    );
+    assert_eq!(
+        parse_type_string("string[]"),
+        Ok(ParsedType::Array(Box::new(ParsedType::Primitive(
+            PrimitiveType::String
+        ))))
+    );
+}

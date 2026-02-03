@@ -189,6 +189,16 @@ impl<'a> TypeMapper<'a> {
                 // Single string literal type
                 format!("varchar({})", self.default_string_length)
             }
+
+            TypeExpression::NumberLiteral { .. } => {
+                // Number literal type - use double precision
+                "double precision".to_string()
+            }
+
+            TypeExpression::Map { value_type: _, key_type: _ } => {
+                // Map types are stored as JSONB in PostgreSQL
+                "jsonb".to_string()
+            }
         }
     }
 
@@ -230,6 +240,62 @@ impl<'a> TypeMapper<'a> {
             TypeExpression::StringLiteral { value } => {
                 format!("\"{}\"", escape_string(value))
             }
+
+            TypeExpression::NumberLiteral { value } => {
+                // Number literal as TypeScript literal type
+                if value.fract() == 0.0 {
+                    format!("{}", *value as i64)
+                } else {
+                    format!("{}", value)
+                }
+            }
+
+            TypeExpression::Map { value_type, key_type } => {
+                // Map type as TypeScript Record<K, V>
+                let key_ts = self.map_key_to_typescript_type(key_type);
+                let value_ts = self.map_to_typescript_type(value_type);
+                format!("Record<{}, {}>", key_ts, value_ts)
+            }
+        }
+    }
+
+    /// Map a CDM key type expression to a TypeScript type for Record keys
+    fn map_key_to_typescript_type(&self, type_expr: &TypeExpression) -> String {
+        match type_expr {
+            TypeExpression::Identifier { name } => {
+                match name.as_str() {
+                    "string" => "string".to_string(),
+                    "number" => "number".to_string(),
+                    _ => {
+                        // Type alias - recursively resolve
+                        if let Some(type_alias) = self.type_aliases.get(name) {
+                            self.map_key_to_typescript_type(&type_alias.alias_type)
+                        } else {
+                            // Unknown - use string as fallback
+                            "string".to_string()
+                        }
+                    }
+                }
+            }
+            TypeExpression::Union { types } => {
+                let type_strings: Vec<String> = types
+                    .iter()
+                    .map(|t| self.map_key_to_typescript_type(t))
+                    .collect();
+                type_strings.join(" | ")
+            }
+            TypeExpression::StringLiteral { value } => {
+                format!("\"{}\"", escape_string(value))
+            }
+            TypeExpression::NumberLiteral { value } => {
+                if value.fract() == 0.0 {
+                    format!("{}", *value as i64)
+                } else {
+                    format!("{}", value)
+                }
+            }
+            // Array and Map types are not valid keys
+            _ => "string".to_string(),
         }
     }
 }

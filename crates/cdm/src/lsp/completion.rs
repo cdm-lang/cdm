@@ -151,7 +151,8 @@ fn determine_completion_context(root: Node, text: &str, offset: usize) -> Option
     let mut current = node;
     loop {
         match current.kind() {
-            "type_expression" | "union_type" | "array_type" | "optional_type" => {
+            "type_expression" | "union_type" | "array_type" | "optional_type"
+            | "map_type" | "key_union_type" => {
                 return Some(CompletionContext::TypeExpression);
             }
             "extends_clause" => {

@@ -302,8 +302,13 @@ pub struct TypeAliasDefinition {
 pub enum TypeExpression {
     Identifier { name: String },
     Array { element_type: Box<TypeExpression> },
+    Map {
+        value_type: Box<TypeExpression>,
+        key_type: Box<TypeExpression>,
+    },
     Union { types: Vec<TypeExpression> },
     StringLiteral { value: String },
+    NumberLiteral { value: f64 },
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]

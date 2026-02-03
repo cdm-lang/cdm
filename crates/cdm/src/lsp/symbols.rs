@@ -199,7 +199,7 @@ fn extract_field_symbol(node: Node, text: &str) -> Option<DocumentSymbol> {
             "?" => {
                 is_optional = true;
             }
-            "type_identifier" | "array_type" | "union_type" => {
+            "type_identifier" | "array_type" | "union_type" | "map_type" => {
                 if type_expr.is_none() {
                     type_expr = child.utf8_text(text.as_bytes()).ok().map(|s| s.to_string());
                 }

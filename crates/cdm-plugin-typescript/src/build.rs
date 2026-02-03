@@ -132,6 +132,10 @@ fn collect_type_references(type_expr: &TypeExpression, references: &mut BTreeSet
         TypeExpression::Array { element_type } => {
             collect_type_references(element_type, references);
         }
+        TypeExpression::Map { value_type, key_type } => {
+            collect_type_references(value_type, references);
+            collect_type_references(key_type, references);
+        }
         TypeExpression::Union { types } => {
             for t in types {
                 collect_type_references(t, references);
@@ -139,6 +143,9 @@ fn collect_type_references(type_expr: &TypeExpression, references: &mut BTreeSet
         }
         TypeExpression::StringLiteral { .. } => {
             // String literals don't reference other types
+        }
+        TypeExpression::NumberLiteral { .. } => {
+            // Number literals don't reference other types
         }
     }
 }

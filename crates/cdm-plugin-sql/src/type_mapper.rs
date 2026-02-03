@@ -130,6 +130,22 @@ impl<'a> TypeMapper<'a> {
                     Dialect::SQLite => "TEXT".to_string(),
                 }
             }
+
+            TypeExpression::NumberLiteral { value: _ } => {
+                // Number literals are mapped to their SQL numeric type
+                match self.dialect {
+                    Dialect::PostgreSQL => "NUMERIC".to_string(),
+                    Dialect::SQLite => "REAL".to_string(),
+                }
+            }
+
+            TypeExpression::Map { value_type: _, key_type: _ } => {
+                // Maps are stored as JSON
+                match self.dialect {
+                    Dialect::PostgreSQL => "JSONB".to_string(),
+                    Dialect::SQLite => "TEXT".to_string(),
+                }
+            }
         }
     }
 

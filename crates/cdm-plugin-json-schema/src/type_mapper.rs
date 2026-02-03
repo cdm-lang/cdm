@@ -38,10 +38,21 @@ impl TypeMapper {
                     "items": items
                 })
             }
+            TypeExpression::Map { value_type, key_type: _ } => {
+                // JSON Schema represents maps as objects with additionalProperties
+                let value_schema = self.map_type(value_type, type_alias_union_mode, &json!({}));
+                json!({
+                    "type": "object",
+                    "additionalProperties": value_schema
+                })
+            }
             TypeExpression::Union { types } => {
                 self.map_union(types, type_alias_union_mode)
             }
             TypeExpression::StringLiteral { value } => {
+                json!({ "const": value })
+            }
+            TypeExpression::NumberLiteral { value } => {
                 json!({ "const": value })
             }
         }
@@ -116,10 +127,20 @@ impl TypeMapper {
                     "items": items
                 })
             }
+            TypeExpression::Map { value_type, key_type: _ } => {
+                let value_schema = self.map_type_readonly(value_type, type_alias_union_mode, &json!({}));
+                json!({
+                    "type": "object",
+                    "additionalProperties": value_schema
+                })
+            }
             TypeExpression::Union { types } => {
                 self.map_union(types, type_alias_union_mode)
             }
             TypeExpression::StringLiteral { value } => {
+                json!({ "const": value })
+            }
+            TypeExpression::NumberLiteral { value } => {
                 json!({ "const": value })
             }
         }

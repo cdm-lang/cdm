@@ -16,6 +16,7 @@
  * - Field removal: -password_hash
  * - Optional fields: name?: string
  * - Array types: Post[]
+ * - Map types: User[string], Prize[1 | 2 | 3], string[string][Locale]
  * - Plugin configurations: @sql { table: "users" }
  * - Field-level plugin overrides
  * - Context extensions: extends "./base.cdm"
@@ -292,7 +293,14 @@ module.exports = grammar({
     // =========================================================================
 
     _type_expression: ($) =>
-      choice($.union_type, $.array_type, $.type_identifier, $.string_literal),
+      choice(
+        $.union_type,
+        $.map_type,
+        $.array_type,
+        $.type_identifier,
+        $.string_literal,
+        $.number_literal
+      ),
 
     // Union type: "a" | "b" | "c" or Type1 | Type2 | "literal"
     // Supports both string literals and type references
@@ -300,7 +308,13 @@ module.exports = grammar({
       prec.left(1, seq($._union_member, repeat1(seq("|", $._union_member)))),
 
     _union_member: ($) =>
-      choice($.string_literal, $.array_type, $.type_identifier),
+      choice(
+        $.string_literal,
+        $.number_literal,
+        $.map_type,
+        $.array_type,
+        $.type_identifier
+      ),
 
     // Type identifier: simple name or qualified name (namespace.Type)
     // Examples: string, User, sql.UUID, auth.types.Email
@@ -320,8 +334,40 @@ module.exports = grammar({
     _qualified_name_rest: ($) =>
       choice($.qualified_identifier, $.identifier),
 
+    // Base type for map/array value (can be nested map, array, or simple identifier)
+    _base_type: ($) => choice($.map_type, $.array_type, $.type_identifier),
+
+    // Map type: ValueType[KeyType]
+    // Examples: User[string], Prize[1 | 2 | 3], string[string][Locale]
+    map_type: ($) =>
+      prec(
+        3,
+        seq(
+          field("value_type", $._base_type),
+          "[",
+          field("key_type", $._key_type_expression),
+          "]"
+        )
+      ),
+
+    // Key type expression - restricted to valid key types (no arrays/maps as keys)
+    _key_type_expression: ($) =>
+      choice(
+        $.key_union_type,
+        $.type_identifier,
+        $.string_literal,
+        $.number_literal
+      ),
+
+    // Union of key types: "a" | "b" or 1 | 2 | 3
+    key_union_type: ($) =>
+      prec.left(1, seq($._key_union_member, repeat1(seq("|", $._key_union_member)))),
+
+    _key_union_member: ($) =>
+      choice($.string_literal, $.number_literal, $.type_identifier),
+
     // Array type: Type[]
-    array_type: ($) => prec(2, seq($.type_identifier, "[", "]")),
+    array_type: ($) => prec(2, seq($._base_type, "[", "]")),
 
     // =========================================================================
     // VALUES (for defaults and config)

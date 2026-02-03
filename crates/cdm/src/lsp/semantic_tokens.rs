@@ -112,7 +112,8 @@ fn should_emit_token(node: &Node) -> bool {
         "source_file" | "model_body" | "plugin_block" | "_definition"
         | "_model_member" | "_type_expression" | "_value" | "_union_member"
         | "_default_value" | "type_alias" | "model_definition" | "field_definition"
-        | "union_type" | "array_type" | "type_identifier" | "extends_clause"
+        | "union_type" | "array_type" | "map_type" | "key_union_type"
+        | "type_identifier" | "extends_clause"
         | "field_override" | "field_removal" | "model_removal" | "plugin_config"
         | "plugin_import" | "object_literal" | "array_literal" | "object_entry"
         | "extends_template" | "template_import" => false,

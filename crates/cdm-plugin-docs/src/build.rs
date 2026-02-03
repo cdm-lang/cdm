@@ -209,6 +209,13 @@ fn format_type_expression(type_expr: &TypeExpression) -> String {
         TypeExpression::Array { element_type } => {
             format!("{}[]", format_type_expression(element_type))
         }
+        TypeExpression::Map { value_type, key_type } => {
+            format!(
+                "{}[{}]",
+                format_type_expression(value_type),
+                format_type_expression(key_type)
+            )
+        }
         TypeExpression::Union { types } => {
             types
                 .iter()
@@ -218,6 +225,13 @@ fn format_type_expression(type_expr: &TypeExpression) -> String {
         }
         TypeExpression::StringLiteral { value } => {
             format!("\"{}\"", value)
+        }
+        TypeExpression::NumberLiteral { value } => {
+            if value.fract() == 0.0 {
+                format!("{}", *value as i64)
+            } else {
+                format!("{}", value)
+            }
         }
     }
 }

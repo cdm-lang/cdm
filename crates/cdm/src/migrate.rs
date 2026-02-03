@@ -815,7 +815,22 @@ fn resolve_type<'a>(
                 Cow::Borrowed(t)
             }
         }
+        TypeExpression::Map { value_type, key_type } => {
+            let resolved_value = resolve_type(value_type, type_aliases);
+            let resolved_key = resolve_type(key_type, type_aliases);
+            let value_changed = !matches!(&resolved_value, Cow::Borrowed(r) if std::ptr::eq(*r, value_type.as_ref()));
+            let key_changed = !matches!(&resolved_key, Cow::Borrowed(r) if std::ptr::eq(*r, key_type.as_ref()));
+            if value_changed || key_changed {
+                Cow::Owned(TypeExpression::Map {
+                    value_type: Box::new(resolved_value.into_owned()),
+                    key_type: Box::new(resolved_key.into_owned()),
+                })
+            } else {
+                Cow::Borrowed(t)
+            }
+        }
         TypeExpression::StringLiteral { .. } => Cow::Borrowed(t),
+        TypeExpression::NumberLiteral { .. } => Cow::Borrowed(t),
     }
 }
 

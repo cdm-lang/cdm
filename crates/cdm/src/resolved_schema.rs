@@ -833,6 +833,12 @@ pub fn convert_type_expression(parsed_type: &crate::ParsedType) -> cdm_plugin_in
                 element_type: Box::new(convert_type_expression(inner))
             }
         }
+        ParsedType::Map { value_type, key_type } => {
+            cdm_plugin_interface::TypeExpression::Map {
+                value_type: Box::new(convert_type_expression(value_type)),
+                key_type: Box::new(convert_type_expression(key_type)),
+            }
+        }
         ParsedType::Union(members) => {
             cdm_plugin_interface::TypeExpression::Union {
                 types: members.iter().map(convert_type_expression).collect()
@@ -841,6 +847,11 @@ pub fn convert_type_expression(parsed_type: &crate::ParsedType) -> cdm_plugin_in
         ParsedType::Literal(value) => {
             cdm_plugin_interface::TypeExpression::StringLiteral {
                 value: value.clone()
+            }
+        }
+        ParsedType::NumberLiteral(value) => {
+            cdm_plugin_interface::TypeExpression::NumberLiteral {
+                value: *value
             }
         }
         ParsedType::Null => {

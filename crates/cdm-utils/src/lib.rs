@@ -135,10 +135,17 @@ pub enum ParsedType {
     Primitive(PrimitiveType),
     /// String literal: "active", "pending"
     Literal(String),
+    /// Number literal: 1, 2, 3 (used in number literal unions for map keys)
+    NumberLiteral(f64),
     /// Reference to a model or type alias: User, Email
     Reference(String),
     /// Array type: User[], string[]
     Array(Box<ParsedType>),
+    /// Map type: User[string], Prize[1 | 2 | 3]
+    Map {
+        value_type: Box<ParsedType>,
+        key_type: Box<ParsedType>,
+    },
     /// Union type: string | number, User | null
     Union(Vec<ParsedType>),
     /// Null type
@@ -374,7 +381,7 @@ impl ResolvedField {
 pub fn parse_type_string(type_str: &str) -> Result<ParsedType, String> {
     let trimmed = type_str.trim();
 
-    // Check for union (contains | outside of quotes)
+    // Check for union (contains | outside of quotes and brackets)
     if let Some(union_parts) = parse_union(trimmed) {
         if union_parts.len() > 1 {
             let mut parsed_parts = Vec::new();
@@ -385,7 +392,18 @@ pub fn parse_type_string(type_str: &str) -> Result<ParsedType, String> {
         }
     }
 
-    // Check for array (ends with [])
+    // Check for map type: ValueType[KeyType] (non-empty brackets)
+    // Must check BEFORE array to distinguish Type[] from Type[Key]
+    if let Some((value_part, key_part)) = parse_map_brackets(trimmed) {
+        let value_type = parse_type_string(value_part)?;
+        let key_type = parse_type_string(key_part)?;
+        return Ok(ParsedType::Map {
+            value_type: Box::new(value_type),
+            key_type: Box::new(key_type),
+        });
+    }
+
+    // Check for array (ends with [] - empty brackets)
     if trimmed.ends_with("[]") {
         let inner = &trimmed[..trimmed.len() - 2];
         let inner_type = parse_type_string(inner)?;
@@ -398,6 +416,11 @@ pub fn parse_type_string(type_str: &str) -> Result<ParsedType, String> {
     {
         let literal = &trimmed[1..trimmed.len() - 1];
         return Ok(ParsedType::Literal(literal.to_string()));
+    }
+
+    // Check for number literal
+    if let Ok(num) = trimmed.parse::<f64>() {
+        return Ok(ParsedType::NumberLiteral(num));
     }
 
     // Check for primitives and special types
@@ -418,13 +441,52 @@ pub fn parse_type_string(type_str: &str) -> Result<ParsedType, String> {
     }
 }
 
-/// Parse a union type, splitting on | outside of quotes
+/// Parse map brackets: returns (value_type, key_type) if valid map syntax
+/// Handles nested maps like string[string][Locale]
+fn parse_map_brackets(s: &str) -> Option<(&str, &str)> {
+    // Must end with ]
+    if !s.ends_with(']') {
+        return None;
+    }
+
+    // Find the matching open bracket for the last close bracket
+    let mut depth = 0;
+    let mut last_open = None;
+
+    for (i, ch) in s.char_indices().rev() {
+        match ch {
+            ']' => depth += 1,
+            '[' => {
+                depth -= 1;
+                if depth == 0 {
+                    last_open = Some(i);
+                    break;
+                }
+            }
+            _ => {}
+        }
+    }
+
+    let open_idx = last_open?;
+    let key_content = &s[open_idx + 1..s.len() - 1];
+
+    // Empty brackets = array, not map
+    if key_content.trim().is_empty() {
+        return None;
+    }
+
+    let value_part = &s[..open_idx];
+    Some((value_part.trim(), key_content.trim()))
+}
+
+/// Parse a union type, splitting on | outside of quotes and brackets
 /// Returns None if no union, Some(vec) with parts if union found
 fn parse_union(s: &str) -> Option<Vec<&str>> {
     let mut parts = Vec::new();
     let mut current_start = 0;
     let mut in_quotes = false;
     let mut quote_char = '"';
+    let mut bracket_depth = 0;
 
     for (i, ch) in s.char_indices() {
         match ch {
@@ -436,7 +498,9 @@ fn parse_union(s: &str) -> Option<Vec<&str>> {
                     in_quotes = false;
                 }
             }
-            '|' if !in_quotes => {
+            '[' if !in_quotes => bracket_depth += 1,
+            ']' if !in_quotes => bracket_depth -= 1,
+            '|' if !in_quotes && bracket_depth == 0 => {
                 parts.push(&s[current_start..i]);
                 current_start = i + 1;
             }

@@ -897,24 +897,45 @@ fn collect_type_references_recursive(
             references.push(type_name.to_string());
         }
         "array_type" => {
-            // Array type has a type_identifier child
-            let mut cursor = node.walk();
-            for child in node.children(&mut cursor) {
-                if child.kind() == "type_identifier" {
-                    let type_name = get_node_text(child, source);
-                    references.push(type_name.to_string());
-                }
-            }
-        }
-        "union_type" => {
-            // Union can have type_identifiers, string_literals, and array_types
+            // Array type has a _base_type child (type_identifier, map_type, or array_type)
             let mut cursor = node.walk();
             for child in node.children(&mut cursor) {
                 match child.kind() {
-                    "type_identifier" | "array_type" => {
+                    "type_identifier" | "map_type" | "array_type" => {
                         collect_type_references_recursive(child, source, references);
                     }
-                    // string_literal members don't create type references
+                    _ => {}
+                }
+            }
+        }
+        "map_type" => {
+            // Map type has value_type and key_type children
+            if let Some(value_node) = node.child_by_field_name("value_type") {
+                collect_type_references_recursive(value_node, source, references);
+            }
+            if let Some(key_node) = node.child_by_field_name("key_type") {
+                collect_type_references_recursive(key_node, source, references);
+            }
+        }
+        "key_union_type" => {
+            // Key union can have type_identifiers, string_literals, and number_literals
+            let mut cursor = node.walk();
+            for child in node.children(&mut cursor) {
+                if child.kind() == "type_identifier" {
+                    collect_type_references_recursive(child, source, references);
+                }
+                // string_literal and number_literal members don't create type references
+            }
+        }
+        "union_type" => {
+            // Union can have type_identifiers, string_literals, array_types, and map_types
+            let mut cursor = node.walk();
+            for child in node.children(&mut cursor) {
+                match child.kind() {
+                    "type_identifier" | "array_type" | "map_type" => {
+                        collect_type_references_recursive(child, source, references);
+                    }
+                    // string_literal and number_literal members don't create type references
                     _ => {}
                 }
             }

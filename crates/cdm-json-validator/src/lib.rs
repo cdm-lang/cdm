@@ -204,9 +204,16 @@ pub fn validate_value(
 
         ParsedType::Literal(expected) => validate_literal(json, expected, path),
 
+        ParsedType::NumberLiteral(expected) => validate_number_literal(json, *expected, path),
+
         ParsedType::Reference(name) => validate_reference(schema, json, name, path),
 
         ParsedType::Array(element_type) => validate_array(schema, json, element_type, path),
+
+        ParsedType::Map {
+            value_type,
+            key_type,
+        } => validate_map(schema, json, value_type, key_type, path),
 
         ParsedType::Union(types) => validate_union(schema, json, types, path),
 
@@ -258,6 +265,27 @@ fn validate_literal(
             severity: Severity::Error,
         }],
         None => vec![type_error(path.to_vec(), &format!("literal '{}'", expected), json_type_name(json))],
+    }
+}
+
+/// Validate a number literal
+fn validate_number_literal(
+    json: &JSON,
+    expected: f64,
+    path: &[PathSegment],
+) -> Vec<ValidationError> {
+    match json.as_f64() {
+        Some(n) if (n - expected).abs() < f64::EPSILON => vec![],
+        Some(n) => vec![ValidationError {
+            path: path.to_vec(),
+            message: format!("Expected number literal {}, got {}", expected, n),
+            severity: Severity::Error,
+        }],
+        None => vec![type_error(
+            path.to_vec(),
+            &format!("number literal {}", expected),
+            json_type_name(json),
+        )],
     }
 }
 
@@ -410,6 +438,126 @@ fn validate_array(
     errors
 }
 
+/// Validate a map type
+fn validate_map(
+    schema: &ResolvedSchema,
+    json: &JSON,
+    value_type: &ParsedType,
+    key_type: &ParsedType,
+    path: &[PathSegment],
+) -> Vec<ValidationError> {
+    let obj = match json.as_object() {
+        Some(o) => o,
+        None => {
+            return vec![type_error(path.to_vec(), "map (object)", json_type_name(json))];
+        }
+    };
+
+    let mut errors = Vec::new();
+
+    for (key, value) in obj {
+        let mut entry_path = path.to_vec();
+        entry_path.push(PathSegment {
+            kind: "key".to_string(),
+            name: key.clone(),
+        });
+
+        // Validate key against key_type
+        let key_errors = validate_map_key(key, key_type, &entry_path);
+        errors.extend(key_errors);
+
+        // Validate value against value_type
+        let value_errors = validate_value(schema, value, value_type, &entry_path);
+        errors.extend(value_errors);
+    }
+
+    errors
+}
+
+/// Validate a map key against the expected key type
+fn validate_map_key(
+    key: &str,
+    key_type: &ParsedType,
+    path: &[PathSegment],
+) -> Vec<ValidationError> {
+    match key_type {
+        ParsedType::Primitive(PrimitiveType::String) => {
+            // Any string key is valid
+            vec![]
+        }
+        ParsedType::Primitive(PrimitiveType::Number) => {
+            // Key must be parseable as a number
+            if key.parse::<f64>().is_ok() {
+                vec![]
+            } else {
+                vec![ValidationError {
+                    path: path.to_vec(),
+                    message: format!("Map key '{}' is not a valid number", key),
+                    severity: Severity::Error,
+                }]
+            }
+        }
+        ParsedType::Literal(expected) => {
+            // Key must match the literal
+            if key == expected {
+                vec![]
+            } else {
+                vec![ValidationError {
+                    path: path.to_vec(),
+                    message: format!("Map key '{}' does not match expected literal '{}'", key, expected),
+                    severity: Severity::Error,
+                }]
+            }
+        }
+        ParsedType::NumberLiteral(expected) => {
+            // Key must parse to the expected number
+            match key.parse::<f64>() {
+                Ok(n) if (n - expected).abs() < f64::EPSILON => vec![],
+                _ => vec![ValidationError {
+                    path: path.to_vec(),
+                    message: format!("Map key '{}' does not match expected number {}", key, expected),
+                    severity: Severity::Error,
+                }],
+            }
+        }
+        ParsedType::Union(types) => {
+            // Key must match at least one type in the union
+            for typ in types {
+                if validate_map_key(key, typ, path).is_empty() {
+                    return vec![];
+                }
+            }
+            let type_names: Vec<String> = types.iter().map(|t| format_type(t)).collect();
+            vec![ValidationError {
+                path: path.to_vec(),
+                message: format!(
+                    "Map key '{}' does not match any type in union ({})",
+                    key,
+                    type_names.join(" | ")
+                ),
+                severity: Severity::Error,
+            }]
+        }
+        ParsedType::Reference(name) => {
+            // For type references, we'd need to resolve the type
+            // For now, just accept the key (validation should happen at schema level)
+            vec![ValidationError {
+                path: path.to_vec(),
+                message: format!("Map key type '{}' cannot be validated at runtime", name),
+                severity: Severity::Warning,
+            }]
+        }
+        _ => {
+            // Invalid key types (Array, Map, Null) should be caught at validation time
+            vec![ValidationError {
+                path: path.to_vec(),
+                message: format!("Invalid map key type: {}", format_type(key_type)),
+                severity: Severity::Error,
+            }]
+        }
+    }
+}
+
 /// Validate a union type
 fn validate_union(
     schema: &ResolvedSchema,
@@ -475,8 +623,18 @@ fn format_type(typ: &ParsedType) -> String {
         ParsedType::Primitive(PrimitiveType::Number) => "number".to_string(),
         ParsedType::Primitive(PrimitiveType::Boolean) => "boolean".to_string(),
         ParsedType::Literal(s) => format!("\"{}\"", s),
+        ParsedType::NumberLiteral(n) => {
+            if n.fract() == 0.0 {
+                format!("{}", *n as i64)
+            } else {
+                format!("{}", n)
+            }
+        }
         ParsedType::Reference(name) => name.clone(),
         ParsedType::Array(inner) => format!("{}[]", format_type(inner)),
+        ParsedType::Map { value_type, key_type } => {
+            format!("{}[{}]", format_type(value_type), format_type(key_type))
+        }
         ParsedType::Union(types) => {
             let parts: Vec<String> = types.iter().map(|t| format_type(t)).collect();
             parts.join(" | ")
