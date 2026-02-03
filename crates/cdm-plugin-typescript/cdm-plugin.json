@@ -1,6 +1,6 @@
 {
   "name": "typescript",
-  "version": "0.1.6",
+  "version": "0.1.7",
   "description": "Generate TypeScript types from CDM schemas",
   "docs": "https://github.com/cdm-lang/cdm/blob/main/crates/cdm-plugin-typescript/README.md",
   "schema": "schema.cdm",
