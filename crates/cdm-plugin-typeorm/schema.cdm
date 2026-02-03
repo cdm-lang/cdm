@@ -47,9 +47,11 @@ ModelSettings {
   schema?: string
 
   // Indexes (excluding primary key - PKs are field-level)
-  // Keyed object where keys are index names
+  // Format: keyed object where keys are index names, values are Index definitions
   // Example: indexes: { user_email_idx: { fields: ["email"], unique: true } }
-  indexes?: json
+  // Note: CDM doesn't have a map type, so this is typed as Index[] for schema purposes
+  // but the actual runtime format uses keyed objects for proper config inheritance
+  indexes?: Index[]
 
   // Skip entity generation for this model
   skip?: boolean
