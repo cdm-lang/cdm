@@ -2452,8 +2452,13 @@ fn test_migrate_model_config_changed_index_removed() {
 }
 
 #[test]
-fn test_migrate_model_config_changed_primary_key_added() {
+fn test_migrate_model_config_changed_primary_key_added_from_empty() {
     use cdm_plugin_interface::TypeExpression;
+
+    // When `before` config is empty and `after` has a primary key,
+    // this is likely just inherited config becoming explicit, not an actual PK addition.
+    // No "manual migration required" comment should be generated.
+    // (This prevents spurious warnings - see Bug 08)
 
     let mut models = HashMap::new();
     models.insert(
@@ -2485,7 +2490,8 @@ fn test_migrate_model_config_changed_primary_key_added() {
         models,
     };
 
-    // Simulate adding a primary key
+    // Simulate config change from empty to explicit indexes
+    // This is typical when inherited config becomes explicit after flattening
     let deltas = vec![Delta::ModelConfigChanged {
         model: "User".to_string(),
         before: serde_json::json!({}),
@@ -2502,10 +2508,88 @@ fn test_migrate_model_config_changed_primary_key_added() {
     let files = migrate(schema, deltas, config, &utils);
     assert_eq!(files.len(), 2);
 
-    // Primary key changes should show manual migration comment
+    // Should NOT show manual migration comment when before config was empty
+    // (inherited indexes becoming explicit is not an actual schema change)
+    let up_content = &files[0].content;
+    assert!(!up_content.contains("Primary key change requires manual migration"),
+        "Should not show spurious manual migration comment when before config was empty, got: {}", up_content);
+}
+
+#[test]
+fn test_migrate_model_config_changed_primary_key_actually_changed() {
+    use cdm_plugin_interface::TypeExpression;
+
+    // When `before` config explicitly had a DIFFERENT primary key,
+    // and `after` has a new primary key, this IS an actual PK change
+    // that requires manual migration.
+
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            entity_id: local_id(1),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "number".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({}),
+                    entity_id: local_id(2),
+                },
+                FieldDefinition {
+                    name: "uuid".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({}),
+                    entity_id: local_id(3),
+                },
+            ],
+            config: serde_json::json!({
+                "indexes": [
+                    { "fields": ["uuid"], "primary": true }
+                ]
+            }),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models,
+    };
+
+    // Simulate changing PK from "id" to "uuid"
+    let deltas = vec![Delta::ModelConfigChanged {
+        model: "User".to_string(),
+        before: serde_json::json!({
+            "indexes": [
+                { "fields": ["id"], "primary": true }
+            ]
+        }),
+        after: serde_json::json!({
+            "indexes": [
+                { "fields": ["uuid"], "primary": true }
+            ]
+        }),
+    }];
+
+    let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+    assert_eq!(files.len(), 2);
+
+    // SHOULD show manual migration comment for actual PK change
     let up_content = &files[0].content;
     assert!(up_content.contains("Primary key change requires manual migration"),
-        "Expected manual migration comment, got: {}", up_content);
+        "Expected manual migration comment for actual PK change, got: {}", up_content);
 }
 
 #[test]
@@ -3093,4 +3177,650 @@ fn test_migrate_field_added_with_unwrapped_skip_config() {
             file.content
         );
     }
+}
+
+// ============================================================================
+// BUG 06: Missing PRIMARY KEY constraints on new tables
+// When adding multiple new entities that inherit primary key from a parent,
+// all tables should have PRIMARY KEY constraints, not just some.
+// ============================================================================
+
+#[test]
+fn test_bug_06_all_new_tables_get_primary_key() {
+    // BUG: When adding multiple tables with primary keys defined in their config,
+    // all tables should get PRIMARY KEY constraints, not just some.
+
+    let mut models = HashMap::new();
+
+    // Add two models, both with primary key indexes defined
+    models.insert(
+        "Project".to_string(),
+        ModelDefinition {
+            name: "Project".to_string(),
+            entity_id: local_id(1),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    field_type: cdm_plugin_interface::TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({ "type": "UUID" }),
+                    entity_id: local_id(2),
+                },
+                FieldDefinition {
+                    name: "name".to_string(),
+                    field_type: cdm_plugin_interface::TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({}),
+                    entity_id: local_id(3),
+                },
+            ],
+            config: serde_json::json!({
+                "indexes": [
+                    { "fields": ["id"], "primary": true }
+                ]
+            }),
+        },
+    );
+
+    models.insert(
+        "ProjectRepo".to_string(),
+        ModelDefinition {
+            name: "ProjectRepo".to_string(),
+            entity_id: local_id(10),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    field_type: cdm_plugin_interface::TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({ "type": "UUID" }),
+                    entity_id: local_id(11),
+                },
+                FieldDefinition {
+                    name: "repo_url".to_string(),
+                    field_type: cdm_plugin_interface::TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({}),
+                    entity_id: local_id(12),
+                },
+            ],
+            config: serde_json::json!({
+                "indexes": [
+                    { "fields": ["id"], "primary": true }
+                ]
+            }),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models: models.clone(),
+    };
+
+    let deltas = vec![
+        Delta::ModelAdded {
+            name: "Project".to_string(),
+            after: models.get("Project").unwrap().clone(),
+        },
+        Delta::ModelAdded {
+            name: "ProjectRepo".to_string(),
+            after: models.get("ProjectRepo").unwrap().clone(),
+        },
+    ];
+
+    let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+    assert_eq!(files.len(), 2);
+
+    let up_content = &files[0].content;
+
+    // Both tables should have PRIMARY KEY constraints
+    // Count how many times PRIMARY KEY appears - should be 2 (one for each table)
+    let pk_count = up_content.matches("PRIMARY KEY").count();
+
+    assert_eq!(
+        pk_count, 2,
+        "Both tables should have PRIMARY KEY constraints. Found {} PRIMARY KEY(s) in:\n{}",
+        pk_count, up_content
+    );
+
+    // Verify each table specifically has PRIMARY KEY
+    assert!(
+        up_content.contains("CREATE TABLE \"project\"") && up_content.contains("PRIMARY KEY (\"id\")"),
+        "project table should have PRIMARY KEY. Got:\n{}",
+        up_content
+    );
+
+    assert!(
+        up_content.contains("CREATE TABLE \"project_repo\""),
+        "project_repo table should be created. Got:\n{}",
+        up_content
+    );
+}
+
+#[test]
+fn test_bug_06_inherited_primary_key_from_parent() {
+    // BUG TEST: When a child model extends a parent that defines a primary key,
+    // the child should inherit the primary key configuration.
+    // This tests that the SQL plugin correctly handles inherited configs.
+    //
+    // Scenario:
+    //   Entity { id: UUID @sql { indexes: [{ fields: ["id"], primary: true }] } }
+    //   TimestampedEntity extends Entity { }
+    //   Project extends TimestampedEntity { name: string }
+    //
+    // Project should have PRIMARY KEY ("id") even though it doesn't define it directly.
+    //
+    // Note: The CDM core is responsible for merging inherited configs before
+    // passing to plugins. This test verifies the SQL plugin generates correct
+    // SQL when the merged config includes the inherited primary key.
+
+    let mut models = HashMap::new();
+
+    // Child model that extends a parent with primary key (simulating flattened config)
+    // After CDM core processes inheritance, the child's config should include
+    // the inherited indexes from the parent.
+    models.insert(
+        "Project".to_string(),
+        ModelDefinition {
+            name: "Project".to_string(),
+            entity_id: local_id(1),
+            // Has parent (though not relevant for SQL generation - parent is removed)
+            parents: vec!["TimestampedEntity".to_string()],
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    field_type: cdm_plugin_interface::TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({ "type": "UUID" }),
+                    entity_id: local_id(2),
+                },
+                FieldDefinition {
+                    name: "name".to_string(),
+                    field_type: cdm_plugin_interface::TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({}),
+                    entity_id: local_id(3),
+                },
+            ],
+            // Config should include inherited indexes after CDM core merging
+            config: serde_json::json!({
+                "indexes": [
+                    { "fields": ["id"], "primary": true }
+                ]
+            }),
+        },
+    );
+
+    // Another child model with inherited PK
+    models.insert(
+        "ProjectRepo".to_string(),
+        ModelDefinition {
+            name: "ProjectRepo".to_string(),
+            entity_id: local_id(10),
+            parents: vec!["TimestampedEntity".to_string()],
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    field_type: cdm_plugin_interface::TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({ "type": "UUID" }),
+                    entity_id: local_id(11),
+                },
+                FieldDefinition {
+                    name: "repo_url".to_string(),
+                    field_type: cdm_plugin_interface::TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({}),
+                    entity_id: local_id(12),
+                },
+            ],
+            // Config should include inherited indexes after CDM core merging
+            config: serde_json::json!({
+                "indexes": [
+                    { "fields": ["id"], "primary": true }
+                ]
+            }),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models: models.clone(),
+    };
+
+    let deltas = vec![
+        Delta::ModelAdded {
+            name: "Project".to_string(),
+            after: models.get("Project").unwrap().clone(),
+        },
+        Delta::ModelAdded {
+            name: "ProjectRepo".to_string(),
+            after: models.get("ProjectRepo").unwrap().clone(),
+        },
+    ];
+
+    let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+    assert_eq!(files.len(), 2);
+
+    let up_content = &files[0].content;
+
+    // Both tables should have PRIMARY KEY constraints (inherited from Entity)
+    let pk_count = up_content.matches("PRIMARY KEY").count();
+
+    assert_eq!(
+        pk_count, 2,
+        "Both tables should have PRIMARY KEY constraints inherited from parent. Found {} PRIMARY KEY(s) in:\n{}",
+        pk_count, up_content
+    );
+}
+
+// ============================================================================
+// BUG 07: Tables created before their dependencies (wrong order)
+// Tables with foreign keys should be created AFTER the tables they reference.
+// ============================================================================
+
+#[test]
+fn test_bug_07_tables_created_in_dependency_order() {
+    // BUG: When adding multiple tables with foreign key relationships,
+    // tables should be created in topological order based on FK dependencies.
+    // Currently, tables may be created in arbitrary (HashMap iteration) order.
+
+    let mut models = HashMap::new();
+
+    // Project table - has no dependencies (should be created first)
+    models.insert(
+        "Project".to_string(),
+        ModelDefinition {
+            name: "Project".to_string(),
+            entity_id: local_id(1),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    field_type: cdm_plugin_interface::TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({ "type": "UUID" }),
+                    entity_id: local_id(2),
+                },
+                FieldDefinition {
+                    name: "name".to_string(),
+                    field_type: cdm_plugin_interface::TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({}),
+                    entity_id: local_id(3),
+                },
+            ],
+            config: serde_json::json!({
+                "indexes": [
+                    { "fields": ["id"], "primary": true }
+                ]
+            }),
+        },
+    );
+
+    // ProjectRepo table - depends on Project (should be created after Project)
+    models.insert(
+        "ProjectRepo".to_string(),
+        ModelDefinition {
+            name: "ProjectRepo".to_string(),
+            entity_id: local_id(10),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    field_type: cdm_plugin_interface::TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({ "type": "UUID" }),
+                    entity_id: local_id(11),
+                },
+                FieldDefinition {
+                    name: "project_id".to_string(),
+                    field_type: cdm_plugin_interface::TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({
+                        "type": "UUID",
+                        "references": {
+                            "table": "project",
+                            "column": "id",
+                            "on_delete": "cascade"
+                        }
+                    }),
+                    entity_id: local_id(12),
+                },
+            ],
+            config: serde_json::json!({
+                "indexes": [
+                    { "fields": ["id"], "primary": true }
+                ]
+            }),
+        },
+    );
+
+    // Daemon table - depends on ProjectRepo (should be created last)
+    models.insert(
+        "Daemon".to_string(),
+        ModelDefinition {
+            name: "Daemon".to_string(),
+            entity_id: local_id(20),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    field_type: cdm_plugin_interface::TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({ "type": "UUID" }),
+                    entity_id: local_id(21),
+                },
+                FieldDefinition {
+                    name: "project_repo_id".to_string(),
+                    field_type: cdm_plugin_interface::TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({
+                        "type": "UUID",
+                        "references": {
+                            "table": "project_repo",
+                            "column": "id",
+                            "on_delete": "cascade"
+                        }
+                    }),
+                    entity_id: local_id(22),
+                },
+            ],
+            config: serde_json::json!({
+                "indexes": [
+                    { "fields": ["id"], "primary": true }
+                ]
+            }),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models: models.clone(),
+    };
+
+    // Intentionally provide deltas in WRONG order to test if migration reorders them
+    let deltas = vec![
+        Delta::ModelAdded {
+            name: "Daemon".to_string(),
+            after: models.get("Daemon").unwrap().clone(),
+        },
+        Delta::ModelAdded {
+            name: "ProjectRepo".to_string(),
+            after: models.get("ProjectRepo").unwrap().clone(),
+        },
+        Delta::ModelAdded {
+            name: "Project".to_string(),
+            after: models.get("Project").unwrap().clone(),
+        },
+    ];
+
+    let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+    assert_eq!(files.len(), 2);
+
+    let up_content = &files[0].content;
+
+    // Find the positions of each CREATE TABLE statement
+    let project_pos = up_content.find("CREATE TABLE \"project\"");
+    let project_repo_pos = up_content.find("CREATE TABLE \"project_repo\"");
+    let daemon_pos = up_content.find("CREATE TABLE \"daemon\"");
+
+    assert!(project_pos.is_some(), "project table should be created");
+    assert!(project_repo_pos.is_some(), "project_repo table should be created");
+    assert!(daemon_pos.is_some(), "daemon table should be created");
+
+    let project_pos = project_pos.unwrap();
+    let project_repo_pos = project_repo_pos.unwrap();
+    let daemon_pos = daemon_pos.unwrap();
+
+    // Project should be created before ProjectRepo (because ProjectRepo references Project)
+    assert!(
+        project_pos < project_repo_pos,
+        "project table must be created BEFORE project_repo (FK dependency). \
+        project at position {}, project_repo at position {}. Migration:\n{}",
+        project_pos, project_repo_pos, up_content
+    );
+
+    // ProjectRepo should be created before Daemon (because Daemon references ProjectRepo)
+    assert!(
+        project_repo_pos < daemon_pos,
+        "project_repo table must be created BEFORE daemon (FK dependency). \
+        project_repo at position {}, daemon at position {}. Migration:\n{}",
+        project_repo_pos, daemon_pos, up_content
+    );
+}
+
+// ============================================================================
+// BUG 08: Spurious "Primary key change requires manual migration" comment
+// When adding new entities, the migration should NOT generate spurious
+// comments about primary key changes on existing tables that weren't modified.
+// ============================================================================
+
+#[test]
+fn test_bug_08_no_spurious_primary_key_change_comment() {
+    // BUG: When a ModelConfigChanged delta is generated because the config
+    // representation changed (e.g., inherited indexes became explicit),
+    // but the actual index definition is the same, no "manual migration"
+    // comment should be generated.
+
+    // Existing User model already has a primary key
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            entity_id: local_id(1),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    field_type: cdm_plugin_interface::TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({ "type": "UUID" }),
+                    entity_id: local_id(2),
+                },
+            ],
+            config: serde_json::json!({
+                "indexes": [
+                    { "fields": ["id"], "primary": true }
+                ]
+            }),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models,
+    };
+
+    // Delta: ModelConfigChanged where before had no indexes (inherited/implicit)
+    // and after has explicit indexes. The PK is the same, just represented differently.
+    let deltas = vec![Delta::ModelConfigChanged {
+        model: "User".to_string(),
+        before: serde_json::json!({}), // No explicit indexes before (inherited)
+        after: serde_json::json!({     // Explicit indexes after (flattened)
+            "indexes": [
+                { "fields": ["id"], "primary": true }
+            ]
+        }),
+    }];
+
+    let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+    assert_eq!(files.len(), 2);
+
+    let up_content = &files[0].content;
+
+    // Should NOT contain spurious manual migration comment for primary key
+    // The primary key didn't actually change - it was just represented differently
+    assert!(
+        !up_content.contains("Primary key change requires manual migration"),
+        "Should NOT generate spurious 'Primary key change' comment when PK didn't actually change. Got:\n{}",
+        up_content
+    );
+}
+
+#[test]
+fn test_bug_08_no_spurious_pk_comment_when_adding_new_table() {
+    // BUG: When adding a new table with a primary key AND there's a
+    // ModelConfigChanged for an existing table, no spurious PK change
+    // comments should be generated for the existing table.
+
+    let mut models = HashMap::new();
+
+    // Existing User model
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            entity_id: local_id(1),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    field_type: cdm_plugin_interface::TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({ "type": "UUID" }),
+                    entity_id: local_id(2),
+                },
+            ],
+            config: serde_json::json!({
+                "indexes": [
+                    { "fields": ["id"], "primary": true }
+                ]
+            }),
+        },
+    );
+
+    // New Project model being added
+    models.insert(
+        "Project".to_string(),
+        ModelDefinition {
+            name: "Project".to_string(),
+            entity_id: local_id(10),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    field_type: cdm_plugin_interface::TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({ "type": "UUID" }),
+                    entity_id: local_id(11),
+                },
+            ],
+            config: serde_json::json!({
+                "indexes": [
+                    { "fields": ["id"], "primary": true }
+                ]
+            }),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models: models.clone(),
+    };
+
+    // Deltas: Add new Project table AND a config change for User
+    // (simulating what happens when inheritance flattening changes representation)
+    let deltas = vec![
+        Delta::ModelAdded {
+            name: "Project".to_string(),
+            after: models.get("Project").unwrap().clone(),
+        },
+        Delta::ModelConfigChanged {
+            model: "User".to_string(),
+            before: serde_json::json!({}),
+            after: serde_json::json!({
+                "indexes": [
+                    { "fields": ["id"], "primary": true }
+                ]
+            }),
+        },
+    ];
+
+    let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+    assert_eq!(files.len(), 2);
+
+    let up_content = &files[0].content;
+
+    // New table should be created
+    assert!(
+        up_content.contains("CREATE TABLE \"project\""),
+        "Project table should be created. Got:\n{}",
+        up_content
+    );
+
+    // Should NOT contain spurious manual migration comment
+    assert!(
+        !up_content.contains("Primary key change requires manual migration"),
+        "Should NOT generate spurious 'Primary key change' comment. Got:\n{}",
+        up_content
+    );
 }

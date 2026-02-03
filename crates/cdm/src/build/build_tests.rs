@@ -630,7 +630,7 @@ fn test_plugin_configs_passed_to_specific_plugin() {
 #[test]
 fn test_model_config_inherited_from_parent() {
     // BUG TEST: When a model extends another model, the child should inherit
-    // the parent's model-level plugin config (like @sql { indexes: [...] }).
+    // the parent's model-level plugin config (like @sql { indexes: {...} }).
     //
     // Per spec Section 6.5:
     //   "Model-level config: Child's config merges with parent's config"
@@ -639,15 +639,17 @@ fn test_model_config_inherited_from_parent() {
     //   - Objects: Deep merge (recursive)
     //   - Arrays: Replace entirely
     //   - Primitives: Replace entirely
+    //
+    // Using keyed object format for indexes enables proper inheritance via object merge.
     let source = r#"
         @sql
 
         Entity {
             id: string #1
             @sql {
-                indexes: [
-                    { fields: ["id"], primary: true }
-                ]
+                indexes: {
+                    primary: { fields: ["id"], primary: true }
+                }
             }
         } #1
 
@@ -667,22 +669,22 @@ fn test_model_config_inherited_from_parent() {
     let entity_in_schema = plugin_schema.models.get("Entity").expect("Entity should be in schema");
     let entity_config = entity_in_schema.config.as_object().expect("Config should be object");
     let entity_indexes = entity_config.get("indexes").expect("Entity should have indexes");
-    assert!(entity_indexes.is_array(), "indexes should be array");
-    assert_eq!(entity_indexes.as_array().unwrap().len(), 1, "Entity should have 1 index");
+    assert!(entity_indexes.is_object(), "indexes should be object (keyed format)");
+    assert_eq!(entity_indexes.as_object().unwrap().len(), 1, "Entity should have 1 index");
 
     // User extends Entity - it should inherit Entity's indexes
     let user_in_schema = plugin_schema.models.get("User").expect("User should be in schema");
     let user_config = user_in_schema.config.as_object().expect("Config should be object");
 
-    // BUG: Currently this fails because User doesn't inherit Entity's @sql config
     let user_indexes = user_config.get("indexes")
         .expect("User should inherit indexes from Entity");
-    assert!(user_indexes.is_array(), "indexes should be array");
-    assert_eq!(user_indexes.as_array().unwrap().len(), 1,
+    assert!(user_indexes.is_object(), "indexes should be object (keyed format)");
+    assert_eq!(user_indexes.as_object().unwrap().len(), 1,
         "User should inherit 1 index from Entity");
 
     // Check the inherited index has the correct content
-    let index = &user_indexes.as_array().unwrap()[0];
+    let index = user_indexes.as_object().unwrap().get("primary")
+        .expect("User should have 'primary' index");
     assert_eq!(
         index.get("primary").and_then(|v| v.as_bool()),
         Some(true),
@@ -691,27 +693,30 @@ fn test_model_config_inherited_from_parent() {
 }
 
 #[test]
-fn test_model_config_child_overrides_parent_arrays() {
-    // When child defines its own indexes, they should REPLACE parent's indexes
-    // (arrays replace entirely per spec Section 7.4)
+fn test_model_config_child_indexes_merge_with_parent() {
+    // When child defines its own indexes (keyed object format), they should MERGE with parent's
+    // indexes via standard object deep merge.
+    //
+    // With keyed object format, child keys are merged with parent keys naturally.
+    // This preserves inherited primary keys when child adds its own indexes.
     let source = r#"
         @sql
 
         Entity {
             id: string #1
             @sql {
-                indexes: [
-                    { fields: ["id"], primary: true }
-                ]
+                indexes: {
+                    primary: { fields: ["id"], primary: true }
+                }
             }
         } #1
 
         User extends Entity {
             email: string #2
             @sql {
-                indexes: [
-                    { fields: ["email"], unique: true }
-                ]
+                indexes: {
+                    email_unique: { fields: ["email"], unique: true }
+                }
             }
         } #2
     "#;
@@ -726,17 +731,24 @@ fn test_model_config_child_overrides_parent_arrays() {
     let user_config = user_in_schema.config.as_object().expect("Config should be object");
     let user_indexes = user_config.get("indexes").expect("User should have indexes");
 
-    // Child's indexes should REPLACE parent's (not merge)
-    assert_eq!(user_indexes.as_array().unwrap().len(), 1,
-        "User should have 1 index (its own, not merged with parent)");
+    // Indexes should be a keyed object with both parent and child indexes
+    let indexes_obj = user_indexes.as_object().expect("indexes should be an object");
+    assert_eq!(indexes_obj.len(), 2,
+        "User should have 2 indexes (parent's 'primary' + own 'email_unique')");
 
-    let index = &user_indexes.as_array().unwrap()[0];
-    // Should be the child's index (email, unique), not parent's (id, primary)
-    assert_eq!(
-        index.get("unique").and_then(|v| v.as_bool()),
-        Some(true),
-        "Index should be User's own (unique: true)"
-    );
+    // Should have the parent's "primary" index
+    assert!(indexes_obj.contains_key("primary"),
+        "User should have inherited 'primary' index from Entity");
+    let primary_idx = indexes_obj.get("primary").unwrap();
+    assert_eq!(primary_idx.get("primary").and_then(|v| v.as_bool()), Some(true),
+        "'primary' index should have primary: true");
+
+    // Should have child's "email_unique" index
+    assert!(indexes_obj.contains_key("email_unique"),
+        "User should have its own 'email_unique' index");
+    let email_idx = indexes_obj.get("email_unique").unwrap();
+    assert_eq!(email_idx.get("unique").and_then(|v| v.as_bool()), Some(true),
+        "'email_unique' index should have unique: true");
 }
 
 #[test]
@@ -805,9 +817,9 @@ fn test_model_config_multi_level_inheritance() {
         Entity {
             id: string #1
             @sql {
-                indexes: [
-                    { fields: ["id"], primary: true }
-                ]
+                indexes: {
+                    primary: { fields: ["id"], primary: true }
+                }
             }
         } #1
 

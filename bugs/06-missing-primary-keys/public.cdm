@@ -1,0 +1,35 @@
+import sqlType from "sql-types/postgres"
+
+@sql
+
+Entity {
+  id: sqlType.UUID
+  @sql {
+    indexes: {
+      primary: { fields: ["id"], primary: true }
+    }
+  }
+}
+
+Timestamped {
+  created_at: sqlType.TimestampTZ {
+    @sql { default: "NOW()" }
+  }
+}
+
+TimestampedEntity extends Entity, Timestamped {
+}
+
+PublicUser extends TimestampedEntity {
+  name?: string
+}
+
+// New entities to add
+PublicProject extends TimestampedEntity {
+  name: string
+}
+
+PublicProjectRepo extends TimestampedEntity {
+  project_id: string
+  repo_url: string
+}

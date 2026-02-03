@@ -2110,12 +2110,14 @@ fn test_removed_parent_model_config_still_inherited() {
     // Create ancestor with Entity, TimestampedEntity, PublicProject
     let mut ancestor_symbols = SymbolTable::new();
 
-    // Entity with primary key config
+    // Entity with primary key config (keyed object format)
     let mut entity_config = HashMap::new();
     entity_config.insert(
         "sql".to_string(),
         serde_json::json!({
-            "indexes": [{ "fields": ["id"], "primary": true }]
+            "indexes": {
+                "primary": { "fields": ["id"], "primary": true }
+            }
         }),
     );
     ancestor_symbols.definitions.insert(
@@ -2285,18 +2287,391 @@ fn test_removed_parent_model_config_still_inherited() {
         merged_config
     );
 
-    let indexes_array = indexes.unwrap().as_array();
+    let indexes_obj = indexes.unwrap().as_object();
     assert!(
-        indexes_array.is_some() && !indexes_array.unwrap().is_empty(),
+        indexes_obj.is_some() && !indexes_obj.unwrap().is_empty(),
         "Project should have inherited primary key index from Entity"
     );
 
     // Verify the primary key is present
-    let first_index = &indexes_array.unwrap()[0];
+    let primary_index = indexes_obj.unwrap().get("primary");
+    assert!(
+        primary_index.is_some(),
+        "Project should have 'primary' index from Entity"
+    );
     assert_eq!(
-        first_index.get("primary").and_then(|v| v.as_bool()),
+        primary_index.unwrap().get("primary").and_then(|v| v.as_bool()),
         Some(true),
         "The inherited index should be a primary key"
+    );
+}
+
+#[test]
+fn test_bug_06_intermediate_parent_with_sql_config_preserves_inherited_indexes() {
+    // BUG 06 TEST: When an intermediate parent has its own @sql block (e.g., table_name),
+    // it should NOT replace the inherited @sql config from ancestors.
+    // The indexes from Entity should be preserved when merged with other sql configs.
+    //
+    // Scenario (with keyed object format for indexes):
+    //   Entity { @sql { indexes: { primary: { fields: ["id"], primary: true } } } }
+    //   TimestampedEntity extends Entity { }  (no @sql)
+    //   PublicProjectRepo extends TimestampedEntity { @sql { table_name: "project_repos" } }
+    //   ProjectRepo extends PublicProjectRepo { }
+    //
+    // ProjectRepo should have BOTH the inherited indexes AND the table_name config.
+    // The table_name from PublicProjectRepo should NOT replace the indexes from Entity.
+
+    let mut ancestor_symbols = SymbolTable::new();
+
+    // Entity with primary key index (keyed object format)
+    let mut entity_config = HashMap::new();
+    entity_config.insert(
+        "sql".to_string(),
+        serde_json::json!({
+            "indexes": {
+                "primary": { "fields": ["id"], "primary": true }
+            }
+        }),
+    );
+    ancestor_symbols.definitions.insert(
+        "Entity".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model { extends: vec![] },
+            span: test_span(),
+            plugin_configs: entity_config,
+            entity_id: local_id(1),
+        },
+    );
+
+    // TimestampedEntity extends Entity (no @sql config)
+    ancestor_symbols.definitions.insert(
+        "TimestampedEntity".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model {
+                extends: vec!["Entity".to_string()],
+            },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: local_id(2),
+        },
+    );
+
+    // PublicProjectRepo extends TimestampedEntity WITH its own @sql config
+    // This has table_name but NOT indexes - indexes should be inherited from Entity
+    let mut public_project_repo_config = HashMap::new();
+    public_project_repo_config.insert(
+        "sql".to_string(),
+        serde_json::json!({
+            "table_name": "project_repos"
+        }),
+    );
+    ancestor_symbols.definitions.insert(
+        "PublicProjectRepo".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model {
+                extends: vec!["TimestampedEntity".to_string()],
+            },
+            span: test_span(),
+            plugin_configs: public_project_repo_config,
+            entity_id: local_id(3),
+        },
+    );
+
+    let mut ancestor_fields = HashMap::new();
+    ancestor_fields.insert(
+        "Entity".to_string(),
+        vec![FieldInfo {
+            name: "id".to_string(),
+            type_expr: Some("UUID".to_string()),
+            optional: false,
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            default_value: None,
+            entity_id: local_id(10),
+        }],
+    );
+    ancestor_fields.insert("TimestampedEntity".to_string(), vec![]);
+    ancestor_fields.insert(
+        "PublicProjectRepo".to_string(),
+        vec![
+            FieldInfo {
+                name: "project_id".to_string(),
+                type_expr: Some("string".to_string()),
+                optional: false,
+                span: test_span(),
+                plugin_configs: HashMap::new(),
+                default_value: None,
+                entity_id: local_id(11),
+            },
+            FieldInfo {
+                name: "repo_url".to_string(),
+                type_expr: Some("string".to_string()),
+                optional: false,
+                span: test_span(),
+                plugin_configs: HashMap::new(),
+                default_value: None,
+                entity_id: local_id(12),
+            },
+        ],
+    );
+
+    let ancestors = vec![Ancestor {
+        path: "public.cdm".to_string(),
+        symbol_table: ancestor_symbols,
+        model_fields: ancestor_fields,
+    }];
+
+    // Current file: ProjectRepo extends PublicProjectRepo
+    let mut current_symbols = SymbolTable::new();
+    current_symbols.definitions.insert(
+        "ProjectRepo".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model {
+                extends: vec!["PublicProjectRepo".to_string()],
+            },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: local_id(4),
+        },
+    );
+
+    let mut current_fields = HashMap::new();
+    current_fields.insert("ProjectRepo".to_string(), vec![]);
+
+    // Remove intermediate models from output
+    let mut removal_names: HashSet<String> = HashSet::new();
+    removal_names.insert("Entity".to_string());
+    removal_names.insert("TimestampedEntity".to_string());
+    removal_names.insert("PublicProjectRepo".to_string());
+
+    let resolved = build_resolved_schema(
+        &current_symbols,
+        &current_fields,
+        &ancestors,
+        &removal_names,
+        &HashMap::new(),
+    );
+
+    // Get merged config for ProjectRepo
+    let mut visited = HashSet::new();
+    let merged_config = super::get_merged_model_config(
+        "ProjectRepo",
+        &resolved.all_models_for_inheritance,
+        "sql",
+        &mut visited,
+    );
+
+    // ProjectRepo should have BOTH table_name AND indexes
+    // table_name from PublicProjectRepo, indexes from Entity
+    let table_name = merged_config.get("table_name");
+    assert!(
+        table_name.is_some(),
+        "ProjectRepo should have inherited table_name from PublicProjectRepo. Got config: {:?}",
+        merged_config
+    );
+    assert_eq!(
+        table_name.unwrap().as_str(),
+        Some("project_repos"),
+        "table_name should be 'project_repos'"
+    );
+
+    let indexes = merged_config.get("indexes");
+    assert!(
+        indexes.is_some(),
+        "ProjectRepo should have inherited indexes from Entity even though PublicProjectRepo has its own @sql block. Got config: {:?}",
+        merged_config
+    );
+
+    let indexes_obj = indexes.unwrap().as_object();
+    assert!(
+        indexes_obj.is_some() && !indexes_obj.unwrap().is_empty(),
+        "ProjectRepo should have inherited primary key index from Entity"
+    );
+
+    // Verify the "primary" index is present
+    let primary_index = indexes_obj.unwrap().get("primary");
+    assert!(
+        primary_index.is_some(),
+        "ProjectRepo should have 'primary' index from Entity"
+    );
+    assert_eq!(
+        primary_index.unwrap().get("primary").and_then(|v| v.as_bool()),
+        Some(true),
+        "The inherited index should be a primary key"
+    );
+}
+
+#[test]
+fn test_bug_06_child_with_own_indexes_should_preserve_inherited_primary_key() {
+    // BUG 06 TEST: When a child entity defines its own @sql { indexes: {...} } block,
+    // it should MERGE with inherited indexes from ancestors (using object deep merge).
+    //
+    // Scenario with keyed object format:
+    //   Entity { @sql { indexes: { primary: { fields: ["id"], primary: true } } } }
+    //   TimestampedEntity extends Entity { }  (no @sql)
+    //   Daemon extends TimestampedEntity { @sql { indexes: { idx_name: { fields: ["name"] } } } }
+    //
+    // Expected behavior: Daemon should have BOTH indexes - "primary" from Entity
+    // AND "idx_name" from its own definition (object deep merge).
+
+    let mut ancestor_symbols = SymbolTable::new();
+
+    // Entity with primary key index (keyed object format)
+    let mut entity_config = HashMap::new();
+    entity_config.insert(
+        "sql".to_string(),
+        serde_json::json!({
+            "indexes": {
+                "primary": { "fields": ["id"], "primary": true }
+            }
+        }),
+    );
+    ancestor_symbols.definitions.insert(
+        "Entity".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model { extends: vec![] },
+            span: test_span(),
+            plugin_configs: entity_config,
+            entity_id: local_id(1),
+        },
+    );
+
+    // TimestampedEntity extends Entity (no @sql config)
+    ancestor_symbols.definitions.insert(
+        "TimestampedEntity".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model {
+                extends: vec!["Entity".to_string()],
+            },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: local_id(2),
+        },
+    );
+
+    let mut ancestor_fields = HashMap::new();
+    ancestor_fields.insert(
+        "Entity".to_string(),
+        vec![FieldInfo {
+            name: "id".to_string(),
+            type_expr: Some("UUID".to_string()),
+            optional: false,
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            default_value: None,
+            entity_id: local_id(10),
+        }],
+    );
+    ancestor_fields.insert("TimestampedEntity".to_string(), vec![]);
+
+    let ancestors = vec![Ancestor {
+        path: "public.cdm".to_string(),
+        symbol_table: ancestor_symbols,
+        model_fields: ancestor_fields,
+    }];
+
+    // Current file: Daemon extends TimestampedEntity WITH its own indexes (keyed object)
+    let mut current_symbols = SymbolTable::new();
+
+    // Daemon has its own @sql { indexes: {...} } - uses keyed object format
+    let mut daemon_config = HashMap::new();
+    daemon_config.insert(
+        "sql".to_string(),
+        serde_json::json!({
+            "indexes": {
+                "idx_machine_name": { "fields": ["machine_name"] }
+            }
+        }),
+    );
+    current_symbols.definitions.insert(
+        "Daemon".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model {
+                extends: vec!["TimestampedEntity".to_string()],
+            },
+            span: test_span(),
+            plugin_configs: daemon_config,
+            entity_id: local_id(3),
+        },
+    );
+
+    let mut current_fields = HashMap::new();
+    current_fields.insert(
+        "Daemon".to_string(),
+        vec![FieldInfo {
+            name: "machine_name".to_string(),
+            type_expr: Some("string".to_string()),
+            optional: true,
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            default_value: None,
+            entity_id: local_id(11),
+        }],
+    );
+
+    // Remove intermediate models from output
+    let mut removal_names: HashSet<String> = HashSet::new();
+    removal_names.insert("Entity".to_string());
+    removal_names.insert("TimestampedEntity".to_string());
+
+    let resolved = build_resolved_schema(
+        &current_symbols,
+        &current_fields,
+        &ancestors,
+        &removal_names,
+        &HashMap::new(),
+    );
+
+    // Get merged config for Daemon
+    let mut visited = HashSet::new();
+    let merged_config = super::get_merged_model_config(
+        "Daemon",
+        &resolved.all_models_for_inheritance,
+        "sql",
+        &mut visited,
+    );
+
+    // Daemon should have BOTH indexes via object deep merge
+    let indexes = merged_config.get("indexes");
+    assert!(
+        indexes.is_some(),
+        "Daemon should have indexes. Got config: {:?}",
+        merged_config
+    );
+
+    let indexes_obj = indexes.unwrap().as_object();
+    assert!(
+        indexes_obj.is_some(),
+        "indexes should be an object (keyed format)"
+    );
+
+    let indexes_map = indexes_obj.unwrap();
+
+    // Should have 2 indexes: "primary" from Entity + "idx_machine_name" from Daemon
+    assert_eq!(
+        indexes_map.len(), 2,
+        "Daemon should have 2 indexes (inherited 'primary' + own 'idx_machine_name'). Got: {:?}",
+        indexes_map
+    );
+
+    // Check that "primary" index is present (inherited from Entity)
+    assert!(
+        indexes_map.contains_key("primary"),
+        "Daemon should have inherited 'primary' index from Entity. Got indexes: {:?}",
+        indexes_map
+    );
+    let primary_idx = indexes_map.get("primary").unwrap();
+    assert_eq!(
+        primary_idx.get("primary").and_then(|v| v.as_bool()),
+        Some(true),
+        "The 'primary' index should have primary: true"
+    );
+
+    // Check that "idx_machine_name" index is present (own index)
+    assert!(
+        indexes_map.contains_key("idx_machine_name"),
+        "Daemon should have its own 'idx_machine_name' index. Got indexes: {:?}",
+        indexes_map
     );
 }
 

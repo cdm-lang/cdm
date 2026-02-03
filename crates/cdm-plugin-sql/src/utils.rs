@@ -312,11 +312,52 @@ pub struct IndexInfo {
     pub where_clause: Option<String>,
 }
 
-/// Extract indexes from a model config JSON
+/// Extract indexes from a model config JSON.
+///
+/// Supports two formats:
+/// 1. Keyed object (preferred): `{ "indexes": { "primary": { fields: ["id"], primary: true } } }`
+///    - Keys are index names, values are index definitions
+///    - Enables proper inheritance via object deep merge
+/// 2. Array (legacy): `{ "indexes": [{ fields: ["id"], primary: true }] }`
+///    - For backwards compatibility
 pub fn extract_indexes(config: &JSON, table_name: &str) -> Vec<IndexInfo> {
     let mut indexes = Vec::new();
 
-    if let Some(index_array) = config.get("indexes").and_then(|v| v.as_array()) {
+    let indexes_value = match config.get("indexes") {
+        Some(v) => v,
+        None => return indexes,
+    };
+
+    // Try keyed object format first (preferred)
+    if let Some(index_obj) = indexes_value.as_object() {
+        for (name, index) in index_obj {
+            let fields: Vec<String> = index
+                .get("fields")
+                .and_then(|v| v.as_array())
+                .map(|arr| arr.iter().filter_map(|f| f.as_str().map(String::from)).collect())
+                .unwrap_or_default();
+
+            if fields.is_empty() {
+                continue;
+            }
+
+            let is_primary = index.get("primary").and_then(|v| v.as_bool()).unwrap_or(false);
+            let is_unique = index.get("unique").and_then(|v| v.as_bool()).unwrap_or(false);
+            let method = index.get("method").and_then(|v| v.as_str()).map(String::from);
+            let where_clause = index.get("where").and_then(|v| v.as_str()).map(String::from);
+
+            indexes.push(IndexInfo {
+                name: name.clone(),
+                fields,
+                is_unique,
+                is_primary,
+                method,
+                where_clause,
+            });
+        }
+    }
+    // Fall back to array format (legacy)
+    else if let Some(index_array) = indexes_value.as_array() {
         for (i, index) in index_array.iter().enumerate() {
             let fields: Vec<String> = index
                 .get("fields")
