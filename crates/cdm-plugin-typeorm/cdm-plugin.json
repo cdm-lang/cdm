@@ -1,6 +1,6 @@
 {
   "name": "typeorm",
-  "version": "0.1.9",
+  "version": "0.1.10",
   "description": "Generate TypeORM entities and migrations for PostgreSQL",
   "docs": "https://github.com/cdm-lang/cdm/blob/main/crates/cdm-plugin-typeorm/README.md",
   "schema": "schema.cdm",
