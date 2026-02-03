@@ -1,0 +1,9 @@
+extends "./base_inherited.cdm"
+
+// Valid: BaseEntity is removed but Status is kept
+// ExtendedEntity inherits status: Status from BaseEntity
+-BaseEntity
+
+ExtendedEntity extends BaseEntity {
+  name: string
+}

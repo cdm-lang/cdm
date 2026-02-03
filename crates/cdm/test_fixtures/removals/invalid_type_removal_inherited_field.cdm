@@ -1,0 +1,10 @@
+extends "./base_inherited.cdm"
+
+// Invalid: trying to remove Status type but ExtendedEntity inherits BaseEntity.status which uses it
+// Even though we also remove BaseEntity, ExtendedEntity extends BaseEntity and inherits the status field
+-BaseEntity
+-Status
+
+ExtendedEntity extends BaseEntity {
+  name: string
+}

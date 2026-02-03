@@ -684,12 +684,15 @@ struct ResolvedTemplateType {
     plugin_configs: HashMap<String, serde_json::Value>,
 }
 
-/// Resolve a type expression, following type alias references.
+/// Resolve a type expression, handling template types and plugin config inheritance.
 ///
-/// For a type alias (template or local):
-/// 1. Look up the type in the resolved type_aliases
-/// 2. Get its underlying type (e.g., `string` for `Email: string`)
-/// 3. Return the base type and the alias's plugin configs
+/// For template types (e.g., `sqlType.UUID`):
+/// - Resolves to the underlying base type (e.g., `string`)
+/// - Returns the template's plugin configs for merging
+///
+/// For regular type aliases (e.g., `Status`, `Email`):
+/// - Keeps the type alias reference (so generated code uses `Status`, not `"active" | "inactive"`)
+/// - Returns the alias's plugin configs for merging
 ///
 /// Per spec Section 4.4:
 ///   "When a type alias is used in a field, the field inherits the alias's plugin configuration"
@@ -702,14 +705,24 @@ fn resolve_template_type(
     // Look up in type_aliases (handles both qualified template types like sqlType.UUID
     // and local type aliases like Email)
     if let Some(type_alias) = resolved.type_aliases.get(type_str) {
-        // Found a type alias - resolve to its base type and get its plugin configs
-        let base_type = type_alias.parsed_type().unwrap_or_else(|_| {
-            crate::ParsedType::Primitive(crate::PrimitiveType::String)
-        });
-        return ResolvedTemplateType {
-            base_type,
-            plugin_configs: type_alias.plugin_configs.clone(),
-        };
+        if type_alias.is_from_template {
+            // Template type - resolve to its base type
+            // Templates are internal and not exposed to plugins, so we expand them
+            let base_type = type_alias.parsed_type().unwrap_or_else(|_| {
+                crate::ParsedType::Primitive(crate::PrimitiveType::String)
+            });
+            return ResolvedTemplateType {
+                base_type,
+                plugin_configs: type_alias.plugin_configs.clone(),
+            };
+        } else {
+            // Regular type alias - keep the reference
+            // The type alias will be generated in the output, so fields should reference it
+            return ResolvedTemplateType {
+                base_type: crate::ParsedType::Reference(type_str.to_string()),
+                plugin_configs: type_alias.plugin_configs.clone(),
+            };
+        }
     }
 
     // Not a type alias - parse as-is (primitives, model references, etc.)

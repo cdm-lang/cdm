@@ -1,0 +1,8 @@
+// Base schema with type alias used in a model
+
+Status: "active" | "inactive"
+
+BaseEntity {
+  id: number
+  status: Status
+}

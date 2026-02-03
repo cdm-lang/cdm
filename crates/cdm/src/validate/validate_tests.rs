@@ -4321,6 +4321,38 @@ fn test_valid_type_alias_removal() {
     assert!(!result.symbol_table.definitions.contains_key("Status"));
 }
 
+#[test]
+fn test_invalid_type_alias_removal_inherited_field() {
+    use crate::file_resolver::FileResolver;
+    use std::path::PathBuf;
+
+    let fixtures_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("test_fixtures")
+        .join("removals/invalid_type_removal_inherited_field.cdm");
+
+    let tree = FileResolver::load(&fixtures_path).expect("Failed to load file");
+    let result = validate_tree(tree);
+
+    assert!(result.is_err(), "Should fail validation");
+
+    let errors = result.unwrap_err();
+    // ExtendedEntity extends BaseEntity, inheriting status: Status, so Status cannot be removed
+    // The error should specifically mention:
+    // 1. That Status cannot be removed
+    // 2. That it's still referenced by ExtendedEntity.status (inherited from parent)
+    let status_error = errors.iter().find(|e|
+        e.message.contains("Cannot remove type alias 'Status'")
+    );
+    assert!(status_error.is_some(),
+        "Should have error about removing Status. Errors: {:?}", errors);
+
+    let error_msg = &status_error.unwrap().message;
+    assert!(error_msg.contains("ExtendedEntity.status"),
+        "Error should mention the specific inherited field 'ExtendedEntity.status'. Error: {}", error_msg);
+    assert!(error_msg.contains("inherited"),
+        "Error should indicate the field is inherited. Error: {}", error_msg);
+}
+
 // ============================================================================
 // ENTITY ID TESTS
 // ============================================================================

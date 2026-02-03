@@ -366,7 +366,8 @@ User {
     let content = fs::read_to_string(&user_file).unwrap();
 
     // Verify type alias ts_type is applied: metadata field should use MetadataType
-    assert!(content.contains("metadata: MetadataType"),
+    // Note: The field may have `!` for definite assignment (e.g., `metadata!: MetadataType`)
+    assert!(content.contains("metadata!: MetadataType") || content.contains("metadata: MetadataType"),
         "metadata field should use 'MetadataType' from type alias ts_type config. Content:\n{}", content);
 
     // Verify the import is generated for the custom type
@@ -374,7 +375,8 @@ User {
         "Should generate import for MetadataType from type alias ts_type config. Content:\n{}", content);
 
     // Verify rawData field uses default JSON mapping (Record<string, unknown>)
-    assert!(content.contains("rawData: Record<string, unknown>"),
+    // Note: The field may have `!` for definite assignment
+    assert!(content.contains("rawData!: Record<string, unknown>") || content.contains("rawData: Record<string, unknown>"),
         "rawData field should use default JSON mapping. Content:\n{}", content);
 
     cleanup();

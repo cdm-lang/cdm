@@ -2082,3 +2082,87 @@ fn test_removals_exclude_models_from_resolved_schema() {
     assert!(resolved.models.contains_key("ChildModel"),
         "ChildModel should still be in resolved schema");
 }
+
+#[test]
+fn test_inherited_field_uses_type_alias_name_not_resolved_type() {
+    // BUG TEST: When a field has a type alias (e.g., status: Status), the generated
+    // code should reference the type alias name "Status", not the resolved base type
+    // like "\"active\" | \"inactive\"".
+    //
+    // This test verifies that resolve_template_type correctly keeps the type alias
+    // reference for regular (non-template) type aliases.
+
+    // Create a type alias
+    let mut current_symbols = SymbolTable::new();
+    current_symbols.definitions.insert(
+        "Status".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::TypeAlias {
+                references: vec![],
+                type_expr: "\"active\" | \"inactive\"".to_string(),
+            },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: None,
+        },
+    );
+
+    // Create a model that uses the type alias
+    current_symbols.definitions.insert(
+        "User".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model { extends: vec![] },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: None,
+        },
+    );
+
+    let mut current_fields = HashMap::new();
+    current_fields.insert("User".to_string(), vec![
+        FieldInfo {
+            name: "status".to_string(),
+            type_expr: Some("Status".to_string()),  // Field uses type alias
+            optional: false,
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            default_value: None,
+            entity_id: None,
+        },
+    ]);
+
+    let ancestors = vec![];
+    let removal_names: HashSet<String> = HashSet::new();
+
+    let resolved = build_resolved_schema(
+        &current_symbols,
+        &current_fields,
+        &ancestors,
+        &removal_names,
+        &HashMap::new(),
+    );
+
+    // Verify Status type alias is in the schema (not from template)
+    assert!(resolved.type_aliases.contains_key("Status"));
+    assert!(!resolved.type_aliases["Status"].is_from_template,
+        "Status should not be from template");
+
+    // Now test resolve_template_type - it should return a Reference to "Status",
+    // not the resolved union type
+    let resolved_type = super::resolve_template_type("Status", &resolved);
+
+    // The base_type should be a Reference to "Status", not a Union
+    match resolved_type.base_type {
+        crate::ParsedType::Reference(ref name) => {
+            assert_eq!(name, "Status",
+                "resolve_template_type should return Reference(\"Status\") for regular type alias");
+        }
+        other => {
+            panic!(
+                "Expected ParsedType::Reference(\"Status\") but got {:?}. \
+                Regular type aliases should keep their reference, not be resolved to base type.",
+                other
+            );
+        }
+    }
+}

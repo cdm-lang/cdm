@@ -710,7 +710,19 @@ fn validate_removals(
         }
 
         // Check if the removed item is still referenced in the resolved schema
-        let references = find_references_in_resolved(&resolved, removal_name);
+        let mut references = find_references_in_resolved(&resolved, removal_name);
+
+        // Also check inherited fields - models that extend other models may inherit
+        // fields that reference the removed type. The resolved schema only contains
+        // directly-defined fields, so we need to check inherited fields separately.
+        let inherited_refs = find_references_in_inherited_fields(
+            removal_name,
+            &resolved,
+            symbol_table,
+            model_fields,
+            ancestors,
+        );
+        references.extend(inherited_refs);
 
         if !references.is_empty() {
             let kind_name = if is_model { "model" } else { "type alias" };
@@ -726,6 +738,70 @@ fn validate_removals(
             });
         }
     }
+}
+
+/// Find references to a definition in inherited fields of models.
+///
+/// This checks models that use `extends` to inherit fields from parent models.
+/// The parent model's fields may reference the target definition, but these
+/// inherited fields are not included in the resolved schema's direct field list.
+fn find_references_in_inherited_fields(
+    target_name: &str,
+    resolved: &cdm_utils::ResolvedSchema,
+    symbol_table: &SymbolTable,
+    model_fields: &HashMap<String, Vec<FieldInfo>>,
+    ancestors: &[Ancestor],
+) -> Vec<String> {
+    let mut references = Vec::new();
+
+    // For each model in the resolved schema that has parents (extends)
+    for (model_name, model) in &resolved.models {
+        if model.parents.is_empty() {
+            continue;
+        }
+
+        // Get all inherited fields for this model
+        let inherited_fields = crate::symbol_table::get_inherited_fields(
+            model_name,
+            model_fields,
+            symbol_table,
+            ancestors,
+        );
+
+        // Get field names defined directly in this model to exclude them
+        // (they're already checked by find_references_in_resolved)
+        let direct_field_names: HashSet<&str> = model.fields.iter()
+            .map(|f| f.name.as_str())
+            .collect();
+
+        // Check each inherited field
+        for field in inherited_fields {
+            // Skip if this field is also defined directly in the model
+            if direct_field_names.contains(field.name.as_str()) {
+                continue;
+            }
+
+            if let Some(type_expr) = &field.type_expr {
+                if field_type_references_definition(type_expr, target_name) {
+                    references.push(format!(
+                        "{}.{} (inherited from parent)",
+                        model_name, field.name
+                    ));
+                }
+            }
+        }
+    }
+
+    references
+}
+
+/// Check if a field's type expression references a specific definition.
+fn field_type_references_definition(type_expr: &str, definition_name: &str) -> bool {
+    // Split on non-identifier characters and check for exact match
+    // This handles: TypeName, TypeName[], "literal" | TypeName, etc.
+    type_expr
+        .split(|c: char| !c.is_alphanumeric() && c != '_')
+        .any(|word| word == definition_name)
 }
 
 fn collect_type_alias(
