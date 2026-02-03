@@ -1,0 +1,74 @@
+name: Update CLI Registry
+
+on:
+  workflow_call:
+    inputs:
+      version:
+        description: 'Version without v prefix (e.g., 0.1.0)'
+        required: true
+        type: string
+      tag:
+        description: 'Full tag name (e.g., cdm-cli-v0.1.0)'
+        required: true
+        type: string
+      platforms_json:
+        description: 'JSON object with platform data'
+        required: true
+        type: string
+
+# Serialize all registry updates to prevent race conditions
+concurrency:
+  group: update-cli-registry
+  cancel-in-progress: false
+
+jobs:
+  update-registry:
+    name: Update cli-releases.json
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Update cli-releases.json
+        run: |
+          VERSION="${{ inputs.version }}"
+
+          echo "Updating CLI release manifest for version: $VERSION"
+
+          # Update cli-releases.json using jq
+          jq --arg version "$VERSION" \
+             --argjson platforms '${{ inputs.platforms_json }}' \
+             --arg date "$(date -u +%Y-%m-%d)" \
+             --arg updated "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+             '
+             .updated_at = $updated |
+             .latest = $version |
+             .releases[$version] = {
+               release_date: $date,
+               platforms: $platforms
+             }
+             ' cli-releases.json > cli-releases.json.tmp
+
+          mv cli-releases.json.tmp cli-releases.json
+
+          echo "CLI release manifest updated successfully"
+
+      - name: Commit and push registry update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add cli-releases.json
+          git commit -m "Update CLI release manifest: ${{ inputs.tag }}
+
+          Automatically updated cli-releases.json for release ${{ inputs.tag }}
+
+          Released binaries for all supported platforms."
+
+          git push origin main

@@ -1,0 +1,104 @@
+name: Update Template Registry
+
+on:
+  workflow_call:
+    inputs:
+      template_name:
+        description: 'Template name (e.g., sql-types)'
+        required: true
+        type: string
+      version:
+        description: 'Version without v prefix (e.g., 1.0.0)'
+        required: true
+        type: string
+      tag:
+        description: 'Full tag name (e.g., cdm-template-sql-types-v1.0.0)'
+        required: true
+        type: string
+      description:
+        description: 'Template description'
+        required: true
+        type: string
+      download_url:
+        description: 'URL to download the template archive'
+        required: true
+        type: string
+      checksum:
+        description: 'SHA256 checksum (without sha256: prefix)'
+        required: true
+        type: string
+
+# Serialize all registry updates to prevent race conditions
+concurrency:
+  group: update-template-registry
+  cancel-in-progress: false
+
+jobs:
+  update-registry:
+    name: Update templates.json
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Checkout main branch
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+
+      - name: Update templates.json
+        run: |
+          TEMPLATE_NAME="${{ inputs.template_name }}"
+          VERSION="${{ inputs.version }}"
+          DOWNLOAD_URL="${{ inputs.download_url }}"
+          CHECKSUM="${{ inputs.checksum }}"
+          DESCRIPTION="${{ inputs.description }}"
+
+          echo "Updating templates.json for: $TEMPLATE_NAME"
+          echo "Version: $VERSION"
+          echo "URL: $DOWNLOAD_URL"
+          echo "Checksum: $CHECKSUM"
+
+          # Update templates.json using jq
+          jq --arg name "$TEMPLATE_NAME" \
+             --arg version "$VERSION" \
+             --arg desc "$DESCRIPTION" \
+             --arg url "$DOWNLOAD_URL" \
+             --arg checksum "sha256:$CHECKSUM" \
+             --arg repo "git:https://github.com/${{ github.repository }}.git" \
+             --arg updated "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
+             '
+             .updated_at = $updated |
+             .templates[$name] = {
+               description: $desc,
+               repository: $repo,
+               official: true,
+               versions: ((.templates[$name].versions // {}) + {
+                 ($version): {
+                   download_url: $url,
+                   checksum: $checksum
+                 }
+               }),
+               latest: $version
+             }
+             ' templates.json > templates.json.tmp
+
+          mv templates.json.tmp templates.json
+
+          echo "templates.json updated successfully"
+
+      - name: Commit and push registry update
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add templates.json
+          git commit -m "Update registry: ${{ inputs.template_name }} v${{ inputs.version }}
+
+          Automatically updated templates.json for release ${{ inputs.tag }}
+
+          - Download URL: ${{ inputs.download_url }}
+          - Checksum: sha256:${{ inputs.checksum }}"
+
+          git push origin main

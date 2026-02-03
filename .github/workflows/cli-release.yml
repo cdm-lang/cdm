@@ -129,6 +129,10 @@ jobs:
     name: Create Release
     needs: build-binaries
     runs-on: ubuntu-latest
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      tag: ${{ steps.version.outputs.tag }}
+      platforms_json: ${{ steps.build_platforms.outputs.platforms_json }}
 
     steps:
       - name: Checkout code
@@ -156,6 +160,34 @@ jobs:
           mkdir -p ./binaries
           find ./artifacts -type f -name "cdm-*" -exec mv {} ./binaries/ \;
           ls -lh ./binaries
+
+      - name: Build platforms JSON
+        id: build_platforms
+        run: |
+          TAG="${{ steps.version.outputs.tag }}"
+
+          # Create platform entries
+          PLATFORMS_JSON="{"
+          FIRST=true
+
+          for checksum_file in ./binaries/*.sha256; do
+            filename=$(basename $checksum_file .sha256)
+            platform=${filename#cdm-}
+            checksum=$(cat $checksum_file)
+            url="https://github.com/${{ github.repository }}/releases/download/$TAG/$filename"
+
+            if [ "$FIRST" = true ]; then
+              FIRST=false
+            else
+              PLATFORMS_JSON="$PLATFORMS_JSON,"
+            fi
+
+            PLATFORMS_JSON="$PLATFORMS_JSON\"$platform\":{\"url\":\"$url\",\"checksum\":\"sha256:$checksum\"}"
+          done
+
+          PLATFORMS_JSON="$PLATFORMS_JSON}"
+
+          echo "platforms_json=$PLATFORMS_JSON" >> $GITHUB_OUTPUT
 
       - name: Create release notes
         id: release_notes
@@ -235,83 +267,18 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Update cli-releases.json
-        id: update_manifest
-        run: |
-          VERSION="${{ steps.version.outputs.version }}"
-          TAG="${{ steps.version.outputs.tag }}"
-
-          echo "Updating CLI release manifest for version: $VERSION"
-
-          # Create platform entries
-          PLATFORMS_JSON="{"
-          FIRST=true
-
-          for checksum_file in ./binaries/*.sha256; do
-            filename=$(basename $checksum_file .sha256)
-            platform=${filename#cdm-}
-            checksum=$(cat $checksum_file)
-            url="https://github.com/${{ github.repository }}/releases/download/$TAG/$filename"
-
-            if [ "$FIRST" = true ]; then
-              FIRST=false
-            else
-              PLATFORMS_JSON="$PLATFORMS_JSON,"
-            fi
-
-            PLATFORMS_JSON="$PLATFORMS_JSON\"$platform\":{\"url\":\"$url\",\"checksum\":\"sha256:$checksum\"}"
-          done
-
-          PLATFORMS_JSON="$PLATFORMS_JSON}"
-
-          # Update cli-releases.json using jq
-          jq --arg version "$VERSION" \
-             --argjson platforms "$PLATFORMS_JSON" \
-             --arg date "$(date -u +%Y-%m-%d)" \
-             --arg updated "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-             '
-             .updated_at = $updated |
-             .latest = $version |
-             .releases[$version] = {
-               release_date: $date,
-               platforms: $platforms
-             }
-             ' cli-releases.json > cli-releases.json.tmp
-
-          mv cli-releases.json.tmp cli-releases.json
-
-          echo "CLI release manifest updated successfully"
-
-      - name: Commit manifest update to main
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Stash the updated manifest
-          git add cli-releases.json
-          git stash
-
-          # Fetch and checkout main branch
-          git fetch origin main
-          git checkout -B main origin/main
-
-          # Apply the stashed changes
-          git stash pop
-
-          # Commit the updated manifest
-          git add cli-releases.json
-          git commit -m "Update CLI release manifest: ${{ steps.version.outputs.tag }}
-
-          Automatically updated cli-releases.json for release ${{ steps.version.outputs.tag }}
-
-          Released binaries for all supported platforms."
-
-          # Push to main
-          git push origin main
+  update-registry:
+    name: Update Registry
+    needs: create-release
+    uses: ./.github/workflows/update-cli-registry.yml
+    with:
+      version: ${{ needs.create-release.outputs.version }}
+      tag: ${{ needs.create-release.outputs.tag }}
+      platforms_json: ${{ needs.create-release.outputs.platforms_json }}
 
   publish-npm:
     name: Publish to npm
-    needs: create-release
+    needs: update-registry
     runs-on: ubuntu-latest
     permissions:
       contents: read

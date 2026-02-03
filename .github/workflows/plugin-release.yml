@@ -13,6 +13,14 @@ jobs:
   release:
     name: Create Plugin Release
     runs-on: ubuntu-latest
+    outputs:
+      plugin_name: ${{ steps.plugin_metadata.outputs.plugin_shortname }}
+      plugin_full_name: ${{ steps.tag_info.outputs.plugin_name }}
+      version: ${{ steps.plugin_metadata.outputs.version }}
+      description: ${{ steps.plugin_metadata.outputs.description }}
+      docs_url: ${{ steps.plugin_metadata.outputs.docs }}
+      wasm_url: ${{ steps.plugin_metadata.outputs.wasm_url }}
+      checksum: ${{ steps.plugin_metadata.outputs.checksum }}
 
     steps:
       - name: Checkout code
@@ -55,6 +63,37 @@ jobs:
           WASM_FILE="target/wasm32-wasip1/release/${{ steps.tag_info.outputs.crate_name }}.wasm"
           shasum -a 256 $WASM_FILE | awk '{print $1}' > $WASM_FILE.sha256
           echo "Checksum: $(cat $WASM_FILE.sha256)"
+
+      - name: Extract plugin metadata
+        id: plugin_metadata
+        run: |
+          # Read plugin metadata
+          PLUGIN_JSON="crates/${{ steps.tag_info.outputs.plugin_name }}/cdm-plugin.json"
+          PLUGIN_SHORTNAME=$(jq -r '.name' "$PLUGIN_JSON")
+          DESCRIPTION=$(jq -r '.description' "$PLUGIN_JSON")
+          DOCS=$(jq -r '.docs // empty' "$PLUGIN_JSON")
+          CHECKSUM=$(cat crates/${{ steps.tag_info.outputs.plugin_name }}/target/wasm32-wasip1/release/${{ steps.tag_info.outputs.crate_name }}.wasm.sha256)
+
+          # Extract version without 'v' prefix
+          VERSION="${{ steps.tag_info.outputs.version }}"
+          VERSION="${VERSION#v}"
+
+          # Construct WASM URL
+          WASM_URL="https://github.com/${{ github.repository }}/releases/download/${{ steps.tag_info.outputs.tag }}/${{ steps.tag_info.outputs.crate_name }}.wasm"
+
+          echo "plugin_shortname=$PLUGIN_SHORTNAME" >> $GITHUB_OUTPUT
+          echo "version=$VERSION" >> $GITHUB_OUTPUT
+          echo "description=$DESCRIPTION" >> $GITHUB_OUTPUT
+          echo "docs=$DOCS" >> $GITHUB_OUTPUT
+          echo "wasm_url=$WASM_URL" >> $GITHUB_OUTPUT
+          echo "checksum=$CHECKSUM" >> $GITHUB_OUTPUT
+
+          echo "Plugin metadata extracted:"
+          echo "  Name: $PLUGIN_SHORTNAME"
+          echo "  Version: $VERSION"
+          echo "  URL: $WASM_URL"
+          echo "  Checksum: $CHECKSUM"
+          echo "  Docs: $DOCS"
 
       - name: Create release notes
         id: release_notes
@@ -105,76 +144,15 @@ jobs:
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Update registry.json
-        id: update_registry
-        run: |
-          # Read plugin metadata
-          PLUGIN_JSON="crates/${{ steps.tag_info.outputs.plugin_name }}/cdm-plugin.json"
-          PLUGIN_SHORTNAME=$(jq -r '.name' "$PLUGIN_JSON")
-          DESCRIPTION=$(jq -r '.description' "$PLUGIN_JSON")
-          DOCS=$(jq -r '.docs // empty' "$PLUGIN_JSON")
-          CHECKSUM=$(cat crates/${{ steps.tag_info.outputs.plugin_name }}/target/wasm32-wasip1/release/${{ steps.tag_info.outputs.crate_name }}.wasm.sha256)
-
-          # Extract version without 'v' prefix
-          VERSION="${{ steps.tag_info.outputs.version }}"
-          VERSION="${VERSION#v}"
-
-          # Construct WASM URL
-          WASM_URL="https://github.com/${{ github.repository }}/releases/download/${{ steps.tag_info.outputs.tag }}/${{ steps.tag_info.outputs.crate_name }}.wasm"
-
-          echo "Updating registry for plugin: $PLUGIN_SHORTNAME"
-          echo "Version: $VERSION"
-          echo "URL: $WASM_URL"
-          echo "Checksum: $CHECKSUM"
-          echo "Docs: $DOCS"
-
-          # Update registry.json using jq
-          jq --arg name "$PLUGIN_SHORTNAME" \
-             --arg version "$VERSION" \
-             --arg desc "$DESCRIPTION" \
-             --arg docs "$DOCS" \
-             --arg url "$WASM_URL" \
-             --arg checksum "sha256:$CHECKSUM" \
-             --arg repo "git:https://github.com/${{ github.repository }}.git" \
-             --arg updated "$(date -u +%Y-%m-%dT%H:%M:%SZ)" \
-             '
-             .updated_at = $updated |
-             .plugins[$name] = {
-               description: $desc,
-               repository: $repo,
-               official: true,
-               versions: ((.plugins[$name].versions // {}) + {
-                 ($version): {
-                   wasm_url: $url,
-                   checksum: $checksum
-                 }
-               }),
-               latest: $version
-             } |
-             if $docs != "" then .plugins[$name].docs = $docs else . end
-             ' registry.json > registry.json.tmp
-
-          mv registry.json.tmp registry.json
-
-          echo "Registry updated successfully"
-
-      - name: Commit registry update to main
-        run: |
-          git config user.name "github-actions[bot]"
-          git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # Fetch and checkout main branch
-          git fetch origin main
-          git checkout -B main origin/main
-
-          # Add and commit the updated registry
-          git add registry.json
-          git commit -m "Update registry: ${{ steps.tag_info.outputs.plugin_name }} ${{ steps.tag_info.outputs.version }}
-
-          Automatically updated registry.json for release ${{ steps.tag_info.outputs.tag }}
-
-          - WASM URL: https://github.com/${{ github.repository }}/releases/download/${{ steps.tag_info.outputs.tag }}/${{ steps.tag_info.outputs.crate_name }}.wasm
-          - Checksum: sha256:$(cat crates/${{ steps.tag_info.outputs.plugin_name }}/target/wasm32-wasip1/release/${{ steps.tag_info.outputs.crate_name }}.wasm.sha256)"
-
-          # Push to main
-          git push origin main
+  update-registry:
+    name: Update Registry
+    needs: release
+    uses: ./.github/workflows/update-plugin-registry.yml
+    with:
+      plugin_name: ${{ needs.release.outputs.plugin_name }}
+      plugin_full_name: ${{ needs.release.outputs.plugin_full_name }}
+      version: ${{ needs.release.outputs.version }}
+      description: ${{ needs.release.outputs.description }}
+      docs_url: ${{ needs.release.outputs.docs_url }}
+      wasm_url: ${{ needs.release.outputs.wasm_url }}
+      checksum: ${{ needs.release.outputs.checksum }}
