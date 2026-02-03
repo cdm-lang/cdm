@@ -52,9 +52,8 @@ ModelSettings {
   // Indexes (including primary keys and unique constraints)
   // Format: keyed object where keys are index names, values are Index definitions
   // Example: indexes: { primary: { fields: ["id"], primary: true } }
-  // Note: CDM doesn't have a map type, so this is typed as Index[] for schema purposes
-  // but the actual runtime format uses keyed objects for proper config inheritance
-  indexes?: Index[]
+  // Map types enable proper config inheritance through deep merge semantics
+  indexes?: Index[string]
 
   // Constraints (NOT NULL, DEFAULT, CHECK, FOREIGN KEY, etc.)
   constraints?: Constraint[]
@@ -88,7 +87,7 @@ FieldSettings {
 }
 
 // Index definition (handles PRIMARY KEY, UNIQUE, and regular indexes)
-// When using keyed object format, the key becomes the index name
+// The map key becomes the index name
 // Example: indexes: { user_email_idx: { fields: ["email"], unique: true } }
 Index {
   fields: string[]  // One or more field names
@@ -101,9 +100,6 @@ Index {
 
   // Index method (PostgreSQL)
   method?: "btree" | "hash" | "gin" | "gist" | "spgist" | "brin"
-
-  // Custom index name (used in legacy array format; in keyed object format, the key is the name)
-  name?: string
 
   // Partial index condition (PostgreSQL: WHERE clause)
   where?: string

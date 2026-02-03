@@ -66,10 +66,14 @@ Supported type expressions include:
 
 * Identifier references
 * Arrays (`T[]`)
+* Maps (`V[K]`) — keyed collections with value type `V` and key type `K`
 * Union types (`A | B`)
 * String literal unions (`"a" | "b"`)
+* Number literal unions (`1 | 2 | 3`)
 
 Only single-dimensional arrays are supported.
+
+Map key types are restricted to: `string`, `number`, string literal unions, or number literal unions.
 
 ---
 

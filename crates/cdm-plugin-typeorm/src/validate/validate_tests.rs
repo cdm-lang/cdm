@@ -56,10 +56,11 @@ fn test_validate_global_config_empty_import_path() {
 
 #[test]
 fn test_validate_model_config_valid_index() {
+    // Indexes are now a map type keyed by index name
     let config = serde_json::json!({
-        "indexes": [
-            { "fields": ["email"], "unique": true }
-        ]
+        "indexes": {
+            "user_email_idx": { "fields": ["email"], "unique": true }
+        }
     });
     let utils = Utils;
 
@@ -76,10 +77,11 @@ fn test_validate_model_config_valid_index() {
 
 #[test]
 fn test_validate_model_config_empty_index_fields() {
+    // Indexes are now a map type keyed by index name
     let config = serde_json::json!({
-        "indexes": [
-            { "fields": [] }
-        ]
+        "indexes": {
+            "bad_idx": { "fields": [] }
+        }
     });
     let utils = Utils;
 
@@ -97,10 +99,11 @@ fn test_validate_model_config_empty_index_fields() {
 
 #[test]
 fn test_validate_model_config_missing_index_fields() {
+    // Indexes are now a map type keyed by index name
     let config = serde_json::json!({
-        "indexes": [
-            { "unique": true }
-        ]
+        "indexes": {
+            "bad_idx": { "unique": true }
+        }
     });
     let utils = Utils;
 

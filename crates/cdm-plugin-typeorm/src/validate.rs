@@ -154,10 +154,10 @@ fn validate_type_alias_config(
 }
 
 fn validate_model_config(config: &JSON, model_name: &str, errors: &mut Vec<ValidationError>) {
-    // Validate indexes
+    // Validate indexes (map type: Index[string], keyed by index name)
     if let Some(indexes) = config.get("indexes") {
-        if let Some(indexes_array) = indexes.as_array() {
-            for (i, index) in indexes_array.iter().enumerate() {
+        if let Some(indexes_obj) = indexes.as_object() {
+            for (index_name, index) in indexes_obj {
                 // Validate fields is non-empty array
                 if let Some(fields) = index.get("fields") {
                     if let Some(fields_array) = fields.as_array() {
@@ -170,7 +170,7 @@ fn validate_model_config(config: &JSON, model_name: &str, errors: &mut Vec<Valid
                                     },
                                     PathSegment {
                                         kind: "config".to_string(),
-                                        name: format!("indexes[{}]", i),
+                                        name: format!("indexes.{}", index_name),
                                     },
                                 ],
                                 message: "index must have at least one field".to_string(),
@@ -187,7 +187,7 @@ fn validate_model_config(config: &JSON, model_name: &str, errors: &mut Vec<Valid
                             },
                             PathSegment {
                                 kind: "config".to_string(),
-                                name: format!("indexes[{}]", i),
+                                name: format!("indexes.{}", index_name),
                             },
                         ],
                         message: "index must have a 'fields' array".to_string(),

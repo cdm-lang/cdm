@@ -417,10 +417,10 @@ User {
   @typeorm {
     table: "app_users",           // Override table name
     schema: "public",             // PostgreSQL schema
-    indexes: [
-      { fields: ["email"], unique: true },
-      { fields: ["created_at"] }
-    ],
+    indexes: {
+      user_email_unique: { fields: ["email"], unique: true },
+      user_created_at_idx: { fields: ["created_at"] }
+    },
     skip: false,                  // Skip entity generation
     definite_assignment: false    // Disable ! for this model
   }
@@ -431,7 +431,7 @@ User {
 |---------|------|---------|-------------|
 | `table` | `string` | model name | Override table name |
 | `schema` | `string` | - | PostgreSQL schema |
-| `indexes` | `array` | - | Indexes on this model |
+| `indexes` | `Index[string]` | - | Indexes on this model (keyed by index name for proper inheritance) |
 | `skip` | `boolean` | `false` | Skip entity generation |
 | `hooks` | `object` | - | Entity lifecycle hooks |
 | `definite_assignment` | `boolean` | global setting | Override definite assignment for all fields in this model |

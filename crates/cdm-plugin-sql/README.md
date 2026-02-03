@@ -36,10 +36,10 @@ User {
 
   @sql {
     table_name: "users",
-    indexes: [
-      { fields: ["id"], primary: true },
-      { fields: ["email"], unique: true }
-    ]
+    indexes: {
+      primary: { fields: ["id"], primary: true },
+      user_email_unique: { fields: ["email"], unique: true }
+    }
   }
 } #10
 
@@ -52,10 +52,10 @@ Post {
 
   @sql {
     table_name: "posts",
-    indexes: [
-      { fields: ["id"], primary: true },
-      { fields: ["author_id"] }
-    ]
+    indexes: {
+      primary: { fields: ["id"], primary: true },
+      posts_author_idx: { fields: ["author_id"] }
+    }
   }
 } #11
 ```
@@ -313,8 +313,8 @@ Generates: `CREATE TABLE "admin"."admin_users" (...)`
 
 ### `indexes`
 
-- **Type:** `Index[]` (optional)
-- **Description:** Define indexes, primary keys, and unique constraints.
+- **Type:** `Index[string]` (optional, map type keyed by index name)
+- **Description:** Define indexes, primary keys, and unique constraints. Uses a map type where keys are index names, enabling proper config inheritance through deep merge semantics.
 
 ```cdm
 User {
@@ -323,12 +323,12 @@ User {
   created_at: string #3
 
   @sql {
-    indexes: [
-      { fields: ["id"], primary: true },
-      { fields: ["email"], unique: true },
-      { fields: ["created_at"], method: "btree" },
-      { fields: ["email"], where: "deleted_at IS NULL", name: "active_users_email" }
-    ]
+    indexes: {
+      primary: { fields: ["id"], primary: true },
+      user_email_unique: { fields: ["email"], unique: true },
+      user_created_at_idx: { fields: ["created_at"], method: "btree" },
+      active_users_email: { fields: ["email"], where: "deleted_at IS NULL" }
+    }
   }
 } #10
 ```
@@ -341,20 +341,23 @@ User {
 | `primary`  | `boolean` (optional)                      | Mark as PRIMARY KEY                      |
 | `unique`   | `boolean` (optional)                      | Mark as UNIQUE constraint                |
 | `method`   | `"btree" \| "hash" \| "gin" \| "gist" \| "spgist" \| "brin"` | Index method (PostgreSQL only)           |
-| `name`     | `string` (optional)                       | Custom index name (auto-generated if omitted) |
 | `where`    | `string` (optional)                       | Partial index condition (PostgreSQL only) |
 
 **Primary Keys:**
 - Only one primary key allowed per table
-- Can be composite: `{ fields: ["org_id", "user_id"], primary: true }`
+- Can be composite: `primary: { fields: ["org_id", "user_id"], primary: true }`
 
 **Unique Constraints:**
 - Can have multiple unique constraints
-- Can be composite: `{ fields: ["email", "tenant_id"], unique: true }`
+- Can be composite: `tenant_email_unique: { fields: ["email", "tenant_id"], unique: true }`
 
 **Regular Indexes:**
 - Omit both `primary` and `unique` for regular indexes
-- Auto-generated name format: `idx_{table}_{index_number}`
+- The map key is used as the index name
+
+**Index Inheritance:**
+- Using map types enables proper inheritance when extending models
+- Child models can add new indexes or override parent indexes by key
 
 ### `constraints`
 
@@ -699,11 +702,11 @@ User {
   updated_at: Timestamp #5
 
   @sql {
-    indexes: [
-      { fields: ["id"], primary: true },
-      { fields: ["email"], unique: true },
-      { fields: ["created_at"] }
-    ]
+    indexes: {
+      primary: { fields: ["id"], primary: true },
+      user_email_unique: { fields: ["email"], unique: true },
+      user_created_at_idx: { fields: ["created_at"] }
+    }
   }
 } #10
 
@@ -717,10 +720,10 @@ Product {
   created_at: Timestamp #7
 
   @sql {
-    indexes: [
-      { fields: ["id"], primary: true },
-      { fields: ["name"], method: "gin" }
-    ],
+    indexes: {
+      primary: { fields: ["id"], primary: true },
+      product_name_idx: { fields: ["name"], method: "gin" }
+    },
     constraints: [
       { type: "check", fields: ["price"], expression: "price >= 0" },
       { type: "check", fields: ["stock"], expression: "stock >= 0" },
@@ -737,12 +740,12 @@ Order {
   created_at: Timestamp #5
 
   @sql {
-    indexes: [
-      { fields: ["id"], primary: true },
-      { fields: ["user_id"] },
-      { fields: ["status"] },
-      { fields: ["created_at"] }
-    ]
+    indexes: {
+      primary: { fields: ["id"], primary: true },
+      order_user_idx: { fields: ["user_id"] },
+      order_status_idx: { fields: ["status"] },
+      order_created_at_idx: { fields: ["created_at"] }
+    }
   }
 } #12
 
@@ -754,11 +757,11 @@ OrderItem {
   price: number #5
 
   @sql {
-    indexes: [
-      { fields: ["id"], primary: true },
-      { fields: ["order_id"] },
-      { fields: ["product_id"] }
-    ],
+    indexes: {
+      primary: { fields: ["id"], primary: true },
+      order_item_order_idx: { fields: ["order_id"] },
+      order_item_product_idx: { fields: ["product_id"] }
+    },
     constraints: [
       { type: "check", fields: ["quantity"], expression: "quantity > 0" },
       { type: "check", fields: ["price"], expression: "price >= 0" }
@@ -783,10 +786,10 @@ Tenant {
   subdomain: string #3
 
   @sql {
-    indexes: [
-      { fields: ["id"], primary: true },
-      { fields: ["subdomain"], unique: true }
-    ]
+    indexes: {
+      primary: { fields: ["id"], primary: true },
+      tenant_subdomain_unique: { fields: ["subdomain"], unique: true }
+    }
   }
 } #10
 
@@ -797,11 +800,11 @@ User {
   name: string #4
 
   @sql {
-    indexes: [
-      { fields: ["id"], primary: true },
-      { fields: ["email", "tenant_id"], unique: true },
-      { fields: ["tenant_id"] }
-    ]
+    indexes: {
+      primary: { fields: ["id"], primary: true },
+      user_tenant_email_unique: { fields: ["email", "tenant_id"], unique: true },
+      user_tenant_idx: { fields: ["tenant_id"] }
+    }
   }
 } #11
 
@@ -813,11 +816,11 @@ Document {
   content: string #5
 
   @sql {
-    indexes: [
-      { fields: ["id"], primary: true },
-      { fields: ["tenant_id"] },
-      { fields: ["owner_id"] }
-    ]
+    indexes: {
+      primary: { fields: ["id"], primary: true },
+      doc_tenant_idx: { fields: ["tenant_id"] },
+      doc_owner_idx: { fields: ["owner_id"] }
+    }
   }
 } #12
 ```

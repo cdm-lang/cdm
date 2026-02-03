@@ -324,6 +324,42 @@ matrix: number[][]  // Not supported - single dimension only
 
 **Note**: Only single-dimensional arrays are supported. For multi-dimensional data, use a model or JSON type.
 
+#### Map Type
+
+A keyed collection where values are indexed by a key type, denoted with `[KeyType]` suffix:
+
+```cdm
+// Users keyed by string
+usersByEmail: User[string]
+
+// Translations keyed by locale
+translations: string[string]
+
+// Prizes keyed by number literal union
+prizes: Prize[1 | 2 | 3]
+
+// Nested maps (localized content by category)
+content: string[string][string]
+```
+
+**Key Type Restrictions:**
+
+Map key types must be one of:
+- `string` — arbitrary string keys
+- `number` — numeric keys
+- String literal union — e.g., `"a" | "b" | "c"`
+- Number literal union — e.g., `1 | 2 | 3`
+
+The following are **not** allowed as key types:
+- `boolean`
+- Model references
+- Arrays
+- Other map types
+
+**Merge Semantics:**
+
+Map types follow object merge semantics (deep merge) rather than array merge semantics (replace entirely). This makes them ideal for plugin configurations where inheritance and incremental modification are needed. For example, indexes in SQL plugin configs use `Index[string]` so child models can add or modify indexes inherited from parent models.
+
 #### Union Type
 
 A union of string literals and/or type references:
@@ -376,7 +412,8 @@ Types are compatible according to these rules:
 1. A type is compatible with itself
 2. A type alias is compatible with its underlying type
 3. Array types are compatible if their element types are compatible
-4. Union types are compatible if all members are compatible with corresponding members
+4. Map types are compatible if both their key types and value types are compatible
+5. Union types are compatible if all members are compatible with corresponding members
 
 ---
 
@@ -857,6 +894,8 @@ When a context file extends another, plugin configurations are merged.
 2. **Arrays**: Replace entirely
 3. **Primitives**: Replace entirely
 
+**Note**: Map types (`V[K]`) serialize to JSON objects, so they follow object merge semantics (deep merge). This makes map types preferable over arrays when configuration inheritance is needed.
+
 #### Example
 
 ```cdm
@@ -896,7 +935,7 @@ extends "./base.cdm"
 }
 ```
 
-> **Note**: Using keyed objects for indexes (where keys are index names) enables proper inheritance through deep merge. Arrays replace entirely per Section 7.4, so the legacy array format should be avoided when inheritance is needed.
+> **Note**: The SQL plugin uses map types for indexes (`Index[string]`) where keys are index names. This enables proper inheritance through deep merge semantics—child contexts can add new indexes or modify inherited ones. See Section 3.2 for map type documentation.
 
 ### 7.5 Context Chains
 

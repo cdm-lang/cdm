@@ -49,9 +49,8 @@ ModelSettings {
   // Indexes (excluding primary key - PKs are field-level)
   // Format: keyed object where keys are index names, values are Index definitions
   // Example: indexes: { user_email_idx: { fields: ["email"], unique: true } }
-  // Note: CDM doesn't have a map type, so this is typed as Index[] for schema purposes
-  // but the actual runtime format uses keyed objects for proper config inheritance
-  indexes?: Index[]
+  // Map types enable proper config inheritance through deep merge semantics
+  indexes?: Index[string]
 
   // Skip entity generation for this model
   skip?: boolean
@@ -115,15 +114,13 @@ FieldSettings {
 }
 
 // Index configuration (reuses SQL plugin structure, without primary flag)
+// The map key becomes the index name
 Index {
   // Field names in the index
   fields: string[]
 
   // UNIQUE constraint
   unique?: boolean
-
-  // Custom index name (auto-generated if not provided)
-  name?: string
 
   // Partial index condition (PostgreSQL: WHERE clause)
   where?: string

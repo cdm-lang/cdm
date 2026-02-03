@@ -285,8 +285,9 @@ fn generate_entity(
     result.push('\n');
 
     // Generate index decorators at class level
-    if let Some(indexes) = model.config.get("indexes").and_then(|v| v.as_array()) {
-        for index in indexes {
+    // Indexes are keyed by name (map type: Index[string])
+    if let Some(indexes) = model.config.get("indexes").and_then(|v| v.as_object()) {
+        for (index_name, index) in indexes {
             if let Some(fields) = index.get("fields").and_then(|v| v.as_array()) {
                 let field_names: Vec<String> = fields
                     .iter()
@@ -297,6 +298,9 @@ fn generate_entity(
                 if !field_names.is_empty() {
                     imports.add_typeorm("Index");
                     let mut index_builder = DecoratorBuilder::index(&field_names);
+
+                    // Set the index name from the map key
+                    index_builder = index_builder.string_option("name", index_name);
 
                     if let Some(true) = index.get("unique").and_then(|v| v.as_bool()) {
                         index_builder = index_builder.bool_option("unique", true);
