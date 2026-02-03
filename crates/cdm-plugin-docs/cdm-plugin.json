@@ -1,6 +1,6 @@
 {
   "name": "docs",
-  "version": "0.1.1",
+  "version": "0.1.3",
   "description": "Generate documentation from CDM schemas",
   "docs": "https://github.com/cdm-lang/cdm/blob/main/crates/cdm-plugin-docs/README.md",
   "schema": "schema.cdm",
