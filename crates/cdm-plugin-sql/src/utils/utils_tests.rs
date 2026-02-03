@@ -141,14 +141,14 @@ fn test_extract_indexes_empty_config() {
 #[test]
 fn test_extract_indexes_single_regular_index() {
     let config = json!({
-        "indexes": [
-            { "fields": ["email"] }
-        ]
+        "indexes": {
+            "email_idx": { "fields": ["email"] }
+        }
     });
     let indexes = extract_indexes(&config, "users");
 
     assert_eq!(indexes.len(), 1);
-    assert_eq!(indexes[0].name, "idx_users_0");
+    assert_eq!(indexes[0].name, "email_idx");
     assert_eq!(indexes[0].fields, vec!["email"]);
     assert!(!indexes[0].is_unique);
     assert!(!indexes[0].is_primary);
@@ -157,9 +157,9 @@ fn test_extract_indexes_single_regular_index() {
 #[test]
 fn test_extract_indexes_unique_index() {
     let config = json!({
-        "indexes": [
-            { "fields": ["email"], "unique": true }
-        ]
+        "indexes": {
+            "email_unique": { "fields": ["email"], "unique": true }
+        }
     });
     let indexes = extract_indexes(&config, "users");
 
@@ -171,9 +171,9 @@ fn test_extract_indexes_unique_index() {
 #[test]
 fn test_extract_indexes_primary_key() {
     let config = json!({
-        "indexes": [
-            { "fields": ["id"], "primary": true }
-        ]
+        "indexes": {
+            "primary": { "fields": ["id"], "primary": true }
+        }
     });
     let indexes = extract_indexes(&config, "users");
 
@@ -185,9 +185,9 @@ fn test_extract_indexes_primary_key() {
 #[test]
 fn test_extract_indexes_composite_index() {
     let config = json!({
-        "indexes": [
-            { "fields": ["first_name", "last_name"] }
-        ]
+        "indexes": {
+            "name_idx": { "fields": ["first_name", "last_name"] }
+        }
     });
     let indexes = extract_indexes(&config, "users");
 
@@ -197,10 +197,11 @@ fn test_extract_indexes_composite_index() {
 
 #[test]
 fn test_extract_indexes_with_custom_name() {
+    // In keyed object format, the key IS the name
     let config = json!({
-        "indexes": [
-            { "fields": ["email"], "name": "custom_email_idx" }
-        ]
+        "indexes": {
+            "custom_email_idx": { "fields": ["email"] }
+        }
     });
     let indexes = extract_indexes(&config, "users");
 
@@ -210,13 +211,13 @@ fn test_extract_indexes_with_custom_name() {
 #[test]
 fn test_extract_indexes_with_method_and_where() {
     let config = json!({
-        "indexes": [
-            {
+        "indexes": {
+            "email_partial": {
                 "fields": ["email"],
                 "method": "btree",
                 "where": "deleted_at IS NULL"
             }
-        ]
+        }
     });
     let indexes = extract_indexes(&config, "users");
 
@@ -227,28 +228,32 @@ fn test_extract_indexes_with_method_and_where() {
 #[test]
 fn test_extract_indexes_multiple() {
     let config = json!({
-        "indexes": [
-            { "fields": ["id"], "primary": true },
-            { "fields": ["email"], "unique": true },
-            { "fields": ["created_at"] }
-        ]
+        "indexes": {
+            "primary": { "fields": ["id"], "primary": true },
+            "email_unique": { "fields": ["email"], "unique": true },
+            "created_at_idx": { "fields": ["created_at"] }
+        }
     });
     let indexes = extract_indexes(&config, "users");
 
     assert_eq!(indexes.len(), 3);
-    assert!(indexes[0].is_primary);
-    assert!(indexes[1].is_unique);
-    assert!(!indexes[2].is_primary);
-    assert!(!indexes[2].is_unique);
+    // Note: HashMap iteration order is not guaranteed, so we check by finding each index
+    let primary_idx = indexes.iter().find(|i| i.is_primary).expect("Should have primary");
+    let unique_idx = indexes.iter().find(|i| i.is_unique).expect("Should have unique");
+    let regular_idx = indexes.iter().find(|i| !i.is_primary && !i.is_unique).expect("Should have regular");
+
+    assert_eq!(primary_idx.fields, vec!["id"]);
+    assert_eq!(unique_idx.fields, vec!["email"]);
+    assert_eq!(regular_idx.fields, vec!["created_at"]);
 }
 
 #[test]
 fn test_extract_indexes_skips_empty_fields() {
     let config = json!({
-        "indexes": [
-            { "fields": [] },
-            { "fields": ["email"] }
-        ]
+        "indexes": {
+            "empty_idx": { "fields": [] },
+            "email_idx": { "fields": ["email"] }
+        }
     });
     let indexes = extract_indexes(&config, "users");
 

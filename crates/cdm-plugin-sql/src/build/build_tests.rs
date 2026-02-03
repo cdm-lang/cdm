@@ -97,12 +97,12 @@ fn test_build_with_primary_key() {
             }],
             entity_id: None,
             config: json!({
-                "indexes": [
-                    {
+                "indexes": {
+                    "primary": {
                         "fields": ["id"],
                         "primary": true
                     }
-                ]
+                }
             }),
         },
     );
@@ -156,12 +156,12 @@ fn test_build_with_unique_constraint() {
             ],
             entity_id: None,
             config: json!({
-                "indexes": [
-                    {
+                "indexes": {
+                    "email_unique": {
                         "fields": ["email"],
                         "unique": true
                     }
-                ]
+                }
             }),
         },
     );
@@ -203,11 +203,11 @@ fn test_build_with_regular_index() {
             }],
             entity_id: None,
             config: json!({
-                "indexes": [
-                    {
+                "indexes": {
+                    "name_idx": {
                         "fields": ["name"]
                     }
-                ]
+                }
             }),
         },
     );
@@ -771,12 +771,12 @@ fn test_build_with_qualified_template_type_alias() {
             ],
             entity_id: None,
             config: json!({
-                "indexes": [
-                    {
+                "indexes": {
+                    "primary": {
                         "fields": ["id"],
                         "primary": true
                     }
-                ]
+                }
             }),
         },
     );
@@ -864,9 +864,9 @@ fn test_no_trailing_comma_with_non_inline_index() {
             ],
             // Non-primary, non-unique index - should be standalone CREATE INDEX
             config: json!({
-                "indexes": [
-                    { "fields": ["user_id"] }
-                ]
+                "indexes": {
+                    "user_id_idx": { "fields": ["user_id"] }
+                }
             }),
             entity_id: None,
         },
@@ -931,9 +931,9 @@ fn test_trailing_comma_with_primary_key_index() {
             ],
             // Primary key - should be inline constraint
             config: json!({
-                "indexes": [
-                    { "fields": ["id"], "primary": true }
-                ]
+                "indexes": {
+                    "primary": { "fields": ["id"], "primary": true }
+                }
             }),
             entity_id: None,
         },

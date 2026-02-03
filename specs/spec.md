@@ -91,7 +91,7 @@ User {
   posts: Post[] #5
   created_at: string #6
 
-  @sql { table: "users", indexes: [{ fields: ["email"], unique: true }] }
+  @sql { table: "users", indexes: { email_unique: { fields: ["email"], unique: true } } }
 } #10
 
 Post {
@@ -553,7 +553,7 @@ User {
 
   @sql {
     table: "users",
-    indexes: [{ fields: ["email"], unique: true }]
+    indexes: { email_unique: { fields: ["email"], unique: true } }
   }
   @api { expose: ["id", "name", "email"] }
 } #10
@@ -864,7 +864,7 @@ When a context file extends another, plugin configurations are merged.
 @sql {
   dialect: "postgres",
   naming: { tables: "snake_case", columns: "snake_case" },
-  indexes: [{ fields: ["id"] }]
+  indexes: { primary: { fields: ["id"], primary: true } }
 }
 ```
 
@@ -875,7 +875,7 @@ extends "./base.cdm"
 @sql {
   schema: "api",
   naming: { columns: "camelCase" },
-  indexes: [{ fields: ["created_at"] }]
+  indexes: { created_at_idx: { fields: ["created_at"] } }
 }
 ```
 
@@ -889,9 +889,14 @@ extends "./base.cdm"
     tables: "snake_case",           // Inherited (deep merge)
     columns: "camelCase"            // Overridden
   },
-  indexes: [{ fields: ["created_at"] }]  // Replaced (arrays replace entirely)
+  indexes: {
+    primary: { fields: ["id"], primary: true },  // Inherited (deep merge)
+    created_at_idx: { fields: ["created_at"] }   // Added
+  }
 }
 ```
+
+> **Note**: Using keyed objects for indexes (where keys are index names) enables proper inheritance through deep merge. Arrays replace entirely per Section 7.4, so the legacy array format should be avoided when inheritance is needed.
 
 ### 7.5 Context Chains
 
@@ -1033,10 +1038,10 @@ Plugin configuration uses JSON object syntax:
   dialect: "postgres",
   schema: "public",
   naming_convention: "snake_case",
-  indexes: [
-    { fields: ["email"], unique: true },
-    { fields: ["created_at"], order: "DESC" }
-  ]
+  indexes: {
+    email_unique: { fields: ["email"], unique: true },
+    created_at_idx: { fields: ["created_at"] }
+  }
 }
 ```
 

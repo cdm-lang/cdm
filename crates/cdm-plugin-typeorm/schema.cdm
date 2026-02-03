@@ -47,7 +47,9 @@ ModelSettings {
   schema?: string
 
   // Indexes (excluding primary key - PKs are field-level)
-  indexes?: Index[]
+  // Keyed object where keys are index names
+  // Example: indexes: { user_email_idx: { fields: ["email"], unique: true } }
+  indexes?: json
 
   // Skip entity generation for this model
   skip?: boolean

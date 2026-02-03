@@ -46,7 +46,9 @@ ModelSettings {
   schema?: string
 
   // Indexes (including primary keys and unique constraints)
-  indexes?: Index[]
+  // Keyed object where keys are index names
+  // Example: indexes: { primary: { fields: ["id"], primary: true } }
+  indexes?: json
 
   // Constraints (NOT NULL, DEFAULT, CHECK, FOREIGN KEY, etc.)
   constraints?: Constraint[]
@@ -76,6 +78,8 @@ FieldSettings {
 }
 
 // Index definition (handles PRIMARY KEY, UNIQUE, and regular indexes)
+// When using keyed object format, the key becomes the index name
+// Example: indexes: { user_email_idx: { fields: ["email"], unique: true } }
 Index {
   fields: string[]  // One or more field names
 
@@ -87,9 +91,6 @@ Index {
 
   // Index method (PostgreSQL)
   method?: "btree" | "hash" | "gin" | "gist" | "spgist" | "brin"
-
-  // Custom index name (auto-generated if not provided)
-  name?: string
 
   // Partial index condition (PostgreSQL: WHERE clause)
   where?: string
