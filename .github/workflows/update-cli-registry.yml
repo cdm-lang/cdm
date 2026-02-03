@@ -16,11 +16,6 @@ on:
         required: true
         type: string
 
-# Serialize all registry updates to prevent race conditions
-concurrency:
-  group: update-cli-registry
-  cancel-in-progress: false
-
 jobs:
   update-registry:
     name: Update cli-releases.json

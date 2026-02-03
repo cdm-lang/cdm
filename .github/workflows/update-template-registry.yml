@@ -28,11 +28,6 @@ on:
         required: true
         type: string
 
-# Serialize all registry updates to prevent race conditions
-concurrency:
-  group: update-template-registry
-  cancel-in-progress: false
-
 jobs:
   update-registry:
     name: Update templates.json

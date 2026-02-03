@@ -11,6 +11,11 @@ permissions:
   contents: write
   pull-requests: write
 
+# Serialize all template releases to prevent registry update conflicts
+concurrency:
+  group: template-release
+  cancel-in-progress: false
+
 jobs:
   release:
     name: Create Template Release

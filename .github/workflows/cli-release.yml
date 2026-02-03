@@ -9,6 +9,11 @@ permissions:
   contents: write
   pull-requests: write
 
+# Serialize all CLI releases to prevent registry update conflicts
+concurrency:
+  group: cli-release
+  cancel-in-progress: false
+
 jobs:
   build-binaries:
     name: Build ${{ matrix.platform }}
