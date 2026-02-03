@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-02-03T16:57:17Z",
+  "updated_at": "2026-02-03T17:08:49Z",
   "plugins": {
     "sql": {
       "description": "Generate SQL DDL schemas and migrations for PostgreSQL and SQLite",
@@ -94,16 +94,20 @@
     },
     "docs": {
       "description": "Generate documentation from CDM schemas",
-      "repository": "git:https://github.com/cdm-lang/cdm-plugin-docs.git",
-      "docs": "https://github.com/cdm-lang/cdm/blob/main/crates/cdm-plugin-docs/README.md",
+      "repository": "git:https://github.com/cdm-lang/cdm.git",
       "official": true,
       "versions": {
         "0.1.0": {
           "wasm_url": "https://github.com/cdm-lang/cdm-plugin-docs/releases/download/v0.1.0/plugin.wasm",
           "checksum": "sha256:pending"
+        },
+        "0.1.3": {
+          "wasm_url": "https://github.com/cdm-lang/cdm/releases/download/cdm-plugin-docs-v0.1.3/cdm_plugin_docs.wasm",
+          "checksum": "sha256:7982b5b0f0120dffb016a566412b544add46606a000a6ded9b1dda1f1dd5f853"
         }
       },
-      "latest": "0.1.0"
+      "latest": "0.1.3",
+      "docs": "https://github.com/cdm-lang/cdm/blob/main/crates/cdm-plugin-docs/README.md"
     },
     "jsonschema": {
       "description": "Generate JSON Schema definitions from CDM models and type aliases",
