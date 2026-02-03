@@ -411,12 +411,12 @@ fn compute_model_deltas(
                 });
 
                 // Check for field changes within renamed model
-                compute_field_deltas(&curr_model.name, &prev_model.fields, &curr_model.fields, deltas)?;
+                compute_field_deltas(&curr_model.name, &prev_model.fields, &curr_model.fields, &previous.type_aliases, &current.type_aliases, deltas)?;
                 compute_inheritance_deltas(&curr_model.name, &prev_model.parents, &curr_model.parents, deltas);
             }
             Some(prev_model) => {
                 // Same ID, same name - check for field/inheritance/config changes
-                compute_field_deltas(&curr_model.name, &prev_model.fields, &curr_model.fields, deltas)?;
+                compute_field_deltas(&curr_model.name, &prev_model.fields, &curr_model.fields, &previous.type_aliases, &current.type_aliases, deltas)?;
                 compute_inheritance_deltas(&curr_model.name, &prev_model.parents, &curr_model.parents, deltas);
 
                 // Check for model-level config changes
@@ -454,7 +454,7 @@ fn compute_model_deltas(
             match previous.models.get(name) {
                 Some(prev_model) => {
                     // Same name - check for field changes
-                    compute_field_deltas(name, &prev_model.fields, &curr_model.fields, deltas)?;
+                    compute_field_deltas(name, &prev_model.fields, &curr_model.fields, &previous.type_aliases, &current.type_aliases, deltas)?;
                     compute_inheritance_deltas(name, &prev_model.parents, &curr_model.parents, deltas);
                 }
                 None => {
@@ -487,6 +487,8 @@ fn compute_field_deltas(
     model_name: &str,
     prev_fields: &[cdm_plugin_interface::FieldDefinition],
     curr_fields: &[cdm_plugin_interface::FieldDefinition],
+    prev_aliases: &std::collections::HashMap<String, cdm_plugin_interface::TypeAliasDefinition>,
+    curr_aliases: &std::collections::HashMap<String, cdm_plugin_interface::TypeAliasDefinition>,
     deltas: &mut Vec<Delta>,
 ) -> Result<()> {
     use std::collections::{HashSet, HashMap};
@@ -525,7 +527,7 @@ fn compute_field_deltas(
             }
             Some(prev_field) => {
                 // Same ID, same name - check for modifications
-                if !types_equal(&prev_field.field_type, &curr_field.field_type) {
+                if !types_equal_with_aliases(&prev_field.field_type, &curr_field.field_type, prev_aliases, curr_aliases) {
                     deltas.push(Delta::FieldTypeChanged {
                         model: model_name.to_string(),
                         field: curr_field.name.clone(),
@@ -593,7 +595,7 @@ fn compute_field_deltas(
             match prev_match {
                 Some(prev_field) => {
                     // Same name, no IDs - check for modifications
-                    if !types_equal(&prev_field.field_type, &curr_field.field_type) {
+                    if !types_equal_with_aliases(&prev_field.field_type, &curr_field.field_type, prev_aliases, curr_aliases) {
                         deltas.push(Delta::FieldTypeChanged {
                             model: model_name.to_string(),
                             field: curr_field.name.clone(),
@@ -764,8 +766,80 @@ fn load_plugin(import: &PluginImport) -> Result<PluginRunner> {
 }
 
 
-/// Check if two type expressions are equal
+/// Resolve a type expression by expanding type aliases
+fn resolve_type<'a>(
+    t: &'a cdm_plugin_interface::TypeExpression,
+    type_aliases: &'a std::collections::HashMap<String, cdm_plugin_interface::TypeAliasDefinition>,
+) -> std::borrow::Cow<'a, cdm_plugin_interface::TypeExpression> {
+    use cdm_plugin_interface::TypeExpression;
+    use std::borrow::Cow;
+
+    match t {
+        TypeExpression::Identifier { name } => {
+            // Check if this identifier is a type alias
+            if let Some(alias) = type_aliases.get(name) {
+                // Recursively resolve in case of chained aliases
+                match resolve_type(&alias.alias_type, type_aliases) {
+                    Cow::Borrowed(resolved) => Cow::Borrowed(resolved),
+                    Cow::Owned(resolved) => Cow::Owned(resolved),
+                }
+            } else {
+                Cow::Borrowed(t)
+            }
+        }
+        TypeExpression::Array { element_type } => {
+            let resolved_element = resolve_type(element_type, type_aliases);
+            if matches!(resolved_element, Cow::Borrowed(_)) && std::ptr::eq(resolved_element.as_ref(), element_type.as_ref()) {
+                Cow::Borrowed(t)
+            } else {
+                Cow::Owned(TypeExpression::Array {
+                    element_type: Box::new(resolved_element.into_owned()),
+                })
+            }
+        }
+        TypeExpression::Union { types } => {
+            let mut any_changed = false;
+            let resolved_types: Vec<_> = types
+                .iter()
+                .map(|inner| {
+                    let resolved = resolve_type(inner, type_aliases);
+                    if !matches!(&resolved, Cow::Borrowed(r) if std::ptr::eq(*r, inner)) {
+                        any_changed = true;
+                    }
+                    resolved.into_owned()
+                })
+                .collect();
+            if any_changed {
+                Cow::Owned(TypeExpression::Union { types: resolved_types })
+            } else {
+                Cow::Borrowed(t)
+            }
+        }
+        TypeExpression::StringLiteral { .. } => Cow::Borrowed(t),
+    }
+}
+
+/// Check if two type expressions are equal (without type alias resolution)
 fn types_equal(a: &cdm_plugin_interface::TypeExpression, b: &cdm_plugin_interface::TypeExpression) -> bool {
+    types_equal_with_aliases(a, b, &std::collections::HashMap::new(), &std::collections::HashMap::new())
+}
+
+/// Check if two type expressions are equal, resolving type aliases
+fn types_equal_with_aliases(
+    a: &cdm_plugin_interface::TypeExpression,
+    b: &cdm_plugin_interface::TypeExpression,
+    prev_aliases: &std::collections::HashMap<String, cdm_plugin_interface::TypeAliasDefinition>,
+    curr_aliases: &std::collections::HashMap<String, cdm_plugin_interface::TypeAliasDefinition>,
+) -> bool {
+    // Resolve both types using their respective alias maps
+    let resolved_a = resolve_type(a, prev_aliases);
+    let resolved_b = resolve_type(b, curr_aliases);
+
+    types_equal_resolved(resolved_a.as_ref(), resolved_b.as_ref())
+}
+
+/// Check if two resolved type expressions are equal (no alias resolution)
+fn types_equal_resolved(a: &cdm_plugin_interface::TypeExpression, b: &cdm_plugin_interface::TypeExpression) -> bool {
     use cdm_plugin_interface::TypeExpression;
 
     match (a, b) {
@@ -773,14 +847,14 @@ fn types_equal(a: &cdm_plugin_interface::TypeExpression, b: &cdm_plugin_interfac
             n1 == n2
         }
         (TypeExpression::Array { element_type: e1 }, TypeExpression::Array { element_type: e2 }) => {
-            types_equal(e1, e2)
+            types_equal_resolved(e1, e2)
         }
         (TypeExpression::Union { types: t1 }, TypeExpression::Union { types: t2 }) => {
             // Union equality is order-independent
             if t1.len() != t2.len() {
                 return false;
             }
-            t1.iter().all(|t| t2.iter().any(|t2| types_equal(t, t2)))
+            t1.iter().all(|t| t2.iter().any(|t2| types_equal_resolved(t, t2)))
         }
         (TypeExpression::StringLiteral { value: v1 }, TypeExpression::StringLiteral { value: v2 }) => {
             v1 == v2

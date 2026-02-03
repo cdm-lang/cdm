@@ -366,6 +366,20 @@ fn test_pluralize_consonant_o() {
 }
 
 #[test]
+fn test_pluralize_consonant_o_exceptions() {
+    // Abbreviations and modern words that add -s instead of -es
+    assert_eq!(pluralize("repo"), "repos");
+    assert_eq!(pluralize("photo"), "photos");
+    assert_eq!(pluralize("video"), "videos");
+    assert_eq!(pluralize("memo"), "memos");
+    assert_eq!(pluralize("logo"), "logos");
+    assert_eq!(pluralize("demo"), "demos");
+    assert_eq!(pluralize("auto"), "autos");
+    assert_eq!(pluralize("piano"), "pianos");
+    assert_eq!(pluralize("zero"), "zeros");
+}
+
+#[test]
 fn test_pluralize_irregular() {
     assert_eq!(pluralize("person"), "people");
     assert_eq!(pluralize("child"), "children");

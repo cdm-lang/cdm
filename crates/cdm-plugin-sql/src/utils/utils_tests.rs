@@ -493,3 +493,67 @@ fn test_should_skip_field_real_world_relation_config() {
     });
     assert!(should_skip_field(&config), "should_skip_field should return true for real-world relation config with sql.skip: true");
 }
+
+// ============================================================================
+// Foreign key references tests
+// ============================================================================
+
+#[test]
+fn test_generate_create_table_with_foreign_key_reference() {
+    // Test that a field with @sql { references: { table: "users", column: "id" } }
+    // generates a REFERENCES clause in the CREATE TABLE statement
+    use cdm_plugin_interface::{FieldDefinition, TypeExpression};
+
+    let model = cdm_plugin_interface::ModelDefinition {
+        name: "Project".to_string(),
+        parents: vec![],
+        fields: vec![
+            FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier { name: "string".to_string() },
+                optional: false,
+                default: None,
+                config: json!({ "type": "UUID" }),
+                entity_id: None,
+            },
+            FieldDefinition {
+                name: "owner_id".to_string(),
+                field_type: TypeExpression::Identifier { name: "string".to_string() },
+                optional: false,
+                default: None,
+                config: json!({
+                    "type": "UUID",
+                    "references": {
+                        "table": "users",
+                        "column": "id",
+                        "on_delete": "cascade"
+                    }
+                }),
+                entity_id: None,
+            },
+        ],
+        config: json!({}),
+        entity_id: None,
+    };
+
+    let global_config = json!({
+        "dialect": "postgresql",
+        "pluralize_table_names": true
+    });
+    let type_aliases = std::collections::HashMap::new();
+    let type_mapper = TypeMapper::new(&global_config, &type_aliases);
+
+    let sql = generate_create_table("Project", &model, &global_config, &type_mapper);
+
+    // Should include the REFERENCES clause for owner_id
+    assert!(
+        sql.contains("REFERENCES") && sql.contains("\"users\""),
+        "CREATE TABLE should include REFERENCES clause for foreign key. Got:\n{}",
+        sql
+    );
+    assert!(
+        sql.contains("ON DELETE CASCADE"),
+        "CREATE TABLE should include ON DELETE CASCADE. Got:\n{}",
+        sql
+    );
+}

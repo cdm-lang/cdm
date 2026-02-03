@@ -106,13 +106,12 @@ pub fn build_resolved_schema(
     for ancestor in ancestors.iter().rev() {
         // Add type aliases from this ancestor
         for (name, def) in &ancestor.symbol_table.definitions {
-            // Skip if removed or already added by a closer ancestor
-            if removed_names.contains(name) || resolved.contains(name) {
-                continue;
-            }
-
             match &def.kind {
                 DefinitionKind::TypeAlias { references, type_expr } => {
+                    // Skip if removed or already added by a closer ancestor
+                    if removed_names.contains(name) || resolved.contains(name) {
+                        continue;
+                    }
                     resolved.type_aliases.insert(
                         name.clone(),
                         ResolvedTypeAlias {
@@ -131,31 +130,39 @@ pub fn build_resolved_schema(
                 DefinitionKind::Model { extends } => {
                     // Add model if it has fields in ancestor.model_fields
                     if let Some(fields) = ancestor.model_fields.get(name) {
-                        resolved.models.insert(
-                            name.clone(),
-                            ResolvedModel {
-                                name: name.clone(),
-                                fields: fields
-                                    .iter()
-                                    .map(|f| ResolvedField {
-                                        name: f.name.clone(),
-                                        type_expr: f.type_expr.clone(),
-                                        optional: f.optional,
-                                        default_value: f.default_value.clone(),
-                                        plugin_configs: f.plugin_configs.clone(),
-                                        source_file: ancestor.path.clone(),
-                                        source_span: f.span,
-                                        cached_parsed_type: RefCell::new(None),
-                                        entity_id: f.entity_id.clone(),
-                                    })
-                                    .collect(),
-                                parents: extends.clone(),
-                                plugin_configs: def.plugin_configs.clone(),
-                                source_file: ancestor.path.clone(),
-                                source_span: def.span,
-                                entity_id: def.entity_id.clone(),
-                            },
-                        );
+                        let resolved_model = ResolvedModel {
+                            name: name.clone(),
+                            fields: fields
+                                .iter()
+                                .map(|f| ResolvedField {
+                                    name: f.name.clone(),
+                                    type_expr: f.type_expr.clone(),
+                                    optional: f.optional,
+                                    default_value: f.default_value.clone(),
+                                    plugin_configs: f.plugin_configs.clone(),
+                                    source_file: ancestor.path.clone(),
+                                    source_span: f.span,
+                                    cached_parsed_type: RefCell::new(None),
+                                    entity_id: f.entity_id.clone(),
+                                })
+                                .collect(),
+                            parents: extends.clone(),
+                            plugin_configs: def.plugin_configs.clone(),
+                            source_file: ancestor.path.clone(),
+                            source_span: def.span,
+                            entity_id: def.entity_id.clone(),
+                        };
+
+                        // Always add to all_models_for_inheritance (for config inheritance)
+                        // Skip if already added by a closer ancestor
+                        if !resolved.all_models_for_inheritance.contains_key(name) {
+                            resolved.all_models_for_inheritance.insert(name.clone(), resolved_model.clone());
+                        }
+
+                        // Only add to models if not removed and not already added
+                        if !removed_names.contains(name) && !resolved.models.contains_key(name) {
+                            resolved.models.insert(name.clone(), resolved_model);
+                        }
                     }
                 }
             }
@@ -266,7 +273,12 @@ pub fn build_resolved_schema(
                 let current_file_fields = current_fields.get(name).cloned().unwrap_or_default();
                 let removed_fields = field_removals.get(name);
 
-                if let Some(existing_model) = resolved.models.get(name) {
+                // Check if this model exists in all_models_for_inheritance (from an ancestor)
+                // Per spec Section 7.3, if a model exists in ancestors, the current file
+                // MODIFIES it (merging fields and configs) rather than REPLACING it.
+                let existing_model = resolved.all_models_for_inheritance.get(name).or_else(|| resolved.models.get(name));
+
+                if let Some(existing_model) = existing_model {
                     // Model exists in ancestor - MERGE modifications
                     let mut merged_fields = Vec::new();
                     let current_field_names: HashSet<_> = current_file_fields.iter().map(|f| &f.name).collect();
@@ -316,46 +328,56 @@ pub fn build_resolved_schema(
                         }
                     }
 
-                    resolved.models.insert(
-                        name.clone(),
-                        ResolvedModel {
-                            name: name.clone(),
-                            fields: merged_fields,
-                            parents: merged_parents,
-                            plugin_configs: merged_configs,
-                            // Use current file's entity_id if present, otherwise keep ancestor's
-                            entity_id: def.entity_id.clone().or(existing_model.entity_id.clone()),
-                            source_file: "current file".to_string(),
-                            source_span: def.span,
-                        },
-                    );
+                    let merged_model = ResolvedModel {
+                        name: name.clone(),
+                        fields: merged_fields,
+                        parents: merged_parents,
+                        plugin_configs: merged_configs,
+                        // Use current file's entity_id if present, otherwise keep ancestor's
+                        entity_id: def.entity_id.clone().or(existing_model.entity_id.clone()),
+                        source_file: "current file".to_string(),
+                        source_span: def.span,
+                    };
+
+                    // Always update all_models_for_inheritance
+                    resolved.all_models_for_inheritance.insert(name.clone(), merged_model.clone());
+
+                    // Only update models if not removed
+                    if !removed_names.contains(name) {
+                        resolved.models.insert(name.clone(), merged_model);
+                    }
                 } else {
                     // Model doesn't exist in ancestors - new definition
-                    resolved.models.insert(
-                        name.clone(),
-                        ResolvedModel {
-                            name: name.clone(),
-                            fields: current_file_fields
-                                .iter()
-                                .map(|f| ResolvedField {
-                                    name: f.name.clone(),
-                                    type_expr: f.type_expr.clone(),
-                                    optional: f.optional,
-                                    default_value: f.default_value.clone(),
-                                    plugin_configs: f.plugin_configs.clone(),
-                                    source_file: "current file".to_string(),
-                                    source_span: f.span,
-                                    cached_parsed_type: RefCell::new(None),
-                                    entity_id: f.entity_id.clone(),
-                                })
-                                .collect(),
-                            parents: extends.clone(),
-                            plugin_configs: def.plugin_configs.clone(),
-                            entity_id: def.entity_id.clone(),
-                            source_file: "current file".to_string(),
-                            source_span: def.span,
-                        },
-                    );
+                    let new_model = ResolvedModel {
+                        name: name.clone(),
+                        fields: current_file_fields
+                            .iter()
+                            .map(|f| ResolvedField {
+                                name: f.name.clone(),
+                                type_expr: f.type_expr.clone(),
+                                optional: f.optional,
+                                default_value: f.default_value.clone(),
+                                plugin_configs: f.plugin_configs.clone(),
+                                source_file: "current file".to_string(),
+                                source_span: f.span,
+                                cached_parsed_type: RefCell::new(None),
+                                entity_id: f.entity_id.clone(),
+                            })
+                            .collect(),
+                        parents: extends.clone(),
+                        plugin_configs: def.plugin_configs.clone(),
+                        entity_id: def.entity_id.clone(),
+                        source_file: "current file".to_string(),
+                        source_span: def.span,
+                    };
+
+                    // Always add to all_models_for_inheritance
+                    resolved.all_models_for_inheritance.insert(name.clone(), new_model.clone());
+
+                    // Only add to models if not removed
+                    if !removed_names.contains(name) {
+                        resolved.models.insert(name.clone(), new_model);
+                    }
                 }
             }
         }
@@ -563,8 +585,10 @@ pub fn build_cdm_schema_for_plugin(
 
         // Get merged config including inherited configs from parent models
         // Per spec Section 6.5: "Model-level config: Child's config merges with parent's config"
+        // Use all_models_for_inheritance which includes removed parent models
+        // This ensures config inheritance works even when parent models are removed from output
         let mut visited = HashSet::new();
-        let merged_model_config = get_merged_model_config(name, &resolved.models, plugin_name, &mut visited);
+        let merged_model_config = get_merged_model_config(name, &resolved.all_models_for_inheritance, plugin_name, &mut visited);
 
         models.insert(name.clone(), cdm_plugin_interface::ModelDefinition {
             name: name.clone(),
@@ -636,7 +660,7 @@ fn deep_merge_json(base: &serde_json::Value, overlay: &serde_json::Value) -> ser
 /// Get merged model config by walking up the parent chain.
 /// Per spec Section 6.5: "Model-level config: Child's config merges with parent's config"
 /// Merge rules from Section 7.4: Objects deep merge, arrays/primitives replace.
-fn get_merged_model_config(
+pub(crate) fn get_merged_model_config(
     model_name: &str,
     resolved_models: &HashMap<String, ResolvedModel>,
     plugin_name: &str,

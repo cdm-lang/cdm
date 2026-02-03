@@ -585,7 +585,7 @@ fn test_compute_field_deltas_addition() {
     ];
 
     let mut deltas = Vec::new();
-    compute_field_deltas("User", &prev_fields, &curr_fields, &mut deltas).unwrap();
+    compute_field_deltas("User", &prev_fields, &curr_fields, &HashMap::new(), &HashMap::new(), &mut deltas).unwrap();
 
     assert_eq!(deltas.len(), 1);
     match &deltas[0] {
@@ -612,7 +612,7 @@ fn test_compute_field_deltas_removal() {
     let curr_fields = vec![];
 
     let mut deltas = Vec::new();
-    compute_field_deltas("User", &prev_fields, &curr_fields, &mut deltas).unwrap();
+    compute_field_deltas("User", &prev_fields, &curr_fields, &HashMap::new(), &HashMap::new(), &mut deltas).unwrap();
 
     assert_eq!(deltas.len(), 1);
     match &deltas[0] {
@@ -648,7 +648,7 @@ fn test_compute_field_deltas_rename() {
     ];
 
     let mut deltas = Vec::new();
-    compute_field_deltas("User", &prev_fields, &curr_fields, &mut deltas).unwrap();
+    compute_field_deltas("User", &prev_fields, &curr_fields, &HashMap::new(), &HashMap::new(), &mut deltas).unwrap();
 
     assert_eq!(deltas.len(), 1);
     match &deltas[0] {
@@ -686,7 +686,7 @@ fn test_compute_field_deltas_type_changed() {
     ];
 
     let mut deltas = Vec::new();
-    compute_field_deltas("User", &prev_fields, &curr_fields, &mut deltas).unwrap();
+    compute_field_deltas("User", &prev_fields, &curr_fields, &HashMap::new(), &HashMap::new(), &mut deltas).unwrap();
 
     assert_eq!(deltas.len(), 1);
     match &deltas[0] {
@@ -727,7 +727,7 @@ fn test_compute_field_deltas_type_changed_from_implicit_string() {
     ];
 
     let mut deltas = Vec::new();
-    compute_field_deltas("User", &prev_fields, &curr_fields, &mut deltas).unwrap();
+    compute_field_deltas("User", &prev_fields, &curr_fields, &HashMap::new(), &HashMap::new(), &mut deltas).unwrap();
 
     assert_eq!(deltas.len(), 1, "Expected exactly one delta for type change from implicit string to explicit number");
     match &deltas[0] {
@@ -768,7 +768,7 @@ fn test_compute_field_deltas_type_changed_without_entity_id() {
     ];
 
     let mut deltas = Vec::new();
-    compute_field_deltas("User", &prev_fields, &curr_fields, &mut deltas).unwrap();
+    compute_field_deltas("User", &prev_fields, &curr_fields, &HashMap::new(), &HashMap::new(), &mut deltas).unwrap();
 
     assert_eq!(deltas.len(), 1, "Expected exactly one delta for type change");
     match &deltas[0] {
@@ -807,7 +807,7 @@ fn test_compute_field_deltas_optionality_changed_without_entity_id() {
     ];
 
     let mut deltas = Vec::new();
-    compute_field_deltas("User", &prev_fields, &curr_fields, &mut deltas).unwrap();
+    compute_field_deltas("User", &prev_fields, &curr_fields, &HashMap::new(), &HashMap::new(), &mut deltas).unwrap();
 
     assert_eq!(deltas.len(), 1, "Expected exactly one delta for optionality change");
     match &deltas[0] {
@@ -846,7 +846,7 @@ fn test_compute_field_deltas_default_changed_without_entity_id() {
     ];
 
     let mut deltas = Vec::new();
-    compute_field_deltas("User", &prev_fields, &curr_fields, &mut deltas).unwrap();
+    compute_field_deltas("User", &prev_fields, &curr_fields, &HashMap::new(), &HashMap::new(), &mut deltas).unwrap();
 
     assert_eq!(deltas.len(), 1, "Expected exactly one delta for default change");
     match &deltas[0] {
@@ -890,7 +890,7 @@ fn test_compute_field_deltas_multiple_changes_without_entity_id() {
     ];
 
     let mut deltas = Vec::new();
-    compute_field_deltas("User", &prev_fields, &curr_fields, &mut deltas).unwrap();
+    compute_field_deltas("User", &prev_fields, &curr_fields, &HashMap::new(), &HashMap::new(), &mut deltas).unwrap();
 
     assert_eq!(deltas.len(), 4, "Expected four deltas for type, optionality, default, and config changes");
 
@@ -930,7 +930,7 @@ fn test_compute_field_deltas_optionality_changed() {
     ];
 
     let mut deltas = Vec::new();
-    compute_field_deltas("User", &prev_fields, &curr_fields, &mut deltas).unwrap();
+    compute_field_deltas("User", &prev_fields, &curr_fields, &HashMap::new(), &HashMap::new(), &mut deltas).unwrap();
 
     assert_eq!(deltas.len(), 1);
     match &deltas[0] {
@@ -968,7 +968,7 @@ fn test_compute_field_deltas_default_changed() {
     ];
 
     let mut deltas = Vec::new();
-    compute_field_deltas("User", &prev_fields, &curr_fields, &mut deltas).unwrap();
+    compute_field_deltas("User", &prev_fields, &curr_fields, &HashMap::new(), &HashMap::new(), &mut deltas).unwrap();
 
     assert_eq!(deltas.len(), 1);
     match &deltas[0] {
@@ -1012,7 +1012,7 @@ fn test_compute_field_deltas_config_changed() {
     ];
 
     let mut deltas = Vec::new();
-    compute_field_deltas("User", &prev_fields, &curr_fields, &mut deltas).unwrap();
+    compute_field_deltas("User", &prev_fields, &curr_fields, &HashMap::new(), &HashMap::new(), &mut deltas).unwrap();
 
     assert_eq!(deltas.len(), 1);
     match &deltas[0] {
@@ -1087,7 +1087,7 @@ fn test_compute_field_deltas_without_entity_ids() {
     ];
 
     let mut deltas = Vec::new();
-    compute_field_deltas("User", &prev_fields, &curr_fields, &mut deltas).unwrap();
+    compute_field_deltas("User", &prev_fields, &curr_fields, &HashMap::new(), &HashMap::new(), &mut deltas).unwrap();
 
     // Should be 2 deltas: removal and addition (not a rename)
     assert_eq!(deltas.len(), 2);
@@ -2326,5 +2326,117 @@ fn test_model_modification_with_user_defined_in_child_file() {
         5,
         "User should have exactly 5 fields (3 inherited from modified PublicUser + 2 own). Got: {:?}",
         user_field_names
+    );
+}
+
+// ============================================================================
+// Bug #05: Type alias resolution in field comparison
+// ============================================================================
+
+#[test]
+fn test_field_type_alias_equals_resolved_type() {
+    // Bug: When a field's type is stored as a resolved union in previous_schema.json
+    // but the current schema uses a type alias that resolves to the same union,
+    // the system incorrectly detects a type change.
+    //
+    // Example:
+    //   previous: provider field has type Union["github", "google", "password"]
+    //   current:  provider field has type Identifier("AuthProvider")
+    //             where AuthProvider = "github" | "google" | "password"
+    //
+    // These should be considered equal - no FieldTypeChanged delta should be generated.
+
+    // Create the union type that AuthProvider resolves to
+    let auth_provider_union = union_type(vec![
+        string_literal("github"),
+        string_literal("google"),
+        string_literal("password"),
+    ]);
+
+    // Previous schema: Identity model with provider field having resolved union type
+    let mut prev_models = HashMap::new();
+    prev_models.insert(
+        "Identity".to_string(),
+        ModelDefinition {
+            name: "Identity".to_string(),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "provider".to_string(),
+                    field_type: auth_provider_union.clone(), // Stored as resolved union
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(1),
+                },
+            ],
+            config: json!({}),
+            entity_id: local_id(10),
+        },
+    );
+    let mut prev_aliases = HashMap::new();
+    prev_aliases.insert(
+        "AuthProvider".to_string(),
+        TypeAliasDefinition {
+            name: "AuthProvider".to_string(),
+            alias_type: auth_provider_union.clone(),
+            config: json!({}),
+            entity_id: local_id(100),
+        },
+    );
+    let previous = Schema {
+        models: prev_models,
+        type_aliases: prev_aliases,
+    };
+
+    // Current schema: Same Identity model but provider field uses type alias reference
+    let mut curr_models = HashMap::new();
+    curr_models.insert(
+        "Identity".to_string(),
+        ModelDefinition {
+            name: "Identity".to_string(),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "provider".to_string(),
+                    field_type: ident_type("AuthProvider"), // Uses type alias reference
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(1),
+                },
+            ],
+            config: json!({}),
+            entity_id: local_id(10),
+        },
+    );
+    let mut curr_aliases = HashMap::new();
+    curr_aliases.insert(
+        "AuthProvider".to_string(),
+        TypeAliasDefinition {
+            name: "AuthProvider".to_string(),
+            alias_type: auth_provider_union.clone(),
+            config: json!({}),
+            entity_id: local_id(100),
+        },
+    );
+    let current = Schema {
+        models: curr_models,
+        type_aliases: curr_aliases,
+    };
+
+    let deltas = compute_deltas(&previous, &current).expect("Failed to compute deltas");
+
+    // There should be NO FieldTypeChanged delta because the resolved types are identical
+    let has_type_change = deltas.iter().any(|d| {
+        matches!(d, Delta::FieldTypeChanged { model, field, .. }
+            if model == "Identity" && field == "provider")
+    });
+
+    assert!(
+        !has_type_change,
+        "No FieldTypeChanged delta should be generated when type alias resolves to same union. \
+         Got deltas: {:?}",
+        deltas
     );
 }

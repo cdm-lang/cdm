@@ -65,8 +65,9 @@ fn create_test_schema() -> ResolvedSchema {
     type_aliases.insert("ID".to_string(), id_alias);
 
     ResolvedSchema {
-        models,
+        models: models.clone(),
         type_aliases,
+        all_models_for_inheritance: models,
     }
 }
 

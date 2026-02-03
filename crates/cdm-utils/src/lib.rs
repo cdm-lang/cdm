@@ -162,7 +162,12 @@ pub struct ResolvedSchema {
     /// All available type aliases (name → resolved definition)
     pub type_aliases: std::collections::HashMap<String, ResolvedTypeAlias>,
     /// All available models (name → resolved model)
+    /// This excludes models that are marked for removal.
     pub models: std::collections::HashMap<String, ResolvedModel>,
+    /// All models including removed ones, used for config inheritance.
+    /// When a child model extends a removed parent, the parent's config
+    /// should still be inherited. This map includes ALL models for that purpose.
+    pub all_models_for_inheritance: std::collections::HashMap<String, ResolvedModel>,
 }
 
 impl ResolvedSchema {
@@ -170,6 +175,7 @@ impl ResolvedSchema {
         Self {
             type_aliases: std::collections::HashMap::new(),
             models: std::collections::HashMap::new(),
+            all_models_for_inheritance: std::collections::HashMap::new(),
         }
     }
 

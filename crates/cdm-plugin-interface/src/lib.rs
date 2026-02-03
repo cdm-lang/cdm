@@ -226,9 +226,22 @@ fn pluralize(s: &str) -> String {
     }
 
     if s_lower.ends_with("o") {
+        // Words ending in -o that add -s (not -es)
+        // Common abbreviations, loan words, and modern terms
+        let add_s_only = [
+            "repo", "photo", "video", "memo", "logo", "demo", "auto", "piano", "zero", "kilo",
+            "euro", "pro", "disco", "casino", "dynamo", "embryo", "fiasco", "ghetto", "inferno",
+            "limo", "manifesto", "motto", "photo", "portfolio", "radio", "ratio", "scenario",
+            "solo", "soprano", "studio", "taco", "tempo", "tobacco", "torso", "trio", "typo",
+            "veto", "zoo",
+        ];
+        if add_s_only.contains(&s_lower.as_str()) {
+            return format!("{}s", s);
+        }
+
         if let Some(second_last) = s_lower.chars().rev().nth(1) {
             if !"aeiou".contains(second_last) {
-                // Consonant + o -> oes (for most cases)
+                // Consonant + o -> oes (for traditional words like hero, potato)
                 return format!("{}es", s);
             }
         }

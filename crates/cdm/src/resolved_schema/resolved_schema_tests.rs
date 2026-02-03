@@ -2084,6 +2084,223 @@ fn test_removals_exclude_models_from_resolved_schema() {
 }
 
 #[test]
+fn test_removed_parent_model_config_still_inherited() {
+    // BUG TEST: When a parent model is removed from the schema output,
+    // its config should still be inherited by child models.
+    //
+    // Example scenario:
+    //   public.cdm:
+    //     Entity {
+    //       id: UUID
+    //       @sql { indexes: [{ fields: ["id"], primary: true }] }
+    //     }
+    //     TimestampedEntity extends Entity { }
+    //     PublicProject extends TimestampedEntity { name: string }
+    //
+    //   database.cdm:
+    //     extends "public.cdm"
+    //     -Entity
+    //     -TimestampedEntity
+    //     -PublicProject
+    //     Project extends PublicProject { owner_id: UUID }
+    //
+    // Project should inherit the @sql { indexes: [...] } config from Entity
+    // even though Entity is removed from the output schema.
+
+    // Create ancestor with Entity, TimestampedEntity, PublicProject
+    let mut ancestor_symbols = SymbolTable::new();
+
+    // Entity with primary key config
+    let mut entity_config = HashMap::new();
+    entity_config.insert(
+        "sql".to_string(),
+        serde_json::json!({
+            "indexes": [{ "fields": ["id"], "primary": true }]
+        }),
+    );
+    ancestor_symbols.definitions.insert(
+        "Entity".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model { extends: vec![] },
+            span: test_span(),
+            plugin_configs: entity_config,
+            entity_id: local_id(1),
+        },
+    );
+
+    // TimestampedEntity extends Entity
+    ancestor_symbols.definitions.insert(
+        "TimestampedEntity".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model {
+                extends: vec!["Entity".to_string()],
+            },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: local_id(2),
+        },
+    );
+
+    // PublicProject extends TimestampedEntity
+    ancestor_symbols.definitions.insert(
+        "PublicProject".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model {
+                extends: vec!["TimestampedEntity".to_string()],
+            },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: local_id(3),
+        },
+    );
+
+    let mut ancestor_fields = HashMap::new();
+    ancestor_fields.insert(
+        "Entity".to_string(),
+        vec![FieldInfo {
+            name: "id".to_string(),
+            type_expr: Some("UUID".to_string()),
+            optional: false,
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            default_value: None,
+            entity_id: local_id(10),
+        }],
+    );
+    ancestor_fields.insert("TimestampedEntity".to_string(), vec![]);
+    ancestor_fields.insert(
+        "PublicProject".to_string(),
+        vec![FieldInfo {
+            name: "name".to_string(),
+            type_expr: Some("string".to_string()),
+            optional: false,
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            default_value: None,
+            entity_id: local_id(11),
+        }],
+    );
+
+    let ancestors = vec![Ancestor {
+        path: "public.cdm".to_string(),
+        symbol_table: ancestor_symbols,
+        model_fields: ancestor_fields,
+    }];
+
+    // Current file: Project extends PublicProject, with Entity/TimestampedEntity/PublicProject removed
+    let mut current_symbols = SymbolTable::new();
+    current_symbols.definitions.insert(
+        "Project".to_string(),
+        crate::Definition {
+            kind: DefinitionKind::Model {
+                extends: vec!["PublicProject".to_string()],
+            },
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            entity_id: local_id(4),
+        },
+    );
+
+    let mut current_fields = HashMap::new();
+    current_fields.insert(
+        "Project".to_string(),
+        vec![FieldInfo {
+            name: "owner_id".to_string(),
+            type_expr: Some("UUID".to_string()),
+            optional: false,
+            span: test_span(),
+            plugin_configs: HashMap::new(),
+            default_value: None,
+            entity_id: local_id(20),
+        }],
+    );
+
+    // Remove Entity, TimestampedEntity, and PublicProject from output
+    let mut removal_names: HashSet<String> = HashSet::new();
+    removal_names.insert("Entity".to_string());
+    removal_names.insert("TimestampedEntity".to_string());
+    removal_names.insert("PublicProject".to_string());
+
+    let resolved = build_resolved_schema(
+        &current_symbols,
+        &current_fields,
+        &ancestors,
+        &removal_names,
+        &HashMap::new(),
+    );
+
+    // Verify removed models are not in resolved.models (output schema)
+    assert!(
+        !resolved.models.contains_key("Entity"),
+        "Entity should be removed from resolved.models"
+    );
+    assert!(
+        !resolved.models.contains_key("TimestampedEntity"),
+        "TimestampedEntity should be removed from resolved.models"
+    );
+    assert!(
+        !resolved.models.contains_key("PublicProject"),
+        "PublicProject should be removed from resolved.models"
+    );
+
+    // But removed models SHOULD be in all_models_for_inheritance
+    assert!(
+        resolved.all_models_for_inheritance.contains_key("Entity"),
+        "Entity should be in all_models_for_inheritance for config inheritance"
+    );
+    assert!(
+        resolved.all_models_for_inheritance.contains_key("TimestampedEntity"),
+        "TimestampedEntity should be in all_models_for_inheritance"
+    );
+    assert!(
+        resolved.all_models_for_inheritance.contains_key("PublicProject"),
+        "PublicProject should be in all_models_for_inheritance"
+    );
+
+    // Project should be in both
+    assert!(
+        resolved.models.contains_key("Project"),
+        "Project should be in resolved.models"
+    );
+    assert!(
+        resolved.all_models_for_inheritance.contains_key("Project"),
+        "Project should be in all_models_for_inheritance"
+    );
+
+    // Test the config inheritance through get_merged_model_config
+    // This is what build_cdm_schema_for_plugin uses
+    let mut visited = HashSet::new();
+    let merged_config = super::get_merged_model_config(
+        "Project",
+        &resolved.all_models_for_inheritance,
+        "sql",
+        &mut visited,
+    );
+
+    // Project should have inherited the indexes config from Entity
+    let indexes = merged_config.get("indexes");
+    assert!(
+        indexes.is_some(),
+        "Project should have inherited indexes from Entity through the inheritance chain. Got config: {:?}",
+        merged_config
+    );
+
+    let indexes_array = indexes.unwrap().as_array();
+    assert!(
+        indexes_array.is_some() && !indexes_array.unwrap().is_empty(),
+        "Project should have inherited primary key index from Entity"
+    );
+
+    // Verify the primary key is present
+    let first_index = &indexes_array.unwrap()[0];
+    assert_eq!(
+        first_index.get("primary").and_then(|v| v.as_bool()),
+        Some(true),
+        "The inherited index should be a primary key"
+    );
+}
+
+#[test]
 fn test_inherited_field_uses_type_alias_name_not_resolved_type() {
     // BUG TEST: When a field has a type alias (e.g., status: Status), the generated
     // code should reference the type alias name "Status", not the resolved base type

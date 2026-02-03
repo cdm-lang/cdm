@@ -215,6 +215,30 @@ fn generate_column_definition(
         }
     }
 
+    // Add REFERENCES clause for foreign key constraints
+    if let Some(references) = field.config.get("references") {
+        if let Some(ref_table) = references.get("table").and_then(|v| v.as_str()) {
+            def.push_str(" REFERENCES ");
+            def.push_str(&quote_identifier(ref_table, type_mapper.dialect()));
+
+            if let Some(ref_column) = references.get("column").and_then(|v| v.as_str()) {
+                def.push('(');
+                def.push_str(&quote_identifier(ref_column, type_mapper.dialect()));
+                def.push(')');
+            }
+
+            if let Some(on_delete) = references.get("on_delete").and_then(|v| v.as_str()) {
+                def.push_str(" ON DELETE ");
+                def.push_str(&on_delete.to_uppercase());
+            }
+
+            if let Some(on_update) = references.get("on_update").and_then(|v| v.as_str()) {
+                def.push_str(" ON UPDATE ");
+                def.push_str(&on_update.to_uppercase());
+            }
+        }
+    }
+
     def
 }
 
