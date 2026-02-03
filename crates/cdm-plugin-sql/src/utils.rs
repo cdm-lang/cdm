@@ -229,12 +229,12 @@ fn generate_column_definition(
 
             if let Some(on_delete) = references.get("on_delete").and_then(|v| v.as_str()) {
                 def.push_str(" ON DELETE ");
-                def.push_str(&on_delete.to_uppercase());
+                def.push_str(&on_delete.to_uppercase().replace('_', " "));
             }
 
             if let Some(on_update) = references.get("on_update").and_then(|v| v.as_str()) {
                 def.push_str(" ON UPDATE ");
-                def.push_str(&on_update.to_uppercase());
+                def.push_str(&on_update.to_uppercase().replace('_', " "));
             }
         }
     }

@@ -562,3 +562,88 @@ fn test_generate_create_table_with_foreign_key_reference() {
         sql
     );
 }
+
+#[test]
+fn test_foreign_key_actions_with_underscores() {
+    // Test that set_null, no_action, and set_default are properly converted
+    // to "SET NULL", "NO ACTION", and "SET DEFAULT" (space instead of underscore)
+    use cdm_plugin_interface::{FieldDefinition, TypeExpression};
+
+    let model = cdm_plugin_interface::ModelDefinition {
+        name: "Task".to_string(),
+        parents: vec![],
+        fields: vec![
+            FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier { name: "string".to_string() },
+                optional: false,
+                default: None,
+                config: json!({ "type": "UUID" }),
+                entity_id: None,
+            },
+            FieldDefinition {
+                name: "user_id".to_string(),
+                field_type: TypeExpression::Identifier { name: "string".to_string() },
+                optional: true,
+                default: None,
+                config: json!({
+                    "type": "UUID",
+                    "references": {
+                        "table": "users",
+                        "column": "id",
+                        "on_delete": "set_null",
+                        "on_update": "no_action"
+                    }
+                }),
+                entity_id: None,
+            },
+            FieldDefinition {
+                name: "category_id".to_string(),
+                field_type: TypeExpression::Identifier { name: "string".to_string() },
+                optional: true,
+                default: None,
+                config: json!({
+                    "type": "UUID",
+                    "references": {
+                        "table": "categories",
+                        "column": "id",
+                        "on_delete": "set_default"
+                    }
+                }),
+                entity_id: None,
+            },
+        ],
+        config: json!({}),
+        entity_id: None,
+    };
+
+    let global_config = json!({
+        "dialect": "postgresql",
+        "pluralize_table_names": true
+    });
+    let type_aliases = std::collections::HashMap::new();
+    let type_mapper = TypeMapper::new(&global_config, &type_aliases);
+
+    let sql = generate_create_table("Task", &model, &global_config, &type_mapper);
+
+    // set_null should become "SET NULL" (space, not underscore)
+    assert!(
+        sql.contains("ON DELETE SET NULL"),
+        "on_delete: 'set_null' should produce 'ON DELETE SET NULL'. Got:\n{}",
+        sql
+    );
+
+    // no_action should become "NO ACTION" (space, not underscore)
+    assert!(
+        sql.contains("ON UPDATE NO ACTION"),
+        "on_update: 'no_action' should produce 'ON UPDATE NO ACTION'. Got:\n{}",
+        sql
+    );
+
+    // set_default should become "SET DEFAULT" (space, not underscore)
+    assert!(
+        sql.contains("ON DELETE SET DEFAULT"),
+        "on_delete: 'set_default' should produce 'ON DELETE SET DEFAULT'. Got:\n{}",
+        sql
+    );
+}
