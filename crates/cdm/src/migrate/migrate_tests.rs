@@ -2440,3 +2440,225 @@ fn test_field_type_alias_equals_resolved_type() {
         deltas
     );
 }
+
+// Helper to create a local template entity ID
+fn local_template_id(path: &str, id: u64) -> Option<EntityId> {
+    Some(EntityId::local_template(path, id))
+}
+
+#[test]
+fn test_compute_type_alias_deltas_same_local_id_different_source_not_rename() {
+    // BUG TEST: When two type aliases have the same local_id but different sources,
+    // they should NOT be treated as a rename. This tests the scenario where:
+    // - public.cdm has DaemonStatus: "connected" | "disconnected" #6
+    // - database.cdm has AuthProvider: "github" | "google" | "password" #6
+    // These should be treated as separate entities (one removed, one added),
+    // NOT as a rename from AuthProvider to DaemonStatus.
+
+    let mut previous_aliases = HashMap::new();
+    previous_aliases.insert(
+        "AuthProvider".to_string(),
+        TypeAliasDefinition {
+            name: "AuthProvider".to_string(),
+            alias_type: union_type(vec![
+                string_literal("github"),
+                string_literal("google"),
+                string_literal("password"),
+            ]),
+            config: json!({}),
+            entity_id: local_template_id("database.cdm", 6), // #6 in database.cdm
+        },
+    );
+
+    let previous = Schema {
+        models: HashMap::new(),
+        type_aliases: previous_aliases,
+    };
+
+    let mut current_aliases = HashMap::new();
+    // AuthProvider still exists with same ID
+    current_aliases.insert(
+        "AuthProvider".to_string(),
+        TypeAliasDefinition {
+            name: "AuthProvider".to_string(),
+            alias_type: union_type(vec![
+                string_literal("github"),
+                string_literal("google"),
+                string_literal("password"),
+            ]),
+            config: json!({}),
+            entity_id: local_template_id("database.cdm", 6), // #6 in database.cdm
+        },
+    );
+    // DaemonStatus is NEW with same local_id but different source
+    current_aliases.insert(
+        "DaemonStatus".to_string(),
+        TypeAliasDefinition {
+            name: "DaemonStatus".to_string(),
+            alias_type: union_type(vec![
+                string_literal("connected"),
+                string_literal("disconnected"),
+            ]),
+            config: json!({}),
+            entity_id: local_template_id("public.cdm", 6), // Also #6 but in public.cdm
+        },
+    );
+
+    let current = Schema {
+        models: HashMap::new(),
+        type_aliases: current_aliases,
+    };
+
+    let mut deltas = Vec::new();
+    compute_type_alias_deltas(&previous, &current, &mut deltas).unwrap();
+
+    // Should NOT have a rename delta
+    let has_rename = deltas.iter().any(|d| matches!(d, Delta::TypeAliasRenamed { .. }));
+    assert!(
+        !has_rename,
+        "Type aliases with same local_id but different sources should NOT be treated as renames. Got: {:?}",
+        deltas
+    );
+
+    // Should have an addition for DaemonStatus
+    let has_daemon_added = deltas.iter().any(|d| {
+        matches!(d, Delta::TypeAliasAdded { name, .. } if name == "DaemonStatus")
+    });
+    assert!(
+        has_daemon_added,
+        "DaemonStatus should be detected as an addition. Got: {:?}",
+        deltas
+    );
+}
+
+#[test]
+fn test_compute_model_deltas_same_local_id_different_source_not_rename() {
+    // Same bug for models: models with same local_id but different sources
+    // should NOT be treated as renames
+
+    let mut previous_models = HashMap::new();
+    previous_models.insert(
+        "UserProfile".to_string(),
+        ModelDefinition {
+            name: "UserProfile".to_string(),
+            fields: vec![],
+            parents: vec![],
+            config: json!({}),
+            entity_id: local_template_id("auth.cdm", 10),
+        },
+    );
+
+    let previous = Schema {
+        models: previous_models,
+        type_aliases: HashMap::new(),
+    };
+
+    let mut current_models = HashMap::new();
+    // UserProfile still exists
+    current_models.insert(
+        "UserProfile".to_string(),
+        ModelDefinition {
+            name: "UserProfile".to_string(),
+            fields: vec![],
+            parents: vec![],
+            config: json!({}),
+            entity_id: local_template_id("auth.cdm", 10),
+        },
+    );
+    // NEW model with same local_id but different source
+    current_models.insert(
+        "SystemConfig".to_string(),
+        ModelDefinition {
+            name: "SystemConfig".to_string(),
+            fields: vec![],
+            parents: vec![],
+            config: json!({}),
+            entity_id: local_template_id("config.cdm", 10), // Same #10 but different file
+        },
+    );
+
+    let current = Schema {
+        models: current_models,
+        type_aliases: HashMap::new(),
+    };
+
+    let mut deltas = Vec::new();
+    compute_model_deltas(&previous, &current, &mut deltas).unwrap();
+
+    // Should NOT have a rename delta
+    let has_rename = deltas.iter().any(|d| matches!(d, Delta::ModelRenamed { .. }));
+    assert!(
+        !has_rename,
+        "Models with same local_id but different sources should NOT be treated as renames. Got: {:?}",
+        deltas
+    );
+
+    // Should have an addition for SystemConfig
+    let has_config_added = deltas.iter().any(|d| {
+        matches!(d, Delta::ModelAdded { name, .. } if name == "SystemConfig")
+    });
+    assert!(
+        has_config_added,
+        "SystemConfig should be detected as an addition. Got: {:?}",
+        deltas
+    );
+}
+
+#[test]
+fn test_compute_field_deltas_same_local_id_different_source_not_rename() {
+    // Same bug for fields: fields with same local_id but different sources
+    // should NOT be treated as renames
+
+    let prev_fields = vec![
+        FieldDefinition {
+            name: "userId".to_string(),
+            field_type: ident_type("string"),
+            optional: false,
+            default: None,
+            config: json!({}),
+            entity_id: local_template_id("auth.cdm", 5),
+        },
+    ];
+
+    let curr_fields = vec![
+        // userId still exists
+        FieldDefinition {
+            name: "userId".to_string(),
+            field_type: ident_type("string"),
+            optional: false,
+            default: None,
+            config: json!({}),
+            entity_id: local_template_id("auth.cdm", 5),
+        },
+        // NEW field with same local_id but different source
+        FieldDefinition {
+            name: "configId".to_string(),
+            field_type: ident_type("string"),
+            optional: false,
+            default: None,
+            config: json!({}),
+            entity_id: local_template_id("config.cdm", 5), // Same #5 but different file
+        },
+    ];
+
+    let mut deltas = Vec::new();
+    compute_field_deltas("TestModel", &prev_fields, &curr_fields, &HashMap::new(), &HashMap::new(), &mut deltas).unwrap();
+
+    // Should NOT have a rename delta
+    let has_rename = deltas.iter().any(|d| matches!(d, Delta::FieldRenamed { .. }));
+    assert!(
+        !has_rename,
+        "Fields with same local_id but different sources should NOT be treated as renames. Got: {:?}",
+        deltas
+    );
+
+    // Should have an addition for configId
+    let has_config_added = deltas.iter().any(|d| {
+        matches!(d, Delta::FieldAdded { field, .. } if field == "configId")
+    });
+    assert!(
+        has_config_added,
+        "configId should be detected as an addition. Got: {:?}",
+        deltas
+    );
+}

@@ -277,20 +277,20 @@ fn compute_type_alias_deltas(
     use std::collections::{HashSet, HashMap};
 
     // Build ID maps for rename detection
-    // Key by local_id since we're comparing within the same source context
-    let prev_by_id: HashMap<u64, &cdm_plugin_interface::TypeAliasDefinition> = previous
+    // Key by full EntityId (source + local_id) to avoid false renames across different sources
+    let prev_by_id: HashMap<&cdm_plugin_interface::EntityId, &cdm_plugin_interface::TypeAliasDefinition> = previous
         .type_aliases
         .values()
-        .filter_map(|a| a.entity_id.as_ref().map(|id| (id.local_id, a)))
+        .filter_map(|a| a.entity_id.as_ref().map(|id| (id, a)))
         .collect();
 
-    let curr_by_id: HashMap<u64, &cdm_plugin_interface::TypeAliasDefinition> = current
+    let curr_by_id: HashMap<&cdm_plugin_interface::EntityId, &cdm_plugin_interface::TypeAliasDefinition> = current
         .type_aliases
         .values()
-        .filter_map(|a| a.entity_id.as_ref().map(|id| (id.local_id, a)))
+        .filter_map(|a| a.entity_id.as_ref().map(|id| (id, a)))
         .collect();
 
-    let mut processed_ids = HashSet::new();
+    let mut processed_ids: HashSet<&cdm_plugin_interface::EntityId> = HashSet::new();
     let mut processed_names = HashSet::new();
 
     // Phase 1: Process type aliases with entity IDs (100% reliable rename detection)
@@ -378,20 +378,20 @@ fn compute_model_deltas(
     use std::collections::{HashSet, HashMap};
 
     // Build ID maps for rename detection
-    // Key by local_id since we're comparing within the same source context
-    let prev_by_id: HashMap<u64, &cdm_plugin_interface::ModelDefinition> = previous
+    // Key by full EntityId (source + local_id) to avoid false renames across different sources
+    let prev_by_id: HashMap<&cdm_plugin_interface::EntityId, &cdm_plugin_interface::ModelDefinition> = previous
         .models
         .values()
-        .filter_map(|m| m.entity_id.as_ref().map(|id| (id.local_id, m)))
+        .filter_map(|m| m.entity_id.as_ref().map(|id| (id, m)))
         .collect();
 
-    let curr_by_id: HashMap<u64, &cdm_plugin_interface::ModelDefinition> = current
+    let curr_by_id: HashMap<&cdm_plugin_interface::EntityId, &cdm_plugin_interface::ModelDefinition> = current
         .models
         .values()
-        .filter_map(|m| m.entity_id.as_ref().map(|id| (id.local_id, m)))
+        .filter_map(|m| m.entity_id.as_ref().map(|id| (id, m)))
         .collect();
 
-    let mut processed_ids = HashSet::new();
+    let mut processed_ids: HashSet<&cdm_plugin_interface::EntityId> = HashSet::new();
     let mut processed_names = HashSet::new();
 
     // Phase 1: Process models with entity IDs (100% reliable rename detection)
@@ -494,18 +494,18 @@ fn compute_field_deltas(
     use std::collections::{HashSet, HashMap};
 
     // Build ID maps for rename detection
-    // Key by local_id since we're comparing within the same source context
-    let prev_by_id: HashMap<u64, &cdm_plugin_interface::FieldDefinition> = prev_fields
+    // Key by full EntityId (source + local_id) to avoid false renames across different sources
+    let prev_by_id: HashMap<&cdm_plugin_interface::EntityId, &cdm_plugin_interface::FieldDefinition> = prev_fields
         .iter()
-        .filter_map(|f| f.entity_id.as_ref().map(|id| (id.local_id, f)))
+        .filter_map(|f| f.entity_id.as_ref().map(|id| (id, f)))
         .collect();
 
-    let curr_by_id: HashMap<u64, &cdm_plugin_interface::FieldDefinition> = curr_fields
+    let curr_by_id: HashMap<&cdm_plugin_interface::EntityId, &cdm_plugin_interface::FieldDefinition> = curr_fields
         .iter()
-        .filter_map(|f| f.entity_id.as_ref().map(|id| (id.local_id, f)))
+        .filter_map(|f| f.entity_id.as_ref().map(|id| (id, f)))
         .collect();
 
-    let mut processed_ids = HashSet::new();
+    let mut processed_ids: HashSet<&cdm_plugin_interface::EntityId> = HashSet::new();
     let mut processed_names = HashSet::new();
 
     // Phase 1: Process fields with entity IDs (100% reliable rename detection)
