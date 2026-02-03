@@ -1,3 +1,5 @@
+//! CDM TypeScript plugin for generating TypeScript type definitions.
+
 mod build;
 mod type_mapper;
 mod validate;

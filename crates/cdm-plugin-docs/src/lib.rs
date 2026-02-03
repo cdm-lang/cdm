@@ -1,3 +1,5 @@
+//! CDM documentation plugin for generating schema documentation.
+
 mod validate;
 mod build;
 

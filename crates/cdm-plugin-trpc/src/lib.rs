@@ -1,3 +1,5 @@
+//! CDM tRPC plugin for generating tRPC router definitions.
+
 mod build;
 mod validate;
 

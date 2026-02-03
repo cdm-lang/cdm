@@ -1,4 +1,5 @@
-// PostgreSQL Type Definitions
+// PostgreSQL Type Definitions for CDM
+// Provides native PostgreSQL data type mappings for use with the SQL plugin.
 // Import sql plugin to enable @sql { type: "..." } annotations
 @sql
 

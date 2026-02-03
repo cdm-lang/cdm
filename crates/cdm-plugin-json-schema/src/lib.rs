@@ -1,3 +1,5 @@
+//! CDM JSON Schema plugin for generating JSON Schema definitions.
+
 mod build;
 mod type_mapper;
 mod validate;

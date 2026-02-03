@@ -1,3 +1,5 @@
+//! CDM ts-rest plugin for generating ts-rest contract definitions.
+
 mod build;
 mod validate;
 

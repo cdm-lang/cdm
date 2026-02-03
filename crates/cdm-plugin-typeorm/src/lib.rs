@@ -1,3 +1,5 @@
+//! CDM TypeORM plugin for generating TypeORM entity definitions.
+
 mod build;
 mod decorator_builder;
 mod migrate;

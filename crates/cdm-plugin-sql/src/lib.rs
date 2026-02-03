@@ -1,3 +1,5 @@
+//! CDM SQL plugin for generating SQL schemas and migrations.
+
 mod build;
 mod migrate;
 mod type_mapper;
