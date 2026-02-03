@@ -1,6 +1,6 @@
 {
   "name": "tsRest",
-  "version": "0.1.8",
+  "version": "0.1.9",
   "description": "Generate ts-rest contracts from CDM schemas",
   "docs": "https://github.com/cdm-lang/cdm/blob/main/crates/cdm-plugin-ts-rest/README.md",
   "schema": "schema.cdm",

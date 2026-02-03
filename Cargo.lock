@@ -373,7 +373,7 @@ dependencies = [
 
 [[package]]
 name = "cdm-plugin-ts-rest"
-version = "0.1.8"
+version = "0.1.9"
 dependencies = [
  "cdm-plugin-interface",
  "regex",
