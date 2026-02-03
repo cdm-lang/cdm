@@ -392,7 +392,7 @@ dependencies = [
 
 [[package]]
 name = "cdm-plugin-typescript"
-version = "0.1.2"
+version = "0.1.6"
 dependencies = [
  "cdm-plugin-interface",
  "serde",
