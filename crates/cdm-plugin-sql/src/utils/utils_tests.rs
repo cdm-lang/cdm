@@ -430,3 +430,66 @@ fn test_generate_drop_index_sql_unique() {
     let sql = generate_drop_index_sql(&index, "", Dialect::PostgreSQL);
     assert_eq!(sql, "DROP INDEX \"idx_users_email\";\n");
 }
+
+#[test]
+fn test_should_skip_field_top_level() {
+    // Test top-level skip: true
+    let config = json!({ "skip": true });
+    assert!(should_skip_field(&config), "should_skip_field should return true for top-level skip: true");
+
+    let config = json!({ "skip": false });
+    assert!(!should_skip_field(&config), "should_skip_field should return false for top-level skip: false");
+}
+
+#[test]
+fn test_should_skip_field_nested_in_sql() {
+    // Test nested sql.skip: true (this is the real-world format from @sql { skip: true })
+    let config = json!({
+        "sql": { "skip": true },
+        "typeorm": { "type": "varchar" }
+    });
+    assert!(should_skip_field(&config), "should_skip_field should return true for nested sql.skip: true");
+
+    let config = json!({
+        "sql": { "skip": false },
+        "typeorm": { "type": "varchar" }
+    });
+    assert!(!should_skip_field(&config), "should_skip_field should return false for nested sql.skip: false");
+
+    let config = json!({
+        "sql": { "type": "VARCHAR" },
+        "typeorm": { "type": "varchar" }
+    });
+    assert!(!should_skip_field(&config), "should_skip_field should return false when sql.skip is not present");
+}
+
+#[test]
+fn test_should_skip_field_empty_config() {
+    let config = json!({});
+    assert!(!should_skip_field(&config), "should_skip_field should return false for empty config");
+}
+
+#[test]
+fn test_should_skip_field_real_world_relation_config() {
+    // This matches the exact config structure from the bug report:
+    // user?: User {
+    //   @sql { skip: true }
+    //   @typeorm { relation: { type: "many_to_one", ... } }
+    // }
+    let config = json!({
+        "sql": {
+            "skip": true
+        },
+        "typeorm": {
+            "join_column": {
+                "name": "user_id"
+            },
+            "relation": {
+                "inverse_side": "identities",
+                "on_delete": "CASCADE",
+                "type": "many_to_one"
+            }
+        }
+    });
+    assert!(should_skip_field(&config), "should_skip_field should return true for real-world relation config with sql.skip: true");
+}

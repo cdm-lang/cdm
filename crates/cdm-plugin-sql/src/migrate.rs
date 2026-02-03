@@ -1,7 +1,8 @@
 use cdm_plugin_interface::{Delta, FieldDefinition, OutputFile, Schema, Utils, JSON};
 use crate::utils::{
     extract_indexes, format_default_value, generate_create_index_sql, generate_create_table,
-    generate_drop_index_sql, get_column_name, get_table_name, quote_identifier, IndexInfo,
+    generate_drop_index_sql, get_column_name, get_table_name, quote_identifier, should_skip_field,
+    IndexInfo,
 };
 use crate::type_mapper::{Dialect, TypeMapper};
 
@@ -120,6 +121,11 @@ pub fn migrate(
             }
 
             Delta::FieldAdded { model, field, after } => {
+                // Skip fields marked with @sql { skip: true }
+                if should_skip_field(&after.config) {
+                    continue;
+                }
+
                 // UP: ALTER TABLE ADD COLUMN
                 let field_def = after;
                 let table_name = get_table_name(model, &field_def.config, &config);
@@ -148,6 +154,11 @@ pub fn migrate(
             }
 
             Delta::FieldRemoved { model, field, before } => {
+                // Skip fields marked with @sql { skip: true }
+                if should_skip_field(&before.config) {
+                    continue;
+                }
+
                 // UP: ALTER TABLE DROP COLUMN
                 let field_def = before;
                 let table_name = get_table_name(model, &field_def.config, &config);
@@ -176,6 +187,11 @@ pub fn migrate(
             }
 
             Delta::FieldRenamed { model, old_name, new_name, id: _, before, after } => {
+                // Skip fields marked with @sql { skip: true }
+                if should_skip_field(&after.config) {
+                    continue;
+                }
+
                 // UP: RENAME COLUMN
                 let table_name = get_table_name(model, &after.config, &config);
                 let old_column_name = get_column_name(old_name, &before.config, &config);
@@ -227,6 +243,12 @@ pub fn migrate(
                 let model_def = current_schema.models.get(model).unwrap();
                 let table_name = get_table_name(model, &model_def.config, &config);
                 let field_def = model_def.fields.iter().find(|f| &f.name == field).unwrap();
+
+                // Skip fields marked with @sql { skip: true }
+                if should_skip_field(&field_def.config) {
+                    continue;
+                }
+
                 let column_name = get_column_name(field, &field_def.config, &config);
                 let new_type = type_mapper.map_type(after, false);
 
@@ -280,6 +302,12 @@ pub fn migrate(
                 let model_def = current_schema.models.get(model).unwrap();
                 let table_name = get_table_name(model, &model_def.config, &config);
                 let field_def = model_def.fields.iter().find(|f| &f.name == field).unwrap();
+
+                // Skip fields marked with @sql { skip: true }
+                if should_skip_field(&field_def.config) {
+                    continue;
+                }
+
                 let column_name = get_column_name(field, &field_def.config, &config);
 
                 let schema_prefix = get_schema_prefix(&config, dialect);
@@ -342,6 +370,12 @@ pub fn migrate(
                 let model_def = current_schema.models.get(model).unwrap();
                 let table_name = get_table_name(model, &model_def.config, &config);
                 let field_def = model_def.fields.iter().find(|f| &f.name == field).unwrap();
+
+                // Skip fields marked with @sql { skip: true }
+                if should_skip_field(&field_def.config) {
+                    continue;
+                }
+
                 let column_name = get_column_name(field, &field_def.config, &config);
 
                 let schema_prefix = get_schema_prefix(&config, dialect);

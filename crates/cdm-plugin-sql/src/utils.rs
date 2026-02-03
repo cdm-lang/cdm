@@ -140,9 +140,17 @@ pub fn generate_create_table(
     sql
 }
 
-fn should_skip_field(config: &JSON) -> bool {
+/// Check if a field should be skipped in SQL generation
+/// The skip flag can be at the top level or nested inside the "sql" config
+pub fn should_skip_field(config: &JSON) -> bool {
+    // First check top-level skip (for backwards compatibility)
+    if let Some(skip) = config.get("skip").and_then(|v| v.as_bool()) {
+        return skip;
+    }
+    // Then check inside the "sql" config object
     config
-        .get("skip")
+        .get("sql")
+        .and_then(|sql| sql.get("skip"))
         .and_then(|v| v.as_bool())
         .unwrap_or(false)
 }

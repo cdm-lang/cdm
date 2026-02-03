@@ -2695,3 +2695,402 @@ fn test_migrate_model_config_changed_sqlite_index() {
     assert!(down_content.contains("DROP INDEX"),
         "Expected DROP INDEX for SQLite, got: {}", down_content);
 }
+
+#[test]
+fn test_migrate_field_added_with_skip_true_should_not_generate_sql() {
+    use cdm_plugin_interface::TypeExpression;
+
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            entity_id: local_id(1),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    field_type: TypeExpression::Identifier { name: "number".to_string() },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({}),
+                    entity_id: local_id(2),
+                },
+                // Field with skip: true - should NOT appear in migrations
+                FieldDefinition {
+                    name: "posts".to_string(),
+                    field_type: TypeExpression::Array {
+                        element_type: Box::new(TypeExpression::Identifier { name: "Post".to_string() }),
+                    },
+                    optional: true,
+                    default: None,
+                    config: serde_json::json!({ "skip": true }),
+                    entity_id: local_id(3),
+                },
+            ],
+            config: serde_json::json!({}),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models: models.clone(),
+    };
+
+    // Simulate adding a field with skip: true
+    let deltas = vec![Delta::FieldAdded {
+        model: "User".to_string(),
+        field: "posts".to_string(),
+        after: FieldDefinition {
+            name: "posts".to_string(),
+            field_type: TypeExpression::Array {
+                element_type: Box::new(TypeExpression::Identifier { name: "Post".to_string() }),
+            },
+            optional: true,
+            default: None,
+            config: serde_json::json!({ "skip": true }),
+            entity_id: local_id(3),
+        },
+    }];
+
+    let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+
+    // Should generate files but they should NOT contain ALTER TABLE ADD COLUMN for posts
+    if files.is_empty() {
+        // This is also acceptable - no files needed if nothing to migrate
+        return;
+    }
+
+    let up_content = &files[0].content;
+    assert!(
+        !up_content.contains("ADD COLUMN") || !up_content.contains("posts"),
+        "Fields with skip: true should NOT generate ALTER TABLE ADD COLUMN. Got: {}",
+        up_content
+    );
+}
+
+#[test]
+fn test_migrate_field_removed_with_skip_true_should_not_generate_sql() {
+    use cdm_plugin_interface::TypeExpression;
+
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            entity_id: local_id(1),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    field_type: TypeExpression::Identifier { name: "number".to_string() },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({}),
+                    entity_id: local_id(2),
+                },
+            ],
+            config: serde_json::json!({}),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models,
+    };
+
+    // Simulate removing a field with skip: true
+    let deltas = vec![Delta::FieldRemoved {
+        model: "User".to_string(),
+        field: "posts".to_string(),
+        before: FieldDefinition {
+            name: "posts".to_string(),
+            field_type: TypeExpression::Array {
+                element_type: Box::new(TypeExpression::Identifier { name: "Post".to_string() }),
+            },
+            optional: true,
+            default: None,
+            config: serde_json::json!({ "skip": true }),
+            entity_id: local_id(3),
+        },
+    }];
+
+    let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+
+    if files.is_empty() {
+        return;
+    }
+
+    let up_content = &files[0].content;
+    assert!(
+        !up_content.contains("DROP COLUMN") || !up_content.contains("posts"),
+        "Fields with skip: true should NOT generate ALTER TABLE DROP COLUMN. Got: {}",
+        up_content
+    );
+}
+
+#[test]
+fn test_migrate_field_renamed_with_skip_true_should_not_generate_sql() {
+    use cdm_plugin_interface::TypeExpression;
+
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            entity_id: local_id(1),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    field_type: TypeExpression::Identifier { name: "number".to_string() },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({}),
+                    entity_id: local_id(2),
+                },
+                FieldDefinition {
+                    name: "comments".to_string(),
+                    field_type: TypeExpression::Array {
+                        element_type: Box::new(TypeExpression::Identifier { name: "Comment".to_string() }),
+                    },
+                    optional: true,
+                    default: None,
+                    config: serde_json::json!({ "skip": true }),
+                    entity_id: local_id(3),
+                },
+            ],
+            config: serde_json::json!({}),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models,
+    };
+
+    // Simulate renaming a field with skip: true
+    let deltas = vec![Delta::FieldRenamed {
+        model: "User".to_string(),
+        old_name: "posts".to_string(),
+        new_name: "comments".to_string(),
+        id: local_id(3),
+        before: FieldDefinition {
+            name: "posts".to_string(),
+            field_type: TypeExpression::Array {
+                element_type: Box::new(TypeExpression::Identifier { name: "Post".to_string() }),
+            },
+            optional: true,
+            default: None,
+            config: serde_json::json!({ "skip": true }),
+            entity_id: local_id(3),
+        },
+        after: FieldDefinition {
+            name: "comments".to_string(),
+            field_type: TypeExpression::Array {
+                element_type: Box::new(TypeExpression::Identifier { name: "Comment".to_string() }),
+            },
+            optional: true,
+            default: None,
+            config: serde_json::json!({ "skip": true }),
+            entity_id: local_id(3),
+        },
+    }];
+
+    let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+
+    if files.is_empty() {
+        return;
+    }
+
+    let up_content = &files[0].content;
+    assert!(
+        !up_content.contains("RENAME COLUMN"),
+        "Fields with skip: true should NOT generate ALTER TABLE RENAME COLUMN. Got: {}",
+        up_content
+    );
+}
+
+#[test]
+fn test_migrate_field_added_with_nested_sql_skip_true_should_not_generate_sql() {
+    use cdm_plugin_interface::TypeExpression;
+
+    // This test matches the real-world usage pattern where skip is nested inside sql config:
+    // @sql { skip: true }
+    // Which produces: { "sql": { "skip": true } }
+
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            entity_id: local_id(1),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    field_type: TypeExpression::Identifier { name: "number".to_string() },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({}),
+                    entity_id: local_id(2),
+                },
+                // Field with @sql { skip: true } - should NOT appear in migrations
+                FieldDefinition {
+                    name: "identities".to_string(),
+                    field_type: TypeExpression::Array {
+                        element_type: Box::new(TypeExpression::Identifier { name: "Identity".to_string() }),
+                    },
+                    optional: true,
+                    default: None,
+                    config: serde_json::json!({
+                        "sql": { "skip": true },
+                        "typeorm": {
+                            "relation": {
+                                "type": "one_to_many",
+                                "inverse_side": "user"
+                            }
+                        }
+                    }),
+                    entity_id: local_id(3),
+                },
+            ],
+            config: serde_json::json!({}),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models: models.clone(),
+    };
+
+    // Simulate adding a relation field with nested sql.skip: true
+    let deltas = vec![Delta::FieldAdded {
+        model: "User".to_string(),
+        field: "identities".to_string(),
+        after: FieldDefinition {
+            name: "identities".to_string(),
+            field_type: TypeExpression::Array {
+                element_type: Box::new(TypeExpression::Identifier { name: "Identity".to_string() }),
+            },
+            optional: true,
+            default: None,
+            config: serde_json::json!({
+                "sql": { "skip": true },
+                "typeorm": {
+                    "relation": {
+                        "type": "one_to_many",
+                        "inverse_side": "user"
+                    }
+                }
+            }),
+            entity_id: local_id(3),
+        },
+    }];
+
+    let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+
+    // The migration should NOT contain ALTER TABLE ADD COLUMN for the skipped field
+    for file in &files {
+        // Check that we don't have ALTER TABLE ... ADD COLUMN ... "identities"
+        assert!(
+            !file.content.contains("\"identities\""),
+            "Fields with sql.skip: true should NOT appear in migrations. Got:\n{}",
+            file.content
+        );
+    }
+}
+
+#[test]
+fn test_migrate_field_added_with_unwrapped_skip_config() {
+    use cdm_plugin_interface::TypeExpression;
+
+    // This test uses the UNWRAPPED config format that the plugin actually receives
+    // after transform_deltas_for_plugin() extracts the plugin-specific config.
+    //
+    // In the CDM flow:
+    // 1. Raw config: { "sql": { "skip": true }, "typeorm": { ... } }
+    // 2. After unwrap for sql plugin: { "skip": true }
+    //
+    // This is the critical test case for the bug fix.
+
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            entity_id: local_id(1),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    field_type: TypeExpression::Identifier { name: "number".to_string() },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({}),
+                    entity_id: local_id(2),
+                },
+                FieldDefinition {
+                    name: "projects".to_string(),
+                    field_type: TypeExpression::Array {
+                        element_type: Box::new(TypeExpression::Identifier { name: "Project".to_string() }),
+                    },
+                    optional: true,
+                    default: None,
+                    // UNWRAPPED config - this is what the plugin receives
+                    config: serde_json::json!({ "skip": true }),
+                    entity_id: local_id(3),
+                },
+            ],
+            config: serde_json::json!({}),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models: models.clone(),
+    };
+
+    // Delta with UNWRAPPED config (what the plugin receives)
+    let deltas = vec![Delta::FieldAdded {
+        model: "User".to_string(),
+        field: "projects".to_string(),
+        after: FieldDefinition {
+            name: "projects".to_string(),
+            field_type: TypeExpression::Array {
+                element_type: Box::new(TypeExpression::Identifier { name: "Project".to_string() }),
+            },
+            optional: true,
+            default: None,
+            // UNWRAPPED config - skip is at top level
+            config: serde_json::json!({ "skip": true }),
+            entity_id: local_id(3),
+        },
+    }];
+
+    let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+
+    // The migration should NOT contain ALTER TABLE ADD COLUMN for the skipped field
+    for file in &files {
+        assert!(
+            !file.content.contains("\"projects\""),
+            "Fields with skip: true should NOT appear in migrations (unwrapped config test). Got:\n{}",
+            file.content
+        );
+    }
+}
