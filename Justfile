@@ -105,6 +105,13 @@ release-plugin plugin_name version:
     exit 1
   fi
 
+  # Update version in cdm-plugin.json
+  echo "Updating version in cdm-plugin.json to {{version}}..."
+  PLUGIN_JSON="$PLUGIN_DIR/cdm-plugin.json"
+  # Use a temp file to avoid issues with in-place editing
+  jq '.version = "{{version}}"' "$PLUGIN_JSON" > "$PLUGIN_JSON.tmp" && mv "$PLUGIN_JSON.tmp" "$PLUGIN_JSON"
+  git add "$PLUGIN_JSON"
+
   # Build the plugin
   echo "Building plugin..."
   cd "$PLUGIN_DIR"
@@ -129,10 +136,10 @@ release-plugin plugin_name version:
     fi
   fi
 
-  # Commit the WASM files
+  # Commit the version update
   if ! git diff --cached --quiet; then
-    echo "Committing built artifacts..."
-    git commit -m "Build {{plugin_name}} v{{version}}"
+    echo "Committing version update..."
+    git commit -m "Release {{plugin_name}} v{{version}}"
   fi
 
   # Create tag
