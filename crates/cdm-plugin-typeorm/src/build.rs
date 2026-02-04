@@ -725,9 +725,9 @@ fn should_skip_field(config: &JSON) -> bool {
 }
 
 fn get_table_name(model_name: &str, model_config: &JSON, cfg: &Config, utils: &Utils) -> String {
-    // Check for explicit table name override
-    if let Some(table) = model_config.get("table").and_then(|v| v.as_str()) {
-        return table.to_string();
+    // Check for explicit table name override (consistent with SQL plugin)
+    if let Some(table_name) = model_config.get("table_name").and_then(|v| v.as_str()) {
+        return table_name.to_string();
     }
 
     // Apply naming format

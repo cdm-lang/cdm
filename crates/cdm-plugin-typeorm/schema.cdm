@@ -41,7 +41,7 @@ TypeAliasSettings {
 
 ModelSettings {
   // Table name override (default: model name with table_name_format applied)
-  table?: string
+  table_name?: string
 
   // Schema/namespace (PostgreSQL only)
   schema?: string

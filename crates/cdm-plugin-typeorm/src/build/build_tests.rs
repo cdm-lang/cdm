@@ -1475,6 +1475,107 @@ fn test_nested_join_column_still_works() {
     );
 }
 
+// Table name override tests
+
+#[test]
+fn test_table_name_override() {
+    // Test that @typeorm { table_name: "custom_table" } works (consistent with SQL plugin)
+    // Use a completely custom name to ensure we're reading table_name, not just pluralizing
+    let mut models = HashMap::new();
+
+    let repo_model = ModelDefinition {
+        name: "Repo".to_string(),
+        parents: vec![],
+        fields: vec![
+            FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "primary": { "generation": "uuid" }
+                }),
+                entity_id: None,
+            },
+        ],
+        config: serde_json::json!({
+            "table_name": "project_repos"  // Custom name that differs from pluralized "repos"
+        }),
+        entity_id: None,
+    };
+    models.insert("Repo".to_string(), repo_model);
+
+    let schema = Schema {
+        models,
+        type_aliases: HashMap::new(),
+    };
+    let config = serde_json::json!({
+        "pluralize_table_names": true
+    });
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+
+    let content = &files[0].content;
+    // Without the fix, this would generate "repos" (pluralized model name)
+    // With table_name support, it should use "project_repos"
+    assert!(
+        content.contains("@Entity({ name: \"project_repos\" })"),
+        "Should use custom table name from 'table_name' field. Content: {}",
+        content
+    );
+}
+
+#[test]
+fn test_table_name_override_bypasses_pluralization() {
+    // Test that table_name completely bypasses the pluralization logic
+    let mut models = HashMap::new();
+
+    let user_model = ModelDefinition {
+        name: "User".to_string(),
+        parents: vec![],
+        fields: vec![
+            FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "primary": { "generation": "uuid" }
+                }),
+                entity_id: None,
+            },
+        ],
+        config: serde_json::json!({
+            "table_name": "app_users"
+        }),
+        entity_id: None,
+    };
+    models.insert("User".to_string(), user_model);
+
+    let schema = Schema {
+        models,
+        type_aliases: HashMap::new(),
+    };
+    let config = serde_json::json!({
+        "pluralize_table_names": true
+    });
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+
+    let content = &files[0].content;
+    assert!(
+        content.contains("@Entity({ name: \"app_users\" })"),
+        "Should use custom table name from 'table_name' field. Content: {}",
+        content
+    );
+}
+
 // Definite assignment tests
 
 #[test]

@@ -415,7 +415,7 @@ User {
   // fields...
 
   @typeorm {
-    table: "app_users",           // Override table name
+    table_name: "app_users",      // Override table name (consistent with SQL plugin)
     schema: "public",             // PostgreSQL schema
     indexes: {
       user_email_unique: { fields: ["email"], unique: true },
@@ -429,7 +429,7 @@ User {
 
 | Setting | Type | Default | Description |
 |---------|------|---------|-------------|
-| `table` | `string` | model name | Override table name |
+| `table_name` | `string` | model name | Override table name (consistent with SQL plugin) |
 | `schema` | `string` | - | PostgreSQL schema |
 | `indexes` | `Index[string]` | - | Indexes on this model (keyed by index name for proper inheritance) |
 | `skip` | `boolean` | `false` | Skip entity generation |
