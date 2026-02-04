@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-02-04T14:57:40Z",
+  "updated_at": "2026-02-04T15:05:21Z",
   "plugins": {
     "sql": {
       "description": "Generate SQL DDL schemas and migrations for PostgreSQL and SQLite",
@@ -224,9 +224,13 @@
         "0.1.6": {
           "wasm_url": "https://github.com/cdm-lang/cdm/releases/download/cdm-plugin-trpc-v0.1.6/cdm_plugin_trpc.wasm",
           "checksum": "sha256:c1f1ff2ba8413e324115bfa74025adb4b492e996a5982f2013f5b032b4bc8cc4"
+        },
+        "0.1.7": {
+          "wasm_url": "https://github.com/cdm-lang/cdm/releases/download/cdm-plugin-trpc-v0.1.7/cdm_plugin_trpc.wasm",
+          "checksum": "sha256:0df5d2ddf7b867ef8c45f64ab0e624b18dd60f09c460a4710d91b1c07d19d0a7"
         }
       },
-      "latest": "0.1.6",
+      "latest": "0.1.7",
       "docs": "https://github.com/cdm-lang/cdm/blob/main/crates/cdm-plugin-trpc/README.md"
     }
   }
