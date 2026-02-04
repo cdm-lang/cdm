@@ -435,8 +435,9 @@ fn generate_query_handler(procedure: &Procedure, output_type: &OutputType, inden
     let inner_indent = "  ".repeat(indent_level + 1);
     let body_indent = "  ".repeat(indent_level + 2);
 
+    // Explicit `: never` return type prevents TS2742 portability errors with Yarn PnP
     format!(
-        "{}.query(({}) => {{\n{}// TODO: Implement - return {}\n{}throw new Error('Not implemented');\n{}}})",
+        "{}.query(({}): never => {{\n{}// TODO: Implement - return {}\n{}throw new Error('Not implemented');\n{}}})",
         inner_indent, params, body_indent, return_comment, body_indent, inner_indent
     )
 }
@@ -449,8 +450,9 @@ fn generate_mutation_handler(procedure: &Procedure, output_type: &OutputType, in
     let inner_indent = "  ".repeat(indent_level + 1);
     let body_indent = "  ".repeat(indent_level + 2);
 
+    // Explicit `: never` return type prevents TS2742 portability errors with Yarn PnP
     format!(
-        "{}.mutation(({}) => {{\n{}// TODO: Implement - return {}\n{}throw new Error('Not implemented');\n{}}})",
+        "{}.mutation(({}): never => {{\n{}// TODO: Implement - return {}\n{}throw new Error('Not implemented');\n{}}})",
         inner_indent, params, body_indent, return_comment, body_indent, inner_indent
     )
 }

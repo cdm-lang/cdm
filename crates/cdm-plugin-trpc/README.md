@@ -114,7 +114,7 @@ export const appRouter = router({
   createUser: publicProcedure
     .input(CreateUserInputSchema)
     .output(UserSchema)
-    .mutation(({ input: _input, ctx: _ctx }) => {
+    .mutation(({ input: _input, ctx: _ctx }): never => {
       // TODO: Implement - return User
       throw new Error('Not implemented');
     }),
@@ -122,7 +122,7 @@ export const appRouter = router({
   deleteUser: publicProcedure
     .input(DeleteUserInputSchema)
     .output(z.void())
-    .mutation(({ input: _input, ctx: _ctx }) => {
+    .mutation(({ input: _input, ctx: _ctx }): never => {
       // TODO: Implement - return void
       throw new Error('Not implemented');
     }),
@@ -130,14 +130,14 @@ export const appRouter = router({
   getUser: publicProcedure
     .input(GetUserInputSchema)
     .output(UserSchema)
-    .query(({ input: _input, ctx: _ctx }) => {
+    .query(({ input: _input, ctx: _ctx }): never => {
       // TODO: Implement - return User
       throw new Error('Not implemented');
     }),
 
   listUsers: publicProcedure
     .output(z.array(UserSchema))
-    .query(({ ctx: _ctx }) => {
+    .query(({ ctx: _ctx }): never => {
       // TODO: Implement - return User[]
       throw new Error('Not implemented');
     }),
