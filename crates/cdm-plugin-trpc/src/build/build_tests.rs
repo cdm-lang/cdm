@@ -311,7 +311,7 @@ fn test_build_imports_observable_for_subscriptions() {
     let files = build(schema, config, &utils());
     let content = &files[0].content;
 
-    assert!(content.contains("import { observable } from '@trpc/server/observable'"));
+    assert!(content.contains("import { observable, type Observable } from '@trpc/server/observable'"));
 }
 
 #[test]
@@ -439,8 +439,8 @@ fn test_build_generates_procedure_without_input() {
 
     assert!(content.contains("listUsers: publicProcedure"));
     assert!(!content.contains(".input("));
-    // Stub uses underscore prefix for unused ctx parameter
-    assert!(content.contains("{ ctx: _ctx }"));
+    // Stub has no parameters since they're unused
+    assert!(content.contains(".query((): never =>"));
 }
 
 #[test]
@@ -459,8 +459,10 @@ fn test_build_generates_procedure_with_input() {
     let files = build(schema, config, &utils());
     let content = &files[0].content;
 
-    // Stub uses underscore prefix for unused parameters
-    assert!(content.contains("{ input: _input, ctx: _ctx }"));
+    // Should have .input() in the chain
+    assert!(content.contains(".input(GetUserInputSchema)"));
+    // Stub has no parameters since they're unused
+    assert!(content.contains(".query((): never =>"));
 }
 
 // ============================================================================

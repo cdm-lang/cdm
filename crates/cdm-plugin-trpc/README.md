@@ -91,7 +91,7 @@ User { id: string, email: string, name: string }
  */
 
 import { initTRPC } from '@trpc/server';
-import { observable } from '@trpc/server/observable';
+import { observable, type Observable } from '@trpc/server/observable';
 import { z } from 'zod';
 import {
   type User,
@@ -114,7 +114,7 @@ export const appRouter = router({
   createUser: publicProcedure
     .input(CreateUserInputSchema)
     .output(UserSchema)
-    .mutation(({ input: _input, ctx: _ctx }): never => {
+    .mutation((): never => {
       // TODO: Implement - return User
       throw new Error('Not implemented');
     }),
@@ -122,7 +122,7 @@ export const appRouter = router({
   deleteUser: publicProcedure
     .input(DeleteUserInputSchema)
     .output(z.void())
-    .mutation(({ input: _input, ctx: _ctx }): never => {
+    .mutation((): never => {
       // TODO: Implement - return void
       throw new Error('Not implemented');
     }),
@@ -130,21 +130,21 @@ export const appRouter = router({
   getUser: publicProcedure
     .input(GetUserInputSchema)
     .output(UserSchema)
-    .query(({ input: _input, ctx: _ctx }): never => {
+    .query((): never => {
       // TODO: Implement - return User
       throw new Error('Not implemented');
     }),
 
   listUsers: publicProcedure
     .output(z.array(UserSchema))
-    .query(({ ctx: _ctx }): never => {
+    .query((): never => {
       // TODO: Implement - return User[]
       throw new Error('Not implemented');
     }),
 
   onUserCreated: publicProcedure
     .output(UserSchema)
-    .subscription(({ ctx: _ctx }) => {
+    .subscription((): Observable<User> => {
       return observable<User>(_emit => {
         // TODO: Implement - call _emit.next(value) when data is available
         return () => { /* cleanup */ };
@@ -383,7 +383,7 @@ function CreateUserForm() {
 
 ```typescript
 // Server-side implementation
-import { observable } from '@trpc/server/observable';
+import { observable, type Observable } from '@trpc/server/observable';
 
 const userEvents = new EventEmitter();
 

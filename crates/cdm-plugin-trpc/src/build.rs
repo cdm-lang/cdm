@@ -212,7 +212,8 @@ fn generate_contract(
         .iter()
         .any(|p| p.procedure_type == "subscription");
     if has_subscriptions {
-        output.push_str("import { observable } from '@trpc/server/observable';\n");
+        // Import both the function and the type for explicit return type annotations
+        output.push_str("import { observable, type Observable } from '@trpc/server/observable';\n");
     }
 
     // Check if we need zod import (for void, array, or unknown types)
@@ -427,40 +428,33 @@ fn generate_procedure(
     output
 }
 
-fn generate_query_handler(procedure: &Procedure, output_type: &OutputType, indent_level: usize) -> String {
-    let has_input = procedure.input.is_some();
-    // Use underscore prefix for unused stub parameters
-    let params = if has_input { "{ input: _input, ctx: _ctx }" } else { "{ ctx: _ctx }" };
-    let return_comment = generate_return_comment(output_type, &procedure.output);
+fn generate_query_handler(_procedure: &Procedure, output_type: &OutputType, indent_level: usize) -> String {
+    let return_comment = generate_return_comment(output_type, &_procedure.output);
     let inner_indent = "  ".repeat(indent_level + 1);
     let body_indent = "  ".repeat(indent_level + 2);
 
     // Explicit `: never` return type prevents TS2742 portability errors with Yarn PnP
+    // No parameters needed for stub that just throws
     format!(
-        "{}.query(({}): never => {{\n{}// TODO: Implement - return {}\n{}throw new Error('Not implemented');\n{}}})",
-        inner_indent, params, body_indent, return_comment, body_indent, inner_indent
+        "{}.query((): never => {{\n{}// TODO: Implement - return {}\n{}throw new Error('Not implemented');\n{}}})",
+        inner_indent, body_indent, return_comment, body_indent, inner_indent
     )
 }
 
-fn generate_mutation_handler(procedure: &Procedure, output_type: &OutputType, indent_level: usize) -> String {
-    let has_input = procedure.input.is_some();
-    // Use underscore prefix for unused stub parameters
-    let params = if has_input { "{ input: _input, ctx: _ctx }" } else { "{ ctx: _ctx }" };
-    let return_comment = generate_return_comment(output_type, &procedure.output);
+fn generate_mutation_handler(_procedure: &Procedure, output_type: &OutputType, indent_level: usize) -> String {
+    let return_comment = generate_return_comment(output_type, &_procedure.output);
     let inner_indent = "  ".repeat(indent_level + 1);
     let body_indent = "  ".repeat(indent_level + 2);
 
     // Explicit `: never` return type prevents TS2742 portability errors with Yarn PnP
+    // No parameters needed for stub that just throws
     format!(
-        "{}.mutation(({}): never => {{\n{}// TODO: Implement - return {}\n{}throw new Error('Not implemented');\n{}}})",
-        inner_indent, params, body_indent, return_comment, body_indent, inner_indent
+        "{}.mutation((): never => {{\n{}// TODO: Implement - return {}\n{}throw new Error('Not implemented');\n{}}})",
+        inner_indent, body_indent, return_comment, body_indent, inner_indent
     )
 }
 
-fn generate_subscription_handler(procedure: &Procedure, output_type: &OutputType, indent_level: usize) -> String {
-    let has_input = procedure.input.is_some();
-    // Use underscore prefix for unused stub parameters
-    let params = if has_input { "{ input: _input, ctx: _ctx }" } else { "{ ctx: _ctx }" };
+fn generate_subscription_handler(_procedure: &Procedure, output_type: &OutputType, indent_level: usize) -> String {
     let emit_type = match output_type {
         OutputType::Single(model) => model.clone(),
         OutputType::Array(model) => format!("{}[]", model),
@@ -470,9 +464,11 @@ fn generate_subscription_handler(procedure: &Procedure, output_type: &OutputType
     let body_indent = "  ".repeat(indent_level + 2);
     let deep_indent = "  ".repeat(indent_level + 3);
 
+    // Explicit return type `Observable<T>` prevents TS2742 portability errors with Yarn PnP
+    // No parameters needed for stub
     format!(
-        "{}.subscription(({}) => {{\n{}return observable<{}>(_emit => {{\n{}// TODO: Implement - call _emit.next(value) when data is available\n{}return () => {{ /* cleanup */ }};\n{}}});\n{}}})",
-        inner_indent, params, body_indent, emit_type, deep_indent, deep_indent, body_indent, inner_indent
+        "{}.subscription((): Observable<{}> => {{\n{}return observable<{}>(_emit => {{\n{}// TODO: Implement - call _emit.next(value) when data is available\n{}return () => {{ /* cleanup */ }};\n{}}});\n{}}})",
+        inner_indent, emit_type, body_indent, emit_type, deep_indent, deep_indent, body_indent, inner_indent
     )
 }
 
