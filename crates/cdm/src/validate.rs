@@ -519,7 +519,20 @@ fn validate_tree_full(tree: LoadedFileTree, check_ids: bool, plugins_cache_only:
 
     // Plugin validation (only if semantic validation passed)
     if let Some(ref parse_tree) = result.tree {
-        validate_plugins(parse_tree, &main_source, &main_path, &ancestor_sources, &mut result.diagnostics, plugins_cache_only);
+        validate_plugins(
+            parse_tree,
+            &main_source,
+            &main_path,
+            &ancestor_sources,
+            &mut result.diagnostics,
+            plugins_cache_only,
+            // Pass user schema data for Model/Type reference validation
+            Some(&result.symbol_table),
+            Some(&result.model_fields),
+            Some(&ancestors),
+            Some(&result.removal_names),
+            Some(&result.field_removals),
+        );
     }
 
     // Check for plugin validation errors

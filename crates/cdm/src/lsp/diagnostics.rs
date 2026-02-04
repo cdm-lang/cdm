@@ -139,6 +139,12 @@ pub fn compute_diagnostics(text: &str, uri: &Url) -> Vec<Diagnostic> {
                 &ancestor_sources,
                 &mut validation_result.diagnostics,
                 true, // cache_only - don't download plugins, show error if not cached
+                // Pass user schema data for Model/Type reference validation
+                Some(&validation_result.symbol_table),
+                Some(&validation_result.model_fields),
+                Some(&ancestors),
+                Some(&validation_result.removal_names),
+                Some(&validation_result.field_removals),
             );
         }
     }

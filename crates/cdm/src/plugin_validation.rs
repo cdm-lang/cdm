@@ -1,6 +1,7 @@
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 use std::path::{Path, PathBuf};
-use crate::{Diagnostic, Severity, PluginRunner, ResolvedSchema, validate, node_span};
+use crate::{Diagnostic, Severity, PluginRunner, ResolvedSchema, validate, node_span, SymbolTable, FieldInfo, Ancestor};
+use crate::resolved_schema::build_resolved_schema;
 use crate::diagnostics::{
     E401_PLUGIN_NOT_FOUND, E402_INVALID_PLUGIN_CONFIG, E403_MISSING_PLUGIN_EXPORT,
     E404_PLUGIN_EXECUTION_FAILED,
@@ -195,8 +196,22 @@ pub fn validate_plugins(
     ancestor_sources: &[(String, PathBuf)],  // (source, file_path) pairs
     diagnostics: &mut Vec<Diagnostic>,
     cache_only: bool,
+    // User schema data for Model/Type reference validation
+    user_symbol_table: Option<&SymbolTable>,
+    user_model_fields: Option<&HashMap<String, Vec<FieldInfo>>>,
+    user_ancestors: Option<&[Ancestor]>,
+    user_removal_names: Option<&HashSet<String>>,
+    user_field_removals: Option<&HashMap<String, HashSet<String>>>,
 ) {
     let root = tree.root_node();
+
+    // Build user's resolved schema for Model/Type reference validation
+    let user_schema: Option<ResolvedSchema> = match (user_symbol_table, user_model_fields, user_ancestors, user_removal_names, user_field_removals) {
+        (Some(st), Some(mf), Some(anc), Some(rn), Some(fr)) => {
+            Some(build_resolved_schema(st, mf, anc, rn, fr))
+        }
+        _ => None,
+    };
 
     // Step 1: Extract plugin imports from ancestors (furthest ancestor first)
     let mut all_plugin_imports = Vec::new();
@@ -247,7 +262,7 @@ pub fn validate_plugins(
                 config: merged_config.clone(),
                 span: *span,
             };
-            validate_config_with_plugin(&config, cached_plugin, diagnostics);
+            validate_config_with_plugin(&config, cached_plugin, diagnostics, user_schema.as_ref());
         }
     }
 
@@ -255,7 +270,7 @@ pub fn validate_plugins(
     for config in &plugin_configs {
         if let Some(cached_plugin) = cache.plugins.get_mut(&config.plugin_name) {
             // Call plugin validate function
-            validate_config_with_plugin(config, cached_plugin, diagnostics);
+            validate_config_with_plugin(config, cached_plugin, diagnostics, user_schema.as_ref());
         } else {
             // Plugin used but not imported
             diagnostics.push(Diagnostic {
@@ -877,6 +892,7 @@ fn validate_config_with_plugin(
     config: &PluginConfig,
     cached_plugin: &mut CachedPlugin,
     diagnostics: &mut Vec<Diagnostic>,
+    user_schema: Option<&ResolvedSchema>,
 ) {
     let model_name = match &config.level {
         ConfigLevel::Global => "GlobalSettings",
@@ -904,11 +920,13 @@ fn validate_config_with_plugin(
     };
 
     // LEVEL 1: Schema validation (structural)
+    // Pass user_schema for Model/Type reference validation
     if let Some(ref resolved_schema) = cached_plugin.resolved_schema {
-        let schema_errors = cdm_json_validator::validate_json(
+        let schema_errors = cdm_json_validator::validate_json_with_user_schema(
             resolved_schema,
             &config_with_defaults,
             model_name,
+            user_schema,
         );
 
         // Convert validation errors to diagnostics
