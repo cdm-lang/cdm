@@ -94,6 +94,7 @@ import { initTRPC } from '@trpc/server';
 import { observable } from '@trpc/server/observable';
 import { z } from 'zod';
 import {
+  type User,
   CreateUserInputSchema,
   DeleteUserInputSchema,
   GetUserInputSchema,
@@ -113,39 +114,39 @@ export const appRouter = router({
   createUser: publicProcedure
     .input(CreateUserInputSchema)
     .output(UserSchema)
-    .mutation(({ input, ctx }) => {
-      // Implement: return User
+    .mutation(({ input: _input, ctx: _ctx }) => {
+      // TODO: Implement - return User
       throw new Error('Not implemented');
     }),
 
   deleteUser: publicProcedure
     .input(DeleteUserInputSchema)
     .output(z.void())
-    .mutation(({ input, ctx }) => {
-      // Implement: return void
+    .mutation(({ input: _input, ctx: _ctx }) => {
+      // TODO: Implement - return void
       throw new Error('Not implemented');
     }),
 
   getUser: publicProcedure
     .input(GetUserInputSchema)
     .output(UserSchema)
-    .query(({ input, ctx }) => {
-      // Implement: return User
+    .query(({ input: _input, ctx: _ctx }) => {
+      // TODO: Implement - return User
       throw new Error('Not implemented');
     }),
 
   listUsers: publicProcedure
     .output(z.array(UserSchema))
-    .query(({ ctx }) => {
-      // Implement: return User[]
+    .query(({ ctx: _ctx }) => {
+      // TODO: Implement - return User[]
       throw new Error('Not implemented');
     }),
 
   onUserCreated: publicProcedure
     .output(UserSchema)
-    .subscription(({ ctx }) => {
-      return observable<User>(emit => {
-        // Implement: emit.next(value) when data is available
+    .subscription(({ ctx: _ctx }) => {
+      return observable<User>(_emit => {
+        // TODO: Implement - call _emit.next(value) when data is available
         return () => { /* cleanup */ };
       });
     }),

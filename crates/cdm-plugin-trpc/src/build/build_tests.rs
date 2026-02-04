@@ -227,7 +227,73 @@ fn test_build_imports_trpc() {
     let content = &files[0].content;
 
     assert!(content.contains("import { initTRPC } from '@trpc/server'"));
-    assert!(content.contains("import { z } from 'zod'"));
+}
+
+#[test]
+fn test_build_imports_zod_when_needed_for_void() {
+    let schema = create_test_schema();
+    let config = json!({
+        "procedures": {
+            "deleteUser": {
+                "type": "mutation",
+                "input": "DeleteUserInput",
+                "output": "void"
+            }
+        }
+    });
+
+    let files = build(schema, config, &utils());
+    let content = &files[0].content;
+
+    assert!(
+        content.contains("import { z } from 'zod'"),
+        "Should import zod for z.void()"
+    );
+}
+
+#[test]
+fn test_build_imports_zod_when_needed_for_array() {
+    let schema = create_test_schema();
+    let config = json!({
+        "procedures": {
+            "listUsers": {
+                "type": "query",
+                "output": "User[]"
+            }
+        }
+    });
+
+    let files = build(schema, config, &utils());
+    let content = &files[0].content;
+
+    assert!(
+        content.contains("import { z } from 'zod'"),
+        "Should import zod for z.array()"
+    );
+}
+
+#[test]
+fn test_build_no_zod_import_for_single_model_outputs() {
+    // When all outputs are single models (no void, no arrays), zod is not needed
+    let schema = create_test_schema();
+    let config = json!({
+        "procedures": {
+            "getUser": {
+                "type": "query",
+                "input": "GetUserInput",
+                "output": "User"
+            }
+        }
+    });
+
+    let files = build(schema, config, &utils());
+    let content = &files[0].content;
+
+    assert!(
+        !content.contains("import { z } from 'zod'"),
+        "Should NOT import zod when not needed. Content:\n{}",
+        content
+    );
 }
 
 #[test]
@@ -373,7 +439,8 @@ fn test_build_generates_procedure_without_input() {
 
     assert!(content.contains("listUsers: publicProcedure"));
     assert!(!content.contains(".input("));
-    assert!(content.contains("{ ctx }"));
+    // Stub uses underscore prefix for unused ctx parameter
+    assert!(content.contains("{ ctx: _ctx }"));
 }
 
 #[test]
@@ -392,7 +459,8 @@ fn test_build_generates_procedure_with_input() {
     let files = build(schema, config, &utils());
     let content = &files[0].content;
 
-    assert!(content.contains("{ input, ctx }"));
+    // Stub uses underscore prefix for unused parameters
+    assert!(content.contains("{ input: _input, ctx: _ctx }"));
 }
 
 // ============================================================================
@@ -623,6 +691,35 @@ fn test_build_schema_import_per_model_strategy() {
     assert!(!content.contains("from './types'"));
 }
 
+#[test]
+fn test_per_model_strategy_imports_typescript_type_for_subscriptions() {
+    // Per-model strategy with subscriptions should import both schema and type
+    let schema = create_test_schema();
+    let config = json!({
+        "schema_import": {
+            "strategy": "per_model",
+            "path": "./models"
+        },
+        "procedures": {
+            "onUserCreated": {
+                "type": "subscription",
+                "output": "User"
+            }
+        }
+    });
+
+    let files = build(schema, config, &utils());
+    let content = &files[0].content;
+
+    // Should import both the TypeScript type and schema from the model file
+    assert!(
+        content.contains("type User, UserSchema"),
+        "Per-model strategy should import both type and schema. Content:\n{}",
+        content
+    );
+    assert!(content.contains("from './models/User'"));
+}
+
 // ============================================================================
 // Subscription Handler Tests
 // ============================================================================
@@ -642,9 +739,123 @@ fn test_subscription_generates_observable_pattern() {
     let files = build(schema, config, &utils());
     let content = &files[0].content;
 
-    assert!(content.contains("return observable<User>(emit =>"));
-    assert!(content.contains("emit.next(value)"));
+    assert!(content.contains("return observable<User>(_emit =>"));
+    assert!(content.contains("_emit.next(value)"));
     assert!(content.contains("return () => { /* cleanup */ }"));
+}
+
+#[test]
+fn test_subscription_imports_typescript_type_for_observable() {
+    // Bug fix test: subscription procedures use observable<T> which requires
+    // the TypeScript type to be imported, not just the Zod schema.
+    let schema = create_test_schema();
+    let config = json!({
+        "procedures": {
+            "onUserCreated": {
+                "type": "subscription",
+                "output": "User"
+            }
+        }
+    });
+
+    let files = build(schema, config, &utils());
+    let content = &files[0].content;
+
+    // Should import both the Zod schema AND the TypeScript type
+    assert!(content.contains("UserSchema"), "Should import UserSchema for .output()");
+    assert!(
+        content.contains("type User,") || content.contains("type User\n"),
+        "Should import TypeScript type User for observable<User>. Content:\n{}",
+        content
+    );
+}
+
+#[test]
+fn test_subscription_array_output_imports_typescript_type() {
+    // Bug fix test: array subscription outputs like User[] should import
+    // the base TypeScript type (User) for observable<User[]>
+    let schema = create_test_schema();
+    let config = json!({
+        "procedures": {
+            "onUsersUpdated": {
+                "type": "subscription",
+                "output": "User[]"
+            }
+        }
+    });
+
+    let files = build(schema, config, &utils());
+    let content = &files[0].content;
+
+    // Should import both the Zod schema AND the TypeScript type
+    assert!(content.contains("UserSchema"), "Should import UserSchema for .output()");
+    assert!(
+        content.contains("type User,") || content.contains("type User\n"),
+        "Should import TypeScript type User for observable<User[]>. Content:\n{}",
+        content
+    );
+}
+
+#[test]
+fn test_query_does_not_import_typescript_type() {
+    // Query procedures don't need explicit TypeScript type imports
+    // because types are inferred from Zod schemas
+    let schema = create_test_schema();
+    let config = json!({
+        "procedures": {
+            "getUser": {
+                "type": "query",
+                "output": "User"
+            }
+        }
+    });
+
+    let files = build(schema, config, &utils());
+    let content = &files[0].content;
+
+    // Should only import the Zod schema, NOT the TypeScript type
+    assert!(content.contains("UserSchema"), "Should import UserSchema for .output()");
+    assert!(
+        !content.contains("type User"),
+        "Should NOT import TypeScript type for query procedures. Content:\n{}",
+        content
+    );
+}
+
+#[test]
+fn test_mixed_procedures_only_import_types_for_subscriptions() {
+    // When we have both query and subscription, only subscription outputs
+    // should have TypeScript type imports
+    let schema = create_test_schema();
+    let config = json!({
+        "procedures": {
+            "getUser": {
+                "type": "query",
+                "input": "GetUserInput",
+                "output": "User"
+            },
+            "onValidationError": {
+                "type": "subscription",
+                "output": "ValidationError"
+            }
+        }
+    });
+
+    let files = build(schema, config, &utils());
+    let content = &files[0].content;
+
+    // Should import ValidationError as a type (for subscription)
+    assert!(
+        content.contains("type ValidationError"),
+        "Should import TypeScript type ValidationError for subscription. Content:\n{}",
+        content
+    );
+    // Should NOT import User as a type (only used in query)
+    assert!(
+        !content.contains("type User"),
+        "Should NOT import TypeScript type User (only used in query). Content:\n{}",
+        content
+    );
 }
 
 #[test]
@@ -662,7 +873,7 @@ fn test_subscription_with_array_output() {
     let files = build(schema, config, &utils());
     let content = &files[0].content;
 
-    assert!(content.contains("return observable<User[]>(emit =>"));
+    assert!(content.contains("return observable<User[]>(_emit =>"));
 }
 
 // ============================================================================

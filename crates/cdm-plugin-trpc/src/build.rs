@@ -215,7 +215,20 @@ fn generate_contract(
         output.push_str("import { observable } from '@trpc/server/observable';\n");
     }
 
-    output.push_str("import { z } from 'zod';\n");
+    // Check if we need zod import (for void, array, or unknown types)
+    let needs_zod = procedures.iter().any(|p| {
+        // Need z.void() for void outputs
+        is_void_output(&p.output)
+            // Need z.array() for array outputs
+            || is_array_output(&p.output)
+            // Need z.unknown() if input model not found
+            || p.input.as_ref().is_some_and(|i| !valid_models.contains(strip_array_suffix(i)))
+            // Need z.unknown() if output model not found (and not void)
+            || (!is_void_output(&p.output) && !valid_models.contains(strip_array_suffix(&p.output)))
+    });
+    if needs_zod {
+        output.push_str("import { z } from 'zod';\n");
+    }
 
     // Generate schema imports
     let schema_imports_str = generate_schema_imports(procedures, valid_models, schema_import);
@@ -299,6 +312,8 @@ fn generate_schema_imports(
 ) -> String {
     // Collect all model names that need schema imports
     let mut models: BTreeSet<String> = BTreeSet::new();
+    // Collect model names that need TypeScript type imports (for subscription observable<T>)
+    let mut subscription_output_types: BTreeSet<String> = BTreeSet::new();
 
     for procedure in procedures {
         if let Some(ref input) = procedure.input {
@@ -312,6 +327,10 @@ fn generate_schema_imports(
             let model = strip_array_suffix(&procedure.output);
             if valid_models.contains(model) {
                 models.insert(model.to_string());
+                // Subscription procedures use observable<T> which requires the TypeScript type
+                if procedure.procedure_type == "subscription" {
+                    subscription_output_types.insert(model.to_string());
+                }
             }
         }
 
@@ -332,22 +351,35 @@ fn generate_schema_imports(
         models
             .iter()
             .map(|model| {
+                let type_import = if subscription_output_types.contains(model) {
+                    format!("type {}, ", model)
+                } else {
+                    String::new()
+                };
                 format!(
-                    "import {{ {}Schema }} from '{}/{}';\n",
-                    model, schema_import.path, model
+                    "import {{ {}{}Schema }} from '{}/{}';\n",
+                    type_import, model, schema_import.path, model
                 )
             })
             .collect::<Vec<_>>()
             .join("")
     } else {
         // Single file strategy: generate one import with all schemas
-        let schema_names: Vec<String> = models
-            .iter()
-            .map(|m| format!("  {}Schema,", m))
-            .collect();
+        let mut import_items: Vec<String> = Vec::new();
+
+        // Add TypeScript type imports for subscription output types
+        for type_name in &subscription_output_types {
+            import_items.push(format!("  type {},", type_name));
+        }
+
+        // Add schema imports
+        for model in &models {
+            import_items.push(format!("  {}Schema,", model));
+        }
+
         format!(
             "import {{\n{}\n}} from '{}';\n",
-            schema_names.join("\n"),
+            import_items.join("\n"),
             schema_import.path
         )
     }
@@ -397,33 +429,36 @@ fn generate_procedure(
 
 fn generate_query_handler(procedure: &Procedure, output_type: &OutputType, indent_level: usize) -> String {
     let has_input = procedure.input.is_some();
-    let params = if has_input { "{ input, ctx }" } else { "{ ctx }" };
+    // Use underscore prefix for unused stub parameters
+    let params = if has_input { "{ input: _input, ctx: _ctx }" } else { "{ ctx: _ctx }" };
     let return_comment = generate_return_comment(output_type, &procedure.output);
     let inner_indent = "  ".repeat(indent_level + 1);
     let body_indent = "  ".repeat(indent_level + 2);
 
     format!(
-        "{}.query(({}) => {{\n{}// Implement: return {}\n{}throw new Error('Not implemented');\n{}}})",
+        "{}.query(({}) => {{\n{}// TODO: Implement - return {}\n{}throw new Error('Not implemented');\n{}}})",
         inner_indent, params, body_indent, return_comment, body_indent, inner_indent
     )
 }
 
 fn generate_mutation_handler(procedure: &Procedure, output_type: &OutputType, indent_level: usize) -> String {
     let has_input = procedure.input.is_some();
-    let params = if has_input { "{ input, ctx }" } else { "{ ctx }" };
+    // Use underscore prefix for unused stub parameters
+    let params = if has_input { "{ input: _input, ctx: _ctx }" } else { "{ ctx: _ctx }" };
     let return_comment = generate_return_comment(output_type, &procedure.output);
     let inner_indent = "  ".repeat(indent_level + 1);
     let body_indent = "  ".repeat(indent_level + 2);
 
     format!(
-        "{}.mutation(({}) => {{\n{}// Implement: return {}\n{}throw new Error('Not implemented');\n{}}})",
+        "{}.mutation(({}) => {{\n{}// TODO: Implement - return {}\n{}throw new Error('Not implemented');\n{}}})",
         inner_indent, params, body_indent, return_comment, body_indent, inner_indent
     )
 }
 
 fn generate_subscription_handler(procedure: &Procedure, output_type: &OutputType, indent_level: usize) -> String {
     let has_input = procedure.input.is_some();
-    let params = if has_input { "{ input, ctx }" } else { "{ ctx }" };
+    // Use underscore prefix for unused stub parameters
+    let params = if has_input { "{ input: _input, ctx: _ctx }" } else { "{ ctx: _ctx }" };
     let emit_type = match output_type {
         OutputType::Single(model) => model.clone(),
         OutputType::Array(model) => format!("{}[]", model),
@@ -434,7 +469,7 @@ fn generate_subscription_handler(procedure: &Procedure, output_type: &OutputType
     let deep_indent = "  ".repeat(indent_level + 3);
 
     format!(
-        "{}.subscription(({}) => {{\n{}return observable<{}>(emit => {{\n{}// Implement: emit.next(value) when data is available\n{}return () => {{ /* cleanup */ }};\n{}}});\n{}}})",
+        "{}.subscription(({}) => {{\n{}return observable<{}>(_emit => {{\n{}// TODO: Implement - call _emit.next(value) when data is available\n{}return () => {{ /* cleanup */ }};\n{}}});\n{}}})",
         inner_indent, params, body_indent, emit_type, deep_indent, deep_indent, body_indent, inner_indent
     )
 }
