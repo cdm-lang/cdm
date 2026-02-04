@@ -1,6 +1,6 @@
 {
   "name": "trpc",
-  "version": "0.1.3",
+  "version": "0.1.9",
   "description": "Generate tRPC router contracts from CDM schemas",
   "docs": "https://github.com/cdm-lang/cdm/blob/main/crates/cdm-plugin-trpc/README.md",
   "schema": "schema.cdm",
