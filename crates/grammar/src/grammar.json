@@ -1019,8 +1019,16 @@
         {
           "type": "SYMBOL",
           "name": "object_literal"
+        },
+        {
+          "type": "SYMBOL",
+          "name": "identifier_value"
         }
       ]
+    },
+    "identifier_value": {
+      "type": "SYMBOL",
+      "name": "identifier"
     },
     "array_literal": {
       "type": "SEQ",

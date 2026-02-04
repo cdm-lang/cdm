@@ -443,3 +443,155 @@ fn test_validate_json_builtin_accepts_object() {
     let errors = validate_value(&schema, &json, &ParsedType::Reference("JSON".to_string()), &[]);
     assert_eq!(errors.len(), 0);
 }
+
+// Tests for Model and Type reference types
+
+#[test]
+fn test_validate_model_ref_valid() {
+    let schema = create_test_schema();
+    // "User" is a model in the schema
+    let json = serde_json::json!("User");
+    let errors = validate_value(&schema, &json, &ParsedType::ModelRef, &[]);
+    assert_eq!(errors.len(), 0);
+}
+
+#[test]
+fn test_validate_model_ref_not_a_model() {
+    let schema = create_test_schema();
+    // "ID" is a type alias, not a model
+    let json = serde_json::json!("ID");
+    let errors = validate_value(&schema, &json, &ParsedType::ModelRef, &[]);
+    assert_eq!(errors.len(), 1);
+    assert!(errors[0].message.contains("is a type alias, not a model"));
+}
+
+#[test]
+fn test_validate_model_ref_not_found() {
+    let schema = create_test_schema();
+    let json = serde_json::json!("NonExistent");
+    let errors = validate_value(&schema, &json, &ParsedType::ModelRef, &[]);
+    assert_eq!(errors.len(), 1);
+    assert!(errors[0].message.contains("Model 'NonExistent' not found"));
+}
+
+#[test]
+fn test_validate_model_ref_wrong_type() {
+    let schema = create_test_schema();
+    let json = serde_json::json!(123);
+    let errors = validate_value(&schema, &json, &ParsedType::ModelRef, &[]);
+    assert_eq!(errors.len(), 1);
+    assert!(errors[0].message.contains("Expected model name (string)"));
+}
+
+#[test]
+fn test_validate_type_ref_valid() {
+    let schema = create_test_schema();
+    // "ID" is a type alias in the schema
+    let json = serde_json::json!("ID");
+    let errors = validate_value(&schema, &json, &ParsedType::TypeRef, &[]);
+    assert_eq!(errors.len(), 0);
+}
+
+#[test]
+fn test_validate_type_ref_not_a_type_alias() {
+    let schema = create_test_schema();
+    // "User" is a model, not a type alias
+    let json = serde_json::json!("User");
+    let errors = validate_value(&schema, &json, &ParsedType::TypeRef, &[]);
+    assert_eq!(errors.len(), 1);
+    assert!(errors[0].message.contains("is a model, not a type alias"));
+}
+
+#[test]
+fn test_validate_type_ref_not_found() {
+    let schema = create_test_schema();
+    let json = serde_json::json!("NonExistent");
+    let errors = validate_value(&schema, &json, &ParsedType::TypeRef, &[]);
+    assert_eq!(errors.len(), 1);
+    assert!(errors[0].message.contains("Type alias 'NonExistent' not found"));
+}
+
+#[test]
+fn test_validate_type_ref_wrong_type() {
+    let schema = create_test_schema();
+    let json = serde_json::json!(123);
+    let errors = validate_value(&schema, &json, &ParsedType::TypeRef, &[]);
+    assert_eq!(errors.len(), 1);
+    assert!(errors[0].message.contains("Expected type alias name (string)"));
+}
+
+#[test]
+fn test_validate_model_or_type_union() {
+    let schema = create_test_schema();
+    // Model | Type union - should accept either a model name or type alias name
+    let union_type = ParsedType::Union(vec![ParsedType::ModelRef, ParsedType::TypeRef]);
+
+    // Should accept model name
+    let json = serde_json::json!("User");
+    let errors = validate_value(&schema, &json, &union_type, &[]);
+    assert_eq!(errors.len(), 0);
+
+    // Should accept type alias name
+    let json = serde_json::json!("ID");
+    let errors = validate_value(&schema, &json, &union_type, &[]);
+    assert_eq!(errors.len(), 0);
+
+    // Should reject unknown name
+    let json = serde_json::json!("Unknown");
+    let errors = validate_value(&schema, &json, &union_type, &[]);
+    assert_eq!(errors.len(), 1);
+}
+
+#[test]
+fn test_validate_json_with_user_schema() {
+    // Create a plugin schema with a Model field
+    let mut plugin_models = HashMap::new();
+    let span = Span {
+        start: Position { line: 0, column: 0 },
+        end: Position { line: 0, column: 0 }
+    };
+
+    let config_fields = vec![
+        ResolvedField::new("model_ref".to_string(), Some("Model".to_string()), false, "plugin.cdm".to_string(), span),
+    ];
+
+    plugin_models.insert(
+        "Config".to_string(),
+        ResolvedModel {
+            name: "Config".to_string(),
+            fields: config_fields,
+            parents: vec![],
+            plugin_configs: std::collections::HashMap::new(),
+            source_file: "plugin.cdm".to_string(),
+            source_span: span,
+            entity_id: None,
+        },
+    );
+
+    let plugin_schema = ResolvedSchema {
+        models: plugin_models.clone(),
+        type_aliases: HashMap::new(),
+        all_models_for_inheritance: plugin_models,
+    };
+
+    // Create a user schema with a User model
+    let user_schema = create_test_schema();
+
+    // Validate config that references a model from user schema
+    let json = serde_json::json!({
+        "model_ref": "User"
+    });
+
+    // Using validate_json_with_user_schema should allow validation against user schema
+    let errors = validate_json_with_user_schema(&plugin_schema, &json, "Config", Some(&user_schema));
+    assert_eq!(errors.len(), 0);
+
+    // If we try to reference a non-existent model, it should fail
+    let json_invalid = serde_json::json!({
+        "model_ref": "NonExistent"
+    });
+
+    let errors = validate_json_with_user_schema(&plugin_schema, &json_invalid, "Config", Some(&user_schema));
+    assert_eq!(errors.len(), 1);
+    assert!(errors[0].message.contains("Model 'NonExistent' not found"));
+}

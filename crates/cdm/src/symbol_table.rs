@@ -387,8 +387,13 @@ pub fn field_exists_in_parents(
 pub fn is_builtin_type(name: &str) -> bool {
     matches!(
         name,
-        "string" | "number" | "boolean" | "JSON"
+        "string" | "number" | "boolean" | "JSON" | "Model" | "Type"
     )
+}
+
+/// Check if a name is a reserved type name that users cannot define
+pub fn is_reserved_type_name(name: &str) -> bool {
+    matches!(name, "Model" | "Type")
 }
 
 impl fmt::Display for SymbolTable {

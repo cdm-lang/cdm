@@ -8,6 +8,36 @@ use cdm_plugin_interface::{PathSegment, Severity, ValidationError};
 use serde_json::Value as JSON;
 use std::collections::HashSet;
 
+/// Context for validation, holding both the plugin schema and optional user schema
+struct ValidationContext<'a> {
+    /// The schema being validated against (e.g., plugin's schema)
+    schema: &'a ResolvedSchema,
+    /// Optional user schema for validating Model/Type references
+    user_schema: Option<&'a ResolvedSchema>,
+}
+
+impl<'a> ValidationContext<'a> {
+    fn new(schema: &'a ResolvedSchema) -> Self {
+        Self {
+            schema,
+            user_schema: None,
+        }
+    }
+
+    fn with_user_schema(schema: &'a ResolvedSchema, user_schema: &'a ResolvedSchema) -> Self {
+        Self {
+            schema,
+            user_schema: Some(user_schema),
+        }
+    }
+
+    /// Get the schema to use for Model/Type reference validation
+    /// Returns user_schema if available, otherwise falls back to schema
+    fn ref_schema(&self) -> &'a ResolvedSchema {
+        self.user_schema.unwrap_or(self.schema)
+    }
+}
+
 /// Apply default values from schema to JSON object
 ///
 /// # Arguments
@@ -77,13 +107,37 @@ pub fn validate_json(
     json: &JSON,
     model_name: &str,
 ) -> Vec<ValidationError> {
+    validate_json_with_user_schema(schema, json, model_name, None)
+}
+
+/// Validate a JSON value against a model in the schema, with optional user schema for Model/Type validation
+///
+/// # Arguments
+/// * `schema` - The resolved schema containing all type definitions (plugin's schema)
+/// * `json` - The JSON value to validate
+/// * `model_name` - The name of the model to validate against
+/// * `user_schema` - Optional user's schema for validating Model/Type references
+///
+/// # Returns
+/// A vector of validation errors. Empty if validation succeeds.
+pub fn validate_json_with_user_schema(
+    schema: &ResolvedSchema,
+    json: &JSON,
+    model_name: &str,
+    user_schema: Option<&ResolvedSchema>,
+) -> Vec<ValidationError> {
+    let ctx = match user_schema {
+        Some(us) => ValidationContext::with_user_schema(schema, us),
+        None => ValidationContext::new(schema),
+    };
+
     let mut errors = Vec::new();
 
     // Look up the model
-    let model = match schema.models.get(model_name) {
+    let model = match ctx.schema.models.get(model_name) {
         Some(m) => m,
         None => {
-            let message = if schema.type_aliases.contains_key(model_name) {
+            let message = if ctx.schema.type_aliases.contains_key(model_name) {
                 format!("'{}' is a type alias, not a model. Only models can be validated directly.", model_name)
             } else {
                 format!("'{}' not found in schema", model_name)
@@ -160,7 +214,7 @@ pub fn validate_json(
             name: field.name.clone(),
         }];
 
-        let field_errors = validate_value(schema, value, &parsed_type, &field_path);
+        let field_errors = validate_value_internal(&ctx, value, &parsed_type, &field_path);
         errors.extend(field_errors);
     }
 
@@ -199,6 +253,17 @@ pub fn validate_value(
     parsed_type: &ParsedType,
     path: &[PathSegment],
 ) -> Vec<ValidationError> {
+    let ctx = ValidationContext::new(schema);
+    validate_value_internal(&ctx, json, parsed_type, path)
+}
+
+/// Internal validation function that uses ValidationContext
+fn validate_value_internal(
+    ctx: &ValidationContext,
+    json: &JSON,
+    parsed_type: &ParsedType,
+    path: &[PathSegment],
+) -> Vec<ValidationError> {
     match parsed_type {
         ParsedType::Primitive(prim) => validate_primitive(json, prim, path),
 
@@ -206,18 +271,22 @@ pub fn validate_value(
 
         ParsedType::NumberLiteral(expected) => validate_number_literal(json, *expected, path),
 
-        ParsedType::Reference(name) => validate_reference(schema, json, name, path),
+        ParsedType::Reference(name) => validate_reference(ctx, json, name, path),
 
-        ParsedType::Array(element_type) => validate_array(schema, json, element_type, path),
+        ParsedType::Array(element_type) => validate_array(ctx, json, element_type, path),
 
         ParsedType::Map {
             value_type,
             key_type,
-        } => validate_map(schema, json, value_type, key_type, path),
+        } => validate_map(ctx, json, value_type, key_type, path),
 
-        ParsedType::Union(types) => validate_union(schema, json, types, path),
+        ParsedType::Union(types) => validate_union(ctx, json, types, path),
 
         ParsedType::Null => validate_null(json, path),
+
+        ParsedType::ModelRef => validate_model_ref(ctx.ref_schema(), json, path),
+
+        ParsedType::TypeRef => validate_type_ref(ctx.ref_schema(), json, path),
     }
 }
 
@@ -291,7 +360,7 @@ fn validate_number_literal(
 
 /// Validate a reference to a model or type alias
 fn validate_reference(
-    schema: &ResolvedSchema,
+    ctx: &ValidationContext,
     json: &JSON,
     name: &str,
     path: &[PathSegment],
@@ -302,7 +371,7 @@ fn validate_reference(
     }
 
     // Check if it's a type alias first
-    if let Some(alias) = schema.type_aliases.get(name) {
+    if let Some(alias) = ctx.schema.type_aliases.get(name) {
         let alias_type = match alias.parsed_type() {
             Ok(t) => t,
             Err(e) => {
@@ -313,11 +382,11 @@ fn validate_reference(
                 }];
             }
         };
-        return validate_value(schema, json, &alias_type, path);
+        return validate_value_internal(ctx, json, &alias_type, path);
     }
 
     // Check if it's a model
-    if let Some(model) = schema.models.get(name) {
+    if let Some(model) = ctx.schema.models.get(name) {
         // JSON must be an object
         let obj = match json.as_object() {
             Some(o) => o,
@@ -377,7 +446,7 @@ fn validate_reference(
                 name: field.name.clone(),
             });
 
-            let field_errors = validate_value(schema, value, &parsed_type, &field_path);
+            let field_errors = validate_value_internal(ctx, value, &parsed_type, &field_path);
             errors.extend(field_errors);
         }
 
@@ -410,7 +479,7 @@ fn validate_reference(
 
 /// Validate an array
 fn validate_array(
-    schema: &ResolvedSchema,
+    ctx: &ValidationContext,
     json: &JSON,
     element_type: &ParsedType,
     path: &[PathSegment],
@@ -431,7 +500,7 @@ fn validate_array(
             name: index.to_string(),
         });
 
-        let element_errors = validate_value(schema, element, element_type, &element_path);
+        let element_errors = validate_value_internal(ctx, element, element_type, &element_path);
         errors.extend(element_errors);
     }
 
@@ -440,7 +509,7 @@ fn validate_array(
 
 /// Validate a map type
 fn validate_map(
-    schema: &ResolvedSchema,
+    ctx: &ValidationContext,
     json: &JSON,
     value_type: &ParsedType,
     key_type: &ParsedType,
@@ -467,7 +536,7 @@ fn validate_map(
         errors.extend(key_errors);
 
         // Validate value against value_type
-        let value_errors = validate_value(schema, value, value_type, &entry_path);
+        let value_errors = validate_value_internal(ctx, value, value_type, &entry_path);
         errors.extend(value_errors);
     }
 
@@ -548,7 +617,7 @@ fn validate_map_key(
             }]
         }
         _ => {
-            // Invalid key types (Array, Map, Null) should be caught at validation time
+            // Invalid key types (Array, Map, Null, ModelRef, TypeRef) should be caught at validation time
             vec![ValidationError {
                 path: path.to_vec(),
                 message: format!("Invalid map key type: {}", format_type(key_type)),
@@ -560,14 +629,14 @@ fn validate_map_key(
 
 /// Validate a union type
 fn validate_union(
-    schema: &ResolvedSchema,
+    ctx: &ValidationContext,
     json: &JSON,
     types: &[ParsedType],
     path: &[PathSegment],
 ) -> Vec<ValidationError> {
     // Try each type in the union
     for typ in types {
-        let errors = validate_value(schema, json, typ, path);
+        let errors = validate_value_internal(ctx, json, typ, path);
         if errors.is_empty() {
             // Found a matching type
             return vec![];
@@ -593,6 +662,86 @@ fn validate_null(json: &JSON, path: &[PathSegment]) -> Vec<ValidationError> {
     } else {
         vec![type_error(path.to_vec(), "null", json_type_name(json))]
     }
+}
+
+/// Validate a Model reference - the value must be a string that references a model in the schema
+fn validate_model_ref(
+    schema: &ResolvedSchema,
+    json: &JSON,
+    path: &[PathSegment],
+) -> Vec<ValidationError> {
+    // Value must be a string
+    let name = match json.as_str() {
+        Some(s) => s,
+        None => {
+            return vec![ValidationError {
+                path: path.to_vec(),
+                message: format!("Expected model name (string), got {}", json_type_name(json)),
+                severity: Severity::Error,
+            }];
+        }
+    };
+
+    // Check if it's a model in the schema
+    if schema.models.contains_key(name) {
+        return vec![];
+    }
+
+    // Check if it's a type alias (which would be wrong for Model type)
+    if schema.type_aliases.contains_key(name) {
+        return vec![ValidationError {
+            path: path.to_vec(),
+            message: format!("'{}' is a type alias, not a model. Expected a model name.", name),
+            severity: Severity::Error,
+        }];
+    }
+
+    // Not found at all
+    vec![ValidationError {
+        path: path.to_vec(),
+        message: format!("Model '{}' not found in schema", name),
+        severity: Severity::Error,
+    }]
+}
+
+/// Validate a Type reference - the value must be a string that references a type alias in the schema
+fn validate_type_ref(
+    schema: &ResolvedSchema,
+    json: &JSON,
+    path: &[PathSegment],
+) -> Vec<ValidationError> {
+    // Value must be a string
+    let name = match json.as_str() {
+        Some(s) => s,
+        None => {
+            return vec![ValidationError {
+                path: path.to_vec(),
+                message: format!("Expected type alias name (string), got {}", json_type_name(json)),
+                severity: Severity::Error,
+            }];
+        }
+    };
+
+    // Check if it's a type alias in the schema
+    if schema.type_aliases.contains_key(name) {
+        return vec![];
+    }
+
+    // Check if it's a model (which would be wrong for Type type)
+    if schema.models.contains_key(name) {
+        return vec![ValidationError {
+            path: path.to_vec(),
+            message: format!("'{}' is a model, not a type alias. Expected a type alias name.", name),
+            severity: Severity::Error,
+        }];
+    }
+
+    // Not found at all
+    vec![ValidationError {
+        path: path.to_vec(),
+        message: format!("Type alias '{}' not found in schema", name),
+        severity: Severity::Error,
+    }]
 }
 
 /// Helper to create a type mismatch error
@@ -640,6 +789,8 @@ fn format_type(typ: &ParsedType) -> String {
             parts.join(" | ")
         }
         ParsedType::Null => "null".to_string(),
+        ParsedType::ModelRef => "Model".to_string(),
+        ParsedType::TypeRef => "Type".to_string(),
     }
 }
 

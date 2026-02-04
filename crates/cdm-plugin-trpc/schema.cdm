@@ -4,9 +4,37 @@
 // the CDM CLI, not by plugins. They are automatically filtered out before
 // plugin validation.
 
+// Procedure type - defines a tRPC procedure (query, mutation, or subscription)
+Procedure {
+  // Procedure type: query, mutation, or subscription
+  type: "query" | "mutation" | "subscription"
+
+  // Input model or type alias (optional)
+  // Use unquoted identifiers to reference models/types from your schema:
+  //   input: GetUserInput    (references the GetUserInput model/type)
+  input?: Model | Type
+
+  // Output model or type alias (optional - omit for void procedures)
+  // Use unquoted identifiers to reference models/types from your schema:
+  //   output: User           (references the User model/type)
+  // For array outputs, use the array suffix in the referenced type
+  output?: Model | Type
+
+  // Error type (optional)
+  error?: Model | Type
+}
+
 GlobalSettings {
   // Map of procedure name to procedure configuration (required)
-  procedures: JSON
+  // Example:
+  //   procedures: {
+  //     getUser: {
+  //       type: "query"
+  //       input: GetUserInput
+  //       output: User
+  //     }
+  //   }
+  procedures: Procedure[string]
 
   // Configuration for importing Zod schemas (from @typescript plugin with generate_zod: true)
   schema_import?: SchemaImportConfig
@@ -24,19 +52,3 @@ SchemaImportConfig {
   // Default: "./types"
   path: string
 }
-
-// Note: Procedures are defined as JSON objects in the CDM file because they have
-// dynamic keys (procedure names). The plugin validates the procedure structure at runtime.
-//
-// Procedure structure:
-// {
-//   type: "query" | "mutation" | "subscription"  // Required - procedure type
-//   input?: string                                // Model name for input (optional)
-//   output: string                                // Model name for output, or "void" (required)
-//   error?: string                                // Error type name (optional)
-// }
-//
-// Output value types:
-// - "ModelName"       - Single response model
-// - "ModelName[]"     - Array of models (append [] to model name)
-// - "void"            - No output (returns void)

@@ -7,8 +7,10 @@ use crate::{
     Ancestor, Definition, DefinitionKind, Diagnostic, FieldInfo, Severity,
     SymbolTable, ImportedNamespace, field_exists_in_parents, is_builtin_type,
     is_type_defined, is_type_reference_defined, resolve_definition, node_span,
+    is_reserved_type_name,
 };
 use crate::diagnostics::{
+    E104_RESERVED_TYPE_NAME,
     E501_DUPLICATE_ENTITY_ID, E502_DUPLICATE_FIELD_ID,
     W005_MISSING_ENTITY_ID, W006_MISSING_FIELD_ID,
 };
@@ -819,6 +821,19 @@ fn collect_type_alias(
     let name = get_node_text(name_node, source);
     let span = node_span(name_node);
 
+    // Check for reserved type names (Model, Type)
+    if is_reserved_type_name(name) {
+        diagnostics.push(Diagnostic {
+            message: format!(
+                "{}: Cannot define type alias named '{}': this is a reserved type name",
+                E104_RESERVED_TYPE_NAME, name
+            ),
+            severity: Severity::Error,
+            span,
+        });
+        return;
+    }
+
     // Check for duplicate definition in this file
     if let Some(existing) = symbol_table.definitions.get(name) {
         diagnostics.push(Diagnostic {
@@ -835,10 +850,10 @@ fn collect_type_alias(
 
     // Note: Redefining a type alias from an ancestor is allowed - this is how
     // child files can override/extend parent definitions via the extends directive.
-    // We only warn about shadowing built-in types.
+    // We only warn about shadowing built-in types (except reserved names which are errors).
 
-    // Check for shadowing built-in types (warning)
-    if is_builtin_type(name) {
+    // Check for shadowing built-in types (warning) - but not reserved names (already checked above)
+    if is_builtin_type(name) && !is_reserved_type_name(name) {
         diagnostics.push(Diagnostic {
             message: format!("'{}' shadows built-in type", name),
             severity: Severity::Warning,
@@ -960,6 +975,19 @@ fn collect_model(
     let name = get_node_text(name_node, source);
     let span = node_span(name_node);
 
+    // Check for reserved type names (Model, Type)
+    if is_reserved_type_name(name) {
+        diagnostics.push(Diagnostic {
+            message: format!(
+                "{}: Cannot define model named '{}': this is a reserved type name",
+                E104_RESERVED_TYPE_NAME, name
+            ),
+            severity: Severity::Error,
+            span,
+        });
+        return;
+    }
+
     // Check for duplicate definition in this file
     if let Some(existing) = symbol_table.definitions.get(name) {
         diagnostics.push(Diagnostic {
@@ -976,10 +1004,10 @@ fn collect_model(
 
     // Note: Redefining a model from an ancestor is allowed - this is how
     // child files can extend/modify parent models (add fields, remove fields, etc.)
-    // via the extends directive. We only warn about shadowing built-in types.
+    // via the extends directive. We only warn about shadowing built-in types (except reserved names which are errors).
 
-    // Check for shadowing built-in types (warning)
-    if is_builtin_type(name) {
+    // Check for shadowing built-in types (warning) - but not reserved names (already checked above)
+    if is_builtin_type(name) && !is_reserved_type_name(name) {
         diagnostics.push(Diagnostic {
             message: format!("'{}' shadows built-in type", name),
             severity: Severity::Warning,

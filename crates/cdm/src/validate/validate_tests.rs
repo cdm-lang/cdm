@@ -5224,3 +5224,102 @@ fn test_qualified_type_wrong_type_name() {
         get_errors(&result)
     );
 }
+
+// Tests for reserved type names (Model and Type)
+
+#[test]
+fn test_reserved_type_name_model_as_type_alias() {
+    // Cannot define a type alias named "Model"
+    let source = "Model: string";
+    let result = validate_source(source);
+    assert!(
+        has_error_containing(&result, "E104"),
+        "Expected E104 error for reserved type name 'Model', got: {:?}",
+        get_errors(&result)
+    );
+    assert!(
+        has_error_containing(&result, "reserved type name"),
+        "Expected error about reserved type name, got: {:?}",
+        get_errors(&result)
+    );
+}
+
+#[test]
+fn test_reserved_type_name_type_as_type_alias() {
+    // Cannot define a type alias named "Type"
+    let source = "Type: string | number";
+    let result = validate_source(source);
+    assert!(
+        has_error_containing(&result, "E104"),
+        "Expected E104 error for reserved type name 'Type', got: {:?}",
+        get_errors(&result)
+    );
+    assert!(
+        has_error_containing(&result, "reserved type name"),
+        "Expected error about reserved type name, got: {:?}",
+        get_errors(&result)
+    );
+}
+
+#[test]
+fn test_reserved_type_name_model_as_model() {
+    // Cannot define a model named "Model"
+    let source = r#"
+        Model {
+            name: string
+        }
+    "#;
+    let result = validate_source(source);
+    assert!(
+        has_error_containing(&result, "E104"),
+        "Expected E104 error for reserved type name 'Model', got: {:?}",
+        get_errors(&result)
+    );
+    assert!(
+        has_error_containing(&result, "reserved type name"),
+        "Expected error about reserved type name, got: {:?}",
+        get_errors(&result)
+    );
+}
+
+#[test]
+fn test_reserved_type_name_type_as_model() {
+    // Cannot define a model named "Type"
+    let source = r#"
+        Type {
+            value: string
+        }
+    "#;
+    let result = validate_source(source);
+    assert!(
+        has_error_containing(&result, "E104"),
+        "Expected E104 error for reserved type name 'Type', got: {:?}",
+        get_errors(&result)
+    );
+    assert!(
+        has_error_containing(&result, "reserved type name"),
+        "Expected error about reserved type name, got: {:?}",
+        get_errors(&result)
+    );
+}
+
+#[test]
+fn test_model_and_type_as_field_types_allowed() {
+    // Using Model and Type as field types should work (they are valid built-in types)
+    let source = r#"
+        Config {
+            input_model: Model
+            output_type: Type
+        }
+    "#;
+    let result = validate_source(source);
+    // Should not have any errors about Model or Type
+    let model_type_errors: Vec<_> = result.diagnostics.iter()
+        .filter(|d| d.message.contains("Model") || d.message.contains("Type"))
+        .collect();
+    assert!(
+        model_type_errors.is_empty(),
+        "Expected no errors for using Model/Type as field types, got: {:?}",
+        model_type_errors
+    );
+}

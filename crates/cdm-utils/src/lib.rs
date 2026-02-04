@@ -150,6 +150,12 @@ pub enum ParsedType {
     Union(Vec<ParsedType>),
     /// Null type
     Null,
+    /// Model reference - only accepts model names (not type aliases)
+    /// Used in plugin schemas to validate that a value refers to a CDM model
+    ModelRef,
+    /// Type reference - only accepts type alias names (not models)
+    /// Used in plugin schemas to validate that a value refers to a CDM type alias
+    TypeRef,
 }
 
 /// CDM primitive types
@@ -429,6 +435,8 @@ pub fn parse_type_string(type_str: &str) -> Result<ParsedType, String> {
         "number" => Ok(ParsedType::Primitive(PrimitiveType::Number)),
         "boolean" => Ok(ParsedType::Primitive(PrimitiveType::Boolean)),
         "null" => Ok(ParsedType::Null),
+        "Model" => Ok(ParsedType::ModelRef),
+        "Type" => Ok(ParsedType::TypeRef),
         "" => Err("Empty type string".to_string()),
         _ => {
             // Must be a reference to a model or type alias

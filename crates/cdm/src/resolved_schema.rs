@@ -859,6 +859,18 @@ pub fn convert_type_expression(parsed_type: &crate::ParsedType) -> cdm_plugin_in
                 name: "null".to_string()
             }
         }
+        ParsedType::ModelRef => {
+            // Model reference type - represents a reference to a CDM model
+            cdm_plugin_interface::TypeExpression::Identifier {
+                name: "Model".to_string()
+            }
+        }
+        ParsedType::TypeRef => {
+            // Type reference type - represents a reference to a CDM type alias
+            cdm_plugin_interface::TypeExpression::Identifier {
+                name: "Type".to_string()
+            }
+        }
     }
 }
 

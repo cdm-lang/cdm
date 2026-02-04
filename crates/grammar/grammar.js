@@ -380,8 +380,13 @@ module.exports = grammar({
         $.boolean_literal,
         $.null_literal,
         $.array_literal,
-        $.object_literal
+        $.object_literal,
+        $.identifier_value  // Unquoted identifier for Model/Type references
       ),
+
+    // Unquoted identifier value - used for Model/Type references in plugin configs
+    // Example: input: User (instead of input: "User")
+    identifier_value: ($) => $.identifier,
 
     // Array literal: [value, value, ...]
     // Allows optional newlines for multi-line arrays

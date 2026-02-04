@@ -28,7 +28,7 @@ pub mod lsp;
 
 pub use diagnostics::{Diagnostic, Severity, node_span};
 pub use cdm_utils::{Position, Span};
-pub use symbol_table::{Ancestor, SymbolTable, Definition, DefinitionKind, FieldInfo, ImportedNamespace, QualifiedName, field_exists_in_parents, is_builtin_type, is_type_defined, resolve_definition, is_qualified_type_defined, is_type_reference_defined, resolve_qualified_definition};
+pub use symbol_table::{Ancestor, SymbolTable, Definition, DefinitionKind, FieldInfo, ImportedNamespace, QualifiedName, field_exists_in_parents, is_builtin_type, is_reserved_type_name, is_type_defined, resolve_definition, is_qualified_type_defined, is_type_reference_defined, resolve_qualified_definition};
 pub use validate::{validate, validate_tree, validate_tree_with_options, validate_tree_cache_only, validate_with_templates, ValidationResult};
 pub use plugin_runner::PluginRunner;
 pub use file_resolver::{FileResolver, LoadedFile, LoadedFileTree};

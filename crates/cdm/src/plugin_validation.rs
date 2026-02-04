@@ -578,6 +578,12 @@ fn parse_value(node: tree_sitter::Node, source: &str) -> Option<JSON> {
             }
         }
         "null_literal" => Some(JSON::Null),
+        // identifier_value is an unquoted identifier used for Model/Type references
+        // Convert it to a JSON string so plugins receive the name as a string value
+        "identifier_value" => {
+            let text = node_text(node, source);
+            Some(JSON::String(text.to_string()))
+        }
         _ => None,
     }
 }

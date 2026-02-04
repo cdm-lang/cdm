@@ -32,6 +32,9 @@ impl fmt::Display for Diagnostic {
     }
 }
 
+// Semantic error codes
+pub const E104_RESERVED_TYPE_NAME: &str = "E104";
+
 // Plugin error codes
 pub const E401_PLUGIN_NOT_FOUND: &str = "E401";
 pub const E402_INVALID_PLUGIN_CONFIG: &str = "E402";

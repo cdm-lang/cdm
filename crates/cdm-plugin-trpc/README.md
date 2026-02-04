@@ -48,27 +48,27 @@ Configure the plugin in your CDM file:
   build_output: "./generated",
   procedures: {
     getUser: {
-      type: "query",
-      input: "GetUserInput",
-      output: "User"
-    },
+      type: "query"
+      input: GetUserInput   // Unquoted - CDM validates this model exists
+      output: User
+    }
     listUsers: {
-      type: "query",
-      output: "User[]"
-    },
+      type: "query"
+      output: User          // Reference to User model
+    }
     createUser: {
-      type: "mutation",
-      input: "CreateUserInput",
-      output: "User"
-    },
+      type: "mutation"
+      input: CreateUserInput
+      output: User
+    }
     deleteUser: {
-      type: "mutation",
-      input: "DeleteUserInput",
-      output: "void"
-    },
+      type: "mutation"
+      input: DeleteUserInput
+      // output omitted - procedure returns void
+    }
     onUserCreated: {
-      type: "subscription",
-      output: "User"
+      type: "subscription"
+      output: User
     }
   }
 }
@@ -171,9 +171,9 @@ Configure the plugin at import time.
 @trpc {
   procedures: {
     procedureName: {
-      type: "query",
-      input: "InputModel",
-      output: "OutputModel"
+      type: "query"
+      input: InputModel    // Unquoted model reference
+      output: OutputModel  // CDM validates these models exist at compile time
     }
   }
 }
@@ -224,51 +224,50 @@ Each procedure in the `procedures` object supports the following fields:
 
 ### `input`
 
-- **Type:** `string` (optional)
-- **Description:** Model name for input validation. If omitted, the procedure accepts no input.
+- **Type:** `Model | Type` (optional)
+- **Description:** Reference to a CDM model or type alias for input validation. If omitted, the procedure accepts no input. Use unquoted identifiers - CDM validates the model/type exists at compile time.
 
 ```cdm
 getUser: {
-  type: "query",
-  input: "GetUserInput",  // References a CDM model
-  output: "User"
+  type: "query"
+  input: GetUserInput  // Reference to a CDM model (validated at compile time)
+  output: User
 }
 ```
 
-### `output` (required)
+### `output`
 
-- **Type:** `string`
-- **Description:** Model name for output type, or special values.
-
-#### Output Value Types
-
-| Type | Example | Description |
-|------|---------|-------------|
-| String | `"User"` | Single model response |
-| String with `[]` | `"User[]"` | Array response |
-| `"void"` | `"void"` | No return value |
+- **Type:** `Model | Type` (optional)
+- **Description:** Reference to a CDM model or type alias for output type. If omitted, the procedure returns void.
 
 ```cdm
 // Single model output
-getUser: { type: "query", output: "User" }
+getUser: { type: "query", output: User }
 
-// Array output
-listUsers: { type: "query", output: "User[]" }
-
-// Void output (for mutations that don't return data)
-deleteUser: { type: "mutation", input: "DeleteUserInput", output: "void" }
+// Void output (for mutations that don't return data) - just omit output
+deleteUser: { type: "mutation", input: DeleteUserInput }
 ```
+
+> **Note:** For array outputs, define a type alias with the array type (e.g., `UserList: User[]`) and reference that.
 
 ### `error`
 
-- **Type:** `string` (optional)
-- **Description:** Error type name (reserved for future error handling features).
+- **Type:** `Model | Type` (optional)
+- **Description:** Reference to a CDM model or type alias for error type (reserved for future error handling features).
 
 ## Validation Rules
 
-The plugin validates your configuration and reports errors:
+CDM validates your configuration at compile time:
 
-### Errors
+### Compile-Time Validation (CDM)
+
+| Rule | Message |
+|------|---------|
+| Model reference invalid | Model 'X' not found in schema |
+| Type reference invalid | Type alias 'X' not found in schema |
+| Wrong reference type | 'X' is a type alias, not a model (or vice versa) |
+
+### Runtime Validation (Plugin)
 
 | Rule | Message |
 |------|---------|
@@ -276,10 +275,6 @@ The plugin validates your configuration and reports errors:
 | procedures empty | `procedures` must contain at least one procedure |
 | type required | Procedure is missing required field `type` |
 | type invalid | Invalid procedure type (must be query, mutation, or subscription) |
-| output required | Procedure is missing required field `output` |
-| output invalid | output must be a string |
-| input invalid | input must be a string |
-| error invalid | error must be a string |
 
 ## Usage Examples
 

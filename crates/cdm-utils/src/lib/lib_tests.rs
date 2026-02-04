@@ -552,3 +552,43 @@ fn test_array_still_works_after_map_support() {
         ))))
     );
 }
+
+#[test]
+fn test_parse_model_ref_type() {
+    // Model is a special built-in type that references CDM models
+    assert_eq!(parse_type_string("Model"), Ok(ParsedType::ModelRef));
+}
+
+#[test]
+fn test_parse_type_ref_type() {
+    // Type is a special built-in type that references CDM type aliases
+    assert_eq!(parse_type_string("Type"), Ok(ParsedType::TypeRef));
+}
+
+#[test]
+fn test_parse_model_type_union() {
+    // Model | Type union - accepts either a model or type alias reference
+    let result = parse_type_string("Model | Type").unwrap();
+    match result {
+        ParsedType::Union(parts) => {
+            assert_eq!(parts.len(), 2);
+            assert_eq!(parts[0], ParsedType::ModelRef);
+            assert_eq!(parts[1], ParsedType::TypeRef);
+        }
+        _ => panic!("Expected Union type"),
+    }
+}
+
+#[test]
+fn test_parse_optional_model_type() {
+    // Model | null union - optional model reference
+    let result = parse_type_string("Model | null").unwrap();
+    match result {
+        ParsedType::Union(parts) => {
+            assert_eq!(parts.len(), 2);
+            assert_eq!(parts[0], ParsedType::ModelRef);
+            assert_eq!(parts[1], ParsedType::Null);
+        }
+        _ => panic!("Expected Union type"),
+    }
+}

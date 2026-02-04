@@ -16,6 +16,10 @@
           "named": true
         },
         {
+          "type": "identifier_value",
+          "named": true
+        },
+        {
           "type": "null_literal",
           "named": true
         },
@@ -258,6 +262,21 @@
     }
   },
   {
+    "type": "identifier_value",
+    "named": true,
+    "fields": {},
+    "children": {
+      "multiple": false,
+      "required": true,
+      "types": [
+        {
+          "type": "identifier",
+          "named": true
+        }
+      ]
+    }
+  },
+  {
     "type": "key_union_type",
     "named": true,
     "fields": {},
@@ -447,6 +466,10 @@
           },
           {
             "type": "boolean_literal",
+            "named": true
+          },
+          {
+            "type": "identifier_value",
             "named": true
           },
           {
