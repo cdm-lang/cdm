@@ -90,7 +90,7 @@ User { id: string, email: string, name: string }
  * DO NOT EDIT - changes will be overwritten
  */
 
-import { initTRPC } from '@trpc/server';
+import { initTRPC, TRPCError } from '@trpc/server';
 import { observable, type Observable } from '@trpc/server/observable';
 import { z } from 'zod';
 import {
@@ -144,7 +144,7 @@ export const appRouter = router({
 
   onUserCreated: publicProcedure
     .output(UserSchema)
-    .subscription((): Observable<User> => {
+    .subscription((): Observable<User, TRPCError> => {
       return observable<User>(_emit => {
         // TODO: Implement - call _emit.next(value) when data is available
         return () => { /* cleanup */ };

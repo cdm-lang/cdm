@@ -205,15 +205,16 @@ fn generate_contract(
     output.push_str(" */\n\n");
 
     // Import tRPC
-    output.push_str("import { initTRPC } from '@trpc/server';\n");
-
-    // Check if we need observable import (for subscriptions)
     let has_subscriptions = procedures
         .iter()
         .any(|p| p.procedure_type == "subscription");
     if has_subscriptions {
+        // Import TRPCError for Observable error type
+        output.push_str("import { initTRPC, TRPCError } from '@trpc/server';\n");
         // Import both the function and the type for explicit return type annotations
         output.push_str("import { observable, type Observable } from '@trpc/server/observable';\n");
+    } else {
+        output.push_str("import { initTRPC } from '@trpc/server';\n");
     }
 
     // Check if we need zod import (for void, array, or unknown types)
@@ -464,10 +465,10 @@ fn generate_subscription_handler(_procedure: &Procedure, output_type: &OutputTyp
     let body_indent = "  ".repeat(indent_level + 2);
     let deep_indent = "  ".repeat(indent_level + 3);
 
-    // Explicit return type `Observable<T>` prevents TS2742 portability errors with Yarn PnP
+    // Explicit return type `Observable<TValue, TRPCError>` prevents TS2742 portability errors with Yarn PnP
     // No parameters needed for stub
     format!(
-        "{}.subscription((): Observable<{}> => {{\n{}return observable<{}>(_emit => {{\n{}// TODO: Implement - call _emit.next(value) when data is available\n{}return () => {{ /* cleanup */ }};\n{}}});\n{}}})",
+        "{}.subscription((): Observable<{}, TRPCError> => {{\n{}return observable<{}>(_emit => {{\n{}// TODO: Implement - call _emit.next(value) when data is available\n{}return () => {{ /* cleanup */ }};\n{}}});\n{}}})",
         inner_indent, emit_type, body_indent, emit_type, deep_indent, deep_indent, body_indent, inner_indent
     )
 }

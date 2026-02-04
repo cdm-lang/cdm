@@ -311,6 +311,7 @@ fn test_build_imports_observable_for_subscriptions() {
     let files = build(schema, config, &utils());
     let content = &files[0].content;
 
+    assert!(content.contains("import { initTRPC, TRPCError } from '@trpc/server'"));
     assert!(content.contains("import { observable, type Observable } from '@trpc/server/observable'"));
 }
 
