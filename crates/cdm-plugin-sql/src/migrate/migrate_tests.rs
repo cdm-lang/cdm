@@ -4197,3 +4197,266 @@ fn test_field_added_with_foreign_key_on_update() {
         up_content
     );
 }
+
+// =============================================================================
+// BUG TEST: INHERITED FIELD OPTIONALITY CHANGES
+// =============================================================================
+
+#[test]
+fn test_migrate_inherited_field_optionality_change() {
+    // BUG TEST: When a parent model's field changes optionality (required -> optional),
+    // BOTH the parent model AND child models that inherit the field should get
+    // ALTER TABLE ... ALTER COLUMN ... DROP NOT NULL statements.
+    //
+    // Scenario:
+    //   PublicDaemonAuthRequest { repo_url: string } with @sql { skip: true }
+    //   DaemonAuthRequest extends PublicDaemonAuthRequest { ... }
+    //
+    // After change to repo_url?: string:
+    //   - Parent has skip: true, so no SQL generated for public_daemon_auth_requests
+    //   - Child DaemonAuthRequest should get ALTER TABLE daemon_auth_requests ALTER COLUMN repo_url DROP NOT NULL
+    //
+    // This test verifies that the SQL plugin correctly generates migrations for
+    // inherited field optionality changes in child models.
+
+    use cdm_plugin_interface::TypeExpression;
+
+    let mut models = HashMap::new();
+
+    // Parent model with skip: true (no table generated)
+    models.insert(
+        "PublicDaemonAuthRequest".to_string(),
+        ModelDefinition {
+            name: "PublicDaemonAuthRequest".to_string(),
+            entity_id: local_id(10),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "repo_url".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: true, // Now optional (changed)
+                    default: None,
+                    config: serde_json::json!({}),
+                    entity_id: local_id(2), // Same entity_id as in child (inherited)
+                },
+            ],
+            config: serde_json::json!({ "skip": true }), // Parent is skipped
+        },
+    );
+
+    // Child model that extends parent - should generate SQL
+    models.insert(
+        "DaemonAuthRequest".to_string(),
+        ModelDefinition {
+            name: "DaemonAuthRequest".to_string(),
+            entity_id: local_id(14),
+            parents: vec!["PublicDaemonAuthRequest".to_string()],
+            fields: vec![
+                // Inherited field with same entity_id
+                FieldDefinition {
+                    name: "repo_url".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: true, // Now optional (inherited from parent change)
+                    default: None,
+                    config: serde_json::json!({}),
+                    entity_id: local_id(2), // Same entity_id as parent
+                },
+                // Child's own field
+                FieldDefinition {
+                    name: "daemon_id".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: true,
+                    default: None,
+                    config: serde_json::json!({}),
+                    entity_id: local_id(20),
+                },
+            ],
+            config: serde_json::json!({}),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models,
+    };
+
+    // Delta for the child model's inherited field optionality change
+    // (Parent's delta would not generate SQL due to skip: true)
+    let deltas = vec![Delta::FieldOptionalityChanged {
+        model: "DaemonAuthRequest".to_string(),
+        field: "repo_url".to_string(),
+        before: false, // was required
+        after: true,   // became optional
+    }];
+
+    let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": true });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+    assert_eq!(files.len(), 2);
+
+    let up_content = &files[0].content;
+    let down_content = &files[1].content;
+
+    // UP migration should contain DROP NOT NULL for daemon_auth_requests.repo_url
+    assert!(
+        up_content.contains("daemon_auth_requests"),
+        "Should reference daemon_auth_requests table. Got:\n{}",
+        up_content
+    );
+    assert!(
+        up_content.contains("repo_url"),
+        "Should reference repo_url column. Got:\n{}",
+        up_content
+    );
+    assert!(
+        up_content.contains("DROP NOT NULL"),
+        "Should generate DROP NOT NULL for child model. Got:\n{}",
+        up_content
+    );
+
+    // DOWN migration should contain SET NOT NULL
+    assert!(
+        down_content.contains("daemon_auth_requests"),
+        "Down migration should reference daemon_auth_requests table. Got:\n{}",
+        down_content
+    );
+    assert!(
+        down_content.contains("SET NOT NULL"),
+        "Down migration should generate SET NOT NULL. Got:\n{}",
+        down_content
+    );
+}
+
+#[test]
+fn test_migrate_inherited_field_optionality_both_parent_and_child() {
+    // Test that when BOTH parent and child get optionality deltas,
+    // SQL is generated for BOTH (unless parent has skip: true)
+    //
+    // This simulates the full scenario where:
+    // 1. Parent model changes field from required to optional
+    // 2. Both parent and child models get FieldOptionalityChanged deltas
+    // 3. Both tables should get ALTER COLUMN ... DROP NOT NULL
+
+    use cdm_plugin_interface::TypeExpression;
+
+    let mut models = HashMap::new();
+
+    // Parent model without skip (generates its own table)
+    models.insert(
+        "PublicUser".to_string(),
+        ModelDefinition {
+            name: "PublicUser".to_string(),
+            entity_id: local_id(1),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "email".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: true, // Now optional
+                    default: None,
+                    config: serde_json::json!({}),
+                    entity_id: local_id(2),
+                },
+            ],
+            config: serde_json::json!({}), // No skip - generates table
+        },
+    );
+
+    // Child model
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            entity_id: local_id(10),
+            parents: vec!["PublicUser".to_string()],
+            fields: vec![
+                // Inherited field
+                FieldDefinition {
+                    name: "email".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: true, // Now optional (inherited)
+                    default: None,
+                    config: serde_json::json!({}),
+                    entity_id: local_id(2), // Same entity_id
+                },
+                // Own field
+                FieldDefinition {
+                    name: "password_hash".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({}),
+                    entity_id: local_id(11),
+                },
+            ],
+            config: serde_json::json!({}),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models,
+    };
+
+    // Deltas for BOTH parent and child (as CDM core should generate)
+    let deltas = vec![
+        Delta::FieldOptionalityChanged {
+            model: "PublicUser".to_string(),
+            field: "email".to_string(),
+            before: false,
+            after: true,
+        },
+        Delta::FieldOptionalityChanged {
+            model: "User".to_string(),
+            field: "email".to_string(),
+            before: false,
+            after: true,
+        },
+    ];
+
+    let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": true });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+    assert_eq!(files.len(), 2);
+
+    let up_content = &files[0].content;
+
+    // Should have DROP NOT NULL for BOTH tables
+    let public_users_drop = up_content.contains("public_users") && up_content.contains("DROP NOT NULL");
+    let users_drop = up_content.contains("\"users\"") && up_content.contains("DROP NOT NULL");
+
+    // Count how many DROP NOT NULL statements are in the migration
+    let drop_count = up_content.matches("DROP NOT NULL").count();
+
+    assert_eq!(
+        drop_count, 2,
+        "Should have 2 DROP NOT NULL statements (one for each table). Got:\n{}",
+        up_content
+    );
+
+    assert!(
+        public_users_drop,
+        "Should generate DROP NOT NULL for public_users table. Got:\n{}",
+        up_content
+    );
+
+    assert!(
+        users_drop,
+        "Should generate DROP NOT NULL for users table. Got:\n{}",
+        up_content
+    );
+}

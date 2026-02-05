@@ -1,0 +1,10 @@
+// Parent model with OPTIONAL repo_url field
+// This represents the "after" state
+
+@sql { dialect: "postgresql" }
+
+PublicDaemonAuthRequest {
+  request_id: string #1
+  repo_url?: string #2
+  machine_name?: string #3
+} #10

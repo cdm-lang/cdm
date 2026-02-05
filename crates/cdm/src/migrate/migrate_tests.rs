@@ -2662,3 +2662,321 @@ fn test_compute_field_deltas_same_local_id_different_source_not_rename() {
         deltas
     );
 }
+
+// =============================================================================
+// BUG TEST: INHERITED FIELD OPTIONALITY CHANGES
+// =============================================================================
+
+#[test]
+fn test_compute_deltas_inherited_field_optionality_change() {
+    // BUG TEST: When a parent model's field changes optionality (required -> optional),
+    // BOTH the parent model AND child models that inherit the field should get
+    // FieldOptionalityChanged deltas.
+    //
+    // Scenario:
+    //   PublicDaemonAuthRequest { repo_url: string }  (required)
+    //   DaemonAuthRequest extends PublicDaemonAuthRequest { ... }
+    //
+    // After change:
+    //   PublicDaemonAuthRequest { repo_url?: string }  (optional)
+    //   DaemonAuthRequest extends PublicDaemonAuthRequest { ... }
+    //
+    // Expected deltas:
+    //   - FieldOptionalityChanged for PublicDaemonAuthRequest.repo_url
+    //   - FieldOptionalityChanged for DaemonAuthRequest.repo_url
+    //
+    // Note: Both models have the field with the SAME entity_id (inherited from parent),
+    // so deltas should be generated for both models.
+
+    // Previous schema: field is required in both parent and child
+    let mut prev_models = HashMap::new();
+
+    // Parent model with required repo_url field
+    prev_models.insert(
+        "PublicDaemonAuthRequest".to_string(),
+        ModelDefinition {
+            name: "PublicDaemonAuthRequest".to_string(),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "repo_url".to_string(),
+                    field_type: ident_type("string"),
+                    optional: false, // REQUIRED
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(2), // Parent's field entity_id
+                },
+            ],
+            config: json!({}),
+            entity_id: local_id(10),
+        },
+    );
+
+    // Child model inherits repo_url from parent (same entity_id)
+    prev_models.insert(
+        "DaemonAuthRequest".to_string(),
+        ModelDefinition {
+            name: "DaemonAuthRequest".to_string(),
+            parents: vec!["PublicDaemonAuthRequest".to_string()],
+            fields: vec![
+                // Inherited field with SAME entity_id as parent
+                FieldDefinition {
+                    name: "repo_url".to_string(),
+                    field_type: ident_type("string"),
+                    optional: false, // REQUIRED (inherited)
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(2), // Same entity_id as parent's field
+                },
+                // Child's own field
+                FieldDefinition {
+                    name: "daemon_id".to_string(),
+                    field_type: ident_type("string"),
+                    optional: true,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(20),
+                },
+            ],
+            config: json!({}),
+            entity_id: local_id(14),
+        },
+    );
+
+    let previous = Schema {
+        models: prev_models,
+        type_aliases: HashMap::new(),
+    };
+
+    // Current schema: field is NOW OPTIONAL in both parent and child
+    let mut curr_models = HashMap::new();
+
+    // Parent model with optional repo_url field (CHANGED)
+    curr_models.insert(
+        "PublicDaemonAuthRequest".to_string(),
+        ModelDefinition {
+            name: "PublicDaemonAuthRequest".to_string(),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "repo_url".to_string(),
+                    field_type: ident_type("string"),
+                    optional: true, // NOW OPTIONAL
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(2), // Same entity_id
+                },
+            ],
+            config: json!({}),
+            entity_id: local_id(10),
+        },
+    );
+
+    // Child model inherits repo_url from parent (now optional)
+    curr_models.insert(
+        "DaemonAuthRequest".to_string(),
+        ModelDefinition {
+            name: "DaemonAuthRequest".to_string(),
+            parents: vec!["PublicDaemonAuthRequest".to_string()],
+            fields: vec![
+                // Inherited field with SAME entity_id (now optional)
+                FieldDefinition {
+                    name: "repo_url".to_string(),
+                    field_type: ident_type("string"),
+                    optional: true, // NOW OPTIONAL (inherited)
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(2), // Same entity_id as parent's field
+                },
+                // Child's own field (unchanged)
+                FieldDefinition {
+                    name: "daemon_id".to_string(),
+                    field_type: ident_type("string"),
+                    optional: true,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(20),
+                },
+            ],
+            config: json!({}),
+            entity_id: local_id(14),
+        },
+    );
+
+    let current = Schema {
+        models: curr_models,
+        type_aliases: HashMap::new(),
+    };
+
+    // Compute deltas
+    let deltas = compute_deltas(&previous, &current).unwrap();
+
+    // Find optionality change deltas
+    let optionality_deltas: Vec<_> = deltas.iter().filter(|d| {
+        matches!(d, Delta::FieldOptionalityChanged { field, .. } if field == "repo_url")
+    }).collect();
+
+    // Should have 2 deltas: one for parent and one for child
+    assert_eq!(
+        optionality_deltas.len(),
+        2,
+        "Expected 2 FieldOptionalityChanged deltas (one for parent, one for child). Got: {:?}",
+        optionality_deltas
+    );
+
+    // Verify parent model delta exists
+    let parent_delta = optionality_deltas.iter().find(|d| {
+        matches!(d, Delta::FieldOptionalityChanged { model, .. } if model == "PublicDaemonAuthRequest")
+    });
+    assert!(
+        parent_delta.is_some(),
+        "Expected FieldOptionalityChanged delta for PublicDaemonAuthRequest.repo_url"
+    );
+
+    // Verify child model delta exists
+    let child_delta = optionality_deltas.iter().find(|d| {
+        matches!(d, Delta::FieldOptionalityChanged { model, .. } if model == "DaemonAuthRequest")
+    });
+    assert!(
+        child_delta.is_some(),
+        "Expected FieldOptionalityChanged delta for DaemonAuthRequest.repo_url"
+    );
+
+    // Verify delta values
+    if let Some(Delta::FieldOptionalityChanged { before, after, .. }) = parent_delta {
+        assert_eq!(*before, false, "Parent field should have been required");
+        assert_eq!(*after, true, "Parent field should now be optional");
+    }
+    if let Some(Delta::FieldOptionalityChanged { before, after, .. }) = child_delta {
+        assert_eq!(*before, false, "Child field should have been required");
+        assert_eq!(*after, true, "Child field should now be optional");
+    }
+}
+
+#[test]
+fn test_inherited_field_optionality_change_integration() {
+    // INTEGRATION TEST: Verifies the full pipeline from CDM file parsing through
+    // schema building correctly handles inherited field optionality changes.
+    //
+    // Scenario:
+    //   database_required.cdm (extends public_required.cdm):
+    //     PublicDaemonAuthRequest { repo_url: string } with @sql { skip: true }
+    //     DaemonAuthRequest extends PublicDaemonAuthRequest { daemon_id?: string }
+    //
+    //   database_optional.cdm (extends public_optional.cdm):
+    //     PublicDaemonAuthRequest { repo_url?: string } with @sql { skip: true }
+    //     DaemonAuthRequest extends PublicDaemonAuthRequest { daemon_id?: string }
+    //
+    // Expected:
+    //   When computing deltas between "required" and "optional" schemas:
+    //   - FieldOptionalityChanged for PublicDaemonAuthRequest.repo_url
+    //   - FieldOptionalityChanged for DaemonAuthRequest.repo_url (inherited field!)
+
+    use std::path::PathBuf;
+    use crate::file_resolver::FileResolver;
+    use crate::validate::validate_tree;
+    use crate::build_cdm_schema_for_plugin;
+
+    let fixtures_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("test_fixtures")
+        .join("inherited_optionality");
+
+    // Load and build "previous" schema (with required field)
+    let required_path = fixtures_path.join("database_required.cdm");
+    let required_tree = FileResolver::load(&required_path)
+        .expect("Failed to load database_required.cdm");
+
+    let required_validation = validate_tree(required_tree)
+        .expect("Validation failed for required schema");
+
+    assert!(
+        !required_validation.has_errors(),
+        "Required schema validation should succeed, got errors: {:?}",
+        required_validation.diagnostics
+    );
+
+    let required_ancestors: Vec<PathBuf> = vec![
+        fixtures_path.join("public_required.cdm")
+    ];
+
+    let previous_schema = build_cdm_schema_for_plugin(&required_validation, &required_ancestors, "sql")
+        .expect("Failed to build previous schema");
+
+    // Load and build "current" schema (with optional field)
+    let optional_path = fixtures_path.join("database_optional.cdm");
+    let optional_tree = FileResolver::load(&optional_path)
+        .expect("Failed to load database_optional.cdm");
+
+    let optional_validation = validate_tree(optional_tree)
+        .expect("Validation failed for optional schema");
+
+    assert!(
+        !optional_validation.has_errors(),
+        "Optional schema validation should succeed, got errors: {:?}",
+        optional_validation.diagnostics
+    );
+
+    let optional_ancestors: Vec<PathBuf> = vec![
+        fixtures_path.join("public_optional.cdm")
+    ];
+
+    let current_schema = build_cdm_schema_for_plugin(&optional_validation, &optional_ancestors, "sql")
+        .expect("Failed to build current schema");
+
+    // Verify that DaemonAuthRequest has the repo_url field in both schemas
+    // (this confirms inherited fields are properly flattened)
+    let prev_daemon = previous_schema.models.get("DaemonAuthRequest")
+        .expect("DaemonAuthRequest should exist in previous schema");
+    let curr_daemon = current_schema.models.get("DaemonAuthRequest")
+        .expect("DaemonAuthRequest should exist in current schema");
+
+    let prev_repo_url = prev_daemon.fields.iter().find(|f| f.name == "repo_url");
+    let curr_repo_url = curr_daemon.fields.iter().find(|f| f.name == "repo_url");
+
+    assert!(
+        prev_repo_url.is_some(),
+        "DaemonAuthRequest should have inherited repo_url field in previous schema. Fields: {:?}",
+        prev_daemon.fields.iter().map(|f| &f.name).collect::<Vec<_>>()
+    );
+    assert!(
+        curr_repo_url.is_some(),
+        "DaemonAuthRequest should have inherited repo_url field in current schema. Fields: {:?}",
+        curr_daemon.fields.iter().map(|f| &f.name).collect::<Vec<_>>()
+    );
+
+    // Verify optionality in each schema
+    assert!(
+        !prev_repo_url.unwrap().optional,
+        "repo_url should be required in previous schema"
+    );
+    assert!(
+        curr_repo_url.unwrap().optional,
+        "repo_url should be optional in current schema"
+    );
+
+    // Compute deltas
+    let deltas = compute_deltas(&previous_schema, &current_schema).unwrap();
+
+    // Find optionality change deltas for repo_url
+    let optionality_deltas: Vec<_> = deltas.iter().filter(|d| {
+        matches!(d, Delta::FieldOptionalityChanged { field, .. } if field == "repo_url")
+    }).collect();
+
+    // Should have delta for DaemonAuthRequest (child model)
+    // Parent model (PublicDaemonAuthRequest) has skip: true but still gets a delta
+    let child_delta = optionality_deltas.iter().find(|d| {
+        matches!(d, Delta::FieldOptionalityChanged { model, .. } if model == "DaemonAuthRequest")
+    });
+
+    assert!(
+        child_delta.is_some(),
+        "Expected FieldOptionalityChanged delta for DaemonAuthRequest.repo_url (inherited from parent). Got deltas: {:?}",
+        optionality_deltas
+    );
+
+    // Verify the delta values
+    if let Some(Delta::FieldOptionalityChanged { before, after, .. }) = child_delta {
+        assert_eq!(*before, false, "Field should have been required");
+        assert_eq!(*after, true, "Field should now be optional");
+    }
+}

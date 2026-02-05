@@ -1,0 +1,21 @@
+// Child model that extends parent with OPTIONAL repo_url
+// This represents the "after" state
+
+extends "./public_optional.cdm"
+
+@sql { dialect: "postgresql" }
+
+// Make parent model skip SQL table generation
+PublicDaemonAuthRequest {
+  @sql { skip: true }
+} #10
+
+// Child model inherits repo_url from parent (now optional)
+DaemonAuthRequest extends PublicDaemonAuthRequest {
+  daemon_id?: string #1
+  @sql {
+    indexes: {
+      request_id: { fields: ["request_id"], unique: true }
+    }
+  }
+} #14
