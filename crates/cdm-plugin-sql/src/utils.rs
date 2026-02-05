@@ -105,7 +105,8 @@ pub fn generate_create_table(
             continue;
         }
 
-        let column_def = generate_column_definition(field, global_config, type_mapper);
+        let column_name = get_column_name(&field.name, &field.config, global_config);
+        let column_def = generate_column_definition(field, &column_name, global_config, type_mapper);
         column_defs.push(column_def);
     }
 
@@ -173,16 +174,17 @@ fn get_schema_prefix(model_config: &JSON, global_config: &JSON, dialect: Dialect
     String::new()
 }
 
-fn generate_column_definition(
+/// Generates a column definition for SQL (used in CREATE TABLE and ALTER TABLE ADD COLUMN).
+/// Takes a pre-computed column_name to allow reuse across build and migrate contexts.
+pub(crate) fn generate_column_definition(
     field: &FieldDefinition,
+    column_name: &str,
     global_config: &JSON,
     type_mapper: &TypeMapper,
 ) -> String {
     let mut def = String::new();
 
-    // Get column name
-    let column_name = get_column_name(&field.name, &field.config, global_config);
-    def.push_str(&quote_identifier(&column_name, type_mapper.dialect()));
+    def.push_str(&quote_identifier(column_name, type_mapper.dialect()));
     def.push(' ');
 
     // Get SQL type (check for override first)

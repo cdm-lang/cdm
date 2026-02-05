@@ -1,8 +1,8 @@
-use cdm_plugin_interface::{Delta, FieldDefinition, ModelDefinition, OutputFile, Schema, Utils, JSON};
+use cdm_plugin_interface::{Delta, ModelDefinition, OutputFile, Schema, Utils, JSON};
 use crate::utils::{
-    extract_indexes, format_default_value, generate_create_index_sql, generate_create_table,
-    generate_drop_index_sql, get_column_name, get_table_name, quote_identifier, should_skip_field,
-    IndexInfo,
+    extract_indexes, format_default_value, generate_column_definition, generate_create_index_sql,
+    generate_create_table, generate_drop_index_sql, get_column_name, get_table_name,
+    quote_identifier, should_skip_field, IndexInfo,
 };
 use crate::type_mapper::{Dialect, TypeMapper};
 use std::collections::{HashMap, HashSet};
@@ -613,52 +613,6 @@ fn get_schema_prefix(config: &JSON, dialect: Dialect) -> Option<String> {
             .map(|s| s.to_string()),
         Dialect::SQLite => None, // SQLite doesn't support schemas
     }
-}
-
-/// Helper function to generate column definition for ALTER TABLE ADD COLUMN
-fn generate_column_definition(
-    field: &FieldDefinition,
-    column_name: &str,
-    config: &JSON,
-    type_mapper: &TypeMapper,
-) -> String {
-    let dialect = type_mapper.dialect();
-    let mut parts = vec![quote_identifier(column_name, dialect)];
-
-    // Check for type override in field config
-    let sql_type = field
-        .config
-        .get("type")
-        .and_then(|t| t.as_str())
-        .map(|s| s.to_string())
-        .unwrap_or_else(|| type_mapper.map_type(&field.field_type, field.optional));
-
-    parts.push(sql_type);
-
-    // Handle NOT NULL
-    let infer_not_null = config
-        .get("infer_not_null")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(true);
-
-    if infer_not_null && !field.optional {
-        parts.push("NOT NULL".to_string());
-    }
-
-    // Handle DEFAULT
-    let apply_defaults = config
-        .get("apply_cdm_defaults")
-        .and_then(|v| v.as_bool())
-        .unwrap_or(false);
-
-    if apply_defaults {
-        if let Some(default) = &field.default {
-            let formatted_default = format_default_value(default);
-            parts.push(format!("DEFAULT {}", formatted_default));
-        }
-    }
-
-    parts.join(" ")
 }
 
 /// Compare two indexes for equality (by fields and type, not name)

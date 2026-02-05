@@ -3806,3 +3806,394 @@ fn test_bug_08_no_spurious_pk_comment_when_adding_new_table() {
         up_content
     );
 }
+
+// ============================================================================
+// BUG: Missing foreign key constraint when adding new column with references
+// When adding a new column with @sql { references: { ... } }, CDM generates
+// ADD COLUMN but does NOT generate the REFERENCES clause.
+// ============================================================================
+
+#[test]
+fn test_field_added_with_foreign_key_reference() {
+    use cdm_plugin_interface::TypeExpression;
+
+    // Existing table that will have a new FK column added
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            entity_id: local_id(1),
+            parents: vec![],
+            fields: vec![FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({ "type": "UUID" }),
+                entity_id: local_id(2),
+            }],
+            config: serde_json::json!({
+                "indexes": {
+                    "primary": { "fields": ["id"], "primary": true }
+                }
+            }),
+        },
+    );
+
+    // Daemon table that will have project_id added with a FK reference
+    models.insert(
+        "Daemon".to_string(),
+        ModelDefinition {
+            name: "Daemon".to_string(),
+            entity_id: local_id(10),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({ "type": "UUID" }),
+                    entity_id: local_id(11),
+                },
+                // This field is being added with a foreign key reference
+                FieldDefinition {
+                    name: "project_id".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({
+                        "type": "UUID",
+                        "references": {
+                            "table": "users",
+                            "column": "id",
+                            "on_delete": "cascade"
+                        }
+                    }),
+                    entity_id: local_id(12),
+                },
+            ],
+            config: serde_json::json!({
+                "indexes": {
+                    "primary": { "fields": ["id"], "primary": true }
+                }
+            }),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models: models.clone(),
+    };
+
+    // Delta: Adding a new field with foreign key reference
+    let deltas = vec![Delta::FieldAdded {
+        model: "Daemon".to_string(),
+        field: "project_id".to_string(),
+        after: FieldDefinition {
+            name: "project_id".to_string(),
+            field_type: TypeExpression::Identifier {
+                name: "string".to_string(),
+            },
+            optional: false,
+            default: None,
+            config: serde_json::json!({
+                "type": "UUID",
+                "references": {
+                    "table": "users",
+                    "column": "id",
+                    "on_delete": "cascade"
+                }
+            }),
+            entity_id: local_id(12),
+        },
+    }];
+
+    let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+    assert_eq!(files.len(), 2);
+
+    let up_content = &files[0].content;
+
+    // Should contain ADD COLUMN
+    assert!(
+        up_content.contains("ADD COLUMN"),
+        "Should generate ADD COLUMN. Got:\n{}",
+        up_content
+    );
+
+    // Should contain REFERENCES clause for the foreign key
+    assert!(
+        up_content.contains("REFERENCES"),
+        "Should generate REFERENCES clause for foreign key. Got:\n{}",
+        up_content
+    );
+
+    assert!(
+        up_content.contains("REFERENCES \"users\"(\"id\")"),
+        "Should reference users(id). Got:\n{}",
+        up_content
+    );
+
+    // Should contain ON DELETE CASCADE
+    assert!(
+        up_content.contains("ON DELETE CASCADE"),
+        "Should generate ON DELETE CASCADE. Got:\n{}",
+        up_content
+    );
+}
+
+#[test]
+fn test_field_added_with_foreign_key_reference_optional() {
+    use cdm_plugin_interface::TypeExpression;
+
+    let mut models = HashMap::new();
+    models.insert(
+        "Project".to_string(),
+        ModelDefinition {
+            name: "Project".to_string(),
+            entity_id: local_id(1),
+            parents: vec![],
+            fields: vec![FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({ "type": "UUID" }),
+                entity_id: local_id(2),
+            }],
+            config: serde_json::json!({
+                "indexes": {
+                    "primary": { "fields": ["id"], "primary": true }
+                }
+            }),
+        },
+    );
+
+    models.insert(
+        "Daemon".to_string(),
+        ModelDefinition {
+            name: "Daemon".to_string(),
+            entity_id: local_id(10),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({ "type": "UUID" }),
+                    entity_id: local_id(11),
+                },
+                // Optional field with SET NULL on delete
+                FieldDefinition {
+                    name: "project_repo_id".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: true,
+                    default: None,
+                    config: serde_json::json!({
+                        "type": "UUID",
+                        "references": {
+                            "table": "projects",
+                            "column": "id",
+                            "on_delete": "set_null"
+                        }
+                    }),
+                    entity_id: local_id(12),
+                },
+            ],
+            config: serde_json::json!({
+                "indexes": {
+                    "primary": { "fields": ["id"], "primary": true }
+                }
+            }),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models: models.clone(),
+    };
+
+    let deltas = vec![Delta::FieldAdded {
+        model: "Daemon".to_string(),
+        field: "project_repo_id".to_string(),
+        after: FieldDefinition {
+            name: "project_repo_id".to_string(),
+            field_type: TypeExpression::Identifier {
+                name: "string".to_string(),
+            },
+            optional: true,
+            default: None,
+            config: serde_json::json!({
+                "type": "UUID",
+                "references": {
+                    "table": "projects",
+                    "column": "id",
+                    "on_delete": "set_null"
+                }
+            }),
+            entity_id: local_id(12),
+        },
+    }];
+
+    let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+    assert_eq!(files.len(), 2);
+
+    let up_content = &files[0].content;
+
+    // Should NOT contain NOT NULL (field is optional)
+    assert!(
+        !up_content.contains("NOT NULL"),
+        "Optional field should NOT have NOT NULL. Got:\n{}",
+        up_content
+    );
+
+    // Should contain REFERENCES clause
+    assert!(
+        up_content.contains("REFERENCES \"projects\"(\"id\")"),
+        "Should reference projects(id). Got:\n{}",
+        up_content
+    );
+
+    // Should contain ON DELETE SET NULL
+    assert!(
+        up_content.contains("ON DELETE SET NULL"),
+        "Should generate ON DELETE SET NULL. Got:\n{}",
+        up_content
+    );
+}
+
+#[test]
+fn test_field_added_with_foreign_key_on_update() {
+    use cdm_plugin_interface::TypeExpression;
+
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            entity_id: local_id(1),
+            parents: vec![],
+            fields: vec![FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({ "type": "UUID" }),
+                entity_id: local_id(2),
+            }],
+            config: serde_json::json!({}),
+        },
+    );
+
+    models.insert(
+        "Post".to_string(),
+        ModelDefinition {
+            name: "Post".to_string(),
+            entity_id: local_id(10),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({ "type": "UUID" }),
+                    entity_id: local_id(11),
+                },
+                FieldDefinition {
+                    name: "author_id".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: serde_json::json!({
+                        "type": "UUID",
+                        "references": {
+                            "table": "users",
+                            "column": "id",
+                            "on_delete": "cascade",
+                            "on_update": "cascade"
+                        }
+                    }),
+                    entity_id: local_id(12),
+                },
+            ],
+            config: serde_json::json!({}),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models: models.clone(),
+    };
+
+    let deltas = vec![Delta::FieldAdded {
+        model: "Post".to_string(),
+        field: "author_id".to_string(),
+        after: FieldDefinition {
+            name: "author_id".to_string(),
+            field_type: TypeExpression::Identifier {
+                name: "string".to_string(),
+            },
+            optional: false,
+            default: None,
+            config: serde_json::json!({
+                "type": "UUID",
+                "references": {
+                    "table": "users",
+                    "column": "id",
+                    "on_delete": "cascade",
+                    "on_update": "cascade"
+                }
+            }),
+            entity_id: local_id(12),
+        },
+    }];
+
+    let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+    assert_eq!(files.len(), 2);
+
+    let up_content = &files[0].content;
+
+    // Should contain ON DELETE CASCADE
+    assert!(
+        up_content.contains("ON DELETE CASCADE"),
+        "Should generate ON DELETE CASCADE. Got:\n{}",
+        up_content
+    );
+
+    // Should contain ON UPDATE CASCADE
+    assert!(
+        up_content.contains("ON UPDATE CASCADE"),
+        "Should generate ON UPDATE CASCADE. Got:\n{}",
+        up_content
+    );
+}
