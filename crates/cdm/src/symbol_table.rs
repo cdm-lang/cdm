@@ -383,6 +383,60 @@ pub fn field_exists_in_parents(
     false
 }
 
+/// Get the entity ID of a field from the parent chain (not including the model itself).
+/// Returns None if the field doesn't exist in parents or has no entity ID.
+/// Used to validate that field overrides use consistent entity IDs.
+pub fn get_parent_field_entity_id(
+    model_name: &str,
+    field_name: &str,
+    local_fields: &HashMap<String, Vec<FieldInfo>>,
+    local_symbol_table: &SymbolTable,
+    ancestors: &[Ancestor],
+) -> Option<cdm_utils::EntityId> {
+    // Get the extends list for this model
+    let extends = if let Some(def) = local_symbol_table.get(model_name) {
+        if let DefinitionKind::Model { extends } = &def.kind {
+            extends.clone()
+        } else {
+            return None;
+        }
+    } else {
+        // Model might be in ancestors (shouldn't happen for the model being validated)
+        return None;
+    };
+
+    // If there are explicit extends, check those
+    if !extends.is_empty() {
+        for parent_name in &extends {
+            let parent_fields = get_inherited_fields(
+                parent_name,
+                local_fields,
+                local_symbol_table,
+                ancestors,
+            );
+
+            if let Some(field) = parent_fields.iter().find(|f| f.name == field_name) {
+                return field.entity_id.clone();
+            }
+        }
+    } else {
+        // No explicit extends - check if a model with the same name exists in ancestors
+        // (implicit extension/modification pattern from spec section 7.3)
+        for ancestor in ancestors {
+            if ancestor.symbol_table.get(model_name).is_some() {
+                // Found a model with the same name in an ancestor
+                if let Some(ancestor_fields) = ancestor.model_fields.get(model_name) {
+                    if let Some(field) = ancestor_fields.iter().find(|f| f.name == field_name) {
+                        return field.entity_id.clone();
+                    }
+                }
+            }
+        }
+    }
+
+    None
+}
+
 /// Built-in primitive types that don't need to be declared
 pub fn is_builtin_type(name: &str) -> bool {
     matches!(

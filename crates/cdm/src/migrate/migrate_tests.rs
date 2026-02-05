@@ -2980,3 +2980,239 @@ fn test_inherited_field_optionality_change_integration() {
         assert_eq!(*after, true, "Field should now be optional");
     }
 }
+
+// =============================================================================
+// BUG TEST: FIELD ID COLLISION DURING INHERITANCE
+// =============================================================================
+
+#[test]
+fn test_field_id_collision_inherited_vs_own_field() {
+    // BUG TEST: When a child model has field #2 and inherits a field #2 from parent,
+    // the HashMap in compute_field_deltas would have a key collision, silently
+    // losing one of the fields.
+    //
+    // Scenario:
+    //   Entity { repo_url #2 }
+    //   Service extends Entity { daemon_id #2 }
+    //
+    // When Service's fields are flattened, both repo_url and daemon_id have
+    // local_id=2, causing a collision if model_entity_id is not used for scoping.
+
+    // Create fields as they would appear after inheritance flattening:
+    // repo_url from Entity (model ID #1) with field ID #2
+    let inherited_field = FieldDefinition {
+        name: "repo_url".to_string(),
+        field_type: ident_type("string"),
+        optional: false,
+        default: None,
+        config: json!({}),
+        entity_id: Some(EntityId::local_field(1, 2)), // Model #1, field #2
+    };
+
+    // daemon_id from Service (model ID #5) with field ID #2
+    let own_field = FieldDefinition {
+        name: "daemon_id".to_string(),
+        field_type: ident_type("string"),
+        optional: false,
+        default: None,
+        config: json!({}),
+        entity_id: Some(EntityId::local_field(5, 2)), // Model #5, field #2
+    };
+
+    // Current state has both fields
+    let curr_fields = vec![inherited_field.clone(), own_field.clone()];
+
+    // Previous state also has both fields (no changes)
+    let prev_fields = vec![inherited_field.clone(), own_field.clone()];
+
+    // Compute deltas - should find no changes since fields are identical
+    let mut deltas = Vec::new();
+    compute_field_deltas("Service", &prev_fields, &curr_fields, &HashMap::new(), &HashMap::new(), &mut deltas).unwrap();
+
+    // Key assertion: no deltas should be generated since nothing changed
+    assert!(
+        deltas.is_empty(),
+        "Expected no deltas when comparing identical fields, but got: {:?}",
+        deltas
+    );
+}
+
+#[test]
+fn test_field_id_collision_distinct_fields_in_hashmap() {
+    // Verify that fields with same local_id but different model_entity_id
+    // are treated as distinct in the HashMap
+
+    let field1 = FieldDefinition {
+        name: "repo_url".to_string(),
+        field_type: ident_type("string"),
+        optional: false,
+        default: None,
+        config: json!({}),
+        entity_id: Some(EntityId::local_field(1, 2)), // Model #1, field #2
+    };
+
+    let field2 = FieldDefinition {
+        name: "daemon_id".to_string(),
+        field_type: ident_type("string"),
+        optional: false,
+        default: None,
+        config: json!({}),
+        entity_id: Some(EntityId::local_field(5, 2)), // Model #5, field #2
+    };
+
+    // Build the HashMap as compute_field_deltas does
+    let curr_fields = vec![field1.clone(), field2.clone()];
+    let curr_by_id: std::collections::HashMap<&cdm_plugin_interface::EntityId, &cdm_plugin_interface::FieldDefinition> = curr_fields
+        .iter()
+        .filter_map(|f| f.entity_id.as_ref().map(|id| (id, f)))
+        .collect();
+
+    // Key assertion: both fields should be in the HashMap (not one overwriting the other)
+    assert_eq!(
+        curr_by_id.len(),
+        2,
+        "Expected 2 distinct fields in HashMap, but got {}. This indicates a key collision!",
+        curr_by_id.len()
+    );
+}
+
+#[test]
+fn test_field_id_collision_rename_detection() {
+    // Verify that rename detection works correctly when fields have
+    // scoped entity IDs (model_entity_id + local_id)
+
+    // Previous: repo_url with scoped ID
+    let prev_field = FieldDefinition {
+        name: "repo_url".to_string(),
+        field_type: ident_type("string"),
+        optional: false,
+        default: None,
+        config: json!({}),
+        entity_id: Some(EntityId::local_field(1, 2)), // Model #1, field #2
+    };
+
+    // Current: same scoped ID but different name = rename
+    let curr_field = FieldDefinition {
+        name: "repository_url".to_string(), // Renamed
+        field_type: ident_type("string"),
+        optional: false,
+        default: None,
+        config: json!({}),
+        entity_id: Some(EntityId::local_field(1, 2)), // Same: Model #1, field #2
+    };
+
+    let prev_fields = vec![prev_field];
+    let curr_fields = vec![curr_field];
+
+    let mut deltas = Vec::new();
+    compute_field_deltas("Entity", &prev_fields, &curr_fields, &HashMap::new(), &HashMap::new(), &mut deltas).unwrap();
+
+    assert_eq!(deltas.len(), 1, "Expected 1 rename delta");
+    match &deltas[0] {
+        Delta::FieldRenamed { model, old_name, new_name, id, .. } => {
+            assert_eq!(model, "Entity");
+            assert_eq!(old_name, "repo_url");
+            assert_eq!(new_name, "repository_url");
+            // Verify the ID has model scope
+            let entity_id = id.as_ref().expect("Should have entity ID");
+            assert_eq!(entity_id.model_entity_id, Some(1), "Should have model scope");
+            assert_eq!(entity_id.local_id, 2);
+        }
+        _ => panic!("Expected FieldRenamed delta, got: {:?}", deltas[0]),
+    }
+}
+
+#[test]
+fn test_field_id_collision_integration() {
+    // INTEGRATION TEST: Verify that when schemas are built from actual CDM files,
+    // inherited fields have properly scoped entity IDs to avoid collisions.
+    //
+    // This test uses fixture files:
+    //   base.cdm: Entity { repo_url #2 } #1
+    //   child.cdm: Service extends Entity { daemon_id #2 } #5
+    //
+    // The child model inherits repo_url #2 from Entity #1, but also has
+    // its own daemon_id #2. Without proper scoping, these would collide.
+
+    use std::path::PathBuf;
+    use crate::file_resolver::FileResolver;
+    use crate::validate::validate_tree;
+
+    let fixtures_path = PathBuf::from(env!("CARGO_MANIFEST_DIR"))
+        .join("test_fixtures")
+        .join("field_id_collision");
+
+    // Load the child schema
+    let child_path = fixtures_path.join("child.cdm");
+    let tree = FileResolver::load(&child_path)
+        .expect("Failed to load child.cdm");
+
+    let validation = validate_tree(tree)
+        .expect("Validation failed");
+
+    assert!(
+        !validation.has_errors(),
+        "Validation should succeed, got errors: {:?}",
+        validation.diagnostics
+    );
+
+    let ancestors: Vec<PathBuf> = vec![fixtures_path.join("base.cdm")];
+
+    let schema = build_cdm_schema_for_plugin(&validation, &ancestors, "sql")
+        .expect("Failed to build schema");
+
+    // Get the Service model and its fields
+    let service = schema.models.get("Service")
+        .expect("Service model should exist");
+
+    // Should have 4 fields: id, repo_url (inherited), created_at (inherited), daemon_id, status
+    // Actually looking at fixtures: Entity has id#1, repo_url#2, created_at#3
+    // Service has daemon_id#2, status#3
+    // So Service has: id#1, repo_url#2, created_at#3 (inherited) + daemon_id#2, status#3 (own)
+    let repo_url = service.fields.iter().find(|f| f.name == "repo_url");
+    let daemon_id = service.fields.iter().find(|f| f.name == "daemon_id");
+
+    assert!(
+        repo_url.is_some(),
+        "Service should have inherited repo_url field. Fields: {:?}",
+        service.fields.iter().map(|f| &f.name).collect::<Vec<_>>()
+    );
+    assert!(
+        daemon_id.is_some(),
+        "Service should have daemon_id field. Fields: {:?}",
+        service.fields.iter().map(|f| &f.name).collect::<Vec<_>>()
+    );
+
+    let repo_url = repo_url.unwrap();
+    let daemon_id = daemon_id.unwrap();
+
+    // Both fields should have entity IDs
+    let repo_url_id = repo_url.entity_id.as_ref()
+        .expect("repo_url should have entity ID");
+    let daemon_id_id = daemon_id.entity_id.as_ref()
+        .expect("daemon_id should have entity ID");
+
+    // KEY ASSERTION: The entity IDs should be DISTINCT
+    // Without model scoping, both would be EntityId { source: Local, local_id: 2 }
+    // With model scoping, repo_url should be { source: Local, model_entity_id: 1, local_id: 2 }
+    // and daemon_id should be { source: Local, model_entity_id: 5, local_id: 2 }
+    assert_ne!(
+        repo_url_id, daemon_id_id,
+        "repo_url and daemon_id should have DISTINCT entity IDs! \
+         repo_url ID: {:?}, daemon_id ID: {:?}. \
+         If they're equal, there's a field ID collision bug.",
+        repo_url_id, daemon_id_id
+    );
+
+    // Verify model scoping is correct
+    assert_eq!(
+        repo_url_id.model_entity_id,
+        Some(1), // From Entity #1
+        "repo_url should be scoped to Entity (model #1)"
+    );
+    assert_eq!(
+        daemon_id_id.model_entity_id,
+        Some(5), // From Service #5
+        "daemon_id should be scoped to Service (model #5)"
+    );
+}

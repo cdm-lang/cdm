@@ -50,6 +50,7 @@ pub const E501_DUPLICATE_ENTITY_ID: &str = "E501";
 pub const E502_DUPLICATE_FIELD_ID: &str = "E502";
 #[allow(dead_code)]
 pub const E503_REUSED_ID: &str = "E503";
+pub const E504_FIELD_ID_MISMATCH: &str = "E504";
 
 // Template error codes
 pub const E601_TEMPLATE_NOT_FOUND: &str = "E601";

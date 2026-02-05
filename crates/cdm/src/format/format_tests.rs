@@ -26,10 +26,10 @@ fn test_entity_id_tracker_field_ids() {
     let mut tracker = EntityIdTracker::new();
 
     // Add field IDs for different models
-    tracker.add_field_id("User", 1);
-    tracker.add_field_id("User", 3);
-    tracker.add_field_id("Post", 1);
-    tracker.add_field_id("Post", 2);
+    tracker.add_field_id("User", "id", 1);
+    tracker.add_field_id("User", "email", 3);
+    tracker.add_field_id("Post", "id", 1);
+    tracker.add_field_id("Post", "title", 2);
 
     // Next IDs should be scoped per model
     assert_eq!(tracker.next_field_id("User"), 4);
@@ -200,13 +200,13 @@ fn test_field_id_scoping() {
     let mut tracker = EntityIdTracker::new();
 
     // Simulate User model with field IDs 1, 2, 3
-    tracker.add_field_id("User", 1);
-    tracker.add_field_id("User", 2);
-    tracker.add_field_id("User", 3);
+    tracker.add_field_id("User", "id", 1);
+    tracker.add_field_id("User", "name", 2);
+    tracker.add_field_id("User", "email", 3);
 
     // Simulate Post model with field IDs 1, 2
-    tracker.add_field_id("Post", 1);
-    tracker.add_field_id("Post", 2);
+    tracker.add_field_id("Post", "id", 1);
+    tracker.add_field_id("Post", "title", 2);
 
     // Next field ID for User should be 4
     assert_eq!(tracker.next_field_id("User"), 4);
@@ -230,6 +230,65 @@ fn test_global_id_collision_avoidance() {
     // Next ID should be 11 (after the highest)
     assert_eq!(tracker.next_global_id(), 11);
     assert_eq!(tracker.next_global_id(), 12);
+}
+
+#[test]
+fn test_inherited_field_id_detection() {
+    let mut tracker = EntityIdTracker::new();
+
+    // Set up parent model with field IDs
+    tracker.add_field_id("Parent", "shared_field", 1);
+    tracker.add_field_id("Parent", "parent_only", 2);
+
+    // Set up child model that extends Parent
+    tracker.add_model_parents("Child", vec!["Parent".to_string()]);
+    tracker.add_field_id("Child", "child_only", 1);
+
+    // Check if shared_field is detected as inherited in Child
+    assert_eq!(
+        tracker.get_inherited_field_id("Child", "shared_field"),
+        Some(1),
+        "shared_field should be detected as inherited from Parent"
+    );
+
+    // Check child_only is not inherited (it's defined on Child itself)
+    // Since it's defined on Child, it won't appear in parent lookups
+    assert_eq!(
+        tracker.get_inherited_field_id("Child", "child_only"),
+        None,
+        "child_only is not inherited, defined on Child"
+    );
+
+    // Check parent_only is detected as inherited in Child
+    assert_eq!(
+        tracker.get_inherited_field_id("Child", "parent_only"),
+        Some(2),
+        "parent_only should be detected as inherited from Parent"
+    );
+
+    // Check a non-existent field
+    assert_eq!(
+        tracker.get_inherited_field_id("Child", "does_not_exist"),
+        None,
+        "non-existent field should return None"
+    );
+}
+
+#[test]
+fn test_inherited_field_id_grandparent() {
+    let mut tracker = EntityIdTracker::new();
+
+    // Set up grandparent -> parent -> child chain
+    tracker.add_field_id("Grandparent", "inherited", 1);
+    tracker.add_model_parents("Parent", vec!["Grandparent".to_string()]);
+    tracker.add_model_parents("Child", vec!["Parent".to_string()]);
+
+    // Check that Child can see inherited field from Grandparent
+    assert_eq!(
+        tracker.get_inherited_field_id("Child", "inherited"),
+        Some(1),
+        "inherited field from Grandparent should be detected"
+    );
 }
 
 #[test]

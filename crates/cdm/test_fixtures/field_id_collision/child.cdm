@@ -1,0 +1,14 @@
+// Child model that extends Entity and has its own field with entity ID #2
+// This creates a collision: parent's repo_url #2 vs child's daemon_id #2
+// The bug causes HashMap key collision in migrate delta computation
+
+extends "./base.cdm"
+
+@sql { dialect: "postgresql" }
+
+// Service extends Entity - inherits repo_url #2
+// Also has its own daemon_id #2 - should NOT collide with parent's #2
+Service extends Entity {
+  daemon_id: string #2
+  status: string #3
+} #5

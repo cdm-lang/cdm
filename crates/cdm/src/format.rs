@@ -260,6 +260,13 @@ struct EntityIdTracker {
 
     /// Next available field ID per model
     next_field_ids: HashMap<String, u64>,
+
+    /// Field name to entity ID mapping per model (for inheritance checking)
+    /// Key: model_name, Value: HashMap<field_name, entity_id>
+    field_ids_by_name: HashMap<String, HashMap<String, u64>>,
+
+    /// Model inheritance: model_name -> parent_names
+    model_parents: HashMap<String, Vec<String>>,
 }
 
 impl EntityIdTracker {
@@ -269,6 +276,8 @@ impl EntityIdTracker {
             next_global_id: 1,
             model_field_ids: HashMap::new(),
             next_field_ids: HashMap::new(),
+            field_ids_by_name: HashMap::new(),
+            model_parents: HashMap::new(),
         }
     }
 
@@ -280,8 +289,8 @@ impl EntityIdTracker {
         }
     }
 
-    /// Register a field ID for a specific model
-    fn add_field_id(&mut self, model_name: &str, id: u64) {
+    /// Register a field ID for a specific model (with field name for inheritance tracking)
+    fn add_field_id(&mut self, model_name: &str, field_name: &str, id: u64) {
         self.model_field_ids
             .entry(model_name.to_string())
             .or_insert_with(HashSet::new)
@@ -294,6 +303,40 @@ impl EntityIdTracker {
         if id >= *next_id {
             *next_id = id + 1;
         }
+
+        // Track field name -> ID mapping for inheritance checking
+        self.field_ids_by_name
+            .entry(model_name.to_string())
+            .or_insert_with(HashMap::new)
+            .insert(field_name.to_string(), id);
+    }
+
+    /// Register model inheritance
+    fn add_model_parents(&mut self, model_name: &str, parents: Vec<String>) {
+        self.model_parents.insert(model_name.to_string(), parents);
+    }
+
+    /// Get the parent field's entity ID if this field overrides an inherited field
+    fn get_inherited_field_id(&self, model_name: &str, field_name: &str) -> Option<u64> {
+        // Get parent models
+        let parents = self.model_parents.get(model_name)?;
+
+        // Check each parent for the field
+        for parent_name in parents {
+            // First check if this parent directly has the field
+            if let Some(fields) = self.field_ids_by_name.get(parent_name) {
+                if let Some(&id) = fields.get(field_name) {
+                    return Some(id);
+                }
+            }
+
+            // Recursively check parent's parents
+            if let Some(id) = self.get_inherited_field_id(parent_name, field_name) {
+                return Some(id);
+            }
+        }
+
+        None
     }
 
     /// Get the next available global ID (for type aliases and models)
@@ -354,6 +397,12 @@ fn collect_entity_ids(
                     tracker.add_global_id(id);
                 }
 
+                // Collect parent relationships for inheritance checking
+                let parents = collect_model_parents(child, source);
+                if !parents.is_empty() {
+                    tracker.add_model_parents(&model_name, parents);
+                }
+
                 // Collect field IDs
                 if let Some(body) = child.child_by_field_name("body") {
                     collect_field_ids(body, source, &model_name, tracker);
@@ -362,6 +411,23 @@ fn collect_entity_ids(
             _ => {}
         }
     }
+}
+
+/// Collect parent model names from a model definition
+fn collect_model_parents(model_node: Node, source: &str) -> Vec<String> {
+    let mut parents = Vec::new();
+
+    // Look for the extends clause
+    if let Some(extends) = model_node.child_by_field_name("extends") {
+        let mut cursor = extends.walk();
+        for child in extends.children(&mut cursor) {
+            if child.kind() == "identifier" {
+                parents.push(get_node_text(child, source));
+            }
+        }
+    }
+
+    parents
 }
 
 /// Collect field IDs from a model body
@@ -376,7 +442,12 @@ fn collect_field_ids(
     for member in body.children(&mut cursor) {
         if member.kind() == "field_definition" {
             if let Some(id) = extract_entity_id(member, source) {
-                tracker.add_field_id(model_name, id);
+                // Get field name
+                let field_name = member
+                    .child_by_field_name("name")
+                    .map(|n| get_node_text(n, source))
+                    .unwrap_or_default();
+                tracker.add_field_id(model_name, &field_name, id);
             }
         }
     }
@@ -460,6 +531,17 @@ fn assign_field_ids(
             if extract_entity_id(member, source).is_none() {
                 if let Some(name_node) = member.child_by_field_name("name") {
                     let field_name = get_node_text(name_node, source);
+
+                    // Check if this field overrides an inherited field with an ID
+                    // If so, skip assignment to avoid E504 mismatch errors
+                    if tracker.get_inherited_field_id(model_name, &field_name).is_some() {
+                        // Skip assignment - the field should either:
+                        // 1. Explicitly use the parent's ID
+                        // 2. Omit the ID (which is valid, inherits parent's semantically)
+                        // Assigning a new ID would cause E504 mismatch
+                        continue;
+                    }
+
                     let id = tracker.next_field_id(model_name);
 
                     assignments.push(IdAssignment {

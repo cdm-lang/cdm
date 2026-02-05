@@ -539,13 +539,24 @@ pub fn build_cdm_schema_for_plugin(
                             plugin_name,
                         );
 
+                        // Find which model originally defines this field for scoping
+                        let origin_model_id = find_field_origin_model_id(
+                            &final_field.name,
+                            name,
+                            &resolved.models,
+                        );
+                        let scoped_entity_id = scope_field_entity_id(
+                            final_field.entity_id.as_ref(),
+                            origin_model_id,
+                        );
+
                         fields.push(cdm_plugin_interface::FieldDefinition {
                             name: final_field.name.clone(),
                             field_type: convert_type_expression(&resolved_type.base_type),
                             optional: final_field.optional,
                             default: final_field.default_value.as_ref().map(|v| v.into()),
                             config: merged_config,
-                            entity_id: final_field.entity_id.clone(),
+                            entity_id: scoped_entity_id,
                         });
                     }
                 }
@@ -572,13 +583,20 @@ pub fn build_cdm_schema_for_plugin(
                     plugin_name,
                 );
 
+                // For models without parents, the current model owns all fields
+                let current_model_id = model.entity_id.as_ref().map(|id| id.local_id);
+                let scoped_entity_id = scope_field_entity_id(
+                    f.entity_id.as_ref(),
+                    current_model_id,
+                );
+
                 cdm_plugin_interface::FieldDefinition {
                     name: f.name.clone(),
                     field_type: convert_type_expression(&resolved_type.base_type),
                     optional: f.optional,
                     default: f.default_value.as_ref().map(|v| v.into()),
                     config: merged_config,
-                    entity_id: f.entity_id.clone(),
+                    entity_id: scoped_entity_id,
                 }
             }).collect()
         };
@@ -697,6 +715,53 @@ pub(crate) fn get_merged_model_config(
     merged_config = deep_merge_json(&merged_config, &model_config);
 
     merged_config
+}
+
+/// Find which model originally defines a field, walking up the inheritance chain.
+/// Returns the model's entity ID (local_id) if found.
+///
+/// This is used to scope field entity IDs to their containing model, preventing
+/// collisions when inherited and child fields share the same local_id.
+fn find_field_origin_model_id(
+    field_name: &str,
+    current_model_name: &str,
+    resolved_models: &HashMap<String, ResolvedModel>,
+) -> Option<u64> {
+    let model = resolved_models.get(current_model_name)?;
+
+    // Check if this model directly defines the field
+    if model.fields.iter().any(|f| f.name == field_name) {
+        // This model defines the field - return its entity ID
+        return model.entity_id.as_ref().map(|id| id.local_id);
+    }
+
+    // Field is inherited - check parent models
+    for parent_name in &model.parents {
+        if let Some(parent_model_id) = find_field_origin_model_id(field_name, parent_name, resolved_models) {
+            return Some(parent_model_id);
+        }
+    }
+
+    None
+}
+
+/// Scope a field's entity ID to its containing model.
+/// If the field has an entity ID, adds the model_entity_id to prevent collisions.
+fn scope_field_entity_id(
+    field_entity_id: Option<&cdm_utils::EntityId>,
+    model_entity_id: Option<u64>,
+) -> Option<cdm_utils::EntityId> {
+    match (field_entity_id, model_entity_id) {
+        (Some(field_id), Some(model_id)) => {
+            // Clone the field ID and add model scope
+            Some(field_id.clone().with_model_scope(model_id))
+        }
+        (Some(field_id), None) => {
+            // Field has ID but model doesn't - keep field ID as-is
+            Some(field_id.clone())
+        }
+        (None, _) => None,
+    }
 }
 
 /// Result of resolving a template type reference.

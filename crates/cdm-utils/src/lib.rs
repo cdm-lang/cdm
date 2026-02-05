@@ -62,21 +62,39 @@ impl std::fmt::Display for EntityIdSource {
 /// Entity IDs are used to track schema elements across versions for migration
 /// purposes. The composite structure prevents collisions when multiple templates
 /// use the same numeric IDs independently.
+///
+/// For field IDs, the `model_entity_id` field scopes the field ID to its containing
+/// model, preventing collisions when inherited and child fields share the same `local_id`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct EntityId {
     /// The source where this ID was defined
     #[serde(flatten)]
     pub source: EntityIdSource,
+    /// For field IDs, the entity ID of the containing model.
+    /// This scopes field IDs to their model, preventing collisions during inheritance.
+    /// None for model and type alias IDs.
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub model_entity_id: Option<u64>,
     /// The numeric ID value within the source
     pub local_id: u64,
 }
 
 impl EntityId {
-    /// Create a new local entity ID
+    /// Create a new local entity ID (for models and type aliases)
     pub fn local(id: u64) -> Self {
         Self {
             source: EntityIdSource::Local,
+            model_entity_id: None,
             local_id: id,
+        }
+    }
+
+    /// Create a new local field entity ID scoped to a model
+    pub fn local_field(model_id: u64, field_id: u64) -> Self {
+        Self {
+            source: EntityIdSource::Local,
+            model_entity_id: Some(model_id),
+            local_id: field_id,
         }
     }
 
@@ -84,6 +102,7 @@ impl EntityId {
     pub fn registry(name: impl Into<String>, id: u64) -> Self {
         Self {
             source: EntityIdSource::Registry { name: name.into() },
+            model_entity_id: None,
             local_id: id,
         }
     }
@@ -95,6 +114,7 @@ impl EntityId {
                 url: url.into(),
                 path,
             },
+            model_entity_id: None,
             local_id: id,
         }
     }
@@ -103,8 +123,15 @@ impl EntityId {
     pub fn local_template(path: impl Into<String>, id: u64) -> Self {
         Self {
             source: EntityIdSource::LocalTemplate { path: path.into() },
+            model_entity_id: None,
             local_id: id,
         }
+    }
+
+    /// Create a copy of this entity ID scoped to a model (for field IDs)
+    pub fn with_model_scope(mut self, model_id: u64) -> Self {
+        self.model_entity_id = Some(model_id);
+        self
     }
 
     /// Get a display string for this entity ID.

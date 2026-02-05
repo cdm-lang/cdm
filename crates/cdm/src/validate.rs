@@ -11,7 +11,7 @@ use crate::{
 };
 use crate::diagnostics::{
     E104_RESERVED_TYPE_NAME,
-    E501_DUPLICATE_ENTITY_ID, E502_DUPLICATE_FIELD_ID,
+    E501_DUPLICATE_ENTITY_ID, E502_DUPLICATE_FIELD_ID, E504_FIELD_ID_MISMATCH,
     W005_MISSING_ENTITY_ID, W006_MISSING_FIELD_ID,
 };
 use crate::file_resolver::LoadedFileTree;
@@ -1139,9 +1139,12 @@ fn collect_field_info(
 /// Entity IDs are now composite (source + local_id), and IDs only collide if they
 /// have the same source AND the same local_id. For local files, all IDs have
 /// EntityIdSource::Local, so we validate within that scope.
+///
+/// Also validates that field overrides use consistent entity IDs with parent fields (E504).
 fn validate_entity_ids(
     symbol_table: &SymbolTable,
     model_fields: &HashMap<String, Vec<FieldInfo>>,
+    ancestors: &[Ancestor],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
     // Track global IDs for models and type aliases (they share a global namespace)
@@ -1171,7 +1174,7 @@ fn validate_entity_ids(
         }
     }
 
-    // Check field IDs (scoped per model within same source)
+    // Check field IDs (scoped per model within same source) and field ID consistency with parents
     for (model_name, fields) in model_fields {
         let mut field_ids: HashMap<u64, (String, Span)> = HashMap::new();
 
@@ -1189,6 +1192,28 @@ fn validate_entity_ids(
                     });
                 } else {
                     field_ids.insert(local_id, (field.name.clone(), field.span));
+                }
+
+                // E504: Check if this field overrides a parent field with a different entity ID
+                if let Some(parent_entity_id) = crate::symbol_table::get_parent_field_entity_id(
+                    model_name,
+                    &field.name,
+                    model_fields,
+                    symbol_table,
+                    ancestors,
+                ) {
+                    // Compare local_id values - if both have explicit IDs but they differ, it's an error
+                    if parent_entity_id.local_id != entity_id.local_id {
+                        diagnostics.push(Diagnostic {
+                            message: format!(
+                                "{}: Field '{}' has entity ID #{} but inherited field has #{}. \
+                                Use the same ID or omit the ID to inherit the parent's.",
+                                E504_FIELD_ID_MISMATCH, field.name, entity_id.local_id, parent_entity_id.local_id
+                            ),
+                            severity: Severity::Error,
+                            span: field.span,
+                        });
+                    }
                 }
             }
         }
@@ -1252,7 +1277,7 @@ fn collect_semantic_errors(
     validate_references(root, source, &symbol_table, &model_fields, ancestors, diagnostics);
 
     // Pass 2d: Validate entity IDs
-    validate_entity_ids(&symbol_table, &model_fields, diagnostics);
+    validate_entity_ids(&symbol_table, &model_fields, ancestors, diagnostics);
 
     (symbol_table, model_fields, removal_names, field_removals)
 }
@@ -1286,7 +1311,7 @@ fn collect_semantic_errors_with_templates(
     validate_references(root, source, &symbol_table, &model_fields, ancestors, diagnostics);
 
     // Pass 2d: Validate entity IDs
-    validate_entity_ids(&symbol_table, &model_fields, diagnostics);
+    validate_entity_ids(&symbol_table, &model_fields, ancestors, diagnostics);
 
     (symbol_table, model_fields, removal_names, field_removals)
 }

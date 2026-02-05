@@ -5323,3 +5323,108 @@ fn test_model_and_type_as_field_types_allowed() {
         model_type_errors
     );
 }
+
+#[test]
+fn test_field_id_mismatch_child_overrides_parent_field_with_different_id() {
+    // Case 2: Model B extends A { field1 #2 } where A has field1 #1
+    // This should trigger E504 error
+    let source = r#"
+        Parent {
+            field1: string #1
+        } #10
+
+        Child extends Parent {
+            field1: string #2
+        } #11
+    "#;
+
+    let result = validate_source(source);
+    assert!(
+        has_error_containing(&result, "E504"),
+        "Expected E504 error for field ID mismatch, got: {:?}",
+        result.diagnostics
+    );
+    assert!(
+        has_error_containing(&result, "field1"),
+        "Expected error to mention field1"
+    );
+    assert!(
+        has_error_containing(&result, "#2") && has_error_containing(&result, "#1"),
+        "Expected error to mention both IDs #1 and #2"
+    );
+}
+
+#[test]
+fn test_field_id_mismatch_same_id_is_valid() {
+    // Child overrides parent field with the same entity ID - valid case
+    let source = r#"
+        Parent {
+            field1: string #1
+        } #10
+
+        Child extends Parent {
+            field1: string #1
+        } #11
+    "#;
+
+    let result = validate_source(source);
+    let e504_errors: Vec<_> = result.diagnostics.iter()
+        .filter(|d| d.message.contains("E504"))
+        .collect();
+    assert!(
+        e504_errors.is_empty(),
+        "Expected no E504 error when child uses same ID as parent, got: {:?}",
+        e504_errors
+    );
+}
+
+#[test]
+fn test_field_id_mismatch_no_id_on_child_is_valid() {
+    // Child overrides parent field without specifying an entity ID
+    // This is valid - child inherits parent's ID
+    let source = r#"
+        Parent {
+            field1: string #1
+        } #10
+
+        Child extends Parent {
+            field1: string
+        } #11
+    "#;
+
+    let result = validate_source(source);
+    let e504_errors: Vec<_> = result.diagnostics.iter()
+        .filter(|d| d.message.contains("E504"))
+        .collect();
+    assert!(
+        e504_errors.is_empty(),
+        "Expected no E504 error when child omits field ID, got: {:?}",
+        e504_errors
+    );
+}
+
+#[test]
+fn test_field_id_mismatch_grandparent_field() {
+    // Test inheritance chain: Grandparent -> Parent -> Child
+    // Child overrides field from grandparent with different ID
+    let source = r#"
+        Grandparent {
+            inherited_field: string #1
+        } #10
+
+        Parent extends Grandparent {
+            parent_field: string #2
+        } #11
+
+        Child extends Parent {
+            inherited_field: string #5
+        } #12
+    "#;
+
+    let result = validate_source(source);
+    assert!(
+        has_error_containing(&result, "E504"),
+        "Expected E504 error for field ID mismatch with grandparent, got: {:?}",
+        result.diagnostics
+    );
+}

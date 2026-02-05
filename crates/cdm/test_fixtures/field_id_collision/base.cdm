@@ -1,0 +1,11 @@
+// Parent model with a field that has entity ID #2
+// This tests the field ID collision bug where parent field #2
+// collides with child's own field #2
+
+@sql { dialect: "postgresql" }
+
+Entity {
+  id: string #1
+  repo_url: string #2
+  created_at: string #3
+} #1
