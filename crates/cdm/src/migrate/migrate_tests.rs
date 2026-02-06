@@ -3216,3 +3216,176 @@ fn test_field_id_collision_integration() {
         "daemon_id should be scoped to Service (model #5)"
     );
 }
+
+// =============================================================================
+// E503: ID Reuse Detection Tests
+// =============================================================================
+
+#[test]
+fn test_detect_id_reuse_model_renamed() {
+    // Previous schema has Model "User" with ID #10
+    // Current schema has Model "Customer" with ID #10
+    // This should trigger E503 warning
+    let previous = Schema {
+        models: vec![(
+            "User".to_string(),
+            ModelDefinition {
+                name: "User".to_string(),
+                parents: vec![],
+                fields: vec![],
+                config: json!({}),
+                entity_id: local_id(10),
+            },
+        )].into_iter().collect(),
+        type_aliases: HashMap::new(),
+    };
+
+    let current = Schema {
+        models: vec![(
+            "Customer".to_string(),
+            ModelDefinition {
+                name: "Customer".to_string(),
+                parents: vec![],
+                fields: vec![],
+                config: json!({}),
+                entity_id: local_id(10),
+            },
+        )].into_iter().collect(),
+        type_aliases: HashMap::new(),
+    };
+
+    let warnings = detect_id_reuse(&previous, &current);
+
+    assert_eq!(warnings.len(), 1, "Expected 1 E503 warning");
+    assert!(
+        warnings[0].contains("E503") &&
+        warnings[0].contains("User") &&
+        warnings[0].contains("Customer"),
+        "Warning should mention E503, User, and Customer: {}",
+        warnings[0]
+    );
+}
+
+#[test]
+fn test_detect_id_reuse_type_alias_renamed() {
+    // Previous schema has TypeAlias "Email" with ID #5
+    // Current schema has TypeAlias "ContactEmail" with ID #5
+    // This should trigger E503 warning
+    let previous = Schema {
+        models: HashMap::new(),
+        type_aliases: vec![(
+            "Email".to_string(),
+            TypeAliasDefinition {
+                name: "Email".to_string(),
+                alias_type: ident_type("string"),
+                config: json!({}),
+                entity_id: local_id(5),
+            },
+        )].into_iter().collect(),
+    };
+
+    let current = Schema {
+        models: HashMap::new(),
+        type_aliases: vec![(
+            "ContactEmail".to_string(),
+            TypeAliasDefinition {
+                name: "ContactEmail".to_string(),
+                alias_type: ident_type("string"),
+                config: json!({}),
+                entity_id: local_id(5),
+            },
+        )].into_iter().collect(),
+    };
+
+    let warnings = detect_id_reuse(&previous, &current);
+
+    assert_eq!(warnings.len(), 1, "Expected 1 E503 warning");
+    assert!(
+        warnings[0].contains("E503") &&
+        warnings[0].contains("Email") &&
+        warnings[0].contains("ContactEmail"),
+        "Warning should mention E503, Email, and ContactEmail: {}",
+        warnings[0]
+    );
+}
+
+#[test]
+fn test_detect_id_reuse_same_name_no_warning() {
+    // Same entity name with same ID - no warning (this is a modification, not reuse)
+    let previous = Schema {
+        models: vec![(
+            "User".to_string(),
+            ModelDefinition {
+                name: "User".to_string(),
+                parents: vec![],
+                fields: vec![],
+                config: json!({}),
+                entity_id: local_id(10),
+            },
+        )].into_iter().collect(),
+        type_aliases: HashMap::new(),
+    };
+
+    let current = Schema {
+        models: vec![(
+            "User".to_string(),
+            ModelDefinition {
+                name: "User".to_string(),
+                parents: vec![],
+                fields: vec![
+                    FieldDefinition {
+                        name: "email".to_string(),
+                        field_type: ident_type("string"),
+                        optional: false,
+                        default: None,
+                        config: json!({}),
+                        entity_id: local_id(1),
+                    },
+                ],
+                config: json!({}),
+                entity_id: local_id(10),
+            },
+        )].into_iter().collect(),
+        type_aliases: HashMap::new(),
+    };
+
+    let warnings = detect_id_reuse(&previous, &current);
+
+    assert!(warnings.is_empty(), "No warning expected for same entity name: {:?}", warnings);
+}
+
+#[test]
+fn test_detect_id_reuse_different_ids_no_warning() {
+    // Previous has User#10, current has Customer#20 - no conflict
+    let previous = Schema {
+        models: vec![(
+            "User".to_string(),
+            ModelDefinition {
+                name: "User".to_string(),
+                parents: vec![],
+                fields: vec![],
+                config: json!({}),
+                entity_id: local_id(10),
+            },
+        )].into_iter().collect(),
+        type_aliases: HashMap::new(),
+    };
+
+    let current = Schema {
+        models: vec![(
+            "Customer".to_string(),
+            ModelDefinition {
+                name: "Customer".to_string(),
+                parents: vec![],
+                fields: vec![],
+                config: json!({}),
+                entity_id: local_id(20),
+            },
+        )].into_iter().collect(),
+        type_aliases: HashMap::new(),
+    };
+
+    let warnings = detect_id_reuse(&previous, &current);
+
+    assert!(warnings.is_empty(), "No warning expected for different IDs: {:?}", warnings);
+}

@@ -109,6 +109,13 @@ pub fn migrate(
 
     let deltas = compute_deltas(prev, &current_schema)?;
 
+    // Check for E503: ID reuse (same ID used by different entity names)
+    // This could indicate accidental ID reuse rather than intentional rename
+    let id_reuse_warnings = detect_id_reuse(prev, &current_schema);
+    for warning in &id_reuse_warnings {
+        eprintln!("Warning: {}", warning);
+    }
+
     if previous_schema.is_none() {
         println!("First migration - generating initial schema");
     }
@@ -255,6 +262,63 @@ fn save_current_schema(schema: &Schema, cdm_dir: &Path, context_name: &str) -> R
         .with_context(|| format!("Failed to write previous_schema_{}.json", context_name))?;
 
     Ok(())
+}
+
+/// Detect cases where an entity ID is used by different entity names across versions (E503).
+/// This could indicate accidental ID reuse rather than an intentional rename.
+/// Returns a list of warning messages.
+fn detect_id_reuse(previous: &Schema, current: &Schema) -> Vec<String> {
+    use std::collections::HashMap;
+    use crate::diagnostics::E503_REUSED_ID;
+
+    let mut warnings = Vec::new();
+
+    // Build ID -> name maps for previous schema
+    let mut prev_model_ids: HashMap<&cdm_plugin_interface::EntityId, &str> = HashMap::new();
+    for (name, model) in &previous.models {
+        if let Some(ref id) = model.entity_id {
+            prev_model_ids.insert(id, name);
+        }
+    }
+
+    let mut prev_type_alias_ids: HashMap<&cdm_plugin_interface::EntityId, &str> = HashMap::new();
+    for (name, alias) in &previous.type_aliases {
+        if let Some(ref id) = alias.entity_id {
+            prev_type_alias_ids.insert(id, name);
+        }
+    }
+
+    // Check current models against previous
+    for (name, model) in &current.models {
+        if let Some(ref id) = model.entity_id {
+            if let Some(&prev_name) = prev_model_ids.get(id) {
+                if prev_name != name {
+                    warnings.push(format!(
+                        "{}: Entity ID {:?} was used by model '{}' but is now used by model '{}'. \
+                         If this is not an intentional rename, please assign a different ID.",
+                        E503_REUSED_ID, id, prev_name, name
+                    ));
+                }
+            }
+        }
+    }
+
+    // Check current type aliases against previous
+    for (name, alias) in &current.type_aliases {
+        if let Some(ref id) = alias.entity_id {
+            if let Some(&prev_name) = prev_type_alias_ids.get(id) {
+                if prev_name != name {
+                    warnings.push(format!(
+                        "{}: Entity ID {:?} was used by type alias '{}' but is now used by type alias '{}'. \
+                         If this is not an intentional rename, please assign a different ID.",
+                        E503_REUSED_ID, id, prev_name, name
+                    ));
+                }
+            }
+        }
+    }
+
+    warnings
 }
 
 /// Compute deltas between previous and current schemas

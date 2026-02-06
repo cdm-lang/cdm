@@ -48,7 +48,6 @@ pub const E406_MISSING_OUTPUT_CONFIG: &str = "E406";
 // Entity ID error codes
 pub const E501_DUPLICATE_ENTITY_ID: &str = "E501";
 pub const E502_DUPLICATE_FIELD_ID: &str = "E502";
-#[allow(dead_code)]
 pub const E503_REUSED_ID: &str = "E503";
 pub const E504_FIELD_ID_MISMATCH: &str = "E504";
 

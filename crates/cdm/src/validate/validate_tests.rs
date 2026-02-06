@@ -5428,3 +5428,126 @@ fn test_field_id_mismatch_grandparent_field() {
         result.diagnostics
     );
 }
+
+#[test]
+fn test_cross_file_e501_duplicate_model_id() {
+    // Parent file defines a model with ID #10
+    let parent_source = r#"
+        User {
+            name: string #1
+        } #10
+    "#;
+    let parent_result = validate_source(parent_source);
+    assert!(parent_result.diagnostics.iter().all(|d| d.severity != Severity::Error));
+    let ancestor = parent_result.into_ancestor("parent.cdm".to_string());
+
+    // Child file also uses ID #10 - should conflict
+    let child_source = r#"
+        Post {
+            title: string #1
+        } #10
+    "#;
+    let child_result = validate(child_source, &[ancestor]);
+
+    assert!(
+        child_result.diagnostics.iter().any(|d|
+            d.severity == Severity::Error &&
+            d.message.contains("E501") &&
+            d.message.contains("#10") &&
+            d.message.contains("User") &&
+            d.message.contains("parent.cdm")
+        ),
+        "Expected E501 error mentioning ancestor file, got: {:?}",
+        child_result.diagnostics
+    );
+}
+
+#[test]
+fn test_cross_file_e501_duplicate_type_alias_id() {
+    // Parent file defines a type alias with ID #5
+    let parent_source = r#"
+        Email: string #5
+    "#;
+    let parent_result = validate_source(parent_source);
+    assert!(parent_result.diagnostics.iter().all(|d| d.severity != Severity::Error));
+    let ancestor = parent_result.into_ancestor("types.cdm".to_string());
+
+    // Child file also uses ID #5 - should conflict
+    let child_source = r#"
+        UUID: string #5
+    "#;
+    let child_result = validate(child_source, &[ancestor]);
+
+    assert!(
+        child_result.diagnostics.iter().any(|d|
+            d.severity == Severity::Error &&
+            d.message.contains("E501") &&
+            d.message.contains("#5") &&
+            d.message.contains("Email") &&
+            d.message.contains("types.cdm")
+        ),
+        "Expected E501 error mentioning ancestor file, got: {:?}",
+        child_result.diagnostics
+    );
+}
+
+#[test]
+fn test_cross_file_e501_no_conflict_different_ids() {
+    // Parent file defines a model with ID #10
+    let parent_source = r#"
+        User {
+            name: string #1
+        } #10
+    "#;
+    let parent_result = validate_source(parent_source);
+    let ancestor = parent_result.into_ancestor("parent.cdm".to_string());
+
+    // Child file uses different ID #20 - no conflict
+    let child_source = r#"
+        Post {
+            title: string #1
+        } #20
+    "#;
+    let child_result = validate(child_source, &[ancestor]);
+
+    let e501_errors: Vec<_> = child_result.diagnostics.iter()
+        .filter(|d| d.message.contains("E501"))
+        .collect();
+    assert!(
+        e501_errors.is_empty(),
+        "Expected no E501 error for different IDs, got: {:?}",
+        e501_errors
+    );
+}
+
+#[test]
+fn test_cross_file_e501_redefine_same_entity_allowed() {
+    // Parent file defines User with ID #10
+    let parent_source = r#"
+        User {
+            name: string #1
+        } #10
+    "#;
+    let parent_result = validate_source(parent_source);
+    let ancestor = parent_result.into_ancestor("parent.cdm".to_string());
+
+    // Child file redefines User with same ID #10 - this is allowed (modification)
+    // Same entity name with same ID = legitimate modification pattern
+    let child_source = r#"
+        User {
+            name: string #1
+            email: string #2
+        } #10
+    "#;
+    let child_result = validate(child_source, &[ancestor]);
+
+    // Same entity name with same ID should NOT trigger E501
+    let e501_errors: Vec<_> = child_result.diagnostics.iter()
+        .filter(|d| d.message.contains("E501"))
+        .collect();
+    assert!(
+        e501_errors.is_empty(),
+        "Same entity name with same ID is allowed (modification), got: {:?}",
+        e501_errors
+    );
+}

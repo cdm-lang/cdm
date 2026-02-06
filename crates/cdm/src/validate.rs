@@ -1140,13 +1140,29 @@ fn collect_field_info(
 /// have the same source AND the same local_id. For local files, all IDs have
 /// EntityIdSource::Local, so we validate within that scope.
 ///
-/// Also validates that field overrides use consistent entity IDs with parent fields (E504).
+/// Also validates:
+/// - Cross-file ID conflicts (E501 with ancestor location)
+/// - Field overrides use consistent entity IDs with parent fields (E504)
 fn validate_entity_ids(
     symbol_table: &SymbolTable,
     model_fields: &HashMap<String, Vec<FieldInfo>>,
     ancestors: &[Ancestor],
     diagnostics: &mut Vec<Diagnostic>,
 ) {
+    // Collect Local entity IDs from ancestors for cross-file validation
+    // Key: local_id, Value: (entity_name, file_path)
+    let mut ancestor_ids: HashMap<u64, (String, String)> = HashMap::new();
+    for ancestor in ancestors {
+        for (name, def) in &ancestor.symbol_table.definitions {
+            if let Some(ref entity_id) = def.entity_id {
+                // Only check Local source IDs (not template IDs from different namespaces)
+                if matches!(entity_id.source, cdm_utils::EntityIdSource::Local) {
+                    ancestor_ids.insert(entity_id.local_id, (name.clone(), ancestor.path.clone()));
+                }
+            }
+        }
+    }
+
     // Track global IDs for models and type aliases (they share a global namespace)
     // Key is (source, local_id) - for local files, source is always Local
     let mut global_ids: HashMap<u64, (String, Span)> = HashMap::new();
@@ -1158,8 +1174,29 @@ fn validate_entity_ids(
     // Check model and type alias IDs (global scope within same source)
     for (name, def) in sorted_defs {
         if let Some(ref entity_id) = def.entity_id {
+            // Only validate Local source IDs
+            if !matches!(entity_id.source, cdm_utils::EntityIdSource::Local) {
+                continue;
+            }
+
             let local_id = entity_id.local_id;
-            if let Some((existing_name, existing_span)) = global_ids.get(&local_id) {
+
+            // Check for conflict with ancestor files first
+            // Only flag if a DIFFERENT entity uses the same ID (same name = legitimate modification)
+            if let Some((ancestor_name, ancestor_path)) = ancestor_ids.get(&local_id) {
+                if ancestor_name != name {
+                    diagnostics.push(Diagnostic {
+                        message: format!(
+                            "{}: Duplicate entity ID #{} — also used by '{}' in '{}'",
+                            E501_DUPLICATE_ENTITY_ID, local_id, ancestor_name, ancestor_path
+                        ),
+                        severity: Severity::Error,
+                        span: def.span,
+                    });
+                }
+                // Same name with same ID is allowed (modification of ancestor entity)
+            } else if let Some((existing_name, existing_span)) = global_ids.get(&local_id) {
+                // Check for conflict within current file
                 diagnostics.push(Diagnostic {
                     message: format!(
                         "{}: Duplicate entity ID #{}: already used by '{}' at line {}",
