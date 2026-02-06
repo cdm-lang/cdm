@@ -87,6 +87,10 @@ enum Commands {
         /// Number of spaces for indentation (default: 2)
         #[arg(long, default_value = "2")]
         indent: usize,
+
+        /// Project root directory for descendant file discovery (auto-detected if not specified)
+        #[arg(long)]
+        project_root: Option<PathBuf>,
     },
     /// Update CDM CLI to a different version
     Update {
@@ -345,7 +349,7 @@ fn main() -> Result<()> {
                 }
             }
         }
-        Commands::Format { files, assign_ids, check, indent } => {
+        Commands::Format { files, assign_ids, check, indent, project_root } => {
             // Expand glob patterns
             let mut paths = Vec::new();
             for pattern in &files {
@@ -380,6 +384,7 @@ fn main() -> Result<()> {
                 write: !check, // Don't write if --check is set
                 indent_size: indent,
                 format_whitespace: true, // Always format whitespace by default
+                project_root,
             };
 
             // Format files

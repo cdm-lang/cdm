@@ -1,6 +1,9 @@
 // Format command implementation
 // Handles auto-assignment of entity IDs and (future) code formatting
 
+use crate::dependency_graph::DependencyGraph;
+use crate::descendant_ids::{collect_descendant_ids, DescendantIds};
+use crate::project_scanner::ProjectScanner;
 use crate::{Diagnostic, FileResolver, Severity, Span};
 use cdm_utils::Position;
 use std::collections::{HashMap, HashSet};
@@ -12,7 +15,7 @@ use tree_sitter::Node;
 // =============================================================================
 
 /// Options for the format command
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Default)]
 pub struct FormatOptions {
     /// Auto-assign entity IDs to entities without them
     pub assign_ids: bool,
@@ -28,16 +31,22 @@ pub struct FormatOptions {
 
     /// Format whitespace (indentation, spacing, etc.)
     pub format_whitespace: bool,
+
+    /// Project root directory for descendant file discovery
+    /// If None, auto-detected from file location
+    pub project_root: Option<PathBuf>,
 }
 
-impl Default for FormatOptions {
-    fn default() -> Self {
+impl FormatOptions {
+    /// Create default options
+    pub fn new() -> Self {
         Self {
             assign_ids: false,
             check: false,
             write: true,
             indent_size: 2,
             format_whitespace: true,
+            project_root: None,
         }
     }
 }
@@ -171,6 +180,22 @@ pub fn format_file(
     if options.assign_ids {
         // Collect all existing IDs from this file and ancestors
         let mut tracker = EntityIdTracker::new();
+
+        // Get absolute path for dependency graph lookup
+        let absolute_path = path.canonicalize().map_err(|e| {
+            vec![Diagnostic {
+                severity: Severity::Error,
+                message: format!("Failed to resolve path {}: {}", path.display(), e),
+                span: Span {
+                    start: Position { line: 0, column: 0 },
+                    end: Position { line: 0, column: 0 },
+                },
+            }]
+        })?;
+
+        // Discover and reserve IDs from descendant files
+        let descendant_ids = discover_descendant_ids(&absolute_path, options, &mut diagnostics);
+        tracker.reserve_descendant_ids(&descendant_ids);
 
         // First, collect IDs from ancestors to avoid conflicts
         for ancestor in &tree.ancestors {
@@ -362,6 +387,48 @@ impl EntityIdTracker {
             .insert(id);
 
         id
+    }
+
+    /// Reserve global IDs (used by descendants, cannot be assigned to new entities)
+    fn reserve_global_ids(&mut self, ids: &HashSet<u64>) {
+        for &id in ids {
+            self.global_ids.insert(id);
+            if id >= self.next_global_id {
+                self.next_global_id = id + 1;
+            }
+        }
+    }
+
+    /// Reserve field IDs for a model (used by descendants)
+    fn reserve_field_ids(&mut self, model_name: &str, ids: &HashSet<u64>) {
+        let field_ids = self
+            .model_field_ids
+            .entry(model_name.to_string())
+            .or_default();
+
+        for &id in ids {
+            field_ids.insert(id);
+
+            let next_id = self
+                .next_field_ids
+                .entry(model_name.to_string())
+                .or_insert(1);
+
+            if id >= *next_id {
+                *next_id = id + 1;
+            }
+        }
+    }
+
+    /// Reserve all IDs from descendant files
+    fn reserve_descendant_ids(&mut self, descendant_ids: &DescendantIds) {
+        // Reserve global IDs
+        self.reserve_global_ids(descendant_ids.global_ids());
+
+        // Reserve field IDs for each model
+        for (model_name, field_ids) in &descendant_ids.model_field_ids {
+            self.reserve_field_ids(model_name, field_ids);
+        }
     }
 }
 
@@ -1032,6 +1099,89 @@ fn write_file_atomic(path: &Path, content: &str) -> std::io::Result<()> {
     fs::rename(&temp_path, path)?;
 
     Ok(())
+}
+
+// =============================================================================
+// Descendant ID Discovery
+// =============================================================================
+
+/// Discover IDs from all files that extend the given file
+///
+/// This scans the project for .cdm files, builds a dependency graph,
+/// and collects IDs from all descendant files to prevent ID collisions.
+fn discover_descendant_ids(
+    file_path: &Path,
+    options: &FormatOptions,
+    diagnostics: &mut Vec<Diagnostic>,
+) -> DescendantIds {
+    // Find project root
+    let project_root = options
+        .project_root
+        .clone()
+        .or_else(|| ProjectScanner::find_project_root(file_path));
+
+    let project_root = match project_root {
+        Some(root) => root,
+        None => {
+            // Fall back to file's parent directory
+            match file_path.parent() {
+                Some(parent) => parent.to_path_buf(),
+                None => return DescendantIds::new(),
+            }
+        }
+    };
+
+    // Scan for all .cdm files
+    let scanner = ProjectScanner::new(&project_root);
+    let all_files = match scanner.scan() {
+        Ok(files) => files,
+        Err(e) => {
+            diagnostics.push(Diagnostic {
+                severity: Severity::Warning,
+                message: format!(
+                    "Failed to scan project for descendant files: {}",
+                    e
+                ),
+                span: Span {
+                    start: Position { line: 0, column: 0 },
+                    end: Position { line: 0, column: 0 },
+                },
+            });
+            return DescendantIds::new();
+        }
+    };
+
+    // Canonicalize all paths for consistent lookup
+    let canonical_files: Vec<PathBuf> = all_files
+        .into_iter()
+        .filter_map(|p| p.canonicalize().ok())
+        .collect();
+
+    // Build dependency graph
+    let graph = match DependencyGraph::build(&canonical_files) {
+        Ok(g) => g,
+        Err(errs) => {
+            // Add warnings but continue with empty graph
+            for err in errs {
+                if err.severity == Severity::Warning {
+                    diagnostics.push(err);
+                }
+            }
+            return DescendantIds::new();
+        }
+    };
+
+    // Collect IDs from descendants
+    match collect_descendant_ids(&graph, file_path) {
+        Ok(ids) => ids,
+        Err(errs) => {
+            // Add warnings but return empty
+            for err in errs {
+                diagnostics.push(err);
+            }
+            DescendantIds::new()
+        }
+    }
 }
 
 #[cfg(test)]

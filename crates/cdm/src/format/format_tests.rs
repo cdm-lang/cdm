@@ -47,6 +47,7 @@ fn test_format_without_ids() {
         write: false,
         indent_size: 2,
         format_whitespace: false,
+        project_root: None,
     };
 
     let result = format_file(&path, &options).expect("Format should succeed");
@@ -112,6 +113,7 @@ fn test_format_partial_ids() {
         write: false,
         indent_size: 2,
         format_whitespace: false,
+        project_root: None,
     };
 
     let result = format_file(&path, &options).expect("Format should succeed");
@@ -167,6 +169,7 @@ fn test_format_all_ids() {
         write: false,
         indent_size: 2,
         format_whitespace: false,
+        project_root: None,
     };
 
     let result = format_file(&path, &options).expect("Format should succeed");
@@ -185,6 +188,7 @@ fn test_format_without_assign_ids() {
         write: false,
         indent_size: 2,
         format_whitespace: false,
+        project_root: None,
     };
 
     let result = format_file(&path, &options).expect("Format should succeed");
@@ -302,6 +306,7 @@ fn test_format_files_multiple() {
         write: false,
         indent_size: 2,
         format_whitespace: false,
+        project_root: None,
     };
 
     let results = format_files(&[path1, path2], &options).expect("Format should succeed");
@@ -327,6 +332,7 @@ fn test_format_invalid_path() {
         write: false,
         indent_size: 2,
         format_whitespace: false,
+        project_root: None,
     };
 
     let result = format_file(&path, &options);
@@ -353,6 +359,7 @@ fn test_format_with_write() {
         write: true,
         indent_size: 2,
         format_whitespace: false,
+        project_root: None,
     };
 
     let result = format_file(&temp_path, &options).expect("Format should succeed");
@@ -377,6 +384,7 @@ fn test_reconstruct_source_preserves_structure() {
         write: false,
         indent_size: 2,
         format_whitespace: false,
+        project_root: None,
     };
 
     let result = format_file(&path, &options).expect("Format should succeed");
@@ -529,6 +537,7 @@ fn test_format_files_with_one_error() {
         write: false,
         indent_size: 2,
         format_whitespace: false,
+        project_root: None,
     };
 
     // format_files should fail if any file fails
@@ -556,6 +565,7 @@ fn test_whitespace_formatting() {
         write: true,
         indent_size: 2,
         format_whitespace: true,
+        project_root: None,
     };
 
     let result = format_file(&temp_path, &options).expect("Format should succeed");
@@ -593,6 +603,7 @@ fn test_whitespace_formatting_preserves_ids() {
         write: true,
         indent_size: 2,
         format_whitespace: true,
+        project_root: None,
     };
 
     let result = format_file(&temp_path, &options).expect("Format should succeed");
@@ -632,6 +643,7 @@ fn test_format_preserves_extends_clause() {
         write: true,
         indent_size: 2,
         format_whitespace: true,
+        project_root: None,
     };
 
     let _result = format_file(&temp_path, &options).expect("Format should succeed");
@@ -663,6 +675,7 @@ fn test_format_preserves_array_types() {
         write: true,
         indent_size: 2,
         format_whitespace: true,
+        project_root: None,
     };
 
     let _result = format_file(&temp_path, &options).expect("Format should succeed");
@@ -709,6 +722,7 @@ User {{
         write: true,
         indent_size: 2,
         format_whitespace: true,
+        project_root: None,
     };
 
     let _result = format_file(&temp_path, &options).expect("Format should succeed");
@@ -760,6 +774,7 @@ fn test_format_preserves_model_level_plugin_config() {
         write: true,
         indent_size: 2,
         format_whitespace: true,
+        project_root: None,
     };
 
     let _result = format_file(&temp_path, &options).expect("Format should succeed");
@@ -810,6 +825,7 @@ fn test_format_preserves_field_removal() {
         write: true,
         indent_size: 2,
         format_whitespace: true,
+        project_root: None,
     };
 
     let _result = format_file(&temp_path, &options).expect("Format should succeed");
@@ -849,6 +865,7 @@ fn test_format_preserves_field_override() {
         write: true,
         indent_size: 2,
         format_whitespace: true,
+        project_root: None,
     };
 
     let _result = format_file(&temp_path, &options).expect("Format should succeed");
@@ -894,6 +911,7 @@ User {{
         write: true,
         indent_size: 2,
         format_whitespace: true,
+        project_root: None,
     };
 
     let _result = format_file(&temp_path, &options).expect("Format should succeed");
@@ -934,6 +952,7 @@ User {{
         write: true,
         indent_size: 2,
         format_whitespace: true,
+        project_root: None,
     };
 
     let _result = format_file(&temp_path, &options).expect("Format should succeed");
@@ -998,6 +1017,7 @@ User {{
         write: true,
         indent_size: 2,
         format_whitespace: true,
+        project_root: None,
     };
 
     let _result = format_file(&temp_path, &options).expect("Format should succeed");
@@ -1058,6 +1078,7 @@ fn test_format_preserves_untyped_fields() {
         write: true,
         indent_size: 2,
         format_whitespace: true,
+        project_root: None,
     };
 
     let _result = format_file(&temp_path, &options).expect("Format should succeed");
@@ -1110,6 +1131,7 @@ fn test_format_preserves_optional_marker() {
         write: true,
         indent_size: 2,
         format_whitespace: true,
+        project_root: None,
     };
 
     let _result = format_file(&temp_path, &options).expect("Format should succeed");
@@ -1157,6 +1179,7 @@ fn test_format_preserves_field_defaults() {
         write: true,
         indent_size: 2,
         format_whitespace: true,
+        project_root: None,
     };
 
     let _result = format_file(&temp_path, &options).expect("Format should succeed");
@@ -1202,6 +1225,7 @@ fn test_format_preserves_field_inline_plugins() {
         write: true,
         indent_size: 2,
         format_whitespace: true,
+        project_root: None,
     };
 
     let _result = format_file(&temp_path, &options).expect("Format should succeed");
@@ -1219,4 +1243,240 @@ fn test_format_preserves_field_inline_plugins() {
         content.contains("TEXT"),
         "Plugin config should be preserved"
     );
+}
+
+// =============================================================================
+// Tests for descendant ID checking
+// =============================================================================
+
+#[test]
+fn test_reserve_global_ids() {
+    let mut tracker = EntityIdTracker::new();
+
+    // Reserve some IDs (simulating IDs from descendants)
+    let mut reserved = HashSet::new();
+    reserved.insert(5);
+    reserved.insert(10);
+    reserved.insert(15);
+    tracker.reserve_global_ids(&reserved);
+
+    // Next global ID should skip reserved IDs
+    assert_eq!(tracker.next_global_id(), 16);
+    assert_eq!(tracker.next_global_id(), 17);
+
+    // Reserved IDs should be in the set
+    assert!(tracker.global_ids.contains(&5));
+    assert!(tracker.global_ids.contains(&10));
+    assert!(tracker.global_ids.contains(&15));
+}
+
+#[test]
+fn test_reserve_field_ids() {
+    let mut tracker = EntityIdTracker::new();
+
+    // Reserve some field IDs for a model
+    let mut reserved = HashSet::new();
+    reserved.insert(3);
+    reserved.insert(7);
+    tracker.reserve_field_ids("Admin", &reserved);
+
+    // Next field ID for Admin should skip reserved IDs
+    assert_eq!(tracker.next_field_id("Admin"), 8);
+
+    // Other models should not be affected
+    assert_eq!(tracker.next_field_id("User"), 1);
+}
+
+#[test]
+fn test_format_avoids_descendant_ids() {
+    use std::fs::File;
+    use std::io::Write;
+    use tempfile::TempDir;
+
+    // Create a test project with parent and child files
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+
+    // Create parent file (base.cdm) without IDs
+    let mut base = File::create(root.join("base.cdm")).unwrap();
+    writeln!(base, "User {{").unwrap();
+    writeln!(base, "  id: Int").unwrap();
+    writeln!(base, "  name: String").unwrap();
+    writeln!(base, "}}").unwrap();
+
+    // Create child file that extends base and has IDs
+    let mut child = File::create(root.join("child.cdm")).unwrap();
+    writeln!(child, "extends \"./base.cdm\"").unwrap();
+    writeln!(child, "").unwrap();
+    writeln!(child, "Admin extends User {{").unwrap();
+    writeln!(child, "  role: String #1").unwrap();
+    writeln!(child, "}} #5").unwrap();
+
+    let base_path = root.join("base.cdm");
+
+    let options = FormatOptions {
+        assign_ids: true,
+        check: true,
+        write: false,
+        indent_size: 2,
+        format_whitespace: false,
+        project_root: Some(root.to_path_buf()),
+    };
+
+    let result = format_file(&base_path, &options).expect("Format should succeed");
+
+    // Should have assigned IDs
+    assert!(result.modified);
+
+    // The User model should get an ID that doesn't conflict with Admin's #5
+    let user_assignment = result
+        .assignments
+        .iter()
+        .find(|a| a.entity_type == EntityType::Model && a.entity_name == "User");
+    assert!(user_assignment.is_some());
+    let user_id = user_assignment.unwrap().assigned_id;
+    assert_ne!(user_id, 5, "User should not get ID #5 which is used by Admin in child.cdm");
+
+    // User's ID should be 6 or higher (since 5 is reserved by Admin)
+    assert!(user_id >= 6, "User should get ID >= 6, got {}", user_id);
+}
+
+#[test]
+fn test_format_avoids_descendant_field_ids() {
+    use std::fs::File;
+    use std::io::Write;
+    use tempfile::TempDir;
+
+    // Create a test project
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+
+    // Create parent file with a model but no field IDs
+    let mut base = File::create(root.join("base.cdm")).unwrap();
+    writeln!(base, "User {{").unwrap();
+    writeln!(base, "  id: Int").unwrap();
+    writeln!(base, "  name: String").unwrap();
+    writeln!(base, "}} #1").unwrap();
+
+    // Create child that extends User and has field IDs
+    let mut child = File::create(root.join("child.cdm")).unwrap();
+    writeln!(child, "extends \"./base.cdm\"").unwrap();
+    writeln!(child, "").unwrap();
+    writeln!(child, "Admin extends User {{").unwrap();
+    writeln!(child, "  role: String #5").unwrap(); // Field ID #5 in Admin
+    writeln!(child, "}} #2").unwrap();
+
+    let base_path = root.join("base.cdm");
+
+    let options = FormatOptions {
+        assign_ids: true,
+        check: true,
+        write: false,
+        indent_size: 2,
+        format_whitespace: false,
+        project_root: Some(root.to_path_buf()),
+    };
+
+    let result = format_file(&base_path, &options).expect("Format should succeed");
+
+    // Field IDs in User should be assigned (1, 2, etc.)
+    // These are scoped to User model, so they don't conflict with Admin's field IDs
+    let user_field_assignments: Vec<_> = result
+        .assignments
+        .iter()
+        .filter(|a| a.entity_type == EntityType::Field && a.model_name.as_deref() == Some("User"))
+        .collect();
+
+    assert_eq!(user_field_assignments.len(), 2);
+}
+
+#[test]
+fn test_format_with_no_descendants() {
+    use std::fs::File;
+    use std::io::Write;
+    use tempfile::TempDir;
+
+    // Create a standalone file with no descendants
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+
+    let mut standalone = File::create(root.join("standalone.cdm")).unwrap();
+    writeln!(standalone, "Config {{").unwrap();
+    writeln!(standalone, "  setting: String").unwrap();
+    writeln!(standalone, "}}").unwrap();
+
+    let path = root.join("standalone.cdm");
+
+    let options = FormatOptions {
+        assign_ids: true,
+        check: true,
+        write: false,
+        indent_size: 2,
+        format_whitespace: false,
+        project_root: Some(root.to_path_buf()),
+    };
+
+    let result = format_file(&path, &options).expect("Format should succeed");
+
+    // Should assign IDs starting from 1
+    assert!(result.modified);
+
+    let model_assignment = result
+        .assignments
+        .iter()
+        .find(|a| a.entity_type == EntityType::Model && a.entity_name == "Config");
+    assert!(model_assignment.is_some());
+    assert_eq!(model_assignment.unwrap().assigned_id, 1);
+}
+
+#[test]
+fn test_format_with_transitive_descendants() {
+    use std::fs::File;
+    use std::io::Write;
+    use tempfile::TempDir;
+
+    // Create a chain: base -> child -> grandchild
+    let temp = TempDir::new().unwrap();
+    let root = temp.path();
+
+    // base.cdm - no IDs
+    let mut base = File::create(root.join("base.cdm")).unwrap();
+    writeln!(base, "User {{").unwrap();
+    writeln!(base, "  id: Int").unwrap();
+    writeln!(base, "}}").unwrap();
+
+    // child.cdm - extends base, has ID #5
+    let mut child = File::create(root.join("child.cdm")).unwrap();
+    writeln!(child, "extends \"./base.cdm\"").unwrap();
+    writeln!(child, "Admin extends User {{}} #5").unwrap();
+
+    // grandchild.cdm - extends child, has ID #10
+    let mut grandchild = File::create(root.join("grandchild.cdm")).unwrap();
+    writeln!(grandchild, "extends \"./child.cdm\"").unwrap();
+    writeln!(grandchild, "SuperAdmin extends Admin {{}} #10").unwrap();
+
+    let base_path = root.join("base.cdm");
+
+    let options = FormatOptions {
+        assign_ids: true,
+        check: true,
+        write: false,
+        indent_size: 2,
+        format_whitespace: false,
+        project_root: Some(root.to_path_buf()),
+    };
+
+    let result = format_file(&base_path, &options).expect("Format should succeed");
+
+    // User should get an ID that doesn't conflict with Admin (#5) or SuperAdmin (#10)
+    let user_assignment = result
+        .assignments
+        .iter()
+        .find(|a| a.entity_type == EntityType::Model && a.entity_name == "User");
+    assert!(user_assignment.is_some());
+    let user_id = user_assignment.unwrap().assigned_id;
+
+    assert_ne!(user_id, 5, "User should not get ID #5");
+    assert_ne!(user_id, 10, "User should not get ID #10");
+    assert!(user_id >= 11, "User should get ID >= 11, got {}", user_id);
 }

@@ -13,12 +13,14 @@ pub fn format_document(text: &str, uri: &Url, assign_ids: bool) -> Option<Vec<Te
     let temp_file = create_temp_file(&path, text).ok()?;
 
     // Format the file using crate::format_file
+    // For LSP formatting, auto-detect project root from the file's location
     let options = crate::FormatOptions {
         assign_ids,
         check: false,
         write: true,
         indent_size: 2,
         format_whitespace: true,
+        project_root: None, // Auto-detect from file location
     };
 
     let _result = crate::format_file(temp_file.path(), &options).ok()?;

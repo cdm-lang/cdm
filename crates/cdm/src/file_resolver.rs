@@ -31,6 +31,12 @@ impl LoadedFile {
         Self::new(path)
     }
 
+    /// Create a new LoadedFile for use in dependency graph building
+    /// This allows creating LoadedFile instances without going through FileResolver
+    pub fn new_for_build(path: PathBuf) -> Self {
+        Self::new(path)
+    }
+
     /// Get the source content, reading and caching it on first access
     pub fn source(&self) -> Result<String, std::io::Error> {
         // Check if already cached
