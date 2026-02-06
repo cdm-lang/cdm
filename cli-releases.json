@@ -1,7 +1,7 @@
 {
   "version": 1,
-  "updated_at": "2026-02-06T00:37:56Z",
-  "latest": "0.1.68",
+  "updated_at": "2026-02-06T22:56:24Z",
+  "latest": "0.1.69",
   "releases": {
     "0.1.0": {
       "release_date": "2025-12-29",
@@ -1454,6 +1454,31 @@
         "x86_64-unknown-linux-gnu": {
           "url": "https://github.com/cdm-lang/cdm/releases/download/cdm-cli-v0.1.68/cdm-x86_64-unknown-linux-gnu",
           "checksum": "sha256:4369a0c307562b55a2d1b10ad84a24e94ff349320ace1b5c000df9cb3c89b76c"
+        }
+      }
+    },
+    "0.1.69": {
+      "release_date": "2026-02-06",
+      "platforms": {
+        "aarch64-apple-darwin": {
+          "url": "https://github.com/cdm-lang/cdm/releases/download/cdm-cli-v0.1.69/cdm-aarch64-apple-darwin",
+          "checksum": "sha256:f88f6dd5226702e20d6f5e50cd40f5f86df66a6407598c5274343c1b89abc766"
+        },
+        "aarch64-unknown-linux-gnu": {
+          "url": "https://github.com/cdm-lang/cdm/releases/download/cdm-cli-v0.1.69/cdm-aarch64-unknown-linux-gnu",
+          "checksum": "sha256:0458313e3657a8aa6d7712e3be3d761d6b267dbd35661b7cae5e6fb4c46d5da1"
+        },
+        "x86_64-apple-darwin": {
+          "url": "https://github.com/cdm-lang/cdm/releases/download/cdm-cli-v0.1.69/cdm-x86_64-apple-darwin",
+          "checksum": "sha256:16420f8ac6b4bc258cc360140bf6ecd67a4f374b6d941d8862c185e30594ae09"
+        },
+        "x86_64-pc-windows-msvc.exe": {
+          "url": "https://github.com/cdm-lang/cdm/releases/download/cdm-cli-v0.1.69/cdm-x86_64-pc-windows-msvc.exe",
+          "checksum": "sha256:ada84554d1b39dc49c463eca7a76354c383e4a4abedef62ab889f9a18dd3a843"
+        },
+        "x86_64-unknown-linux-gnu": {
+          "url": "https://github.com/cdm-lang/cdm/releases/download/cdm-cli-v0.1.69/cdm-x86_64-unknown-linux-gnu",
+          "checksum": "sha256:012c01e0a2153443e25ab89a809f632712aee9a571bbaec0beb2efc55c45d189"
         }
       }
     }
