@@ -4460,3 +4460,400 @@ fn test_migrate_inherited_field_optionality_both_parent_and_child() {
         up_content
     );
 }
+
+// ============================================================================
+// FieldConfigChanged tests - SQL type override changes
+// ============================================================================
+
+#[test]
+fn test_migrate_field_config_changed_type_override_postgres() {
+    // BUG TEST: When a field's @sql { type: "..." } config changes,
+    // the SQL plugin should generate ALTER COLUMN TYPE statements,
+    // not just comments.
+
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            entity_id: local_id(1),
+            parents: vec![],
+            fields: vec![FieldDefinition {
+                name: "id".to_string(),
+                field_type: cdm_plugin_interface::TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                // Current config with new type override
+                config: serde_json::json!({
+                    "type": "VARCHAR(100)"
+                }),
+                entity_id: local_id(2),
+            }],
+            config: serde_json::json!({}),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models,
+    };
+
+    // Delta indicates the type config changed from UUID to VARCHAR(100)
+    let deltas = vec![Delta::FieldConfigChanged {
+        model: "User".to_string(),
+        field: "id".to_string(),
+        before: serde_json::json!({
+            "type": "UUID"
+        }),
+        after: serde_json::json!({
+            "type": "VARCHAR(100)"
+        }),
+    }];
+
+    let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+    assert_eq!(files.len(), 2);
+
+    let up_sql = &files[0].content;
+    let down_sql = &files[1].content;
+
+    // UP migration should contain ALTER COLUMN TYPE with new type
+    assert!(
+        up_sql.contains("ALTER COLUMN") && up_sql.contains("TYPE") && up_sql.contains("VARCHAR(100)"),
+        "UP migration should ALTER COLUMN TYPE to VARCHAR(100). Got:\n{}",
+        up_sql
+    );
+
+    // DOWN migration should revert to old type
+    assert!(
+        down_sql.contains("ALTER COLUMN") && down_sql.contains("TYPE") && down_sql.contains("UUID"),
+        "DOWN migration should ALTER COLUMN TYPE back to UUID. Got:\n{}",
+        down_sql
+    );
+}
+
+#[test]
+fn test_migrate_field_config_changed_type_override_sqlite() {
+    // SQLite doesn't support ALTER COLUMN TYPE, so it should generate a comment
+
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            entity_id: local_id(1),
+            parents: vec![],
+            fields: vec![FieldDefinition {
+                name: "id".to_string(),
+                field_type: cdm_plugin_interface::TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "type": "VARCHAR(100)"
+                }),
+                entity_id: local_id(2),
+            }],
+            config: serde_json::json!({}),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models,
+    };
+
+    let deltas = vec![Delta::FieldConfigChanged {
+        model: "User".to_string(),
+        field: "id".to_string(),
+        before: serde_json::json!({
+            "type": "UUID"
+        }),
+        after: serde_json::json!({
+            "type": "VARCHAR(100)"
+        }),
+    }];
+
+    let config = serde_json::json!({ "dialect": "sqlite", "pluralize_table_names": false });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+    assert_eq!(files.len(), 2);
+
+    let up_sql = &files[0].content;
+
+    // SQLite should generate a comment about manual migration required
+    assert!(
+        up_sql.contains("SQLite does not support ALTER COLUMN TYPE"),
+        "SQLite migration should contain comment about unsupported operation. Got:\n{}",
+        up_sql
+    );
+}
+
+#[test]
+fn test_migrate_field_config_changed_column_name_postgres() {
+    // When @sql { column_name: "..." } changes, should generate RENAME COLUMN
+
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            entity_id: local_id(1),
+            parents: vec![],
+            fields: vec![FieldDefinition {
+                name: "userId".to_string(),
+                field_type: cdm_plugin_interface::TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                // Current config with new column name
+                config: serde_json::json!({
+                    "column_name": "user_identifier"
+                }),
+                entity_id: local_id(2),
+            }],
+            config: serde_json::json!({}),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models,
+    };
+
+    let deltas = vec![Delta::FieldConfigChanged {
+        model: "User".to_string(),
+        field: "userId".to_string(),
+        before: serde_json::json!({
+            "column_name": "user_id"
+        }),
+        after: serde_json::json!({
+            "column_name": "user_identifier"
+        }),
+    }];
+
+    let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+    assert_eq!(files.len(), 2);
+
+    let up_sql = &files[0].content;
+    let down_sql = &files[1].content;
+
+    // UP migration should RENAME COLUMN
+    assert!(
+        up_sql.contains("RENAME COLUMN") && up_sql.contains("user_id") && up_sql.contains("user_identifier"),
+        "UP migration should RENAME COLUMN from user_id to user_identifier. Got:\n{}",
+        up_sql
+    );
+
+    // DOWN migration should revert
+    assert!(
+        down_sql.contains("RENAME COLUMN") && down_sql.contains("user_identifier") && down_sql.contains("user_id"),
+        "DOWN migration should RENAME COLUMN back. Got:\n{}",
+        down_sql
+    );
+}
+
+#[test]
+fn test_migrate_field_config_changed_default_postgres() {
+    // When @sql { default: "..." } changes, should generate ALTER COLUMN SET/DROP DEFAULT
+
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            entity_id: local_id(1),
+            parents: vec![],
+            fields: vec![FieldDefinition {
+                name: "status".to_string(),
+                field_type: cdm_plugin_interface::TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "default": "'inactive'"
+                }),
+                entity_id: local_id(2),
+            }],
+            config: serde_json::json!({}),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models,
+    };
+
+    let deltas = vec![Delta::FieldConfigChanged {
+        model: "User".to_string(),
+        field: "status".to_string(),
+        before: serde_json::json!({
+            "default": "'active'"
+        }),
+        after: serde_json::json!({
+            "default": "'inactive'"
+        }),
+    }];
+
+    let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+    assert_eq!(files.len(), 2);
+
+    let up_sql = &files[0].content;
+    let down_sql = &files[1].content;
+
+    // UP migration should SET DEFAULT to new value
+    assert!(
+        up_sql.contains("SET DEFAULT") && up_sql.contains("'inactive'"),
+        "UP migration should SET DEFAULT to 'inactive'. Got:\n{}",
+        up_sql
+    );
+
+    // DOWN migration should revert to old default
+    assert!(
+        down_sql.contains("SET DEFAULT") && down_sql.contains("'active'"),
+        "DOWN migration should SET DEFAULT back to 'active'. Got:\n{}",
+        down_sql
+    );
+}
+
+#[test]
+fn test_migrate_field_config_changed_default_added_postgres() {
+    // When @sql { default: "..." } is added where there was none
+
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            entity_id: local_id(1),
+            parents: vec![],
+            fields: vec![FieldDefinition {
+                name: "status".to_string(),
+                field_type: cdm_plugin_interface::TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "default": "'active'"
+                }),
+                entity_id: local_id(2),
+            }],
+            config: serde_json::json!({}),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models,
+    };
+
+    let deltas = vec![Delta::FieldConfigChanged {
+        model: "User".to_string(),
+        field: "status".to_string(),
+        before: serde_json::json!({}),
+        after: serde_json::json!({
+            "default": "'active'"
+        }),
+    }];
+
+    let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+    assert_eq!(files.len(), 2);
+
+    let up_sql = &files[0].content;
+    let down_sql = &files[1].content;
+
+    // UP migration should SET DEFAULT
+    assert!(
+        up_sql.contains("SET DEFAULT") && up_sql.contains("'active'"),
+        "UP migration should SET DEFAULT. Got:\n{}",
+        up_sql
+    );
+
+    // DOWN migration should DROP DEFAULT
+    assert!(
+        down_sql.contains("DROP DEFAULT"),
+        "DOWN migration should DROP DEFAULT. Got:\n{}",
+        down_sql
+    );
+}
+
+#[test]
+fn test_migrate_field_config_changed_default_removed_postgres() {
+    // When @sql { default: "..." } is removed
+
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            entity_id: local_id(1),
+            parents: vec![],
+            fields: vec![FieldDefinition {
+                name: "status".to_string(),
+                field_type: cdm_plugin_interface::TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({}),
+                entity_id: local_id(2),
+            }],
+            config: serde_json::json!({}),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models,
+    };
+
+    let deltas = vec![Delta::FieldConfigChanged {
+        model: "User".to_string(),
+        field: "status".to_string(),
+        before: serde_json::json!({
+            "default": "'active'"
+        }),
+        after: serde_json::json!({}),
+    }];
+
+    let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+    assert_eq!(files.len(), 2);
+
+    let up_sql = &files[0].content;
+    let down_sql = &files[1].content;
+
+    // UP migration should DROP DEFAULT
+    assert!(
+        up_sql.contains("DROP DEFAULT"),
+        "UP migration should DROP DEFAULT. Got:\n{}",
+        up_sql
+    );
+
+    // DOWN migration should SET DEFAULT back
+    assert!(
+        down_sql.contains("SET DEFAULT") && down_sql.contains("'active'"),
+        "DOWN migration should SET DEFAULT back. Got:\n{}",
+        down_sql
+    );
+}

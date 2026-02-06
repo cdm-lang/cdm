@@ -578,9 +578,193 @@ pub fn migrate(
                 }
             }
 
-            Delta::FieldConfigChanged { model, field, before: _, after: _ } => {
-                up_content.push_str(&format!("-- Field config changed: {}.{}\n\n", model, field));
-                down_content.push_str(&format!("-- Field config changed: {}.{}\n\n", model, field));
+            Delta::FieldConfigChanged { model, field, before, after } => {
+                // Handle specific config changes that affect SQL schema
+                if let Some(model_def) = current_schema.models.get(model) {
+                    let table_name = get_table_name(model, &model_def.config, &config);
+                    let schema_prefix = get_schema_prefix(&config, dialect);
+                    let full_table_name = if let Some(prefix) = &schema_prefix {
+                        format!("{}.{}", quote_identifier(prefix, dialect), quote_identifier(&table_name, dialect))
+                    } else {
+                        quote_identifier(&table_name, dialect)
+                    };
+
+                    // Find the field definition to get its current config
+                    let field_def = model_def.fields.iter().find(|f| &f.name == field);
+
+                    // Skip fields marked with @sql { skip: true }
+                    if let Some(fd) = field_def {
+                        if should_skip_field(&fd.config) {
+                            continue;
+                        }
+                    }
+
+                    let mut has_sql_changes = false;
+
+                    // 1. Check for column_name changes (RENAME COLUMN)
+                    let before_column_name = before.get("column_name").and_then(|v| v.as_str());
+                    let after_column_name = after.get("column_name").and_then(|v| v.as_str());
+
+                    if before_column_name != after_column_name {
+                        has_sql_changes = true;
+                        // Determine actual column names (using override or default snake_case)
+                        let old_column = before_column_name
+                            .map(|s| s.to_string())
+                            .unwrap_or_else(|| get_column_name(field, &serde_json::json!({}), &config));
+                        let new_column = after_column_name
+                            .map(|s| s.to_string())
+                            .unwrap_or_else(|| get_column_name(field, &serde_json::json!({}), &config));
+
+                        up_content.push_str(&format!(
+                            "ALTER TABLE {} RENAME COLUMN {} TO {};\n\n",
+                            full_table_name,
+                            quote_identifier(&old_column, dialect),
+                            quote_identifier(&new_column, dialect)
+                        ));
+                        down_content.push_str(&format!(
+                            "ALTER TABLE {} RENAME COLUMN {} TO {};\n\n",
+                            full_table_name,
+                            quote_identifier(&new_column, dialect),
+                            quote_identifier(&old_column, dialect)
+                        ));
+                    }
+
+                    // 2. Check for type override changes (ALTER COLUMN TYPE)
+                    let before_type = before.get("type").and_then(|v| v.as_str());
+                    let after_type = after.get("type").and_then(|v| v.as_str());
+
+                    if before_type != after_type {
+                        has_sql_changes = true;
+                        // Get the current column name (after any rename)
+                        let column_name = after_column_name
+                            .map(|s| s.to_string())
+                            .unwrap_or_else(|| {
+                                if let Some(fd) = field_def {
+                                    get_column_name(field, &fd.config, &config)
+                                } else {
+                                    get_column_name(field, &serde_json::json!({}), &config)
+                                }
+                            });
+
+                        // Determine the SQL types
+                        let old_sql_type = if let Some(t) = before_type {
+                            t.to_string()
+                        } else if let Some(fd) = field_def {
+                            type_mapper.map_type(&fd.field_type, fd.optional)
+                        } else {
+                            "TEXT".to_string() // Fallback
+                        };
+
+                        let new_sql_type = if let Some(t) = after_type {
+                            t.to_string()
+                        } else if let Some(fd) = field_def {
+                            type_mapper.map_type(&fd.field_type, fd.optional)
+                        } else {
+                            "TEXT".to_string() // Fallback
+                        };
+
+                        match dialect {
+                            Dialect::PostgreSQL => {
+                                up_content.push_str(&format!(
+                                    "ALTER TABLE {} ALTER COLUMN {} TYPE {};\n\n",
+                                    full_table_name,
+                                    quote_identifier(&column_name, dialect),
+                                    new_sql_type
+                                ));
+                                down_content.push_str(&format!(
+                                    "ALTER TABLE {} ALTER COLUMN {} TYPE {};\n\n",
+                                    full_table_name,
+                                    quote_identifier(&column_name, dialect),
+                                    old_sql_type
+                                ));
+                            }
+                            Dialect::SQLite => {
+                                up_content.push_str("-- SQLite does not support ALTER COLUMN TYPE\n");
+                                up_content.push_str(&format!(
+                                    "-- Manual migration required for {}.{} type change\n\n",
+                                    table_name, column_name
+                                ));
+                                down_content.push_str("-- SQLite does not support ALTER COLUMN TYPE\n");
+                                down_content.push_str(&format!(
+                                    "-- Manual migration required for {}.{} type change\n\n",
+                                    table_name, column_name
+                                ));
+                            }
+                        }
+                    }
+
+                    // 3. Check for default value changes (SET/DROP DEFAULT)
+                    let before_default = before.get("default").and_then(|v| v.as_str());
+                    let after_default = after.get("default").and_then(|v| v.as_str());
+
+                    if before_default != after_default {
+                        has_sql_changes = true;
+                        let column_name = after_column_name
+                            .map(|s| s.to_string())
+                            .unwrap_or_else(|| {
+                                if let Some(fd) = field_def {
+                                    get_column_name(field, &fd.config, &config)
+                                } else {
+                                    get_column_name(field, &serde_json::json!({}), &config)
+                                }
+                            });
+
+                        match dialect {
+                            Dialect::PostgreSQL => {
+                                if let Some(new_default) = after_default {
+                                    up_content.push_str(&format!(
+                                        "ALTER TABLE {} ALTER COLUMN {} SET DEFAULT {};\n\n",
+                                        full_table_name,
+                                        quote_identifier(&column_name, dialect),
+                                        new_default
+                                    ));
+                                } else {
+                                    up_content.push_str(&format!(
+                                        "ALTER TABLE {} ALTER COLUMN {} DROP DEFAULT;\n\n",
+                                        full_table_name,
+                                        quote_identifier(&column_name, dialect)
+                                    ));
+                                }
+
+                                if let Some(old_default) = before_default {
+                                    down_content.push_str(&format!(
+                                        "ALTER TABLE {} ALTER COLUMN {} SET DEFAULT {};\n\n",
+                                        full_table_name,
+                                        quote_identifier(&column_name, dialect),
+                                        old_default
+                                    ));
+                                } else {
+                                    down_content.push_str(&format!(
+                                        "ALTER TABLE {} ALTER COLUMN {} DROP DEFAULT;\n\n",
+                                        full_table_name,
+                                        quote_identifier(&column_name, dialect)
+                                    ));
+                                }
+                            }
+                            Dialect::SQLite => {
+                                up_content.push_str("-- SQLite does not support ALTER COLUMN SET/DROP DEFAULT\n");
+                                up_content.push_str(&format!(
+                                    "-- Manual migration required for {}.{} default change\n\n",
+                                    table_name, column_name
+                                ));
+                                down_content.push_str("-- SQLite does not support ALTER COLUMN SET/DROP DEFAULT\n");
+                                down_content.push_str(&format!(
+                                    "-- Manual migration required for {}.{} default change\n\n",
+                                    table_name, column_name
+                                ));
+                            }
+                        }
+                    }
+
+                    // If no SQL-relevant changes were detected, still add a comment
+                    if !has_sql_changes {
+                        up_content.push_str(&format!("-- Field config changed: {}.{}\n\n", model, field));
+                        down_content.push_str(&format!("-- Field config changed: {}.{}\n\n", model, field));
+                    }
+                } else {
+                    up_content.push_str(&format!("-- Field config changed: {}.{}\n\n", model, field));
+                    down_content.push_str(&format!("-- Field config changed: {}.{}\n\n", model, field));
+                }
             }
         }
     }
