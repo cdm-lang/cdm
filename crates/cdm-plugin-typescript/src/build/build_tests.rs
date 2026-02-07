@@ -1636,3 +1636,208 @@ fn test_zod_schemas_self_reference_uses_lazy() {
         content
     );
 }
+
+#[test]
+fn test_zod_union_type_alias_members_declared_before_union() {
+    // Regression test: union type aliases like GetAuthRequestResponse must be
+    // emitted AFTER all their member schemas, even when some members depend on
+    // cycle members (which pushes them into the "remaining entities" fallback).
+    let mut schema = Schema {
+        models: HashMap::new(),
+        type_aliases: HashMap::new(),
+    };
+
+    // Create two models that reference each other (cycle): User <-> Project
+    schema.models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "name".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(1),
+                },
+                FieldDefinition {
+                    name: "project".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "Project".to_string(),
+                    },
+                    optional: true,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(2),
+                },
+            ],
+            config: json!({}),
+            entity_id: local_id(10),
+        },
+    );
+
+    schema.models.insert(
+        "Project".to_string(),
+        ModelDefinition {
+            name: "Project".to_string(),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "name".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(3),
+                },
+                FieldDefinition {
+                    name: "owner".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "User".to_string(),
+                    },
+                    optional: true,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(4),
+                },
+            ],
+            config: json!({}),
+            entity_id: local_id(11),
+        },
+    );
+
+    // Create AuthRequest model that depends on cycle member (User)
+    schema.models.insert(
+        "AuthRequest".to_string(),
+        ModelDefinition {
+            name: "AuthRequest".to_string(),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "request_id".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(5),
+                },
+                FieldDefinition {
+                    name: "authorized_by".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "User".to_string(),
+                    },
+                    optional: true,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(6),
+                },
+            ],
+            config: json!({}),
+            entity_id: local_id(12),
+        },
+    );
+
+    // Create GetSuccessResponse model that depends on AuthRequest
+    schema.models.insert(
+        "GetSuccessResponse".to_string(),
+        ModelDefinition {
+            name: "GetSuccessResponse".to_string(),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "type".to_string(),
+                    field_type: TypeExpression::StringLiteral {
+                        value: "success".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(7),
+                },
+                FieldDefinition {
+                    name: "auth_request".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "AuthRequest".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(8),
+                },
+            ],
+            config: json!({}),
+            entity_id: local_id(13),
+        },
+    );
+
+    // Create GetExpiredResponse model (simple, no deps on cycle)
+    schema.models.insert(
+        "GetExpiredResponse".to_string(),
+        ModelDefinition {
+            name: "GetExpiredResponse".to_string(),
+            parents: vec![],
+            fields: vec![FieldDefinition {
+                name: "type".to_string(),
+                field_type: TypeExpression::StringLiteral {
+                    value: "expired".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: json!({}),
+                entity_id: local_id(9),
+            }],
+            config: json!({}),
+            entity_id: local_id(14),
+        },
+    );
+
+    // Create union type alias: GetResponse = GetSuccessResponse | GetExpiredResponse
+    // Alphabetically "GetResponse" < "GetSuccessResponse", which triggers the bug
+    // when both end up in the remaining entities fallback.
+    schema.type_aliases.insert(
+        "GetResponse".to_string(),
+        TypeAliasDefinition {
+            name: "GetResponse".to_string(),
+            alias_type: TypeExpression::Union {
+                types: vec![
+                    TypeExpression::Identifier {
+                        name: "GetSuccessResponse".to_string(),
+                    },
+                    TypeExpression::Identifier {
+                        name: "GetExpiredResponse".to_string(),
+                    },
+                ],
+            },
+            config: json!({}),
+            entity_id: local_id(15),
+        },
+    );
+
+    let config = json!({ "generate_zod": true });
+    let utils = Utils;
+
+    let output = build(schema, config, &utils);
+    let content = &output[0].content;
+
+    // GetSuccessResponseSchema must appear BEFORE GetResponseSchema
+    let success_schema_pos = content
+        .find("const GetSuccessResponseSchema")
+        .expect("GetSuccessResponseSchema should exist in output");
+    let response_schema_pos = content
+        .find("const GetResponseSchema")
+        .expect("GetResponseSchema should exist in output");
+
+    assert!(
+        success_schema_pos < response_schema_pos,
+        "GetSuccessResponseSchema must be declared before GetResponseSchema (union).\nContent:\n{}",
+        content
+    );
+}

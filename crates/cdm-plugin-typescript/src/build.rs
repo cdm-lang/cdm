@@ -312,12 +312,65 @@ fn topological_sort_entities(schema: &Schema) -> TopologicalSortResult {
         }
     }
 
-    // Handle any remaining entities (circular dependencies)
-    // Add them in alphabetical order
-    for name in &all_entities {
-        if !visited.contains(name) {
-            let kind = entity_kinds.get(name).copied().unwrap_or(EntityKind::Model);
+    // Handle remaining entities (those blocked by circular dependencies).
+    // Instead of adding them in simple alphabetical order, do another Kahn's pass
+    // treating cycle-member dependencies as already satisfied (since they use z.lazy()).
+    let remaining: BTreeSet<String> = all_entities
+        .iter()
+        .filter(|name| !visited.contains(*name))
+        .cloned()
+        .collect();
+
+    if !remaining.is_empty() {
+        let mut remaining_queue: VecDeque<String> = VecDeque::new();
+        let mut remaining_visited: HashSet<String> = HashSet::new();
+
+        // Seed with remaining entities whose non-cycle deps are all satisfied
+        for name in &remaining {
+            if let Some(deps) = dependencies.get(name) {
+                let all_satisfied = deps.iter().all(|d| {
+                    visited.contains(d)
+                        || remaining_visited.contains(d)
+                        || cycle_members.contains(d)
+                });
+                if all_satisfied {
+                    remaining_queue.push_back(name.clone());
+                }
+            } else {
+                remaining_queue.push_back(name.clone());
+            }
+        }
+
+        while let Some(name) = remaining_queue.pop_front() {
+            if remaining_visited.contains(&name) {
+                continue;
+            }
+            remaining_visited.insert(name.clone());
+
+            let kind = entity_kinds.get(&name).copied().unwrap_or(EntityKind::Model);
             sorted.push((name.clone(), kind));
+
+            // Check if any remaining entity now has all deps satisfied
+            for (dependent, deps) in &dependencies {
+                if remaining.contains(dependent)
+                    && !remaining_visited.contains(dependent)
+                    && deps.iter().all(|d| {
+                        visited.contains(d)
+                            || remaining_visited.contains(d)
+                            || cycle_members.contains(d)
+                    })
+                {
+                    remaining_queue.push_back(dependent.clone());
+                }
+            }
+        }
+
+        // Finally, add any truly circular entities that still weren't processed
+        for name in &remaining {
+            if !remaining_visited.contains(name) {
+                let kind = entity_kinds.get(name).copied().unwrap_or(EntityKind::Model);
+                sorted.push((name.clone(), kind));
+            }
         }
     }
 
