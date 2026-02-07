@@ -359,7 +359,8 @@ pub fn extract_indexes(config: &JSON, _table_name: &str) -> Vec<IndexInfo> {
     indexes
 }
 
-/// Generate CREATE INDEX SQL for a single index
+/// Generate CREATE INDEX SQL for a single index.
+/// Index names are prefixed with the table name to ensure uniqueness across tables.
 pub fn generate_create_index_sql(
     index: &IndexInfo,
     table_name: &str,
@@ -367,6 +368,7 @@ pub fn generate_create_index_sql(
     dialect: Dialect,
 ) -> String {
     let mut sql = String::new();
+    let prefixed_name = format!("{}_{}", table_name, index.name);
 
     let field_names: Vec<String> = index
         .fields
@@ -377,7 +379,7 @@ pub fn generate_create_index_sql(
     if index.is_unique {
         sql.push_str(&format!(
             "CREATE UNIQUE INDEX {} ON {}{} ({});\n",
-            quote_identifier(&index.name, dialect),
+            quote_identifier(&prefixed_name, dialect),
             schema_prefix,
             quote_identifier(table_name, dialect),
             field_names.join(", ")
@@ -385,7 +387,7 @@ pub fn generate_create_index_sql(
     } else {
         sql.push_str(&format!(
             "CREATE INDEX {} ON {}{} ({})",
-            quote_identifier(&index.name, dialect),
+            quote_identifier(&prefixed_name, dialect),
             schema_prefix,
             quote_identifier(table_name, dialect),
             field_names.join(", ")
@@ -411,18 +413,21 @@ pub fn generate_create_index_sql(
     sql
 }
 
-/// Generate DROP INDEX SQL for a single index
+/// Generate DROP INDEX SQL for a single index.
+/// Index names are prefixed with the table name to match the CREATE INDEX naming convention.
 pub fn generate_drop_index_sql(
     index: &IndexInfo,
+    table_name: &str,
     schema_prefix: &str,
     dialect: Dialect,
 ) -> String {
+    let prefixed_name = format!("{}_{}", table_name, index.name);
     match dialect {
         Dialect::PostgreSQL => {
-            format!("DROP INDEX {}{};\n", schema_prefix, quote_identifier(&index.name, dialect))
+            format!("DROP INDEX {}{};\n", schema_prefix, quote_identifier(&prefixed_name, dialect))
         }
         Dialect::SQLite => {
-            format!("DROP INDEX {};\n", quote_identifier(&index.name, dialect))
+            format!("DROP INDEX {};\n", quote_identifier(&prefixed_name, dialect))
         }
     }
 }

@@ -277,7 +277,7 @@ fn test_generate_create_index_sql_regular_postgres() {
     };
 
     let sql = generate_create_index_sql(&index, "users", "", Dialect::PostgreSQL);
-    assert_eq!(sql, "CREATE INDEX \"idx_users_0\" ON \"users\" (\"email\");\n");
+    assert_eq!(sql, "CREATE INDEX \"users_idx_users_0\" ON \"users\" (\"email\");\n");
 }
 
 #[test]
@@ -292,7 +292,7 @@ fn test_generate_create_index_sql_unique_postgres() {
     };
 
     let sql = generate_create_index_sql(&index, "users", "", Dialect::PostgreSQL);
-    assert_eq!(sql, "CREATE UNIQUE INDEX \"idx_users_email\" ON \"users\" (\"email\");\n");
+    assert_eq!(sql, "CREATE UNIQUE INDEX \"users_idx_users_email\" ON \"users\" (\"email\");\n");
 }
 
 #[test]
@@ -369,7 +369,7 @@ fn test_generate_create_index_sql_sqlite() {
     let sql = generate_create_index_sql(&index, "users", "", Dialect::SQLite);
     assert!(!sql.contains("USING"));
     assert!(!sql.contains("WHERE"));
-    assert_eq!(sql, "CREATE INDEX \"idx_users_0\" ON \"users\" (\"email\");\n");
+    assert_eq!(sql, "CREATE INDEX \"users_idx_users_0\" ON \"users\" (\"email\");\n");
 }
 
 // ============================================================================
@@ -387,8 +387,8 @@ fn test_generate_drop_index_sql_postgres() {
         where_clause: None,
     };
 
-    let sql = generate_drop_index_sql(&index, "", Dialect::PostgreSQL);
-    assert_eq!(sql, "DROP INDEX \"idx_users_0\";\n");
+    let sql = generate_drop_index_sql(&index, "users", "", Dialect::PostgreSQL);
+    assert_eq!(sql, "DROP INDEX \"users_idx_users_0\";\n");
 }
 
 #[test]
@@ -402,8 +402,8 @@ fn test_generate_drop_index_sql_postgres_with_schema() {
         where_clause: None,
     };
 
-    let sql = generate_drop_index_sql(&index, "\"public\".", Dialect::PostgreSQL);
-    assert_eq!(sql, "DROP INDEX \"public\".\"idx_users_0\";\n");
+    let sql = generate_drop_index_sql(&index, "users", "\"public\".", Dialect::PostgreSQL);
+    assert_eq!(sql, "DROP INDEX \"public\".\"users_idx_users_0\";\n");
 }
 
 #[test]
@@ -417,8 +417,8 @@ fn test_generate_drop_index_sql_sqlite() {
         where_clause: None,
     };
 
-    let sql = generate_drop_index_sql(&index, "", Dialect::SQLite);
-    assert_eq!(sql, "DROP INDEX \"idx_users_0\";\n");
+    let sql = generate_drop_index_sql(&index, "users", "", Dialect::SQLite);
+    assert_eq!(sql, "DROP INDEX \"users_idx_users_0\";\n");
 }
 
 #[test]
@@ -432,8 +432,8 @@ fn test_generate_drop_index_sql_unique() {
         where_clause: None,
     };
 
-    let sql = generate_drop_index_sql(&index, "", Dialect::PostgreSQL);
-    assert_eq!(sql, "DROP INDEX \"idx_users_email\";\n");
+    let sql = generate_drop_index_sql(&index, "users", "", Dialect::PostgreSQL);
+    assert_eq!(sql, "DROP INDEX \"users_idx_users_email\";\n");
 }
 
 #[test]
@@ -497,6 +497,92 @@ fn test_should_skip_field_real_world_relation_config() {
         }
     });
     assert!(should_skip_field(&config), "should_skip_field should return true for real-world relation config with sql.skip: true");
+}
+
+// ============================================================================
+// Index name uniqueness tests (table-prefixed index names)
+// ============================================================================
+
+#[test]
+fn test_generate_create_index_sql_prefixes_with_table_name() {
+    // Index names must be prefixed with the table name to ensure uniqueness
+    // across tables. For example, if both "tasks" and "comments" have an index
+    // named "project_id", the generated SQL should use "tasks_project_id" and
+    // "comments_project_id" respectively.
+    let index = IndexInfo {
+        name: "project_id".to_string(),
+        fields: vec!["project_id".to_string()],
+        is_unique: false,
+        is_primary: false,
+        method: None,
+        where_clause: None,
+    };
+
+    let sql_tasks = generate_create_index_sql(&index, "tasks", "", Dialect::PostgreSQL);
+    let sql_comments = generate_create_index_sql(&index, "comments", "", Dialect::PostgreSQL);
+
+    assert_eq!(sql_tasks, "CREATE INDEX \"tasks_project_id\" ON \"tasks\" (\"project_id\");\n");
+    assert_eq!(sql_comments, "CREATE INDEX \"comments_project_id\" ON \"comments\" (\"project_id\");\n");
+}
+
+#[test]
+fn test_generate_create_index_sql_unique_prefixes_with_table_name() {
+    let index = IndexInfo {
+        name: "email_unique".to_string(),
+        fields: vec!["email".to_string()],
+        is_unique: true,
+        is_primary: false,
+        method: None,
+        where_clause: None,
+    };
+
+    let sql = generate_create_index_sql(&index, "users", "", Dialect::PostgreSQL);
+    assert_eq!(sql, "CREATE UNIQUE INDEX \"users_email_unique\" ON \"users\" (\"email\");\n");
+}
+
+#[test]
+fn test_generate_drop_index_sql_prefixes_with_table_name() {
+    let index = IndexInfo {
+        name: "project_id".to_string(),
+        fields: vec!["project_id".to_string()],
+        is_unique: false,
+        is_primary: false,
+        method: None,
+        where_clause: None,
+    };
+
+    let sql = generate_drop_index_sql(&index, "tasks", "", Dialect::PostgreSQL);
+    assert_eq!(sql, "DROP INDEX \"tasks_project_id\";\n");
+}
+
+#[test]
+fn test_generate_drop_index_sql_with_schema_prefixes_with_table_name() {
+    let index = IndexInfo {
+        name: "project_id".to_string(),
+        fields: vec!["project_id".to_string()],
+        is_unique: false,
+        is_primary: false,
+        method: None,
+        where_clause: None,
+    };
+
+    let sql = generate_drop_index_sql(&index, "tasks", "\"public\".", Dialect::PostgreSQL);
+    assert_eq!(sql, "DROP INDEX \"public\".\"tasks_project_id\";\n");
+}
+
+#[test]
+fn test_generate_create_index_sql_sqlite_prefixes_with_table_name() {
+    let index = IndexInfo {
+        name: "project_id".to_string(),
+        fields: vec!["project_id".to_string()],
+        is_unique: false,
+        is_primary: false,
+        method: None,
+        where_clause: None,
+    };
+
+    let sql = generate_create_index_sql(&index, "tasks", "", Dialect::SQLite);
+    assert_eq!(sql, "CREATE INDEX \"tasks_project_id\" ON \"tasks\" (\"project_id\");\n");
 }
 
 // ============================================================================

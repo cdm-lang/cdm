@@ -1180,7 +1180,7 @@ CREATE TABLE \"user\" (
   UNIQUE (\"email\")
 );
 
-CREATE INDEX \"created_at_idx\" ON \"user\" (\"created_at\");
+CREATE INDEX \"user_created_at_idx\" ON \"user\" (\"created_at\");
 
 ";
     assert_eq!(files[0].content, expected_up);
@@ -1284,7 +1284,7 @@ fn test_migrate_model_with_composite_index_added() {
 CREATE TABLE \"post\" (
 );
 
-CREATE INDEX \"idx_user_created\" ON \"post\" (\"user_id\", \"created_at\");
+CREATE INDEX \"post_idx_user_created\" ON \"post\" (\"user_id\", \"created_at\");
 
 ";
     assert_eq!(files[0].content, expected_up);
@@ -1337,7 +1337,7 @@ fn test_migrate_model_with_partial_index_postgres() {
 CREATE TABLE \"user\" (
 );
 
-CREATE INDEX \"idx_active_users\" ON \"user\" (\"email\") WHERE active = TRUE;
+CREATE INDEX \"user_idx_active_users\" ON \"user\" (\"email\") WHERE active = TRUE;
 
 ";
     assert_eq!(files[0].content, expected_up);
@@ -1390,7 +1390,7 @@ fn test_migrate_model_with_index_method_postgres() {
 CREATE TABLE \"document\" (
 );
 
-CREATE INDEX \"idx_content_gin\" ON \"document\" (\"content\") USING GIN;
+CREATE INDEX \"document_idx_content_gin\" ON \"document\" (\"content\") USING GIN;
 
 ";
     assert_eq!(files[0].content, expected_up);
@@ -1453,7 +1453,7 @@ fn test_migrate_model_with_multiple_constraint_types() {
     assert!(up_content.contains("PRIMARY KEY (\"id\")"), "Should have PRIMARY KEY on id");
     assert!(up_content.contains("UNIQUE (\"email\")"), "Should have UNIQUE on email");
     assert!(up_content.contains("UNIQUE (\"username\")"), "Should have UNIQUE on username");
-    assert!(up_content.contains("CREATE INDEX \"created_at_idx\" ON \"user\" (\"created_at\")"),
+    assert!(up_content.contains("CREATE INDEX \"user_created_at_idx\" ON \"user\" (\"created_at\")"),
         "Should have regular index on created_at");
 
     // Check down migration
@@ -1532,7 +1532,7 @@ fn test_migrate_model_config_changed_indexes() {
     // Check that down migration has DROP INDEX
     let down_content = &files[1].content;
     assert!(down_content.contains("DROP INDEX"), "Expected DROP INDEX in down migration, got: {}", down_content);
-    assert!(down_content.contains("email_unique"), "Expected index name in down migration, got: {}", down_content);
+    assert!(down_content.contains("user_email_unique"), "Expected index name in down migration, got: {}", down_content);
 }
 
 #[test]
@@ -1627,7 +1627,7 @@ fn test_migrate_model_removed_with_indexes() {
     assert!(down_content.contains("CREATE TABLE"));
     assert!(down_content.contains("PRIMARY KEY"));
     assert!(down_content.contains("CREATE INDEX"));
-    assert!(down_content.contains("\"idx_email\""));
+    assert!(down_content.contains("\"user_idx_email\""));
 }
 
 #[test]
@@ -1775,7 +1775,7 @@ fn test_migrate_with_schema_prefix_and_indexes() {
 CREATE TABLE \"public\".\"user\" (
 );
 
-CREATE INDEX \"idx_email\" ON \"public\".\"user\" (\"email\");
+CREATE INDEX \"user_idx_email\" ON \"public\".\"user\" (\"email\");
 
 ";
     assert_eq!(files[0].content, expected_up);
@@ -1836,11 +1836,11 @@ fn test_migrate_multiple_indexes_different_types() {
     let up_content = &files[0].content;
     assert!(up_content.contains("CREATE TABLE \"document\""), "Should create document table");
     assert!(up_content.contains("PRIMARY KEY (\"id\")"), "Should have PRIMARY KEY on id");
-    assert!(up_content.contains("CREATE INDEX \"idx_title\" ON \"document\" (\"title\")"),
+    assert!(up_content.contains("CREATE INDEX \"document_idx_title\" ON \"document\" (\"title\")"),
         "Should have title index");
-    assert!(up_content.contains("CREATE INDEX \"idx_content_gin\" ON \"document\" (\"content\") USING GIN"),
+    assert!(up_content.contains("CREATE INDEX \"document_idx_content_gin\" ON \"document\" (\"content\") USING GIN"),
         "Should have GIN index on content");
-    assert!(up_content.contains("CREATE INDEX \"idx_published\" ON \"document\" (\"published_at\") WHERE published_at IS NOT NULL"),
+    assert!(up_content.contains("CREATE INDEX \"document_idx_published\" ON \"document\" (\"published_at\") WHERE published_at IS NOT NULL"),
         "Should have partial index on published_at");
 
     // Check down migration

@@ -541,7 +541,7 @@ pub fn migrate(
                                 up_content.push('\n');
 
                                 // Generate DROP INDEX for down migration
-                                down_content.push_str(&generate_drop_index_sql(after_idx, &schema_prefix_str, dialect));
+                                down_content.push_str(&generate_drop_index_sql(after_idx, &table_name, &schema_prefix_str, dialect));
                                 down_content.push('\n');
                             }
                         }
@@ -563,7 +563,7 @@ pub fn migrate(
                                 ));
                             } else {
                                 // Generate DROP INDEX for up migration
-                                up_content.push_str(&generate_drop_index_sql(before_idx, &schema_prefix_str, dialect));
+                                up_content.push_str(&generate_drop_index_sql(before_idx, &table_name, &schema_prefix_str, dialect));
                                 up_content.push('\n');
 
                                 // Generate CREATE INDEX for down migration
