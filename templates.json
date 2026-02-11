@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-01-29T21:25:00Z",
+  "updated_at": "2026-02-11T17:42:21Z",
   "templates": {
     "sql-types": {
       "description": "SQL type definitions for CDM schemas",
@@ -26,9 +26,13 @@
         "1.0.9": {
           "download_url": "https://github.com/cdm-lang/cdm/releases/download/cdm-template-sql-types-v1.0.9/sql-types-1.0.9.tar.gz",
           "checksum": "sha256:9f38a11d2b63de8ba7f29dacb7f0a120e3fdcfd135f780a2eed247b40c71456d"
+        },
+        "1.0.12": {
+          "download_url": "https://github.com/cdm-lang/cdm/releases/download/cdm-template-sql-types-v1.0.12/sql-types-1.0.12.tar.gz",
+          "checksum": "sha256:b980c141cc2cce4b384bb161e1b2b15086393b4f21d30cb898749b517d4824cc"
         }
       },
-      "latest": "1.0.9"
+      "latest": "1.0.12"
     }
   }
 }
