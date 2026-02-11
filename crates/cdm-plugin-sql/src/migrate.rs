@@ -265,18 +265,23 @@ pub fn migrate(
 
                 match dialect {
                     Dialect::PostgreSQL => {
+                        let quoted_col = quote_identifier(&column_name, dialect);
                         up_content.push_str(&format!(
-                            "ALTER TABLE {} ALTER COLUMN {} TYPE {};\n\n",
+                            "ALTER TABLE {} ALTER COLUMN {} TYPE {} USING {}::{};\n\n",
                             full_table_name,
-                            quote_identifier(&column_name, dialect),
+                            quoted_col,
+                            new_type,
+                            quoted_col,
                             new_type
                         ));
 
                         let old_type = type_mapper.map_type(before, false);
                         down_content.push_str(&format!(
-                            "ALTER TABLE {} ALTER COLUMN {} TYPE {};\n\n",
+                            "ALTER TABLE {} ALTER COLUMN {} TYPE {} USING {}::{};\n\n",
                             full_table_name,
-                            quote_identifier(&column_name, dialect),
+                            quoted_col,
+                            old_type,
+                            quoted_col,
                             old_type
                         ));
                     }
@@ -665,16 +670,21 @@ pub fn migrate(
 
                         match dialect {
                             Dialect::PostgreSQL => {
+                                let quoted_col = quote_identifier(&column_name, dialect);
                                 up_content.push_str(&format!(
-                                    "ALTER TABLE {} ALTER COLUMN {} TYPE {};\n\n",
+                                    "ALTER TABLE {} ALTER COLUMN {} TYPE {} USING {}::{};\n\n",
                                     full_table_name,
-                                    quote_identifier(&column_name, dialect),
+                                    quoted_col,
+                                    new_sql_type,
+                                    quoted_col,
                                     new_sql_type
                                 ));
                                 down_content.push_str(&format!(
-                                    "ALTER TABLE {} ALTER COLUMN {} TYPE {};\n\n",
+                                    "ALTER TABLE {} ALTER COLUMN {} TYPE {} USING {}::{};\n\n",
                                     full_table_name,
-                                    quote_identifier(&column_name, dialect),
+                                    quoted_col,
+                                    old_sql_type,
+                                    quoted_col,
                                     old_sql_type
                                 ));
                             }
