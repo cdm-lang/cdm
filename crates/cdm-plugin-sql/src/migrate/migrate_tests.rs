@@ -722,8 +722,85 @@ fn test_migrate_field_type_changed_postgres() {
     assert!(files[0].content.contains("TYPE"));
     assert!(files[0].content.contains("VARCHAR(255)"));
 
+    // Verify USING clause is present for PostgreSQL type changes
+    assert!(
+        files[0].content.contains("USING \"age\"::VARCHAR(255)"),
+        "UP migration should include USING clause. Got:\n{}",
+        files[0].content
+    );
+
     // Down migration reverts type
     assert!(files[1].content.contains("DOUBLE PRECISION"));
+    assert!(
+        files[1].content.contains("USING \"age\"::DOUBLE PRECISION"),
+        "DOWN migration should include USING clause. Got:\n{}",
+        files[1].content
+    );
+}
+
+#[test]
+fn test_migrate_field_type_changed_to_json_postgres() {
+    use cdm_plugin_interface::TypeExpression;
+
+    let mut models = HashMap::new();
+    models.insert(
+        "Document".to_string(),
+        ModelDefinition {
+            name: "Document".to_string(),
+            entity_id: local_id(1),
+            parents: vec![],
+            fields: vec![FieldDefinition {
+                name: "metadata".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "JSON".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({}),
+                entity_id: local_id(2),
+            }],
+            config: serde_json::json!({}),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models,
+    };
+
+    let deltas = vec![Delta::FieldTypeChanged {
+        model: "Document".to_string(),
+        field: "metadata".to_string(),
+        before: TypeExpression::Identifier {
+            name: "string".to_string(),
+        },
+        after: TypeExpression::Identifier {
+            name: "JSON".to_string(),
+        },
+    }];
+
+    let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+    assert_eq!(files.len(), 2);
+
+    let up_sql = &files[0].content;
+    let down_sql = &files[1].content;
+
+    // UP migration: string -> JSON maps to VARCHAR(255) -> JSONB with USING clause
+    assert!(
+        up_sql.contains("ALTER TABLE \"document\" ALTER COLUMN \"metadata\" TYPE JSONB USING \"metadata\"::JSONB;"),
+        "UP migration should include ALTER COLUMN TYPE with USING clause for JSONB. Got:\n{}",
+        up_sql
+    );
+
+    // DOWN migration: JSONB -> VARCHAR(255) with USING clause
+    assert!(
+        down_sql.contains("USING \"metadata\"::VARCHAR(255)"),
+        "DOWN migration should include USING clause. Got:\n{}",
+        down_sql
+    );
 }
 
 #[test]
@@ -4528,10 +4605,24 @@ fn test_migrate_field_config_changed_type_override_postgres() {
         up_sql
     );
 
+    // Verify USING clause is present
+    assert!(
+        up_sql.contains("USING \"id\"::VARCHAR(100)"),
+        "UP migration should include USING clause. Got:\n{}",
+        up_sql
+    );
+
     // DOWN migration should revert to old type
     assert!(
         down_sql.contains("ALTER COLUMN") && down_sql.contains("TYPE") && down_sql.contains("UUID"),
         "DOWN migration should ALTER COLUMN TYPE back to UUID. Got:\n{}",
+        down_sql
+    );
+
+    // Verify USING clause in down migration
+    assert!(
+        down_sql.contains("USING \"id\"::UUID"),
+        "DOWN migration should include USING clause. Got:\n{}",
         down_sql
     );
 }
