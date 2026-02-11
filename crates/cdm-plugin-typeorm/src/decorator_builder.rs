@@ -33,6 +33,21 @@ impl DecoratorBuilder {
         Self::new("PrimaryColumn")
     }
 
+    /// Create a @CreateDateColumn decorator
+    pub fn create_date_column() -> Self {
+        Self::new("CreateDateColumn")
+    }
+
+    /// Create an @UpdateDateColumn decorator
+    pub fn update_date_column() -> Self {
+        Self::new("UpdateDateColumn")
+    }
+
+    /// Create a @DeleteDateColumn decorator
+    pub fn delete_date_column() -> Self {
+        Self::new("DeleteDateColumn")
+    }
+
     /// Create a @PrimaryGeneratedColumn decorator with generation strategy
     pub fn primary_generated_column(strategy: Option<&str>) -> Self {
         let mut builder = Self::new("PrimaryGeneratedColumn");

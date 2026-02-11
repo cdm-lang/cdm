@@ -510,8 +510,41 @@ fn validate_field_config(
         );
     }
 
-    // Error if both primary and relation are specified
-    if config.get("primary").is_some() && config.get("relation").is_some() {
+    // Validate date column booleans
+    for key in ["create_date", "update_date", "delete_date"] {
+        if let Some(val) = config.get(key) {
+            if !val.is_boolean() {
+                errors.push(ValidationError {
+                    path: vec![
+                        PathSegment {
+                            kind: "model".to_string(),
+                            name: model_name.to_string(),
+                        },
+                        PathSegment {
+                            kind: "field".to_string(),
+                            name: field_name.to_string(),
+                        },
+                        PathSegment {
+                            kind: "config".to_string(),
+                            name: key.to_string(),
+                        },
+                    ],
+                    message: format!("{} must be a boolean", key),
+                    severity: Severity::Error,
+                });
+            }
+        }
+    }
+
+    // Error if more than one of primary, relation, create_date, update_date, delete_date are specified
+    let exclusive_flags = [
+        config.get("primary").is_some(),
+        config.get("relation").is_some(),
+        config.get("create_date").and_then(|v| v.as_bool()).unwrap_or(false),
+        config.get("update_date").and_then(|v| v.as_bool()).unwrap_or(false),
+        config.get("delete_date").and_then(|v| v.as_bool()).unwrap_or(false),
+    ];
+    if exclusive_flags.iter().filter(|&&v| v).count() > 1 {
         errors.push(ValidationError {
             path: vec![
                 PathSegment {
@@ -523,7 +556,7 @@ fn validate_field_config(
                     name: field_name.to_string(),
                 },
             ],
-            message: "field cannot have both 'primary' and 'relation' configuration".to_string(),
+            message: "field cannot have more than one of: 'primary', 'relation', 'create_date', 'update_date', 'delete_date'".to_string(),
             severity: Severity::Error,
         });
     }
