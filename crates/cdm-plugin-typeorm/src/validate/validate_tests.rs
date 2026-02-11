@@ -241,7 +241,7 @@ fn test_validate_field_config_primary_and_relation_error() {
         &utils,
     );
 
-    assert!(errors.iter().any(|e| e.message.contains("cannot have both")));
+    assert!(errors.iter().any(|e| e.message.contains("cannot have more than one")));
 }
 
 #[test]
@@ -1151,4 +1151,193 @@ fn test_validate_field_level_join_table_with_nested_join_columns() {
     );
 
     assert!(errors.is_empty());
+}
+
+// Date column validation tests
+
+#[test]
+fn test_validate_field_config_valid_create_date() {
+    let config = serde_json::json!({ "create_date": true });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Field {
+            model: "User".to_string(),
+            field: "createdAt".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert!(errors.is_empty());
+}
+
+#[test]
+fn test_validate_field_config_valid_update_date() {
+    let config = serde_json::json!({ "update_date": true });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Field {
+            model: "User".to_string(),
+            field: "updatedAt".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert!(errors.is_empty());
+}
+
+#[test]
+fn test_validate_field_config_valid_delete_date() {
+    let config = serde_json::json!({ "delete_date": true });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Field {
+            model: "User".to_string(),
+            field: "deletedAt".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert!(errors.is_empty());
+}
+
+#[test]
+fn test_validate_field_config_create_date_not_boolean() {
+    let config = serde_json::json!({ "create_date": "yes" });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Field {
+            model: "User".to_string(),
+            field: "createdAt".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert_eq!(errors.len(), 1);
+    assert!(errors[0].message.contains("create_date must be a boolean"));
+}
+
+#[test]
+fn test_validate_field_config_update_date_not_boolean() {
+    let config = serde_json::json!({ "update_date": 123 });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Field {
+            model: "User".to_string(),
+            field: "updatedAt".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert_eq!(errors.len(), 1);
+    assert!(errors[0].message.contains("update_date must be a boolean"));
+}
+
+#[test]
+fn test_validate_field_config_delete_date_not_boolean() {
+    let config = serde_json::json!({ "delete_date": "true" });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Field {
+            model: "User".to_string(),
+            field: "deletedAt".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert_eq!(errors.len(), 1);
+    assert!(errors[0].message.contains("delete_date must be a boolean"));
+}
+
+#[test]
+fn test_validate_field_config_create_date_and_primary_error() {
+    let config = serde_json::json!({
+        "primary": { "generation": "uuid" },
+        "create_date": true
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Field {
+            model: "User".to_string(),
+            field: "id".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert!(errors.iter().any(|e| e.message.contains("cannot have more than one")));
+}
+
+#[test]
+fn test_validate_field_config_create_date_and_update_date_error() {
+    let config = serde_json::json!({
+        "create_date": true,
+        "update_date": true
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Field {
+            model: "User".to_string(),
+            field: "date".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert!(errors.iter().any(|e| e.message.contains("cannot have more than one")));
+}
+
+#[test]
+fn test_validate_field_config_delete_date_and_relation_error() {
+    let config = serde_json::json!({
+        "delete_date": true,
+        "relation": { "type": "many_to_one" }
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Field {
+            model: "User".to_string(),
+            field: "author".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    assert!(errors.iter().any(|e| e.message.contains("cannot have more than one")));
+}
+
+#[test]
+fn test_validate_field_config_create_date_false_no_error() {
+    // create_date: false should not trigger mutual exclusivity
+    let config = serde_json::json!({
+        "primary": { "generation": "uuid" },
+        "create_date": false
+    });
+    let utils = Utils;
+
+    let errors = validate_config(
+        ConfigLevel::Field {
+            model: "User".to_string(),
+            field: "id".to_string(),
+        },
+        config,
+        &utils,
+    );
+
+    // Should not have the "more than one" error since create_date is false
+    assert!(!errors.iter().any(|e| e.message.contains("cannot have more than one")));
 }

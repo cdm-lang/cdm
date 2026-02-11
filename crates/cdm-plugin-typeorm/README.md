@@ -474,6 +474,9 @@ User {
 | `array` | `boolean` | `false` | Array column |
 | `comment` | `string` | - | Column comment |
 | `definite_assignment` | `boolean` | model/global setting | Override definite assignment for this field |
+| `create_date` | `boolean` | `false` | Auto-set timestamp on insert (`@CreateDateColumn`) |
+| `update_date` | `boolean` | `false` | Auto-set timestamp on insert/update (`@UpdateDateColumn`) |
+| `delete_date` | `boolean` | `false` | Auto-set timestamp on soft-delete (`@DeleteDateColumn`) |
 
 ## TypeScript Type Override (ts_type)
 
@@ -805,6 +808,119 @@ export class User {
     id!: string
 }
 ```
+
+## Date Columns
+
+TypeORM provides special column decorators for automatic date management. These generate `@CreateDateColumn()`, `@UpdateDateColumn()`, or `@DeleteDateColumn()` instead of `@Column()`.
+
+### @CreateDateColumn
+
+Automatically sets the column value to the current timestamp when the entity is first inserted:
+
+```cdm
+User {
+  id: string {
+    @typeorm { primary: { generation: "uuid" } }
+  } #1
+
+  createdAt: string {
+    @typeorm { create_date: true }
+  } #2
+} #10
+```
+
+**Generated TypeScript:**
+
+```typescript
+import { Entity, PrimaryGeneratedColumn, CreateDateColumn } from "typeorm"
+
+@Entity({ name: "users" })
+export class User {
+    @PrimaryGeneratedColumn("uuid")
+    id!: string
+
+    @CreateDateColumn()
+    createdAt!: string
+}
+```
+
+### @UpdateDateColumn
+
+Automatically sets the column value to the current timestamp on every insert and update:
+
+```cdm
+User {
+  id: string {
+    @typeorm { primary: { generation: "uuid" } }
+  } #1
+
+  updatedAt: string {
+    @typeorm { update_date: true }
+  } #2
+} #10
+```
+
+**Generated TypeScript:**
+
+```typescript
+import { Entity, PrimaryGeneratedColumn, UpdateDateColumn } from "typeorm"
+
+@Entity({ name: "users" })
+export class User {
+    @PrimaryGeneratedColumn("uuid")
+    id!: string
+
+    @UpdateDateColumn()
+    updatedAt!: string
+}
+```
+
+### @DeleteDateColumn
+
+For soft deletes — automatically sets the column value when `softRemove()` is called. Typically used with optional fields:
+
+```cdm
+User {
+  id: string {
+    @typeorm { primary: { generation: "uuid" } }
+  } #1
+
+  deletedAt?: string {
+    @typeorm { delete_date: true }
+  } #2
+} #10
+```
+
+**Generated TypeScript:**
+
+```typescript
+import { Entity, PrimaryGeneratedColumn, DeleteDateColumn } from "typeorm"
+
+@Entity({ name: "users" })
+export class User {
+    @PrimaryGeneratedColumn("uuid")
+    id!: string
+
+    @DeleteDateColumn({ nullable: true })
+    deletedAt?: string
+}
+```
+
+### Date Column Options
+
+All date column decorators support the same options as regular columns:
+
+```cdm
+createdAt: string {
+  @typeorm {
+    create_date: true,
+    type: "timestamp with time zone",
+    column: "created_at"
+  }
+} #2
+```
+
+> **Note:** `create_date`, `update_date`, and `delete_date` are mutually exclusive with each other and with `primary` and `relation`.
 
 ## Definite Assignment Assertion
 

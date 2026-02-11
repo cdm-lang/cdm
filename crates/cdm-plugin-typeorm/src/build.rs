@@ -355,6 +355,17 @@ fn generate_field(
         return generate_primary_field(field, primary, model_config, cfg, utils, type_mapper, imports);
     }
 
+    // Check for special date column decorators
+    if field.config.get("create_date").and_then(|v| v.as_bool()).unwrap_or(false) {
+        return generate_column_field_with_decorator(field, "CreateDateColumn", model_config, cfg, utils, type_mapper, imports);
+    }
+    if field.config.get("update_date").and_then(|v| v.as_bool()).unwrap_or(false) {
+        return generate_column_field_with_decorator(field, "UpdateDateColumn", model_config, cfg, utils, type_mapper, imports);
+    }
+    if field.config.get("delete_date").and_then(|v| v.as_bool()).unwrap_or(false) {
+        return generate_column_field_with_decorator(field, "DeleteDateColumn", model_config, cfg, utils, type_mapper, imports);
+    }
+
     // Regular column
     generate_column_field(field, model_config, cfg, utils, type_mapper, imports)
 }
@@ -416,11 +427,28 @@ fn generate_column_field(
     type_mapper: &TypeMapper,
     imports: &mut ImportCollector,
 ) -> String {
+    generate_column_field_with_decorator(field, "Column", model_config, cfg, utils, type_mapper, imports)
+}
+
+fn generate_column_field_with_decorator(
+    field: &FieldDefinition,
+    decorator_name: &str,
+    model_config: &JSON,
+    cfg: &Config,
+    utils: &Utils,
+    type_mapper: &TypeMapper,
+    imports: &mut ImportCollector,
+) -> String {
     let mut result = String::new();
 
-    imports.add_typeorm("Column");
+    imports.add_typeorm(decorator_name);
 
-    let mut column_builder = DecoratorBuilder::column();
+    let mut column_builder = match decorator_name {
+        "CreateDateColumn" => DecoratorBuilder::create_date_column(),
+        "UpdateDateColumn" => DecoratorBuilder::update_date_column(),
+        "DeleteDateColumn" => DecoratorBuilder::delete_date_column(),
+        _ => DecoratorBuilder::column(),
+    };
 
     // Column name override
     let column_name = get_column_name(&field.name, &field.config, cfg, utils);

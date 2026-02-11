@@ -1891,3 +1891,324 @@ fn test_definite_assignment_relation_fields() {
         content
     );
 }
+
+// Date column decorator tests
+
+fn create_test_schema_with_date_columns() -> Schema {
+    let mut models = HashMap::new();
+
+    let user_model = ModelDefinition {
+        name: "User".to_string(),
+        parents: vec![],
+        fields: vec![
+            FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "primary": { "generation": "uuid" }
+                }),
+                entity_id: None,
+            },
+            FieldDefinition {
+                name: "createdAt".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({ "create_date": true }),
+                entity_id: None,
+            },
+            FieldDefinition {
+                name: "updatedAt".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({ "update_date": true }),
+                entity_id: None,
+            },
+            FieldDefinition {
+                name: "deletedAt".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: true,
+                default: None,
+                config: serde_json::json!({ "delete_date": true }),
+                entity_id: None,
+            },
+        ],
+        config: serde_json::json!({}),
+        entity_id: None,
+    };
+    models.insert("User".to_string(), user_model);
+
+    Schema {
+        models,
+        type_aliases: HashMap::new(),
+    }
+}
+
+#[test]
+fn test_build_generates_create_date_column() {
+    let schema = create_test_schema_with_date_columns();
+    let config = serde_json::json!({});
+    let utils = Utils;
+    let files = build(schema, config, &utils);
+
+    let content = &files[0].content;
+    assert!(
+        content.contains("@CreateDateColumn()"),
+        "Should generate @CreateDateColumn decorator. Content: {}",
+        content
+    );
+}
+
+#[test]
+fn test_build_generates_update_date_column() {
+    let schema = create_test_schema_with_date_columns();
+    let config = serde_json::json!({});
+    let utils = Utils;
+    let files = build(schema, config, &utils);
+
+    let content = &files[0].content;
+    assert!(
+        content.contains("@UpdateDateColumn()"),
+        "Should generate @UpdateDateColumn decorator. Content: {}",
+        content
+    );
+}
+
+#[test]
+fn test_build_generates_delete_date_column() {
+    let schema = create_test_schema_with_date_columns();
+    let config = serde_json::json!({});
+    let utils = Utils;
+    let files = build(schema, config, &utils);
+
+    let content = &files[0].content;
+    assert!(
+        content.contains("@DeleteDateColumn({ nullable: true })"),
+        "Should generate @DeleteDateColumn decorator with nullable. Content: {}",
+        content
+    );
+}
+
+#[test]
+fn test_build_date_column_imports() {
+    let schema = create_test_schema_with_date_columns();
+    let config = serde_json::json!({});
+    let utils = Utils;
+    let files = build(schema, config, &utils);
+
+    let content = &files[0].content;
+    assert!(
+        content.contains("CreateDateColumn"),
+        "Should import CreateDateColumn. Content: {}",
+        content
+    );
+    assert!(
+        content.contains("UpdateDateColumn"),
+        "Should import UpdateDateColumn. Content: {}",
+        content
+    );
+    assert!(
+        content.contains("DeleteDateColumn"),
+        "Should import DeleteDateColumn. Content: {}",
+        content
+    );
+    assert!(
+        content.contains("from \"typeorm\""),
+        "Should import from typeorm. Content: {}",
+        content
+    );
+}
+
+#[test]
+fn test_build_date_column_does_not_use_column_decorator() {
+    let schema = create_test_schema_with_date_columns();
+    let config = serde_json::json!({});
+    let utils = Utils;
+    let files = build(schema, config, &utils);
+
+    let content = &files[0].content;
+    // The only @Column-like decorators should be the date-specific ones
+    // The import line should NOT include plain "Column"
+    assert!(
+        !content.contains("import { Column"),
+        "Should NOT import plain Column when only date columns are used. Content: {}",
+        content
+    );
+}
+
+#[test]
+fn test_build_create_date_column_with_type_override() {
+    let mut models = HashMap::new();
+    let user_model = ModelDefinition {
+        name: "User".to_string(),
+        parents: vec![],
+        fields: vec![
+            FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "primary": { "generation": "uuid" }
+                }),
+                entity_id: None,
+            },
+            FieldDefinition {
+                name: "createdAt".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "create_date": true,
+                    "type": "timestamp with time zone"
+                }),
+                entity_id: None,
+            },
+        ],
+        config: serde_json::json!({}),
+        entity_id: None,
+    };
+    models.insert("User".to_string(), user_model);
+
+    let schema = Schema {
+        models,
+        type_aliases: HashMap::new(),
+    };
+    let config = serde_json::json!({});
+    let utils = Utils;
+    let files = build(schema, config, &utils);
+
+    let content = &files[0].content;
+    assert!(
+        content.contains("@CreateDateColumn({ type: \"timestamp with time zone\" })"),
+        "Should include type option in CreateDateColumn. Content: {}",
+        content
+    );
+}
+
+#[test]
+fn test_build_delete_date_column_optional() {
+    let mut models = HashMap::new();
+    let user_model = ModelDefinition {
+        name: "User".to_string(),
+        parents: vec![],
+        fields: vec![
+            FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "primary": { "generation": "uuid" }
+                }),
+                entity_id: None,
+            },
+            FieldDefinition {
+                name: "deletedAt".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: true,
+                default: None,
+                config: serde_json::json!({ "delete_date": true }),
+                entity_id: None,
+            },
+        ],
+        config: serde_json::json!({}),
+        entity_id: None,
+    };
+    models.insert("User".to_string(), user_model);
+
+    let schema = Schema {
+        models,
+        type_aliases: HashMap::new(),
+    };
+    let config = serde_json::json!({});
+    let utils = Utils;
+    let files = build(schema, config, &utils);
+
+    let content = &files[0].content;
+    assert!(
+        content.contains("@DeleteDateColumn({ nullable: true })"),
+        "Optional delete date field should have nullable. Content: {}",
+        content
+    );
+    assert!(
+        content.contains("deletedAt?:"),
+        "Optional delete date field should have ? marker. Content: {}",
+        content
+    );
+}
+
+#[test]
+fn test_build_create_date_false_uses_regular_column() {
+    let mut models = HashMap::new();
+    let user_model = ModelDefinition {
+        name: "User".to_string(),
+        parents: vec![],
+        fields: vec![
+            FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "primary": { "generation": "uuid" }
+                }),
+                entity_id: None,
+            },
+            FieldDefinition {
+                name: "createdAt".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({ "create_date": false }),
+                entity_id: None,
+            },
+        ],
+        config: serde_json::json!({}),
+        entity_id: None,
+    };
+    models.insert("User".to_string(), user_model);
+
+    let schema = Schema {
+        models,
+        type_aliases: HashMap::new(),
+    };
+    let config = serde_json::json!({});
+    let utils = Utils;
+    let files = build(schema, config, &utils);
+
+    let content = &files[0].content;
+    assert!(
+        !content.contains("@CreateDateColumn"),
+        "create_date: false should NOT generate @CreateDateColumn. Content: {}",
+        content
+    );
+    assert!(
+        content.contains("@Column()"),
+        "create_date: false should fall through to regular @Column. Content: {}",
+        content
+    );
+}

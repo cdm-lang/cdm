@@ -111,6 +111,18 @@ FieldSettings {
 
   // Override definite assignment assertion for this field
   definite_assignment?: boolean
+
+  // Use @CreateDateColumn() — auto-set timestamp on insert
+  // Mutually exclusive with primary, relation, update_date, delete_date
+  create_date?: boolean
+
+  // Use @UpdateDateColumn() — auto-set timestamp on insert and update
+  // Mutually exclusive with primary, relation, create_date, delete_date
+  update_date?: boolean
+
+  // Use @DeleteDateColumn() — auto-set timestamp on soft-delete
+  // Mutually exclusive with primary, relation, create_date, update_date
+  delete_date?: boolean
 }
 
 // Index configuration (reuses SQL plugin structure, without primary flag)

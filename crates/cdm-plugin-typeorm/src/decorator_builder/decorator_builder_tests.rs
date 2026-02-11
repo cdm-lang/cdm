@@ -207,3 +207,34 @@ fn test_after_recover_decorator() {
     let decorator = DecoratorBuilder::after_recover().build();
     assert_eq!(decorator, "@AfterRecover()");
 }
+
+// Date column decorator tests
+
+#[test]
+fn test_create_date_column_decorator() {
+    let decorator = DecoratorBuilder::create_date_column().build();
+    assert_eq!(decorator, "@CreateDateColumn()");
+}
+
+#[test]
+fn test_update_date_column_decorator() {
+    let decorator = DecoratorBuilder::update_date_column().build();
+    assert_eq!(decorator, "@UpdateDateColumn()");
+}
+
+#[test]
+fn test_delete_date_column_decorator() {
+    let decorator = DecoratorBuilder::delete_date_column().build();
+    assert_eq!(decorator, "@DeleteDateColumn()");
+}
+
+#[test]
+fn test_create_date_column_with_options() {
+    let decorator = DecoratorBuilder::create_date_column()
+        .string_option("type", "timestamp")
+        .string_option("name", "created_at")
+        .build();
+    assert!(decorator.contains("@CreateDateColumn("));
+    assert!(decorator.contains("type: \"timestamp\""));
+    assert!(decorator.contains("name: \"created_at\""));
+}
