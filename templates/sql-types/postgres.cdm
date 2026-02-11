@@ -1,6 +1,9 @@
 // PostgreSQL Type Definitions for CDM
+
 // Provides native PostgreSQL data type mappings for use with the SQL plugin.
+
 // Import sql plugin to enable @sql { type: "..." } annotations
+
 @sql
 
 // These types map to PostgreSQL native data types
@@ -107,11 +110,11 @@ UUID: string {
 
 // JSON Types
 
-SQLJSON: string {
+SQLJSON: JSON {
   @sql { type: "JSON" }
 } #70
 
-JSONB: string {
+JSONB: JSON {
   @sql { type: "JSONB" }
 } #71
 

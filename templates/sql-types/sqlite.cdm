@@ -1,5 +1,7 @@
 // SQLite Type Definitions
+
 // Import sql plugin to enable @sql { type: "..." } annotations
+
 @sql
 
 // SQLite uses a dynamic type system with storage classes and type affinities
@@ -132,7 +134,7 @@ UUID: string {
   @sql { type: "TEXT" }
 } #50
 
-SQLJSON: string {
+SQLJSON: JSON {
   @sql { type: "TEXT" }
 } #51
 
