@@ -4948,3 +4948,352 @@ fn test_migrate_field_config_changed_default_removed_postgres() {
         down_sql
     );
 }
+
+#[test]
+fn test_field_removed_with_index_drops_index_before_column() {
+    use cdm_plugin_interface::TypeExpression;
+
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            entity_id: local_id(1),
+            parents: vec![],
+            fields: vec![],
+            config: serde_json::json!({}),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models,
+    };
+
+    let deltas = vec![
+        Delta::FieldRemoved {
+            model: "User".to_string(),
+            field: "email".to_string(),
+            before: FieldDefinition {
+                name: "email".to_string(),
+                field_type: TypeExpression::Identifier { name: "string".to_string() },
+                optional: false,
+                entity_id: local_id(2),
+                default: None,
+                config: serde_json::json!({}),
+            },
+        },
+        Delta::ModelConfigChanged {
+            model: "User".to_string(),
+            before: serde_json::json!({
+                "indexes": {
+                    "email_idx": { "fields": ["email"] }
+                }
+            }),
+            after: serde_json::json!({}),
+        },
+    ];
+
+    let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+    assert_eq!(files.len(), 2);
+
+    let up_sql = &files[0].content;
+    let down_sql = &files[1].content;
+
+    // UP: DROP INDEX must come before DROP COLUMN
+    let drop_index_pos = up_sql.find("DROP INDEX").expect("UP should contain DROP INDEX");
+    let drop_column_pos = up_sql.find("DROP COLUMN").expect("UP should contain DROP COLUMN");
+    assert!(
+        drop_index_pos < drop_column_pos,
+        "UP migration: DROP INDEX must come before DROP COLUMN.\nGot:\n{}",
+        up_sql
+    );
+
+    // DOWN: ADD COLUMN must come before CREATE INDEX
+    let add_column_pos = down_sql.find("ADD COLUMN").expect("DOWN should contain ADD COLUMN");
+    let create_index_pos = down_sql.find("CREATE INDEX").expect("DOWN should contain CREATE INDEX");
+    assert!(
+        add_column_pos < create_index_pos,
+        "DOWN migration: ADD COLUMN must come before CREATE INDEX.\nGot:\n{}",
+        down_sql
+    );
+}
+
+#[test]
+fn test_field_added_with_index_adds_column_before_index() {
+    use cdm_plugin_interface::TypeExpression;
+
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            entity_id: local_id(1),
+            parents: vec![],
+            fields: vec![FieldDefinition {
+                name: "email".to_string(),
+                field_type: TypeExpression::Identifier { name: "string".to_string() },
+                optional: false,
+                entity_id: local_id(2),
+                default: None,
+                config: serde_json::json!({}),
+            }],
+            config: serde_json::json!({}),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models,
+    };
+
+    let deltas = vec![
+        Delta::FieldAdded {
+            model: "User".to_string(),
+            field: "email".to_string(),
+            after: FieldDefinition {
+                name: "email".to_string(),
+                field_type: TypeExpression::Identifier { name: "string".to_string() },
+                optional: false,
+                entity_id: local_id(2),
+                default: None,
+                config: serde_json::json!({}),
+            },
+        },
+        Delta::ModelConfigChanged {
+            model: "User".to_string(),
+            before: serde_json::json!({}),
+            after: serde_json::json!({
+                "indexes": {
+                    "email_idx": { "fields": ["email"] }
+                }
+            }),
+        },
+    ];
+
+    let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+    assert_eq!(files.len(), 2);
+
+    let up_sql = &files[0].content;
+    let down_sql = &files[1].content;
+
+    // UP: ADD COLUMN must come before CREATE INDEX
+    let add_column_pos = up_sql.find("ADD COLUMN").expect("UP should contain ADD COLUMN");
+    let create_index_pos = up_sql.find("CREATE INDEX").expect("UP should contain CREATE INDEX");
+    assert!(
+        add_column_pos < create_index_pos,
+        "UP migration: ADD COLUMN must come before CREATE INDEX.\nGot:\n{}",
+        up_sql
+    );
+
+    // DOWN: DROP INDEX must come before DROP COLUMN
+    let drop_index_pos = down_sql.find("DROP INDEX").expect("DOWN should contain DROP INDEX");
+    let drop_column_pos = down_sql.find("DROP COLUMN").expect("DOWN should contain DROP COLUMN");
+    assert!(
+        drop_index_pos < drop_column_pos,
+        "DOWN migration: DROP INDEX must come before DROP COLUMN.\nGot:\n{}",
+        down_sql
+    );
+}
+
+#[test]
+fn test_migration_ordering_independent_of_delta_order() {
+    use cdm_plugin_interface::TypeExpression;
+
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            entity_id: local_id(1),
+            parents: vec![],
+            fields: vec![],
+            config: serde_json::json!({}),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models,
+    };
+
+    // Deltas in REVERSE order: ModelConfigChanged first, then FieldRemoved
+    let deltas = vec![
+        Delta::ModelConfigChanged {
+            model: "User".to_string(),
+            before: serde_json::json!({
+                "indexes": {
+                    "email_idx": { "fields": ["email"] }
+                }
+            }),
+            after: serde_json::json!({}),
+        },
+        Delta::FieldRemoved {
+            model: "User".to_string(),
+            field: "email".to_string(),
+            before: FieldDefinition {
+                name: "email".to_string(),
+                field_type: TypeExpression::Identifier { name: "string".to_string() },
+                optional: false,
+                entity_id: local_id(2),
+                default: None,
+                config: serde_json::json!({}),
+            },
+        },
+    ];
+
+    let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+    assert_eq!(files.len(), 2);
+
+    let up_sql = &files[0].content;
+    let down_sql = &files[1].content;
+
+    // UP: DROP INDEX must come before DROP COLUMN, regardless of delta order
+    let drop_index_pos = up_sql.find("DROP INDEX").expect("UP should contain DROP INDEX");
+    let drop_column_pos = up_sql.find("DROP COLUMN").expect("UP should contain DROP COLUMN");
+    assert!(
+        drop_index_pos < drop_column_pos,
+        "UP migration: DROP INDEX must come before DROP COLUMN even with reversed delta order.\nGot:\n{}",
+        up_sql
+    );
+
+    // DOWN: ADD COLUMN must come before CREATE INDEX
+    let add_column_pos = down_sql.find("ADD COLUMN").expect("DOWN should contain ADD COLUMN");
+    let create_index_pos = down_sql.find("CREATE INDEX").expect("DOWN should contain CREATE INDEX");
+    assert!(
+        add_column_pos < create_index_pos,
+        "DOWN migration: ADD COLUMN must come before CREATE INDEX.\nGot:\n{}",
+        down_sql
+    );
+}
+
+#[test]
+fn test_multiple_fields_and_indexes_ordering() {
+    use cdm_plugin_interface::TypeExpression;
+
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            entity_id: local_id(1),
+            parents: vec![],
+            fields: vec![FieldDefinition {
+                name: "phone".to_string(),
+                field_type: TypeExpression::Identifier { name: "string".to_string() },
+                optional: false,
+                entity_id: local_id(3),
+                default: None,
+                config: serde_json::json!({}),
+            }],
+            config: serde_json::json!({}),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models,
+    };
+
+    let deltas = vec![
+        Delta::FieldRemoved {
+            model: "User".to_string(),
+            field: "email".to_string(),
+            before: FieldDefinition {
+                name: "email".to_string(),
+                field_type: TypeExpression::Identifier { name: "string".to_string() },
+                optional: false,
+                entity_id: local_id(2),
+                default: None,
+                config: serde_json::json!({}),
+            },
+        },
+        Delta::FieldAdded {
+            model: "User".to_string(),
+            field: "phone".to_string(),
+            after: FieldDefinition {
+                name: "phone".to_string(),
+                field_type: TypeExpression::Identifier { name: "string".to_string() },
+                optional: false,
+                entity_id: local_id(3),
+                default: None,
+                config: serde_json::json!({}),
+            },
+        },
+        Delta::ModelConfigChanged {
+            model: "User".to_string(),
+            before: serde_json::json!({
+                "indexes": {
+                    "email_idx": { "fields": ["email"] }
+                }
+            }),
+            after: serde_json::json!({
+                "indexes": {
+                    "phone_idx": { "fields": ["phone"] }
+                }
+            }),
+        },
+    ];
+
+    let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+    assert_eq!(files.len(), 2);
+
+    let up_sql = &files[0].content;
+    let down_sql = &files[1].content;
+
+    // UP ordering: DROP INDEX email_idx -> DROP COLUMN email -> ADD COLUMN phone -> CREATE INDEX phone_idx
+    let drop_index_pos = up_sql.find("DROP INDEX").expect("UP should contain DROP INDEX");
+    let drop_column_pos = up_sql.find("DROP COLUMN").expect("UP should contain DROP COLUMN");
+    let add_column_pos = up_sql.find("ADD COLUMN").expect("UP should contain ADD COLUMN");
+    let create_index_pos = up_sql.find("CREATE INDEX").expect("UP should contain CREATE INDEX");
+
+    assert!(
+        drop_index_pos < drop_column_pos,
+        "UP: DROP INDEX must come before DROP COLUMN.\nGot:\n{}",
+        up_sql
+    );
+    assert!(
+        drop_column_pos < add_column_pos,
+        "UP: DROP COLUMN must come before ADD COLUMN.\nGot:\n{}",
+        up_sql
+    );
+    assert!(
+        add_column_pos < create_index_pos,
+        "UP: ADD COLUMN must come before CREATE INDEX.\nGot:\n{}",
+        up_sql
+    );
+
+    // DOWN ordering: DROP INDEX phone_idx -> DROP COLUMN phone -> ADD COLUMN email -> CREATE INDEX email_idx
+    let down_drop_index_pos = down_sql.find("DROP INDEX").expect("DOWN should contain DROP INDEX");
+    let down_drop_column_pos = down_sql.find("DROP COLUMN").expect("DOWN should contain DROP COLUMN");
+    let down_add_column_pos = down_sql.find("ADD COLUMN").expect("DOWN should contain ADD COLUMN");
+    let down_create_index_pos = down_sql.find("CREATE INDEX").expect("DOWN should contain CREATE INDEX");
+
+    assert!(
+        down_drop_index_pos < down_drop_column_pos,
+        "DOWN: DROP INDEX must come before DROP COLUMN.\nGot:\n{}",
+        down_sql
+    );
+    assert!(
+        down_drop_column_pos < down_add_column_pos,
+        "DOWN: DROP COLUMN must come before ADD COLUMN.\nGot:\n{}",
+        down_sql
+    );
+    assert!(
+        down_add_column_pos < down_create_index_pos,
+        "DOWN: ADD COLUMN must come before CREATE INDEX.\nGot:\n{}",
+        down_sql
+    );
+}
