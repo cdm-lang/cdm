@@ -1,6 +1,6 @@
 [package]
 name = "cdm-plugin-sql"
-version = "0.1.15"
+version = "0.1.19"
 edition = "2024"
 license = "MPL-2.0"
 
