@@ -30,11 +30,11 @@ jobs:
             target: aarch64-apple-darwin
             binary_name: cdm
           - platform: x86_64-unknown-linux-gnu
-            os: ubuntu-latest
+            os: ubuntu-22.04
             target: x86_64-unknown-linux-gnu
             binary_name: cdm
           - platform: aarch64-unknown-linux-gnu
-            os: ubuntu-latest
+            os: ubuntu-22.04
             target: aarch64-unknown-linux-gnu
             binary_name: cdm
           - platform: x86_64-pc-windows-msvc
