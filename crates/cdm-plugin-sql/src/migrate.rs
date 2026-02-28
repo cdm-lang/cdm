@@ -37,6 +37,19 @@ impl MigrationStatements {
         }
     }
 
+    /// Returns true if there are no statements in any category.
+    fn is_empty(&self) -> bool {
+        self.comments.is_empty()
+            && self.drop_indexes.is_empty()
+            && self.drop_tables.is_empty()
+            && self.alter_columns.is_empty()
+            && self.add_columns.is_empty()
+            && self.create_tables.is_empty()
+            && self.rename_tables.is_empty()
+            && self.create_indexes.is_empty()
+            && self.pk_comments.is_empty()
+    }
+
     /// Emit all statements in the correct dependency order.
     fn emit(&self) -> String {
         let mut result = String::new();
@@ -291,6 +304,13 @@ pub fn migrate(
 
                 let column_name = get_column_name(field, &field_def.config, &config);
                 let new_type = type_mapper.map_type(after, false);
+                let old_type = type_mapper.map_type(before, false);
+
+                // Skip if the SQL type hasn't actually changed (e.g. enum value changes
+                // where both before and after map to VARCHAR)
+                if new_type == old_type {
+                    continue;
+                }
 
                 let schema_prefix = get_schema_prefix(&config, dialect);
                 let full_table_name = if let Some(prefix) = &schema_prefix {
@@ -311,7 +331,6 @@ pub fn migrate(
                             new_type
                         ));
 
-                        let old_type = type_mapper.map_type(before, false);
                         down_stmts.alter_columns.push(format!(
                             "ALTER TABLE {} ALTER COLUMN {} TYPE {} USING {}::{};\n\n",
                             full_table_name,
@@ -784,6 +803,12 @@ pub fn migrate(
                 }
             }
         }
+    }
+
+    // If all deltas were skipped (e.g. enum value changes with no SQL type change),
+    // return empty files
+    if up_stmts.is_empty() && down_stmts.is_empty() {
+        return files;
     }
 
     // Assemble final migration content with header + ordered statements

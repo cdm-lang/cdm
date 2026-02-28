@@ -2071,8 +2071,12 @@ fn test_migrate_model_config_changed_no_indexes() {
 
     let files = migrate(schema, deltas, config, &utils);
 
-    // Should have files but no index changes since no indexes are defined
-    assert_eq!(files.len(), 2);
+    // No actual SQL changes (just config metadata), so no migration files should be generated
+    assert!(
+        files.is_empty(),
+        "Config-only changes with no SQL impact should not generate migration files. Got {} files",
+        files.len()
+    );
 }
 
 #[test]
@@ -2565,13 +2569,14 @@ fn test_migrate_model_config_changed_primary_key_added_from_empty() {
     let utils = Utils;
 
     let files = migrate(schema, deltas, config, &utils);
-    assert_eq!(files.len(), 2);
 
-    // Should NOT show manual migration comment when before config was empty
-    // (inherited indexes becoming explicit is not an actual schema change)
-    let up_content = &files[0].content;
-    assert!(!up_content.contains("Primary key change requires manual migration"),
-        "Should not show spurious manual migration comment when before config was empty, got: {}", up_content);
+    // No actual SQL changes (inherited indexes becoming explicit is not an actual schema change),
+    // so no migration files should be generated
+    assert!(
+        files.is_empty(),
+        "Inherited indexes becoming explicit should not generate migration files. Got {} files",
+        files.len()
+    );
 }
 
 #[test]
@@ -3763,16 +3768,13 @@ fn test_bug_08_no_spurious_primary_key_change_comment() {
     let utils = Utils;
 
     let files = migrate(schema, deltas, config, &utils);
-    assert_eq!(files.len(), 2);
 
-    let up_content = &files[0].content;
-
-    // Should NOT contain spurious manual migration comment for primary key
-    // The primary key didn't actually change - it was just represented differently
+    // No actual SQL changes (PK didn't actually change, just represented differently),
+    // so no migration files should be generated
     assert!(
-        !up_content.contains("Primary key change requires manual migration"),
-        "Should NOT generate spurious 'Primary key change' comment when PK didn't actually change. Got:\n{}",
-        up_content
+        files.is_empty(),
+        "Should NOT generate migration files when PK didn't actually change. Got {} files",
+        files.len()
     );
 }
 
@@ -5295,5 +5297,173 @@ fn test_multiple_fields_and_indexes_ordering() {
         down_add_column_pos < down_create_index_pos,
         "DOWN: ADD COLUMN must come before CREATE INDEX.\nGot:\n{}",
         down_sql
+    );
+}
+
+#[test]
+fn test_migrate_enum_value_change_is_noop_postgres() {
+    // When enum values change but the SQL type stays the same (VARCHAR -> VARCHAR),
+    // no migration should be generated.
+    use cdm_plugin_interface::TypeExpression;
+
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            entity_id: local_id(1),
+            parents: vec![],
+            fields: vec![FieldDefinition {
+                name: "status".to_string(),
+                field_type: TypeExpression::Union {
+                    types: vec![
+                        TypeExpression::StringLiteral {
+                            value: "active".to_string(),
+                        },
+                        TypeExpression::StringLiteral {
+                            value: "inactive".to_string(),
+                        },
+                        TypeExpression::StringLiteral {
+                            value: "pending".to_string(),
+                        },
+                    ],
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({}),
+                entity_id: local_id(2),
+            }],
+            config: serde_json::json!({}),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models,
+    };
+
+    let deltas = vec![Delta::FieldTypeChanged {
+        model: "User".to_string(),
+        field: "status".to_string(),
+        before: TypeExpression::Union {
+            types: vec![
+                TypeExpression::StringLiteral {
+                    value: "active".to_string(),
+                },
+                TypeExpression::StringLiteral {
+                    value: "inactive".to_string(),
+                },
+            ],
+        },
+        after: TypeExpression::Union {
+            types: vec![
+                TypeExpression::StringLiteral {
+                    value: "active".to_string(),
+                },
+                TypeExpression::StringLiteral {
+                    value: "inactive".to_string(),
+                },
+                TypeExpression::StringLiteral {
+                    value: "pending".to_string(),
+                },
+            ],
+        },
+    }];
+
+    let config = serde_json::json!({ "dialect": "postgresql", "pluralize_table_names": false });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+
+    // No migration files should be generated since VARCHAR -> VARCHAR is a noop
+    assert!(
+        files.is_empty(),
+        "Changing enum values should not generate a migration when the SQL type stays the same. Got {} files:\n{}",
+        files.len(),
+        files.iter().map(|f| format!("{}: {}", f.path, f.content)).collect::<Vec<_>>().join("\n---\n")
+    );
+}
+
+#[test]
+fn test_migrate_enum_value_change_is_noop_sqlite() {
+    // When enum values change but the SQL type stays the same (TEXT -> TEXT),
+    // no migration should be generated.
+    use cdm_plugin_interface::TypeExpression;
+
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: "User".to_string(),
+            entity_id: local_id(1),
+            parents: vec![],
+            fields: vec![FieldDefinition {
+                name: "status".to_string(),
+                field_type: TypeExpression::Union {
+                    types: vec![
+                        TypeExpression::StringLiteral {
+                            value: "active".to_string(),
+                        },
+                        TypeExpression::StringLiteral {
+                            value: "inactive".to_string(),
+                        },
+                        TypeExpression::StringLiteral {
+                            value: "pending".to_string(),
+                        },
+                    ],
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({}),
+                entity_id: local_id(2),
+            }],
+            config: serde_json::json!({}),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models,
+    };
+
+    let deltas = vec![Delta::FieldTypeChanged {
+        model: "User".to_string(),
+        field: "status".to_string(),
+        before: TypeExpression::Union {
+            types: vec![
+                TypeExpression::StringLiteral {
+                    value: "active".to_string(),
+                },
+                TypeExpression::StringLiteral {
+                    value: "inactive".to_string(),
+                },
+            ],
+        },
+        after: TypeExpression::Union {
+            types: vec![
+                TypeExpression::StringLiteral {
+                    value: "active".to_string(),
+                },
+                TypeExpression::StringLiteral {
+                    value: "inactive".to_string(),
+                },
+                TypeExpression::StringLiteral {
+                    value: "pending".to_string(),
+                },
+            ],
+        },
+    }];
+
+    let config = serde_json::json!({ "dialect": "sqlite", "pluralize_table_names": false });
+    let utils = Utils;
+
+    let files = migrate(schema, deltas, config, &utils);
+
+    // No migration files should be generated since TEXT -> TEXT is a noop
+    assert!(
+        files.is_empty(),
+        "Changing enum values should not generate a migration when the SQL type stays the same. Got {} files:\n{}",
+        files.len(),
+        files.iter().map(|f| format!("{}: {}", f.path, f.content)).collect::<Vec<_>>().join("\n---\n")
     );
 }
