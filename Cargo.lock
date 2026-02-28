@@ -355,7 +355,7 @@ dependencies = [
 
 [[package]]
 name = "cdm-plugin-sql"
-version = "0.1.19"
+version = "0.1.22"
 dependencies = [
  "cdm-plugin-interface",
  "serde",
