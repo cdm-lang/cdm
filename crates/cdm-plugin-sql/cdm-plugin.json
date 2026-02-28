@@ -1,6 +1,6 @@
 {
   "name": "sql",
-  "version": "0.1.19",
+  "version": "0.1.22",
   "description": "Generate SQL DDL schemas and migrations for PostgreSQL and SQLite",
   "docs": "https://github.com/cdm-lang/cdm/blob/main/crates/cdm-plugin-sql/README.md",
   "schema": "schema.cdm",
