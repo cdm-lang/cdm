@@ -2212,3 +2212,244 @@ fn test_build_create_date_false_uses_regular_column() {
         content
     );
 }
+
+#[test]
+fn test_jsonb_column_with_model_reference_generates_import() {
+    let mut models = HashMap::new();
+
+    let exposed_port_model = ModelDefinition {
+        name: "ExposedPort".to_string(),
+        parents: vec![],
+        fields: vec![
+            FieldDefinition {
+                name: "port".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "number".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({}),
+                entity_id: None,
+            },
+        ],
+        config: serde_json::json!({}),
+        entity_id: None,
+    };
+    models.insert("ExposedPort".to_string(), exposed_port_model);
+
+    let project_model = ModelDefinition {
+        name: "Project".to_string(),
+        parents: vec![],
+        fields: vec![
+            FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "primary": { "generation": "uuid" }
+                }),
+                entity_id: None,
+            },
+            FieldDefinition {
+                name: "exposed_ports".to_string(),
+                field_type: TypeExpression::Array {
+                    element_type: Box::new(TypeExpression::Identifier {
+                        name: "ExposedPort".to_string(),
+                    }),
+                },
+                optional: true,
+                default: None,
+                config: serde_json::json!({
+                    "type": "jsonb"
+                }),
+                entity_id: None,
+            },
+        ],
+        config: serde_json::json!({}),
+        entity_id: None,
+    };
+    models.insert("Project".to_string(), project_model);
+
+    let schema = Schema {
+        models,
+        type_aliases: HashMap::new(),
+    };
+    let config = serde_json::json!({
+        "entity_file_strategy": "per_model"
+    });
+    let utils = Utils;
+    let files = build(schema, config, &utils);
+
+    let project_file = files.iter().find(|f| f.path == "Project.ts").unwrap();
+    let content = &project_file.content;
+
+    assert!(
+        content.contains("import { ExposedPort } from \"./ExposedPort\""),
+        "JSONB column with model reference should generate entity import. Content:\n{}",
+        content
+    );
+    assert!(
+        content.contains("exposed_ports?: ExposedPort[]"),
+        "JSONB column should use model array type. Content:\n{}",
+        content
+    );
+}
+
+#[test]
+fn test_jsonb_column_with_model_reference_single_type() {
+    let mut models = HashMap::new();
+
+    let config_model = ModelDefinition {
+        name: "AppConfig".to_string(),
+        parents: vec![],
+        fields: vec![
+            FieldDefinition {
+                name: "key".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({}),
+                entity_id: None,
+            },
+        ],
+        config: serde_json::json!({}),
+        entity_id: None,
+    };
+    models.insert("AppConfig".to_string(), config_model);
+
+    let settings_model = ModelDefinition {
+        name: "Settings".to_string(),
+        parents: vec![],
+        fields: vec![
+            FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "primary": { "generation": "uuid" }
+                }),
+                entity_id: None,
+            },
+            FieldDefinition {
+                name: "app_config".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "AppConfig".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "type": "jsonb"
+                }),
+                entity_id: None,
+            },
+        ],
+        config: serde_json::json!({}),
+        entity_id: None,
+    };
+    models.insert("Settings".to_string(), settings_model);
+
+    let schema = Schema {
+        models,
+        type_aliases: HashMap::new(),
+    };
+    let config = serde_json::json!({
+        "entity_file_strategy": "per_model"
+    });
+    let utils = Utils;
+    let files = build(schema, config, &utils);
+
+    let settings_file = files.iter().find(|f| f.path == "Settings.ts").unwrap();
+    let content = &settings_file.content;
+
+    assert!(
+        content.contains("import { AppConfig } from \"./AppConfig\""),
+        "JSONB column with single model reference should generate entity import. Content:\n{}",
+        content
+    );
+}
+
+#[test]
+fn test_ts_type_override_does_not_add_entity_import() {
+    let mut models = HashMap::new();
+
+    let exposed_port_model = ModelDefinition {
+        name: "ExposedPort".to_string(),
+        parents: vec![],
+        fields: vec![],
+        config: serde_json::json!({}),
+        entity_id: None,
+    };
+    models.insert("ExposedPort".to_string(), exposed_port_model);
+
+    let project_model = ModelDefinition {
+        name: "Project".to_string(),
+        parents: vec![],
+        fields: vec![
+            FieldDefinition {
+                name: "id".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: false,
+                default: None,
+                config: serde_json::json!({
+                    "primary": { "generation": "uuid" }
+                }),
+                entity_id: None,
+            },
+            FieldDefinition {
+                name: "exposed_ports".to_string(),
+                field_type: TypeExpression::Array {
+                    element_type: Box::new(TypeExpression::Identifier {
+                        name: "ExposedPort".to_string(),
+                    }),
+                },
+                optional: true,
+                default: None,
+                config: serde_json::json!({
+                    "type": "jsonb",
+                    "ts_type": {
+                        "type": "CustomPort[]",
+                        "import": "./types/ports"
+                    }
+                }),
+                entity_id: None,
+            },
+        ],
+        config: serde_json::json!({}),
+        entity_id: None,
+    };
+    models.insert("Project".to_string(), project_model);
+
+    let schema = Schema {
+        models,
+        type_aliases: HashMap::new(),
+    };
+    let config = serde_json::json!({
+        "entity_file_strategy": "per_model"
+    });
+    let utils = Utils;
+    let files = build(schema, config, &utils);
+
+    let project_file = files.iter().find(|f| f.path == "Project.ts").unwrap();
+    let content = &project_file.content;
+
+    assert!(
+        !content.contains("import { ExposedPort }"),
+        "ts_type override should prevent entity import for the model reference. Content:\n{}",
+        content
+    );
+    assert!(
+        content.contains("import { CustomPort[] } from \"./types/ports\""),
+        "ts_type override import should be present. Content:\n{}",
+        content
+    );
+}

@@ -1,6 +1,6 @@
 use super::*;
 use cdm_plugin_interface::TypeExpression;
-use std::collections::HashMap;
+use std::collections::{BTreeSet, HashMap};
 
 fn create_test_mapper() -> TypeMapper<'static> {
     static TYPE_ALIASES: std::sync::OnceLock<HashMap<String, cdm_plugin_interface::TypeAliasDefinition>> = std::sync::OnceLock::new();
@@ -98,4 +98,72 @@ fn test_is_model_array() {
         }),
     };
     assert!(!mapper.is_model_array(&string_array));
+}
+
+#[test]
+fn test_collect_model_references_array_of_model() {
+    let mapper = create_test_mapper();
+    let type_expr = TypeExpression::Array {
+        element_type: Box::new(TypeExpression::Identifier {
+            name: "Post".to_string(),
+        }),
+    };
+    let mut refs = BTreeSet::new();
+    mapper.collect_model_references(&type_expr, &mut refs);
+    assert_eq!(refs.len(), 1);
+    assert!(refs.contains("Post"));
+}
+
+#[test]
+fn test_collect_model_references_skips_primitives() {
+    let mapper = create_test_mapper();
+    let type_expr = TypeExpression::Identifier {
+        name: "string".to_string(),
+    };
+    let mut refs = BTreeSet::new();
+    mapper.collect_model_references(&type_expr, &mut refs);
+    assert!(refs.is_empty());
+}
+
+#[test]
+fn test_collect_model_references_resolves_type_alias() {
+    static TYPE_ALIASES: std::sync::OnceLock<HashMap<String, cdm_plugin_interface::TypeAliasDefinition>> = std::sync::OnceLock::new();
+    let type_aliases = TYPE_ALIASES.get_or_init(|| {
+        let mut map = HashMap::new();
+        map.insert(
+            "PortConfig".to_string(),
+            cdm_plugin_interface::TypeAliasDefinition {
+                name: "PortConfig".to_string(),
+                alias_type: TypeExpression::Identifier {
+                    name: "User".to_string(),
+                },
+                config: serde_json::json!({}),
+                entity_id: None,
+            },
+        );
+        map
+    });
+    let config = serde_json::json!({});
+    let model_names = vec!["User".to_string(), "Post".to_string()];
+    let mapper = TypeMapper::new(&config, type_aliases, model_names);
+
+    let type_expr = TypeExpression::Identifier {
+        name: "PortConfig".to_string(),
+    };
+    let mut refs = BTreeSet::new();
+    mapper.collect_model_references(&type_expr, &mut refs);
+    assert_eq!(refs.len(), 1);
+    assert!(refs.contains("User"));
+}
+
+#[test]
+fn test_collect_model_references_identifier_model() {
+    let mapper = create_test_mapper();
+    let type_expr = TypeExpression::Identifier {
+        name: "User".to_string(),
+    };
+    let mut refs = BTreeSet::new();
+    mapper.collect_model_references(&type_expr, &mut refs);
+    assert_eq!(refs.len(), 1);
+    assert!(refs.contains("User"));
 }
