@@ -259,6 +259,43 @@ impl<'a> TypeMapper<'a> {
         }
     }
 
+    /// Collect all model names referenced by a TypeExpression, resolving through type aliases.
+    /// This mirrors the resolution logic of map_to_typescript_type() but instead of building
+    /// a type string, it collects the model names that would appear in the output.
+    pub fn collect_model_references(
+        &self,
+        type_expr: &TypeExpression,
+        references: &mut std::collections::BTreeSet<String>,
+    ) {
+        match type_expr {
+            TypeExpression::Identifier { name } => {
+                match name.as_str() {
+                    "string" | "number" | "boolean" | "JSON" => {}
+                    _ => {
+                        if let Some(type_alias) = self.type_aliases.get(name) {
+                            self.collect_model_references(&type_alias.alias_type, references);
+                        } else if self.models.contains(name) {
+                            references.insert(name.clone());
+                        }
+                    }
+                }
+            }
+            TypeExpression::Array { element_type } => {
+                self.collect_model_references(element_type, references);
+            }
+            TypeExpression::Union { types } => {
+                for t in types {
+                    self.collect_model_references(t, references);
+                }
+            }
+            TypeExpression::Map { value_type, key_type } => {
+                self.collect_model_references(value_type, references);
+                self.collect_model_references(key_type, references);
+            }
+            TypeExpression::StringLiteral { .. } | TypeExpression::NumberLiteral { .. } => {}
+        }
+    }
+
     /// Map a CDM key type expression to a TypeScript type for Record keys
     fn map_key_to_typescript_type(&self, type_expr: &TypeExpression) -> String {
         match type_expr {

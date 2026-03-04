@@ -735,7 +735,18 @@ fn resolve_typescript_type(
     }
 
     // 3. Fall back to default type mapping
-    type_mapper.map_to_typescript_type(&field.field_type)
+    let ts_type = type_mapper.map_to_typescript_type(&field.field_type);
+
+    // Add entity imports for any model references in the field type.
+    // This handles cases like JSONB columns typed as ExposedPort[] where
+    // the type appears in the output but isn't a relation field.
+    let mut model_refs = BTreeSet::new();
+    type_mapper.collect_model_references(&field.field_type, &mut model_refs);
+    for model_ref in model_refs {
+        imports.add_entity(&model_ref);
+    }
+
+    ts_type
 }
 
 fn should_skip_model(config: &JSON) -> bool {
