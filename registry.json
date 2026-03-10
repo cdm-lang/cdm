@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-03-04T23:36:47Z",
+  "updated_at": "2026-03-10T23:00:01Z",
   "plugins": {
     "sql": {
       "description": "Generate SQL DDL schemas and migrations for PostgreSQL and SQLite",
@@ -284,6 +284,19 @@
       },
       "latest": "0.1.9",
       "docs": "https://github.com/cdm-lang/cdm/blob/main/crates/cdm-plugin-trpc/README.md"
+    },
+    "rust": {
+      "description": "Generate Rust types from CDM schemas",
+      "repository": "git:https://github.com/cdm-lang/cdm.git",
+      "official": true,
+      "versions": {
+        "0.1.0": {
+          "wasm_url": "https://github.com/cdm-lang/cdm/releases/download/cdm-plugin-rust-v0.1.0/cdm_plugin_rust.wasm",
+          "checksum": "sha256:ed5b9e642c92a72409ff37a69946ea93d19496066bc49618e0e67e26c123c6d7"
+        }
+      },
+      "latest": "0.1.0",
+      "docs": "https://github.com/cdm-lang/cdm/blob/main/crates/cdm-plugin-rust/README.md"
     }
   }
 }
