@@ -1,0 +1,204 @@
+{
+  "models": {
+    "User": {
+      "name": "User",
+      "parents": [],
+      "fields": [
+        {
+          "name": "id",
+          "field_type": {
+            "type": "identifier",
+            "name": "string"
+          },
+          "optional": false,
+          "default": null,
+          "config": {},
+          "entity_id": {
+            "type": "local",
+            "local_id": 1
+          }
+        },
+        {
+          "name": "name",
+          "field_type": {
+            "type": "identifier",
+            "name": "string"
+          },
+          "optional": false,
+          "default": null,
+          "config": {},
+          "entity_id": {
+            "type": "local",
+            "local_id": 2
+          }
+        },
+        {
+          "name": "email",
+          "field_type": {
+            "type": "identifier",
+            "name": "Email"
+          },
+          "optional": true,
+          "default": null,
+          "config": {},
+          "entity_id": {
+            "type": "local",
+            "local_id": 3
+          }
+        },
+        {
+          "name": "status",
+          "field_type": {
+            "type": "identifier",
+            "name": "Status"
+          },
+          "optional": false,
+          "default": null,
+          "config": {},
+          "entity_id": {
+            "type": "local",
+            "local_id": 4
+          }
+        },
+        {
+          "name": "age",
+          "field_type": {
+            "type": "identifier",
+            "name": "number"
+          },
+          "optional": true,
+          "default": null,
+          "config": {},
+          "entity_id": {
+            "type": "local",
+            "local_id": 5
+          }
+        },
+        {
+          "name": "tags",
+          "field_type": {
+            "type": "array",
+            "element_type": {
+              "type": "identifier",
+              "name": "string"
+            }
+          },
+          "optional": false,
+          "default": null,
+          "config": {},
+          "entity_id": {
+            "type": "local",
+            "local_id": 6
+          }
+        },
+        {
+          "name": "metadata",
+          "field_type": {
+            "type": "identifier",
+            "name": "JSON"
+          },
+          "optional": true,
+          "default": null,
+          "config": {},
+          "entity_id": {
+            "type": "local",
+            "local_id": 7
+          }
+        }
+      ],
+      "config": {},
+      "entity_id": {
+        "type": "local",
+        "local_id": 10
+      }
+    },
+    "Post": {
+      "name": "Post",
+      "parents": [],
+      "fields": [
+        {
+          "name": "id",
+          "field_type": {
+            "type": "identifier",
+            "name": "string"
+          },
+          "optional": false,
+          "default": null,
+          "config": {},
+          "entity_id": {
+            "type": "local",
+            "local_id": 1
+          }
+        },
+        {
+          "name": "title",
+          "field_type": {
+            "type": "identifier",
+            "name": "string"
+          },
+          "optional": false,
+          "default": null,
+          "config": {},
+          "entity_id": {
+            "type": "local",
+            "local_id": 2
+          }
+        },
+        {
+          "name": "author",
+          "field_type": {
+            "type": "identifier",
+            "name": "User"
+          },
+          "optional": false,
+          "default": null,
+          "config": {},
+          "entity_id": {
+            "type": "local",
+            "local_id": 3
+          }
+        }
+      ],
+      "config": {},
+      "entity_id": {
+        "type": "local",
+        "local_id": 11
+      }
+    }
+  },
+  "type_aliases": {
+    "Email": {
+      "name": "Email",
+      "alias_type": {
+        "type": "identifier",
+        "name": "string"
+      },
+      "config": {},
+      "entity_id": {
+        "type": "local",
+        "local_id": 1
+      }
+    },
+    "Status": {
+      "name": "Status",
+      "alias_type": {
+        "type": "union",
+        "types": [
+          {
+            "type": "string_literal",
+            "value": "active"
+          },
+          {
+            "type": "string_literal",
+            "value": "inactive"
+          }
+        ]
+      },
+      "config": {},
+      "entity_id": {
+        "type": "local",
+        "local_id": 2
+      }
+    }
+  }
+}

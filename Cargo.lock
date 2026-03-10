@@ -354,6 +354,15 @@ dependencies = [
 ]
 
 [[package]]
+name = "cdm-plugin-rust"
+version = "0.1.0"
+dependencies = [
+ "cdm-plugin-interface",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
 name = "cdm-plugin-sql"
 version = "0.1.23"
 dependencies = [

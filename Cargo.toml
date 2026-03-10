@@ -11,6 +11,7 @@ members = [
     "crates/cdm-plugin-trpc",
     "crates/cdm-plugin-typeorm",
     "crates/cdm-plugin-json-schema",
+    "crates/cdm-plugin-rust",
     "crates/cdm-json-validator",
     "crates/cdm-utils",
     "tests",

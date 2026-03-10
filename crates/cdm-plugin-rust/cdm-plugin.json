@@ -1,0 +1,14 @@
+{
+  "name": "rust",
+  "version": "0.1.0",
+  "description": "Generate Rust types from CDM schemas",
+  "docs": "https://github.com/cdm-lang/cdm/blob/main/crates/cdm-plugin-rust/README.md",
+  "schema": "schema.cdm",
+  "wasm": {
+    "file": "target/wasm32-wasip1/release/cdm_plugin_rust.wasm",
+    "release_url": "https://github.com/cdm-lang/cdm/releases/download/cdm-plugin-rust-v{version}/cdm_plugin_rust.wasm"
+  },
+  "capabilities": [
+    "build"
+  ]
+}

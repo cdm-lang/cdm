@@ -1,0 +1,39 @@
+// Rust Plugin Configuration Schema
+//
+// Note: build_output is a CDM-level setting handled by the CDM CLI,
+// not by plugins. It is automatically filtered out before plugin
+// validation. Do not include it in plugin schemas.
+
+GlobalSettings {
+  file_strategy?: "single" | "per_model"
+  single_file_name?: string
+  derive_macros?: string
+  serde_support?: boolean
+  type_name_format?: "preserve" | "pascal" | "camel" | "snake" | "kebab" | "constant"
+  field_name_format?: "preserve" | "pascal" | "camel" | "snake" | "kebab" | "constant"
+  number_type?: "f64" | "f32" | "i32" | "i64" | "u32" | "u64"
+  map_type?: "HashMap" | "BTreeMap"
+  visibility?: "pub" | "pub_crate" | "private"
+}
+
+TypeAliasSettings {
+  type_override?: string
+  export_name?: string
+  skip?: boolean
+}
+
+ModelSettings {
+  struct_name?: string
+  derive_macros?: string
+  skip?: boolean
+  visibility?: "pub" | "pub_crate" | "private"
+  file_name?: string
+}
+
+FieldSettings {
+  type_override?: string
+  field_name?: string
+  skip?: boolean
+  serde_rename?: string
+  visibility?: "pub" | "pub_crate" | "private"
+}
