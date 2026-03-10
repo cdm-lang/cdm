@@ -283,7 +283,7 @@ dependencies = [
 
 [[package]]
 name = "cdm"
-version = "0.1.71"
+version = "0.1.72"
 dependencies = [
  "anyhow",
  "cc",
