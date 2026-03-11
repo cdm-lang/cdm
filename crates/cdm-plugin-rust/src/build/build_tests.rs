@@ -835,6 +835,14 @@ fn test_allow_unused_imports_per_model() {
         .content
         .contains("#[allow(unused_imports)]\nuse serde::{Serialize, Deserialize};"));
 
+    // Check mod.rs has allow attribute on pub use re-exports
+    assert!(mod_file
+        .content
+        .contains("#[allow(unused_imports)]\npub use types::*;"));
+    assert!(mod_file
+        .content
+        .contains("#[allow(unused_imports)]\npub use user::*;"));
+
     // Check model files have allow attribute on use super::*
     let user_file = output.iter().find(|f| f.path == "user.rs").unwrap();
     assert!(user_file
