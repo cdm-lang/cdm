@@ -40,6 +40,7 @@ fn test_default_config() {
     assert_eq!(config.number_type, "f64");
     assert_eq!(config.map_type, "HashMap");
     assert_eq!(config.visibility, "pub");
+    assert!(!config.allow_unused_imports);
 }
 
 #[test]
@@ -53,7 +54,8 @@ fn test_custom_config() {
         "field_name_format": "preserve",
         "number_type": "i64",
         "map_type": "BTreeMap",
-        "visibility": "pub_crate"
+        "visibility": "pub_crate",
+        "allow_unused_imports": true
     }));
 
     assert_eq!(config.file_strategy, "per_model");
@@ -65,6 +67,7 @@ fn test_custom_config() {
     assert_eq!(config.number_type, "i64");
     assert_eq!(config.map_type, "BTreeMap");
     assert_eq!(config.visibility, "pub_crate");
+    assert!(config.allow_unused_imports);
 }
 
 #[test]
@@ -789,4 +792,52 @@ fn test_field_visibility_override() {
     assert!(content.contains("    pub id: String,"));
     // "secret" should not have "pub" prefix
     assert!(content.contains("    secret: String,"));
+}
+
+#[test]
+fn test_allow_unused_imports_single_file() {
+    let schema = create_test_schema();
+    let config = json!({ "allow_unused_imports": true });
+    let utils = Utils;
+
+    let output = build(schema, config, &utils);
+    let content = &output[0].content;
+
+    assert!(content.contains("#[allow(unused_imports)]\nuse serde::{Serialize, Deserialize};"));
+}
+
+#[test]
+fn test_allow_unused_imports_default_off() {
+    let schema = create_test_schema();
+    let config = json!({});
+    let utils = Utils;
+
+    let output = build(schema, config, &utils);
+    let content = &output[0].content;
+
+    assert!(!content.contains("#[allow(unused_imports)]"));
+}
+
+#[test]
+fn test_allow_unused_imports_per_model() {
+    let schema = create_test_schema();
+    let config = json!({
+        "file_strategy": "per_model",
+        "allow_unused_imports": true
+    });
+    let utils = Utils;
+
+    let output = build(schema, config, &utils);
+
+    // Check mod.rs has allow attribute on use statements
+    let mod_file = output.iter().find(|f| f.path == "mod.rs").unwrap();
+    assert!(mod_file
+        .content
+        .contains("#[allow(unused_imports)]\nuse serde::{Serialize, Deserialize};"));
+
+    // Check model files have allow attribute on use super::*
+    let user_file = output.iter().find(|f| f.path == "user.rs").unwrap();
+    assert!(user_file
+        .content
+        .contains("#[allow(unused_imports)]\nuse super::*;"));
 }

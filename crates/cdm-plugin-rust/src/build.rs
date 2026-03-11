@@ -18,6 +18,7 @@ struct Config {
     number_type: String,
     map_type: String,
     visibility: String,
+    allow_unused_imports: bool,
 }
 
 impl Config {
@@ -74,6 +75,10 @@ impl Config {
                 .and_then(|v| v.as_str())
                 .unwrap_or("pub")
                 .to_string(),
+            allow_unused_imports: json
+                .get("allow_unused_imports")
+                .and_then(|v| v.as_bool())
+                .unwrap_or(false),
         }
     }
 
@@ -215,6 +220,9 @@ fn build_per_model_files(schema: Schema, cfg: Config, utils: &Utils) -> Vec<Outp
         module_names.push(module_name);
 
         let mut model_content = String::new();
+        if cfg.allow_unused_imports {
+            model_content.push_str("#[allow(unused_imports)]\n");
+        }
         model_content.push_str("use super::*;\n\n");
 
         // Generate inline enums
@@ -274,10 +282,18 @@ fn generate_use_statements(schema: &Schema, cfg: &Config) -> String {
         check_type_needs(&alias.alias_type, &mut needs_map, &mut needs_json);
     }
 
+    let allow_attr = if cfg.allow_unused_imports {
+        "#[allow(unused_imports)]\n"
+    } else {
+        ""
+    };
+
     if needs_serde {
+        result.push_str(allow_attr);
         result.push_str("use serde::{Serialize, Deserialize};\n");
     }
     if needs_map {
+        result.push_str(allow_attr);
         result.push_str(&format!("use std::collections::{};\n", cfg.map_type));
     }
     if needs_json {
@@ -311,10 +327,18 @@ fn generate_use_statements_for_types(schema: &Schema, cfg: &Config) -> String {
         check_type_needs(&alias.alias_type, &mut needs_map, &mut _needs_json);
     }
 
+    let allow_attr = if cfg.allow_unused_imports {
+        "#[allow(unused_imports)]\n"
+    } else {
+        ""
+    };
+
     if needs_serde {
+        result.push_str(allow_attr);
         result.push_str("use serde::{Serialize, Deserialize};\n");
     }
     if needs_map {
+        result.push_str(allow_attr);
         result.push_str(&format!("use std::collections::{};\n", cfg.map_type));
     }
 

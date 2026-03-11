@@ -125,6 +125,13 @@ Formatting to apply to type and struct names.
 
 Formatting to apply to field names. Defaults to `"snake"` for idiomatic Rust.
 
+#### `allow_unused_imports`
+
+**Type:** `boolean`
+**Default:** `false`
+
+When `true`, adds `#[allow(unused_imports)]` above generated `use` statements. This is useful when using `file_strategy: "per_model"` where individual model files use `use super::*;` and may not reference all imported types, which would otherwise trigger Rust compiler warnings.
+
 ### Type Alias Settings
 
 Configure individual type aliases:
