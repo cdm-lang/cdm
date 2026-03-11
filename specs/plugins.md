@@ -34,8 +34,8 @@ CDM extracts and processes these keys internally before passing configuration to
 
 | Key                 | Purpose                                  | Used By          |
 | ------------------- | ---------------------------------------- | ---------------- |
-| `build_output`      | Output directory for generated files     | `cdm build`      |
-| `migrations_output` | Output directory for migration files     | `cdm migrate`    |
+| `build_output`      | Output directory (or directories) for generated files | `cdm build`      |
+| `migrations_output` | Output directory (or directories) for migration files | `cdm migrate`    |
 | `version`           | Version constraint for plugin resolution | Plugin resolver  |
 | `git_ref`           | Git reference (tag/branch/commit) for git plugins | Plugin resolver |
 | `git_path`          | Subdirectory path within git repository  | Plugin resolver  |

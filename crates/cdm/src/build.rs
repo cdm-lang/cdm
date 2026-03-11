@@ -1,8 +1,9 @@
 use crate::{FileResolver, PluginRunner, build_cdm_schema_for_plugin};
 use crate::plugin_validation::{extract_merged_plugin_imports, PluginImport};
+use crate::config_utils::extract_output_paths;
 use anyhow::{Result, Context};
 use cdm_plugin_interface::OutputFile;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 use std::fs;
 
 /// Build output files from a CDM schema using configured plugins
@@ -83,13 +84,11 @@ pub fn build(path: &Path) -> Result<()> {
             .unwrap_or(serde_json::json!({}));
 
         // Extract build_output from config - skip plugin if not specified
-        let build_output = match global_config.get("build_output").and_then(|v| v.as_str()) {
-            Some(s) if !s.is_empty() => PathBuf::from(s),
-            _ => {
-                println!("  Skipped: Plugin '{}' has no 'build_output' configured", plugin_import.name);
-                continue;
-            }
-        };
+        let build_outputs = extract_output_paths(&global_config, "build_output");
+        if build_outputs.is_empty() {
+            println!("  Skipped: Plugin '{}' has no 'build_output' configured", plugin_import.name);
+            continue;
+        }
 
         // Build schema with this plugin's configs extracted
         let plugin_schema = build_cdm_schema_for_plugin(
@@ -100,19 +99,24 @@ pub fn build(path: &Path) -> Result<()> {
 
         // Call the plugin's build function
         match runner.build(plugin_schema, global_config) {
-            Ok(mut output_files) => {
+            Ok(output_files) => {
                 println!("  Generated {} file(s)", output_files.len());
 
-                // Prepend build_output to all output file paths
-                for file in &mut output_files {
-                    let file_path = Path::new(&file.path);
-                    // Only prepend if the path is relative
-                    if file_path.is_relative() {
-                        file.path = build_output.join(file_path).to_string_lossy().to_string();
+                // Prepend each build_output path, duplicating files across all output directories
+                for build_output in &build_outputs {
+                    for file in &output_files {
+                        let file_path = Path::new(&file.path);
+                        let resolved_path = if file_path.is_relative() {
+                            build_output.join(file_path).to_string_lossy().to_string()
+                        } else {
+                            file.path.clone()
+                        };
+                        all_output_files.push(OutputFile {
+                            path: resolved_path,
+                            content: file.content.clone(),
+                        });
                     }
                 }
-
-                all_output_files.extend(output_files);
             }
             Err(e) => {
                 eprintln!("  Warning: Plugin '{}' build failed: {}", plugin_import.name, e);

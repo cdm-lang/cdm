@@ -9,6 +9,7 @@ mod plugin_validation;
 mod plugin_resolver;
 mod template_resolver;
 mod template_validation;
+mod config_utils;
 mod build;
 mod migrate;
 mod plugin_new;

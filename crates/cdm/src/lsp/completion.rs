@@ -767,10 +767,10 @@ fn reserved_global_settings_completions(
         items.push(CompletionItem {
             label: "build_output".to_string(),
             kind: Some(CompletionItemKind::PROPERTY),
-            detail: Some("build_output?: string".to_string()),
+            detail: Some("build_output?: string | string[]".to_string()),
             documentation: Some(Documentation::MarkupContent(MarkupContent {
                 kind: MarkupKind::Markdown,
-                value: "**Type:** `string`\n\n*Optional*\n\nOutput directory for generated files from `cdm build`".to_string(),
+                value: "**Type:** `string | string[]`\n\n*Optional*\n\nOutput directory (or directories) for generated files from `cdm build`. When an array is provided, files are written to all specified locations.".to_string(),
             })),
             insert_text: Some("build_output: \"$1\"".to_string()),
             insert_text_format: Some(InsertTextFormat::SNIPPET),
@@ -783,10 +783,10 @@ fn reserved_global_settings_completions(
         items.push(CompletionItem {
             label: "migrations_output".to_string(),
             kind: Some(CompletionItemKind::PROPERTY),
-            detail: Some("migrations_output?: string".to_string()),
+            detail: Some("migrations_output?: string | string[]".to_string()),
             documentation: Some(Documentation::MarkupContent(MarkupContent {
                 kind: MarkupKind::Markdown,
-                value: "**Type:** `string`\n\n*Optional*\n\nOutput directory for migration files from `cdm migrate`".to_string(),
+                value: "**Type:** `string | string[]`\n\n*Optional*\n\nOutput directory (or directories) for migration files from `cdm migrate`. When an array is provided, files are written to all specified locations.".to_string(),
             })),
             insert_text: Some("migrations_output: \"$1\"".to_string()),
             insert_text_format: Some(InsertTextFormat::SNIPPET),
