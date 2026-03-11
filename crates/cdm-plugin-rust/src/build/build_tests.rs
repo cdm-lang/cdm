@@ -1,4 +1,5 @@
 use super::*;
+use crate::validate::escape_rust_keyword;
 use cdm_plugin_interface::{
     EntityId, FieldDefinition, ModelDefinition, Schema, TypeAliasDefinition, TypeExpression,
 };
@@ -848,4 +849,100 @@ fn test_allow_unused_imports_per_model() {
     assert!(user_file
         .content
         .contains("#[allow(unused_imports)]\nuse super::*;"));
+}
+
+#[test]
+fn test_escape_rust_keyword_field_name() {
+    let mut schema = Schema {
+        models: HashMap::new(),
+        type_aliases: HashMap::new(),
+    };
+    schema.models.insert(
+        "Task".to_string(),
+        ModelDefinition {
+            name: "Task".to_string(),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(1),
+                },
+                FieldDefinition {
+                    name: "type".to_string(),
+                    field_type: TypeExpression::Identifier {
+                        name: "string".to_string(),
+                    },
+                    optional: false,
+                    default: None,
+                    config: json!({}),
+                    entity_id: local_id(2),
+                },
+            ],
+            config: json!({}),
+            entity_id: local_id(10),
+        },
+    );
+
+    let config = json!({ "field_name_format": "preserve" });
+    let utils = Utils;
+
+    let output = build(schema, config, &utils);
+    let content = &output[0].content;
+
+    // "type" is a Rust keyword and should be escaped with r#
+    assert!(content.contains("    pub r#type: String,"));
+    // Should add serde rename since the Rust field name differs
+    assert!(content.contains("#[serde(rename = \"type\")]"));
+    // Non-keyword field should not be escaped
+    assert!(content.contains("    pub id: String,"));
+}
+
+#[test]
+fn test_escape_rust_keyword_function() {
+    assert_eq!(escape_rust_keyword("type"), "r#type");
+    assert_eq!(escape_rust_keyword("self"), "r#self");
+    assert_eq!(escape_rust_keyword("fn"), "r#fn");
+    assert_eq!(escape_rust_keyword("name"), "name");
+    assert_eq!(escape_rust_keyword("id"), "id");
+}
+
+#[test]
+fn test_escape_rust_keyword_optional_field() {
+    let mut schema = Schema {
+        models: HashMap::new(),
+        type_aliases: HashMap::new(),
+    };
+    schema.models.insert(
+        "Task".to_string(),
+        ModelDefinition {
+            name: "Task".to_string(),
+            parents: vec![],
+            fields: vec![FieldDefinition {
+                name: "type".to_string(),
+                field_type: TypeExpression::Identifier {
+                    name: "string".to_string(),
+                },
+                optional: true,
+                default: None,
+                config: json!({}),
+                entity_id: local_id(1),
+            }],
+            config: json!({}),
+            entity_id: local_id(10),
+        },
+    );
+
+    let config = json!({ "field_name_format": "preserve" });
+    let utils = Utils;
+
+    let output = build(schema, config, &utils);
+    let content = &output[0].content;
+
+    assert!(content.contains("    pub r#type: Option<String>,"));
 }

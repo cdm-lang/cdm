@@ -277,6 +277,22 @@ fn validate_field_config(
     }
 }
 
+pub const RUST_KEYWORDS: &[&str] = &[
+    "as", "break", "const", "continue", "crate", "else", "enum", "extern", "false", "fn",
+    "for", "if", "impl", "in", "let", "loop", "match", "mod", "move", "mut", "pub", "ref",
+    "return", "self", "Self", "static", "struct", "super", "trait", "true", "type", "unsafe",
+    "use", "where", "while", "async", "await", "dyn", "abstract", "become", "box", "do",
+    "final", "macro", "override", "priv", "typeof", "unsized", "virtual", "yield", "try",
+];
+
+pub fn escape_rust_keyword(name: &str) -> String {
+    if RUST_KEYWORDS.contains(&name) {
+        format!("r#{}", name)
+    } else {
+        name.to_string()
+    }
+}
+
 fn is_valid_rust_identifier(s: &str) -> bool {
     if s.is_empty() {
         return false;
@@ -297,16 +313,7 @@ fn is_valid_rust_identifier(s: &str) -> bool {
         }
     }
 
-    // Check against Rust reserved keywords
-    let reserved = [
-        "as", "break", "const", "continue", "crate", "else", "enum", "extern", "false", "fn",
-        "for", "if", "impl", "in", "let", "loop", "match", "mod", "move", "mut", "pub", "ref",
-        "return", "self", "Self", "static", "struct", "super", "trait", "true", "type", "unsafe",
-        "use", "where", "while", "async", "await", "dyn", "abstract", "become", "box", "do",
-        "final", "macro", "override", "priv", "typeof", "unsized", "virtual", "yield", "try",
-    ];
-
-    !reserved.contains(&s)
+    !RUST_KEYWORDS.contains(&s)
 }
 
 

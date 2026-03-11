@@ -6,6 +6,7 @@ use crate::type_mapper::{
     is_string_literal_union, is_type_reference_union, is_union_type, map_type_to_rust,
     TypeMapperConfig,
 };
+use crate::validate::escape_rust_keyword;
 
 #[derive(Debug, Clone)]
 struct Config {
@@ -426,7 +427,7 @@ fn generate_string_literal_enum(
     if let TypeExpression::Union { types } = type_expr {
         for t in types {
             if let TypeExpression::StringLiteral { value } = t {
-                let variant_name = format_name(value, "pascal", utils);
+                let variant_name = escape_rust_keyword(&format_name(value, "pascal", utils));
                 if cfg.serde_support {
                     result.push_str(&format!(
                         "    #[serde(rename = \"{}\")]\n",
@@ -463,7 +464,8 @@ fn generate_type_reference_enum(
     if let TypeExpression::Union { types } = type_expr {
         for t in types {
             if let TypeExpression::Identifier { name: type_name } = t {
-                result.push_str(&format!("    {}({}),\n", type_name, type_name));
+                let escaped_variant = escape_rust_keyword(type_name);
+                result.push_str(&format!("    {}({}),\n", escaped_variant, type_name));
             }
         }
     }
@@ -509,11 +511,12 @@ fn generate_struct(
         }
 
         let field_name = get_field_name(field_config, &field.name, &cfg.field_name_format, utils);
+        let escaped_field_name = escape_rust_keyword(&field_name);
         let field_vis = get_field_visibility(field_config, &model_visibility);
         let field_vis_prefix = visibility_prefix(&field_vis);
 
         // Serde rename if field name differs from original CDM name
-        if cfg.serde_support && field_name != field.name {
+        if cfg.serde_support && escaped_field_name != field.name {
             result.push_str(&format!("    #[serde(rename = \"{}\")]\n", field.name));
         }
 
@@ -521,7 +524,7 @@ fn generate_struct(
         if cfg.serde_support {
             if let Some(serde_rename) = field_config.get("serde_rename").and_then(|v| v.as_str()) {
                 // If we already added a rename from field_name diff, replace it
-                if field_name != field.name {
+                if escaped_field_name != field.name {
                     // Remove the last line (the auto-generated rename)
                     if let Some(pos) = result.rfind("    #[serde(rename = ") {
                         result.truncate(pos);
@@ -543,7 +546,7 @@ fn generate_struct(
 
         result.push_str(&format!(
             "    {}{}: {},\n",
-            field_vis_prefix, field_name, final_type
+            field_vis_prefix, escaped_field_name, final_type
         ));
     }
 
