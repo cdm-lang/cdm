@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-03-11T03:13:38Z",
+  "updated_at": "2026-03-11T03:29:27Z",
   "plugins": {
     "sql": {
       "description": "Generate SQL DDL schemas and migrations for PostgreSQL and SQLite",
@@ -301,9 +301,13 @@
         "0.1.1": {
           "wasm_url": "https://github.com/cdm-lang/cdm/releases/download/cdm-plugin-rust-v0.1.1/cdm_plugin_rust.wasm",
           "checksum": "sha256:660ef8e08a0968a1a8eb252c1ae74c7f127d2cfab625779a0041ce3fcb5e944d"
+        },
+        "0.1.2": {
+          "wasm_url": "https://github.com/cdm-lang/cdm/releases/download/cdm-plugin-rust-v0.1.2/cdm_plugin_rust.wasm",
+          "checksum": "sha256:5e47a7c9e65536e0f8a99d5b0414febbe7796affbce69cfbec6d27221a93ebc1"
         }
       },
-      "latest": "0.1.1",
+      "latest": "0.1.2",
       "docs": "https://github.com/cdm-lang/cdm/blob/main/crates/cdm-plugin-rust/README.md"
     }
   }
