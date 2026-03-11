@@ -52,8 +52,18 @@ Plugins may support one or more of the following capabilities:
 
 CDM uses these settings to determine output locations:
 
-* `build_output` — specifies where build output files are written
-* `migrations_output` — specifies where migration files are written
+* `build_output` — specifies where build output files are written (string or array of strings)
+* `migrations_output` — specifies where migration files are written (string or array of strings)
+
+Both settings accept a single path or an array of paths. When an array is provided, output files are written to all specified locations:
+
+```cdm
+@sql {
+    dialect: "postgresql",
+    build_output: ["./generated/sql", "./packages/shared/sql"],
+    migrations_output: "./db/migrations"
+}
+```
 
 These settings are **optional**. If omitted, the plugin will be skipped during the corresponding phase:
 

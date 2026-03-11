@@ -1095,13 +1095,14 @@ CDM extracts these keys before passing config to plugins:
 | `version`           | `string` | Registry plugins | No                             | Semver version constraint (see Appendix C.2 for syntax)      |
 | `git_ref`           | `string` | Git plugins      | No (defaults to `"main"`)      | Git reference: tag, branch name, or commit SHA               |
 | `git_path`          | `string` | Git plugins      | No                             | Subdirectory path containing `cdm-plugin.json` manifest      |
-| `build_output`      | `string` | All plugins      | No                             | Output directory for generated files (if omitted, plugin is skipped during build) |
-| `migrations_output` | `string` | All plugins      | No                             | Output directory for migration files (if omitted, plugin is skipped during migrate) |
+| `build_output`      | `string \| string[]` | All plugins      | No                             | Output directory (or directories) for generated files (if omitted, plugin is skipped during build) |
+| `migrations_output` | `string \| string[]` | All plugins      | No                             | Output directory (or directories) for migration files (if omitted, plugin is skipped during migrate) |
 
 **Behavior:**
 
 - If a plugin exports a `build()` function but `build_output` is not configured, the plugin is skipped during `cdm build`
 - If a plugin exports a `migrate()` function but `migrations_output` is not configured, the plugin is skipped during `cdm migrate`
+- When an array of paths is provided, output files are written to all specified locations
 - This allows importing plugins purely for configuration inheritance without generating output (e.g., a base schema defining model configs that child schemas inherit)
 
 ### 8.5 Configuration Levels

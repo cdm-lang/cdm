@@ -1,5 +1,6 @@
 use crate::{FileResolver, PluginRunner, build_cdm_schema_for_plugin};
 use crate::plugin_validation::{extract_merged_plugin_imports, PluginImport};
+use crate::config_utils::extract_output_paths;
 use anyhow::{Result, Context};
 use cdm_plugin_interface::{OutputFile, Schema, Delta};
 use std::path::{Path, PathBuf};
@@ -160,10 +161,7 @@ pub fn migrate(
             }
 
             // Skip plugin if no migrations_output configured and no CLI override
-            let has_migrations_output = global_config.get("migrations_output")
-                .and_then(|v| v.as_str())
-                .map(|s| !s.is_empty())
-                .unwrap_or(false);
+            let has_migrations_output = !extract_output_paths(&global_config, "migrations_output").is_empty();
 
             if output_dir.is_none() && !has_migrations_output {
                 println!("  Skipped: Plugin '{}' has no 'migrations_output' configured", plugin_import.name);
@@ -185,13 +183,15 @@ pub fn migrate(
                     any_success = true;
 
                     if !dry_run {
-                        let output_base = resolve_migration_output_dir(
+                        let output_dirs = resolve_migration_output_dirs(
                             &output_dir,
                             &global_config,
                             &plugin_import.name,
                             source_dir
                         );
-                        write_migration_files(&migration_files, &output_base)?;
+                        for output_base in &output_dirs {
+                            write_migration_files(&migration_files, output_base)?;
+                        }
                     } else {
                         for file in &migration_files {
                             println!("    Would write: {}", file.path);
@@ -793,35 +793,36 @@ fn write_migration_files(files: &[OutputFile], base_dir: &Path) -> Result<()> {
     Ok(())
 }
 
-/// Resolve migration output directory based on CLI flag, plugin config, or default
-fn resolve_migration_output_dir(
+/// Resolve migration output directories based on CLI flag, plugin config, or default
+fn resolve_migration_output_dirs(
     cli_override: &Option<PathBuf>,
     plugin_config: &serde_json::Value,
     plugin_name: &str,
     source_dir: &Path,
-) -> PathBuf {
-    // Priority 1: CLI flag
+) -> Vec<PathBuf> {
+    // Priority 1: CLI flag (single path)
     if let Some(path) = cli_override {
-        return if path.is_absolute() {
+        return vec![if path.is_absolute() {
             path.clone()
         } else {
             source_dir.join(path)
-        };
+        }];
     }
 
-    // Priority 2: Plugin config migrations_output field
-    if let Some(dir) = plugin_config.get("migrations_output")
-        .and_then(|v| v.as_str()) {
-        let dir_path = PathBuf::from(dir);
-        return if dir_path.is_absolute() {
-            dir_path
-        } else {
-            source_dir.join(dir_path)
-        };
+    // Priority 2: Plugin config migrations_output field (string or array)
+    let paths = extract_output_paths(plugin_config, "migrations_output");
+    if !paths.is_empty() {
+        return paths.iter().map(|p| {
+            if p.is_absolute() {
+                p.clone()
+            } else {
+                source_dir.join(p)
+            }
+        }).collect();
     }
 
     // Priority 3: Default (relative to source directory)
-    source_dir.join("migrations").join(plugin_name)
+    vec![source_dir.join("migrations").join(plugin_name)]
 }
 
 /// Load a plugin from its import specification
