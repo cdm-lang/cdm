@@ -251,6 +251,9 @@ fn build_per_model_files(schema: Schema, cfg: Config, utils: &Utils) -> Vec<Outp
         mod_content.push('\n');
     }
     for module_name in &module_names {
+        if cfg.allow_unused_imports {
+            mod_content.push_str("#[allow(unused_imports)]\n");
+        }
         mod_content.push_str(&format!("pub use {}::*;\n", module_name));
     }
 
