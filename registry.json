@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "updated_at": "2026-03-11T18:25:11Z",
+  "updated_at": "2026-03-16T03:14:18Z",
   "plugins": {
     "sql": {
       "description": "Generate SQL DDL schemas and migrations for PostgreSQL and SQLite",
@@ -90,9 +90,13 @@
         "0.1.23": {
           "wasm_url": "https://github.com/cdm-lang/cdm/releases/download/cdm-plugin-sql-v0.1.23/cdm_plugin_sql.wasm",
           "checksum": "sha256:210e4a15d68246c894e7629b23882cb12766500690305981f9ba40e693175f12"
+        },
+        "0.1.25": {
+          "wasm_url": "https://github.com/cdm-lang/cdm/releases/download/cdm-plugin-sql-v0.1.25/cdm_plugin_sql.wasm",
+          "checksum": "sha256:6a69920f07db94b8a7abf09d6561213b445f722efdb6577f5c80567c5d7a44a4"
         }
       },
-      "latest": "0.1.23",
+      "latest": "0.1.25",
       "docs": "https://github.com/cdm-lang/cdm/blob/main/crates/cdm-plugin-sql/README.md"
     },
     "typescript": {
