@@ -187,9 +187,9 @@ pub(crate) fn generate_column_definition(
     def.push_str(&quote_identifier(column_name, type_mapper.dialect()));
     def.push(' ');
 
-    // Get SQL type (check for override first)
+    // Get SQL type (check for override first, with dialect translation)
     let sql_type = if let Some(type_override) = field.config.get("type").and_then(|v| v.as_str()) {
-        type_override.to_string()
+        type_mapper.translate_type_for_dialect(type_override)
     } else {
         type_mapper.map_type(&field.field_type, field.optional)
     };
@@ -205,8 +205,10 @@ pub(crate) fn generate_column_definition(
     // 2. Type alias default (SQL expression)
     // 3. CDM field default (formatted value) - lowest priority
     if let Some(field_config_default) = field.config.get("default").and_then(|v| v.as_str()) {
-        // Field-level config default (SQL expression)
-        def.push_str(&format!(" DEFAULT {}", field_config_default));
+        // Field-level config default (SQL expression), translated for dialect
+        if let Some(translated) = type_mapper.translate_default_for_dialect(field_config_default) {
+            def.push_str(&format!(" DEFAULT {}", translated));
+        }
     } else if let Some(type_alias_default) = type_mapper.get_type_alias_default(&field.field_type) {
         // Type alias default (SQL expression)
         def.push_str(&format!(" DEFAULT {}", type_alias_default));

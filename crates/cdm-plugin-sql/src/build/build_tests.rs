@@ -967,3 +967,138 @@ fn test_trailing_comma_with_primary_key_index() {
         sql
     );
 }
+
+#[test]
+fn test_build_sqlite_translates_pg_types_and_defaults() {
+    // When dialect is SQLite, PostgreSQL-specific type overrides and defaults
+    // from type aliases should be translated to SQLite-compatible equivalents.
+    // Bug: UUID, TIMESTAMPTZ, VARCHAR mapped as-is and NOW() used instead of CURRENT_TIMESTAMP.
+    use cdm_plugin_interface::TypeAliasDefinition;
+
+    let mut type_aliases = HashMap::new();
+    type_aliases.insert(
+        "sql.UUID".to_string(),
+        TypeAliasDefinition {
+            name: "UUID".to_string(),
+            alias_type: TypeExpression::Identifier { name: "string".to_string() },
+            config: json!({ "type": "UUID", "default": "gen_random_uuid()" }),
+            entity_id: None,
+        },
+    );
+    type_aliases.insert(
+        "sql.TimestampTZ".to_string(),
+        TypeAliasDefinition {
+            name: "TimestampTZ".to_string(),
+            alias_type: TypeExpression::Identifier { name: "string".to_string() },
+            config: json!({ "type": "TIMESTAMPTZ", "default": "NOW()" }),
+            entity_id: None,
+        },
+    );
+
+    let mut models = HashMap::new();
+    models.insert(
+        "User".to_string(),
+        ModelDefinition {
+            name: String::new(),
+            parents: vec![],
+            fields: vec![
+                FieldDefinition {
+                    name: "id".to_string(),
+                    field_type: TypeExpression::Identifier { name: "sql.UUID".to_string() },
+                    optional: false,
+                    default: None,
+                    entity_id: None,
+                    config: json!({}),
+                },
+                FieldDefinition {
+                    name: "created_at".to_string(),
+                    field_type: TypeExpression::Identifier { name: "sql.TimestampTZ".to_string() },
+                    optional: false,
+                    default: None,
+                    entity_id: None,
+                    config: json!({}),
+                },
+            ],
+            entity_id: None,
+            config: json!({}),
+        },
+    );
+
+    let schema = Schema { type_aliases, models };
+    let config = json!({
+        "dialect": "sqlite",
+        "pluralize_table_names": false
+    });
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+    let sql = &files[0].content;
+
+    // UUID should become TEXT for SQLite
+    assert!(
+        sql.contains("\"id\" TEXT NOT NULL"),
+        "Expected 'id' to be TEXT for SQLite, but got:\n{}",
+        sql
+    );
+
+    // TIMESTAMPTZ should become TEXT for SQLite
+    assert!(
+        sql.contains("\"created_at\" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP"),
+        "Expected 'created_at' to be TEXT with DEFAULT CURRENT_TIMESTAMP, but got:\n{}",
+        sql
+    );
+
+    // Should NOT contain PostgreSQL-specific types or functions
+    assert!(!sql.contains("UUID"), "Should not contain UUID type for SQLite. Got:\n{}", sql);
+    assert!(!sql.contains("TIMESTAMPTZ"), "Should not contain TIMESTAMPTZ for SQLite. Got:\n{}", sql);
+    assert!(!sql.contains("NOW()"), "Should not contain NOW() for SQLite. Got:\n{}", sql);
+    assert!(!sql.contains("gen_random_uuid()"), "Should not contain gen_random_uuid() for SQLite. Got:\n{}", sql);
+}
+
+#[test]
+fn test_build_sqlite_field_config_default_now_translated() {
+    // Field-level config default of NOW() should also be translated for SQLite
+    let mut models = HashMap::new();
+    models.insert(
+        "Event".to_string(),
+        ModelDefinition {
+            name: String::new(),
+            parents: vec![],
+            fields: vec![FieldDefinition {
+                name: "created_at".to_string(),
+                field_type: TypeExpression::Identifier { name: "string".to_string() },
+                optional: false,
+                default: None,
+                entity_id: None,
+                config: json!({
+                    "type": "TIMESTAMP",
+                    "default": "NOW()"
+                }),
+            }],
+            entity_id: None,
+            config: json!({}),
+        },
+    );
+
+    let schema = Schema {
+        type_aliases: HashMap::new(),
+        models,
+    };
+
+    let config = json!({
+        "dialect": "sqlite",
+        "pluralize_table_names": false
+    });
+    let utils = Utils;
+
+    let files = build(schema, config, &utils);
+    let sql = &files[0].content;
+
+    // TIMESTAMP -> TEXT, NOW() -> CURRENT_TIMESTAMP for SQLite
+    assert!(
+        sql.contains("\"created_at\" TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP"),
+        "Expected TEXT with CURRENT_TIMESTAMP for SQLite, but got:\n{}",
+        sql
+    );
+    assert!(!sql.contains("NOW()"), "Should not contain NOW() for SQLite. Got:\n{}", sql);
+}

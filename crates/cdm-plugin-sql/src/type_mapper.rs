@@ -92,7 +92,7 @@ impl<'a> TypeMapper<'a> {
                         if let Some(type_alias) = self.type_aliases.get(name) {
                             // First check if the type alias has an explicit SQL type override
                             if let Some(sql_type) = type_alias.config.get("type").and_then(|t| t.as_str()) {
-                                return sql_type.to_string();
+                                return self.translate_type_for_dialect(sql_type);
                             }
                             // Otherwise, recursively resolve the underlying type
                             self.map_base_type(&type_alias.alias_type)
@@ -154,8 +154,54 @@ impl<'a> TypeMapper<'a> {
         self.dialect
     }
 
+    /// Translate a SQL type override for the current dialect.
+    /// For PostgreSQL, types are returned as-is.
+    /// For SQLite, PostgreSQL-specific types are mapped to SQLite equivalents.
+    pub fn translate_type_for_dialect(&self, sql_type: &str) -> String {
+        match self.dialect {
+            Dialect::PostgreSQL => sql_type.to_string(),
+            Dialect::SQLite => {
+                let upper = sql_type.to_uppercase();
+                match upper.as_str() {
+                    "UUID" => "TEXT".to_string(),
+                    "TIMESTAMPTZ" | "TIMESTAMP" | "TIMESTAMP WITH TIME ZONE"
+                    | "TIMESTAMP WITHOUT TIME ZONE" => "TEXT".to_string(),
+                    "JSONB" | "JSON" => "TEXT".to_string(),
+                    "BOOLEAN" => "INTEGER".to_string(),
+                    _ if upper.starts_with("VARCHAR") => "TEXT".to_string(),
+                    _ if upper.starts_with("CHAR") => "TEXT".to_string(),
+                    _ => sql_type.to_string(),
+                }
+            }
+        }
+    }
+
+    /// Translate a SQL default expression for the current dialect.
+    /// For PostgreSQL, expressions are returned as-is.
+    /// For SQLite, PostgreSQL-specific expressions are mapped to SQLite equivalents,
+    /// or removed if no equivalent exists.
+    pub fn translate_default_for_dialect(&self, default_expr: &str) -> Option<String> {
+        match self.dialect {
+            Dialect::PostgreSQL => Some(default_expr.to_string()),
+            Dialect::SQLite => {
+                let upper = default_expr.to_uppercase();
+                if upper == "NOW()" || upper == "CURRENT_TIMESTAMP" {
+                    Some("CURRENT_TIMESTAMP".to_string())
+                } else if upper == "GEN_RANDOM_UUID()" || upper == "UUID_GENERATE_V4()" {
+                    // No SQLite equivalent for UUID generation
+                    None
+                } else if upper == "TRUE" || upper == "FALSE" {
+                    Some(default_expr.to_uppercase())
+                } else {
+                    Some(default_expr.to_string())
+                }
+            }
+        }
+    }
+
     /// Get the default value for a type alias, if any
-    /// Returns the SQL default expression string from the type alias config
+    /// Returns the SQL default expression string from the type alias config,
+    /// translated for the current dialect.
     pub fn get_type_alias_default(&self, type_expr: &TypeExpression) -> Option<String> {
         match type_expr {
             TypeExpression::Identifier { name } => {
@@ -165,7 +211,7 @@ impl<'a> TypeMapper<'a> {
                         .config
                         .get("default")
                         .and_then(|d| d.as_str())
-                        .map(String::from)
+                        .and_then(|d| self.translate_default_for_dialect(d))
                 }
                 else {
                     None

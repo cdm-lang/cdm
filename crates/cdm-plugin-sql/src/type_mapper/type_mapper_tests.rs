@@ -361,3 +361,157 @@ fn test_type_mapper_template_types_with_sql_config() {
     );
     assert_eq!(varchar_type, "VARCHAR");
 }
+
+#[test]
+fn test_type_mapper_sqlite_translates_pg_type_alias_overrides() {
+    // When dialect is SQLite, type alias overrides like UUID, TIMESTAMPTZ, VARCHAR, JSONB
+    // should be translated to SQLite-compatible types (TEXT)
+    let mut type_aliases = HashMap::new();
+
+    type_aliases.insert(
+        "UUID".to_string(),
+        TypeAliasDefinition {
+            name: "UUID".to_string(),
+            alias_type: TypeExpression::Identifier { name: "string".to_string() },
+            config: json!({ "type": "UUID" }),
+            entity_id: None,
+        },
+    );
+
+    type_aliases.insert(
+        "TimestampTZ".to_string(),
+        TypeAliasDefinition {
+            name: "TimestampTZ".to_string(),
+            alias_type: TypeExpression::Identifier { name: "string".to_string() },
+            config: json!({ "type": "TIMESTAMPTZ" }),
+            entity_id: None,
+        },
+    );
+
+    type_aliases.insert(
+        "Timestamp".to_string(),
+        TypeAliasDefinition {
+            name: "Timestamp".to_string(),
+            alias_type: TypeExpression::Identifier { name: "string".to_string() },
+            config: json!({ "type": "TIMESTAMP" }),
+            entity_id: None,
+        },
+    );
+
+    type_aliases.insert(
+        "Varchar".to_string(),
+        TypeAliasDefinition {
+            name: "Varchar".to_string(),
+            alias_type: TypeExpression::Identifier { name: "string".to_string() },
+            config: json!({ "type": "VARCHAR(255)" }),
+            entity_id: None,
+        },
+    );
+
+    type_aliases.insert(
+        "JsonB".to_string(),
+        TypeAliasDefinition {
+            name: "JsonB".to_string(),
+            alias_type: TypeExpression::Identifier { name: "string".to_string() },
+            config: json!({ "type": "JSONB" }),
+            entity_id: None,
+        },
+    );
+
+    let config = json!({ "dialect": "sqlite" });
+    let mapper = TypeMapper::new(&config, &type_aliases);
+
+    // UUID -> TEXT for SQLite
+    let uuid_type = mapper.map_type(
+        &TypeExpression::Identifier { name: "UUID".to_string() },
+        false,
+    );
+    assert_eq!(uuid_type, "TEXT");
+
+    // TIMESTAMPTZ -> TEXT for SQLite
+    let timestamptz_type = mapper.map_type(
+        &TypeExpression::Identifier { name: "TimestampTZ".to_string() },
+        false,
+    );
+    assert_eq!(timestamptz_type, "TEXT");
+
+    // TIMESTAMP -> TEXT for SQLite
+    let timestamp_type = mapper.map_type(
+        &TypeExpression::Identifier { name: "Timestamp".to_string() },
+        false,
+    );
+    assert_eq!(timestamp_type, "TEXT");
+
+    // VARCHAR(255) -> TEXT for SQLite
+    let varchar_type = mapper.map_type(
+        &TypeExpression::Identifier { name: "Varchar".to_string() },
+        false,
+    );
+    assert_eq!(varchar_type, "TEXT");
+
+    // JSONB -> TEXT for SQLite
+    let jsonb_type = mapper.map_type(
+        &TypeExpression::Identifier { name: "JsonB".to_string() },
+        false,
+    );
+    assert_eq!(jsonb_type, "TEXT");
+}
+
+#[test]
+fn test_type_mapper_sqlite_default_translation() {
+    // When dialect is SQLite, type alias defaults like NOW() and gen_random_uuid()
+    // should be translated to SQLite-compatible expressions
+    let mut type_aliases = HashMap::new();
+
+    type_aliases.insert(
+        "TimestampTZ".to_string(),
+        TypeAliasDefinition {
+            name: "TimestampTZ".to_string(),
+            alias_type: TypeExpression::Identifier { name: "string".to_string() },
+            config: json!({ "type": "TIMESTAMPTZ", "default": "NOW()" }),
+            entity_id: None,
+        },
+    );
+
+    type_aliases.insert(
+        "UUID".to_string(),
+        TypeAliasDefinition {
+            name: "UUID".to_string(),
+            alias_type: TypeExpression::Identifier { name: "string".to_string() },
+            config: json!({ "type": "UUID", "default": "gen_random_uuid()" }),
+            entity_id: None,
+        },
+    );
+
+    // CURRENT_TIMESTAMP should remain as-is (already SQLite-compatible)
+    type_aliases.insert(
+        "Timestamp".to_string(),
+        TypeAliasDefinition {
+            name: "Timestamp".to_string(),
+            alias_type: TypeExpression::Identifier { name: "string".to_string() },
+            config: json!({ "type": "TIMESTAMP", "default": "CURRENT_TIMESTAMP" }),
+            entity_id: None,
+        },
+    );
+
+    let config = json!({ "dialect": "sqlite" });
+    let mapper = TypeMapper::new(&config, &type_aliases);
+
+    // NOW() -> CURRENT_TIMESTAMP for SQLite
+    let default = mapper.get_type_alias_default(
+        &TypeExpression::Identifier { name: "TimestampTZ".to_string() },
+    );
+    assert_eq!(default, Some("CURRENT_TIMESTAMP".to_string()));
+
+    // gen_random_uuid() has no SQLite equivalent, should be removed
+    let default = mapper.get_type_alias_default(
+        &TypeExpression::Identifier { name: "UUID".to_string() },
+    );
+    assert_eq!(default, None);
+
+    // CURRENT_TIMESTAMP stays as-is
+    let default = mapper.get_type_alias_default(
+        &TypeExpression::Identifier { name: "Timestamp".to_string() },
+    );
+    assert_eq!(default, Some("CURRENT_TIMESTAMP".to_string()));
+}
