@@ -1,0 +1,100 @@
+{
+  "models": {
+    "Workflow": {
+      "name": "Workflow",
+      "parents": [],
+      "fields": [
+        {
+          "name": "id",
+          "field_type": {
+            "type": "identifier",
+            "name": "string"
+          },
+          "optional": false,
+          "default": null,
+          "config": {},
+          "entity_id": {
+            "type": "local",
+            "local_id": 1
+          }
+        },
+        {
+          "name": "current_version",
+          "field_type": {
+            "type": "identifier",
+            "name": "WorkflowVersion"
+          },
+          "optional": true,
+          "default": null,
+          "config": {},
+          "entity_id": {
+            "type": "local",
+            "local_id": 2
+          }
+        },
+        {
+          "name": "versions",
+          "field_type": {
+            "type": "array",
+            "element_type": {
+              "type": "identifier",
+              "name": "WorkflowVersion"
+            }
+          },
+          "optional": true,
+          "default": null,
+          "config": {},
+          "entity_id": {
+            "type": "local",
+            "local_id": 3
+          }
+        }
+      ],
+      "config": {},
+      "entity_id": {
+        "type": "local",
+        "local_id": 10
+      }
+    },
+    "WorkflowVersion": {
+      "name": "WorkflowVersion",
+      "parents": [],
+      "fields": [
+        {
+          "name": "id",
+          "field_type": {
+            "type": "identifier",
+            "name": "string"
+          },
+          "optional": false,
+          "default": null,
+          "config": {},
+          "entity_id": {
+            "type": "local",
+            "local_id": 1
+          }
+        },
+        {
+          "name": "workflow",
+          "field_type": {
+            "type": "identifier",
+            "name": "Workflow"
+          },
+          "optional": true,
+          "default": null,
+          "config": {},
+          "entity_id": {
+            "type": "local",
+            "local_id": 2
+          }
+        }
+      ],
+      "config": {},
+      "entity_id": {
+        "type": "local",
+        "local_id": 11
+      }
+    }
+  },
+  "type_aliases": {}
+}

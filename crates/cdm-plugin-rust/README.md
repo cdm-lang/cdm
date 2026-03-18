@@ -453,6 +453,41 @@ pub struct User {
 }
 ```
 
+### Recursive Types
+
+When models reference each other (or themselves) in a cycle, the plugin automatically wraps the recursive fields in `Box<T>` to avoid Rust's infinite size error. Fields inside `Vec<T>` or `Map<K, V>` are not boxed since those types already provide heap indirection.
+
+```cdm
+Workflow {
+  id: string
+  current_version?: WorkflowVersion
+  versions?: WorkflowVersion[]
+}
+
+WorkflowVersion {
+  id: string
+  workflow?: Workflow
+}
+```
+
+Generates:
+```rust
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct Workflow {
+    pub id: String,
+    pub current_version: Option<Box<WorkflowVersion>>,
+    pub versions: Option<Vec<WorkflowVersion>>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct WorkflowVersion {
+    pub id: String,
+    pub workflow: Option<Box<Workflow>>,
+}
+```
+
+Note that `versions` uses `Vec<WorkflowVersion>` without `Box` since `Vec` already heap-allocates its elements.
+
 ### Field-Level Customization
 
 ```cdm

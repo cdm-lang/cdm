@@ -1,6 +1,5 @@
 use cdm_plugin_interface::{CaseFormat, OutputFile, Schema, TypeExpression, Utils, JSON};
-#[cfg(test)]
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use crate::type_mapper::{
     is_string_literal_union, is_type_reference_union, is_union_type, map_type_to_rust,
@@ -103,6 +102,7 @@ pub fn build(schema: Schema, config: JSON, utils: &Utils) -> Vec<OutputFile> {
 
 fn build_single_file(schema: Schema, cfg: Config, utils: &Utils) -> Vec<OutputFile> {
     let mut content = String::new();
+    let boxed_fields = find_boxed_fields(&schema);
 
     // Generate use statements
     content.push_str(&generate_use_statements(&schema, &cfg));
@@ -146,7 +146,7 @@ fn build_single_file(schema: Schema, cfg: Config, utils: &Utils) -> Vec<OutputFi
             content.push('\n');
         }
 
-        content.push_str(&generate_struct(&formatted_name, model, &cfg, utils, &schema));
+        content.push_str(&generate_struct(&formatted_name, model, &cfg, utils, &schema, &boxed_fields));
         content.push('\n');
     }
 
@@ -164,6 +164,7 @@ fn build_single_file(schema: Schema, cfg: Config, utils: &Utils) -> Vec<OutputFi
 fn build_per_model_files(schema: Schema, cfg: Config, utils: &Utils) -> Vec<OutputFile> {
     let mut files: Vec<OutputFile> = Vec::new();
     let mut module_names: Vec<String> = Vec::new();
+    let boxed_fields = find_boxed_fields(&schema);
 
     // Generate type aliases in types.rs
     let mut types_content = String::new();
@@ -233,7 +234,7 @@ fn build_per_model_files(schema: Schema, cfg: Config, utils: &Utils) -> Vec<Outp
             model_content.push('\n');
         }
 
-        model_content.push_str(&generate_struct(&formatted_name, model, &cfg, utils, &schema));
+        model_content.push_str(&generate_struct(&formatted_name, model, &cfg, utils, &schema, &boxed_fields));
 
         files.push(OutputFile {
             path: file_name,
@@ -487,6 +488,7 @@ fn generate_struct(
     cfg: &Config,
     utils: &Utils,
     schema: &Schema,
+    boxed_fields: &HashSet<(String, String)>,
 ) -> String {
     let mut result = String::new();
     let model_config = &model.config;
@@ -536,6 +538,13 @@ fn generate_struct(
 
         // Determine the type string
         let type_str = get_field_type_str(field_config, &field.field_type, &tm_config, name, &field.name, schema, cfg, utils);
+
+        // Wrap in Box if this field is part of a recursive cycle
+        let type_str = if boxed_fields.contains(&(model.name.clone(), field.name.clone())) {
+            format!("Box<{}>", type_str)
+        } else {
+            type_str
+        };
 
         // Wrap in Option if optional
         let final_type = if field.optional {
@@ -767,6 +776,86 @@ fn get_file_name(
         .unwrap_or_else(|| {
             format!("{}.rs", utils.change_case(model_name, CaseFormat::Snake))
         })
+}
+
+/// Extracts direct model references from a field type.
+/// Only considers `Identifier` types that reference models in the schema.
+/// `Vec<T>` and `Map<K, V>` provide heap indirection and don't cause infinite size.
+fn extract_direct_model_refs<'a>(
+    field_type: &'a TypeExpression,
+    model_names: &HashSet<&str>,
+) -> Vec<&'a str> {
+    match field_type {
+        TypeExpression::Identifier { name } => {
+            if model_names.contains(name.as_str()) {
+                vec![name.as_str()]
+            } else {
+                vec![]
+            }
+        }
+        // Vec and Map provide heap indirection — no boxing needed
+        TypeExpression::Array { .. } | TypeExpression::Map { .. } => vec![],
+        // Unions are generated as enums — they don't embed models directly
+        TypeExpression::Union { .. } => vec![],
+        TypeExpression::StringLiteral { .. } | TypeExpression::NumberLiteral { .. } => vec![],
+    }
+}
+
+/// Finds all (model_name, field_name) pairs that need `Box<T>` wrapping
+/// to break recursive type cycles.
+///
+/// Builds a directed graph of direct model-to-model references (excluding Vec/Map
+/// which already provide heap indirection), detects cycles via DFS, and returns
+/// the set of fields that should be boxed.
+fn find_boxed_fields(schema: &Schema) -> HashSet<(String, String)> {
+    let model_names: HashSet<&str> = schema.models.keys().map(|k| k.as_str()).collect();
+
+    // Build adjacency list: model -> [(target_model, field_name)]
+    let mut edges: HashMap<&str, Vec<(&str, &str)>> = HashMap::new();
+    for (model_name, model) in &schema.models {
+        let mut model_edges = Vec::new();
+        for field in &model.fields {
+            let refs = extract_direct_model_refs(&field.field_type, &model_names);
+            for target in refs {
+                model_edges.push((target, field.name.as_str()));
+            }
+        }
+        edges.insert(model_name.as_str(), model_edges);
+    }
+
+    let mut boxed_fields: HashSet<(String, String)> = HashSet::new();
+
+    // For each model, do DFS to find if it can reach itself (cycle detection)
+    for start_model in model_names.iter() {
+        // DFS: stack of (current_model, path_of_edges)
+        // path_of_edges is Vec<(source_model, field_name, target_model)>
+        let mut stack: Vec<(&str, Vec<(&str, &str, &str)>)> = vec![(start_model, vec![])];
+        let mut visited_in_this_search: HashSet<&str> = HashSet::new();
+
+        while let Some((current, path)) = stack.pop() {
+            if current == *start_model && !path.is_empty() {
+                // Found a cycle — box the last edge in the path (the one pointing back)
+                if let Some(&(source, field, _target)) = path.last() {
+                    boxed_fields.insert((source.to_string(), field.to_string()));
+                }
+                continue;
+            }
+
+            if !path.is_empty() && !visited_in_this_search.insert(current) {
+                continue;
+            }
+
+            if let Some(neighbors) = edges.get(current) {
+                for &(target, field_name) in neighbors {
+                    let mut new_path = path.clone();
+                    new_path.push((current, field_name, target));
+                    stack.push((target, new_path));
+                }
+            }
+        }
+    }
+
+    boxed_fields
 }
 
 fn format_name(name: &str, format: &str, utils: &Utils) -> String {

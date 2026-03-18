@@ -1,0 +1,61 @@
+{
+  "models": {
+    "TreeNode": {
+      "name": "TreeNode",
+      "parents": [],
+      "fields": [
+        {
+          "name": "id",
+          "field_type": {
+            "type": "identifier",
+            "name": "string"
+          },
+          "optional": false,
+          "default": null,
+          "config": {},
+          "entity_id": {
+            "type": "local",
+            "local_id": 1
+          }
+        },
+        {
+          "name": "parent",
+          "field_type": {
+            "type": "identifier",
+            "name": "TreeNode"
+          },
+          "optional": true,
+          "default": null,
+          "config": {},
+          "entity_id": {
+            "type": "local",
+            "local_id": 2
+          }
+        },
+        {
+          "name": "children",
+          "field_type": {
+            "type": "array",
+            "element_type": {
+              "type": "identifier",
+              "name": "TreeNode"
+            }
+          },
+          "optional": false,
+          "default": null,
+          "config": {},
+          "entity_id": {
+            "type": "local",
+            "local_id": 3
+          }
+        }
+      ],
+      "config": {},
+      "entity_id": {
+        "type": "local",
+        "local_id": 10
+      }
+    }
+  },
+  "type_aliases": {}
+}

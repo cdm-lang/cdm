@@ -946,3 +946,102 @@ fn test_escape_rust_keyword_optional_field() {
 
     assert!(content.contains("    pub r#type: Option<String>,"));
 }
+
+#[test]
+fn test_recursive_types_use_box() {
+    let schema = load_test_schema("recursive_schema.json");
+    let config = json!({});
+    let utils = Utils;
+
+    let output = build(schema, config, &utils);
+    let content = &output[0].content;
+
+    // Workflow.current_version references WorkflowVersion which references back to Workflow
+    // At least one side of the cycle must use Box<T>
+    // The direct Identifier reference should be boxed, but Vec<T> should NOT be boxed
+    // (Vec already provides heap indirection)
+
+    // Check that current_version uses Box (it's a direct Identifier in a cycle)
+    assert!(
+        content.contains("pub current_version: Option<Box<WorkflowVersion>>,")
+            || content.contains("pub workflow: Option<Box<Workflow>>,"),
+        "At least one side of the recursive cycle should use Box<T>. Got:\n{}",
+        content
+    );
+
+    // Vec<WorkflowVersion> should NOT be boxed — Vec already provides indirection
+    assert!(
+        content.contains("pub versions: Option<Vec<WorkflowVersion>>,"),
+        "Vec fields should not be boxed. Got:\n{}",
+        content
+    );
+}
+
+#[test]
+fn test_self_referential_type_uses_box() {
+    let schema = load_test_schema("self_referential_schema.json");
+    let config = json!({});
+    let utils = Utils;
+
+    let output = build(schema, config, &utils);
+    let content = &output[0].content;
+
+    // TreeNode.parent references TreeNode directly — needs Box
+    assert!(
+        content.contains("pub parent: Option<Box<TreeNode>>,"),
+        "Self-referential direct field should use Box<T>. Got:\n{}",
+        content
+    );
+
+    // TreeNode.children is Vec<TreeNode> — does NOT need Box
+    assert!(
+        content.contains("pub children: Vec<TreeNode>,"),
+        "Vec fields should not be boxed even in self-referential types. Got:\n{}",
+        content
+    );
+}
+
+#[test]
+fn test_non_recursive_types_no_box() {
+    // The basic schema has Post.author: User but User doesn't reference Post back
+    let schema = create_test_schema();
+    let config = json!({});
+    let utils = Utils;
+
+    let output = build(schema, config, &utils);
+    let content = &output[0].content;
+
+    // Post.author should be User without Box since there's no cycle
+    assert!(
+        content.contains("pub author: User,"),
+        "Non-recursive model references should not use Box. Got:\n{}",
+        content
+    );
+}
+
+#[test]
+fn test_recursive_types_per_model_file_strategy() {
+    let schema = load_test_schema("recursive_schema.json");
+    let config = json!({ "file_strategy": "per_model" });
+    let utils = Utils;
+
+    let output = build(schema, config, &utils);
+
+    // Find workflow_version.rs
+    let wv_file = output
+        .iter()
+        .find(|f| f.path == "workflow_version.rs")
+        .expect("workflow_version.rs should exist");
+
+    // Check that Box is used for the recursive reference in per_model mode too
+    assert!(
+        wv_file.content.contains("Option<Box<Workflow>>")
+            || output
+                .iter()
+                .find(|f| f.path == "workflow.rs")
+                .unwrap()
+                .content
+                .contains("Option<Box<WorkflowVersion>>"),
+        "Per-model file strategy should also use Box for recursive types"
+    );
+}
